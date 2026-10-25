@@ -397,3 +397,138 @@ class TestReplyTo:
         _generated(org_a, "acme-k3x9q2", creates="leads")
 
         assert _reply_to_mailbox(self._case(org_a, admin_user)) is None
+
+
+BUCKET = "bottlecrm-inbound-test"
+
+
+class _Body:
+    def __init__(self, data):
+        self.data = data
+        self.reads = 0
+        self.closed = False
+
+    def read(self, limit=-1):
+        self.reads += 1
+        return self.data if limit < 0 else self.data[:limit]
+
+    def close(self):
+        self.closed = True
+
+
+class _FakeS3:
+    def __init__(self, data=b"", *, error=None, length=None):
+        self.body = _Body(data)
+        self.error = error
+        self.length = len(data) if length is None else length
+        self.calls = []
+
+    def get_object(self, Bucket, Key):
+        self.calls.append((Bucket, Key))
+        if self.error:
+            raise self.error
+        return {"Body": self.body, "ContentLength": self.length}
+
+
+def _ses_stored(recipients, *, bucket=BUCKET, key="in/m1"):
+    action = {"type": "S3", "topicArn": TOPIC, "bucketName": bucket, "objectKey": key}
+    return json.dumps(
+        {
+            "notificationType": "Received",
+            "receipt": {"recipients": recipients, "action": action},
+        }
+    )
+
+
+class TestStoredInS3:
+    """SES's S3 action stores emails over SNS's 150 KB and sends only where.
+    The catch-all reads them from the configured bucket and nowhere else."""
+
+    @pytest.fixture(autouse=True)
+    def bucket(self, settings):
+        settings.INBOUND_EMAIL_S3_BUCKET = BUCKET
+
+    def _send_stored(self, anon, key, s3, message):
+        regions = []
+
+        def client(region):
+            regions.append(region)
+            return s3
+
+        with patch("cases.inbound.stored._client", client):
+            return _send(anon, key, message), regions
+
+    def test_a_stored_email_is_read_and_delivered(self, anon, org_a, signing_key):
+        b = _generated(org_a, "acme-a1b2c3", creates="tickets")
+        s3 = _FakeS3(_raw(b.address).encode())
+
+        response, regions = self._send_stored(
+            anon, signing_key, s3, _ses_stored([b.address])
+        )
+
+        assert response.status_code == 200, response.content
+        assert response.json() == {"ok": True, "delivered": 1, "failed": 0}
+        assert s3.calls == [(BUCKET, "in/m1")]
+        assert regions == ["us-east-1"]
+        assert s3.body.closed
+        with rls_org(org_a):
+            assert Case.objects.filter(org=org_a).count() == 1
+
+    def test_another_bucket_is_never_read(self, anon, org_a, signing_key):
+        b = _generated(org_a, "acme-a1b2c3", creates="tickets")
+        s3 = _FakeS3(_raw(b.address).encode())
+
+        response, _ = self._send_stored(
+            anon, signing_key, s3, _ses_stored([b.address], bucket="someone-else")
+        )
+
+        assert response.status_code == 400
+        assert s3.calls == []
+        assert not Case.objects.filter(org=org_a).exists()
+
+    def test_nothing_is_read_without_the_setting(
+        self, anon, org_a, signing_key, settings
+    ):
+        settings.INBOUND_EMAIL_S3_BUCKET = ""
+        b = _generated(org_a, "acme-a1b2c3", creates="tickets")
+        s3 = _FakeS3(_raw(b.address).encode())
+
+        response, _ = self._send_stored(anon, signing_key, s3, _ses_stored([b.address]))
+
+        assert response.status_code == 400
+        assert s3.calls == []
+
+    def test_a_failed_read_answers_500_so_sns_retries(self, anon, org_a, signing_key):
+        from botocore.exceptions import ClientError
+
+        b = _generated(org_a, "acme-a1b2c3", creates="tickets")
+        s3 = _FakeS3(error=ClientError({"Error": {"Code": "SlowDown"}}, "GetObject"))
+
+        response, _ = self._send_stored(anon, signing_key, s3, _ses_stored([b.address]))
+
+        assert response.status_code == 500
+        assert not Case.objects.filter(org=org_a).exists()
+
+    def test_a_missing_email_is_dropped_not_retried(self, anon, org_a, signing_key):
+        from botocore.exceptions import ClientError
+
+        b = _generated(org_a, "acme-a1b2c3", creates="tickets")
+        s3 = _FakeS3(error=ClientError({"Error": {"Code": "NoSuchKey"}}, "GetObject"))
+
+        response, _ = self._send_stored(anon, signing_key, s3, _ses_stored([b.address]))
+
+        assert response.status_code == 400
+        assert not Case.objects.filter(org=org_a).exists()
+
+    def test_an_oversized_email_is_never_read(self, anon, org_a, signing_key):
+        from cases.inbound.stored import MAX_STORED_EMAIL
+
+        b = _generated(org_a, "acme-a1b2c3", creates="tickets")
+        s3 = _FakeS3(_raw(b.address).encode(), length=MAX_STORED_EMAIL + 1)
+
+        response, _ = self._send_stored(anon, signing_key, s3, _ses_stored([b.address]))
+
+        assert response.status_code == 400
+        assert s3.body.reads == 0
+        assert s3.body.closed
+        assert not Case.objects.filter(org=org_a).exists()
