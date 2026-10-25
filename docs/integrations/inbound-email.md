@@ -81,8 +81,9 @@ org's sender write to anyone. The agent's reply itself is emailed as usual, and 
 ticket is mailed like any other.
 
 `Reply-To` is the mailbox the case's latest inbound email arrived through, or else the org's
-mailbox when it has exactly one. Only a mailbox that can take mail counts: active, SES, with its
-topic pinned. With none, the email has no `Reply-To` and asks the customer to answer through the
+mailbox when it has exactly one. Only a ticket mailbox that can take mail counts: active, SES,
+and either with its topic pinned or [generated](#generated-addresses) while the server's catch-all
+is configured. With none, the email has no `Reply-To` and asks the customer to answer through the
 portal instead.
 
 ## Configuring a mailbox

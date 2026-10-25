@@ -361,3 +361,39 @@ def test_the_catch_all_reaches_two_orgs_under_enforced_rls(anon, signing_key):
             assert Lead.objects.get(org=org).external_source == f"email:{mailbox.id}"
         finally:
             _context("")
+
+
+class TestReplyTo:
+    """Ticket emails name the address the customer's answer should go to. A
+    generated ticket address has no topic pin of its own (the catch-all checks
+    the server's topic), and must still be that address."""
+
+    def _case(self, org, user):
+        with rls_org(org):
+            return Case.objects.create(
+                name="Printer", status="New", org=org, created_by=user
+            )
+
+    def test_a_generated_ticket_address_is_the_reply_to(self, org_a, admin_user):
+        from cases.tasks import _reply_to_mailbox
+
+        mailbox = _generated(org_a, "acme-k3x9q2", creates="tickets")
+
+        assert _reply_to_mailbox(self._case(org_a, admin_user)) == mailbox
+
+    def test_not_once_the_server_stops_receiving_for_the_domain(
+        self, org_a, admin_user, settings
+    ):
+        from cases.tasks import _reply_to_mailbox
+
+        _generated(org_a, "acme-k3x9q2", creates="tickets")
+        settings.INBOUND_EMAIL_TOPIC_ARN = ""
+
+        assert _reply_to_mailbox(self._case(org_a, admin_user)) is None
+
+    def test_a_generated_lead_address_is_never_the_reply_to(self, org_a, admin_user):
+        from cases.tasks import _reply_to_mailbox
+
+        _generated(org_a, "acme-k3x9q2", creates="leads")
+
+        assert _reply_to_mailbox(self._case(org_a, admin_user)) is None
