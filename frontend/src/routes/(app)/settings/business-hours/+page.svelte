@@ -26,7 +26,7 @@
   import { weeklyHours, isAlwaysOn } from './week.js';
   import { Plus, Clock, TriangleAlert } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   let calendar = $derived(data.calendar);
@@ -53,7 +53,7 @@
   );
 
   function openHoursEdit() {
-    hourRows = calendar.days.map((/** @type {any} */ d) => ({
+    hourRows = calendar.days.map((d) => ({
       day: d.day,
       key: d.day.toLowerCase(),
       open: d.open ?? '09:00',

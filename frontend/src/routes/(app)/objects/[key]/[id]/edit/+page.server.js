@@ -24,7 +24,7 @@ export async function load({ cookies, params }) {
   ]);
   if (definition.is_active === false) error(404, OBJECT_GONE);
   if (!record.can_edit) redirect(303, recordHref(`obj:${key}`, id) ?? `/objects/${key}`);
-  const plain = definition.fields.filter((/** @type {any} */ f) => f.field_type !== 'link');
+  const plain = definition.fields.filter((f) => f.field_type !== 'link');
   return {
     definition,
     record,
@@ -46,7 +46,7 @@ export const actions = {
 
     try {
       await updateRecord(event, key, id, body);
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       return fail(400, {
         values: { name: body.name, custom_fields: body.custom_fields },
         error: recordWriteError(err, definition.fields, definition.name_label)

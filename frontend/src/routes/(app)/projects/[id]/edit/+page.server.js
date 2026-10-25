@@ -9,6 +9,10 @@ import {
 } from '#lib/server/v2/record-custom-fields.js';
 import { isOn } from '#lib/v2/modules.js';
 import { projectBody, projectValues } from '#lib/v2/projects.js';
+import { apiStatus } from '#lib/api-errors.js';
+
+/** A stored figure as the form's text, blank when unset. */
+const text = (/** @type {number | null} */ n) => (n === null ? '' : String(n));
 
 /**
  * The edit form, filled from the record. A PATCH: what the form did not
@@ -37,16 +41,16 @@ export async function load(event) {
       status: p.status,
       billing_type: p.billing_type,
       currency: p.currency,
-      budget_hours: p.budget_hours ?? '',
-      budget_amount: p.budget_amount ?? '',
-      hourly_rate: p.hourly_rate ?? '',
+      budget_hours: text(p.budget_hours),
+      budget_amount: text(p.budget_amount),
+      hourly_rate: text(p.hourly_rate),
       start_date: p.start_date ?? '',
       due_date: p.due_date ?? '',
       description: p.description,
-      assigned_to: p.assigned_to.map((/** @type {any} */ x) => x.id),
-      rates: p.rates.map((/** @type {any} */ r) => ({
+      assigned_to: p.assigned_to.map((x) => x.id),
+      rates: p.rates.map((r) => ({
         profile: r.profile.id,
-        hourly_rate: r.hourly_rate ?? ''
+        hourly_rate: text(r.hourly_rate)
       }))
     },
     stored: {
@@ -54,10 +58,7 @@ export async function load(event) {
       deal: p.deal,
       people: [
         ...new Map(
-          [...p.assigned_to, ...p.rates.map((/** @type {any} */ r) => r.profile)].map((x) => [
-            x.id,
-            x
-          ])
+          [...p.assigned_to, ...p.rates.map((r) => r.profile)].map((x) => [x.id, x])
         ).values()
       ]
     },
@@ -80,8 +81,8 @@ export const actions = {
 
     try {
       await updateProject(event, event.params.id, body);
-    } catch (/** @type {any} */ err) {
-      return fail(err?.status === 404 ? 404 : 400, {
+    } catch (err) {
+      return fail(apiStatus(err) === 404 ? 404 : 400, {
         values,
         ...saveRefusal(err, custom.definitions, 'Could not save the project.')
       });

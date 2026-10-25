@@ -8,6 +8,7 @@ import {
 import { listAccountsPicker } from '#lib/server/v2/accounts.js';
 import { readFilters, buildFilterQuery } from '#lib/server/v2/filter-params.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 /**
  * The estimates worklist. `load` returns `{ estimates, totals, accounts }`.
@@ -50,8 +51,8 @@ export const actions = {
     let created;
     try {
       created = await convertEstimate({ cookies }, id);
-    } catch (/** @type {any} */ err) {
-      return fail(err?.status === 404 ? 404 : 400, {
+    } catch (err) {
+      return fail(apiStatus(err) === 404 ? 404 : 400, {
         error: readableError(err, 'Could not raise an invoice from this estimate.')
       });
     }
@@ -72,8 +73,8 @@ export const actions = {
 
     try {
       await sendEstimate({ cookies }, id);
-    } catch (/** @type {any} */ err) {
-      return fail(err?.status === 404 ? 404 : 400, {
+    } catch (err) {
+      return fail(apiStatus(err) === 404 ? 404 : 400, {
         error: readableError(err, 'Could not send this estimate.')
       });
     }

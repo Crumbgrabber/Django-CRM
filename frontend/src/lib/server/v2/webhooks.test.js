@@ -59,7 +59,7 @@ describe('listWebhooks', () => {
       event_catalogue: [{ module: 'lead', label: 'Leads', events: ['lead.created'] }],
       limit: 10
     });
-    const out = await listWebhooks(event);
+    const out = /** @type {any} */ (await listWebhooks(event));
     expect(out.forbidden).toBe(false);
     expect(out.endpoints).toHaveLength(1);
     expect(out.catalogue[0].module).toBe('lead');

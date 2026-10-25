@@ -6,6 +6,7 @@ import {
   EDITABLE_FIELDS
 } from '#lib/server/v2/goals.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 /**
  * Creating a goal.
@@ -26,12 +27,14 @@ export const actions = {
   create: async (event) => {
     const form = await event.request.formData();
 
-    /** @type {Record<string, any>} */
+    /** @type {import('#lib/server/v2/goals.js').GoalValues} */
     const values = {};
     // Text and select fields, plus the single `target` picker that stands in
     // for assigned_to/team. is_active is omitted on create. A new goal is
     // active (the model default), so there is nothing to choose yet.
-    for (const field of [...EDITABLE_FIELDS, 'target']) {
+    /** @type {import('#lib/server/v2/goals.js').GoalFormField[]} */
+    const fields = [...EDITABLE_FIELDS, 'target'];
+    for (const field of fields) {
       if (form.has(field)) values[field] = form.get(field)?.toString().trim() ?? '';
     }
     // The weight inputs are absent from the DOM on an ACTIVITIES goal, so this
@@ -40,8 +43,8 @@ export const actions = {
 
     try {
       await createGoal(event, values);
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, { values, error: 'Only an admin can create goals.' });
       }
       return fail(400, {

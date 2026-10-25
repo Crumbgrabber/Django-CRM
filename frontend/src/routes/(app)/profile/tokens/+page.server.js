@@ -2,6 +2,7 @@ import { fail } from '@sveltejs/kit';
 import { listMyTokens, createToken, revokeMyToken } from '#lib/server/v2/tokens.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
 import { expiryFromChoice, scopesFromChoice } from '#lib/v2/token-rules.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 /**
  * Your own API tokens: issue one, see what you have, revoke one.
@@ -47,7 +48,7 @@ export const actions = {
           expires_at: res.expires_at ?? null
         }
       };
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       return fail(400, {
         create: { error: readableError(err, 'Could not create that token.') }
       });
@@ -64,8 +65,8 @@ export const actions = {
     if (!id) return fail(400, { error: 'Which token?' });
     try {
       await revokeMyToken({ cookies }, id);
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 404) {
+    } catch (err) {
+      if (apiStatus(err) === 404) {
         return fail(404, { error: 'That token is not one of yours.' });
       }
       return fail(400, { error: readableError(err, 'Could not revoke that token.') });

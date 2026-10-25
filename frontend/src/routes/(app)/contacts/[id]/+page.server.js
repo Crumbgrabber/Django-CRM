@@ -1,6 +1,7 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { addContactNote, deleteContact, getContact } from '#lib/server/v2/contacts.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiStatus } from '#lib/api-errors.js';
 import { loadRelated, relatedActions } from '#lib/server/v2/related-records.js';
 import { recordDuplicates } from '#lib/server/v2/duplicates.js';
 import { getLeadSources } from '#lib/server/v2/lead-sources.js';
@@ -62,8 +63,9 @@ export const actions = {
 
     try {
       await addContactNote({ cookies }, params.id, comment, file);
-    } catch (/** @type {any} */ err) {
-      return fail(400, { message: String(err?.message ?? 'Could not save that note.') });
+    } catch (err) {
+      const message = /** @type {{ message?: unknown } | null | undefined} */ (err)?.message;
+      return fail(400, { message: String(message ?? 'Could not save that note.') });
     }
 
     return { noted: true };
@@ -76,8 +78,9 @@ export const actions = {
   delete: async ({ cookies, params }) => {
     try {
       await deleteContact({ cookies }, params.id);
-    } catch (/** @type {any} */ err) {
-      const code = err?.status >= 400 && err?.status < 500 ? err.status : 400;
+    } catch (err) {
+      const status = apiStatus(err);
+      const code = status !== undefined && status >= 400 && status < 500 ? status : 400;
       return fail(code, { deleteError: readableError(err, 'Could not delete this contact.') });
     }
     redirect(303, '/contacts');

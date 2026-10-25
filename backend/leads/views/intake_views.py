@@ -9,7 +9,7 @@ import secrets
 from datetime import timedelta
 
 from django.utils import timezone
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import extend_schema, extend_schema_field, inline_serializer
 from rest_framework import serializers, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -56,6 +56,26 @@ def delivery_row(event) -> dict:
     }
 
 
+class LeadIntakeAssigneeSerializer(serializers.Serializer):
+    """Response-only: `LeadIntakeSerializer.assignee_details`."""
+
+    id = serializers.CharField()
+    email = serializers.CharField()
+    name = serializers.CharField()
+    is_active = serializers.BooleanField()
+
+
+@extend_schema_field(
+    inline_serializer(
+        "LeadIntakeMappingRow",
+        {"from": serializers.CharField(), "to": serializers.CharField()},
+        many=True,
+    )
+)
+class LeadIntakeMappingField(serializers.JSONField):
+    """`mapping`: the rows `clean_mapping` checks and stores."""
+
+
 class LeadIntakeSerializer(serializers.ModelSerializer):
     """Reads and writes one intake. `key`, `org` and the delivery stamps are
     the server's: absent from `fields` or read-only, so a body naming them is
@@ -64,7 +84,7 @@ class LeadIntakeSerializer(serializers.ModelSerializer):
     url = serializers.SerializerMethodField()
     key_hint = serializers.SerializerMethodField()
     assignee_details = serializers.SerializerMethodField()
-    mapping = serializers.JSONField(required=False)
+    mapping = LeadIntakeMappingField(required=False)
     default_source = serializers.CharField(
         max_length=64, required=False, allow_blank=True
     )
@@ -115,7 +135,8 @@ class LeadIntakeSerializer(serializers.ModelSerializer):
     def get_key_hint(self, obj) -> str:
         return obj.key[-4:]
 
-    def get_assignee_details(self, obj) -> dict | None:
+    @extend_schema_field(LeadIntakeAssigneeSerializer(allow_null=True))
+    def get_assignee_details(self, obj):
         profile = obj.assignee
         if profile is None:
             return None
@@ -158,6 +179,27 @@ class LeadIntakeSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 
+class LeadIntakeKeyedSerializer(LeadIntakeSerializer):
+    """Response-only: an intake with its full `key`, which only create and
+    replace answer."""
+
+    key = serializers.CharField(read_only=True)
+
+    class Meta(LeadIntakeSerializer.Meta):
+        fields = (*LeadIntakeSerializer.Meta.fields, "key")
+
+
+class LeadIntakeDeliverySerializer(serializers.Serializer):
+    """Response-only: one `delivery_row`."""
+
+    id = serializers.CharField()
+    received_at = serializers.DateTimeField()
+    result = serializers.CharField()
+    lead = serializers.CharField(allow_null=True)
+    external_id = serializers.CharField()
+    error = serializers.CharField()
+
+
 def _row(intake, key=None) -> dict:
     data = LeadIntakeSerializer(intake, context={"org": intake.org}).data
     if key is not None:
@@ -168,7 +210,16 @@ def _row(intake, key=None) -> dict:
 class LeadIntakeListCreateView(APIView):
     permission_classes = (IsAuthenticated, HasOrgContext)
 
-    @extend_schema(tags=["Leads"], operation_id="lead_intakes_list")
+    @extend_schema(
+        tags=["Leads"],
+        operation_id="lead_intakes_list",
+        responses={
+            200: inline_serializer(
+                "LeadIntakeListResponse",
+                {"intakes": LeadIntakeSerializer(many=True)},
+            )
+        },
+    )
     def get(self, request):
         if not is_org_admin(request.profile):
             return _admin_required()
@@ -183,7 +234,10 @@ class LeadIntakeListCreateView(APIView):
         return Response({"intakes": rows})
 
     @extend_schema(
-        tags=["Leads"], operation_id="lead_intakes_create", request=LeadIntakeSerializer
+        tags=["Leads"],
+        operation_id="lead_intakes_create",
+        request=LeadIntakeSerializer,
+        responses={201: LeadIntakeKeyedSerializer},
     )
     def post(self, request):
         if not is_org_admin(request.profile):
@@ -200,7 +254,11 @@ class LeadIntakeListCreateView(APIView):
 class LeadIntakeDetailView(APIView):
     permission_classes = (IsAuthenticated, HasOrgContext)
 
-    @extend_schema(tags=["Leads"], operation_id="lead_intakes_read")
+    @extend_schema(
+        tags=["Leads"],
+        operation_id="lead_intakes_read",
+        responses={200: LeadIntakeSerializer},
+    )
     def get(self, request, pk):
         if not is_org_admin(request.profile):
             return _admin_required()
@@ -209,7 +267,10 @@ class LeadIntakeDetailView(APIView):
         return Response(_row(intake))
 
     @extend_schema(
-        tags=["Leads"], operation_id="lead_intakes_update", request=LeadIntakeSerializer
+        tags=["Leads"],
+        operation_id="lead_intakes_update",
+        request=LeadIntakeSerializer,
+        responses={200: LeadIntakeSerializer},
     )
     def patch(self, request, pk):
         if not is_org_admin(request.profile):
@@ -224,7 +285,9 @@ class LeadIntakeDetailView(APIView):
         serializer.save()
         return Response(_row(intake))
 
-    @extend_schema(tags=["Leads"], operation_id="lead_intakes_delete")
+    @extend_schema(
+        tags=["Leads"], operation_id="lead_intakes_delete", responses={204: None}
+    )
     def delete(self, request, pk):
         if not is_org_admin(request.profile):
             return _admin_required()
@@ -239,7 +302,12 @@ class LeadIntakeKeyView(APIView):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
-    @extend_schema(tags=["Leads"], operation_id="lead_intakes_replace_key")
+    @extend_schema(
+        tags=["Leads"],
+        operation_id="lead_intakes_replace_key",
+        request=None,
+        responses={200: LeadIntakeKeyedSerializer},
+    )
     def post(self, request, pk):
         if not is_org_admin(request.profile):
             return _admin_required()
@@ -264,7 +332,16 @@ class LeadIntakeKeyView(APIView):
 class LeadIntakeDeliveriesView(APIView):
     permission_classes = (IsAuthenticated, HasOrgContext)
 
-    @extend_schema(tags=["Leads"], operation_id="lead_intakes_deliveries")
+    @extend_schema(
+        tags=["Leads"],
+        operation_id="lead_intakes_deliveries",
+        responses={
+            200: inline_serializer(
+                "LeadIntakeDeliveriesResponse",
+                {"deliveries": LeadIntakeDeliverySerializer(many=True)},
+            )
+        },
+    )
     def get(self, request, pk):
         if not is_org_admin(request.profile):
             return _admin_required()
@@ -283,7 +360,17 @@ class LeadIntakeTestView(APIView):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
-    @extend_schema(tags=["Leads"], operation_id="lead_intakes_test")
+    @extend_schema(
+        tags=["Leads"],
+        operation_id="lead_intakes_test",
+        request=None,
+        responses={
+            201: inline_serializer(
+                "LeadIntakeTestResponse",
+                {"delivery": LeadIntakeDeliverySerializer()},
+            )
+        },
+    )
     def post(self, request, pk):
         if not is_org_admin(request.profile):
             return _admin_required()

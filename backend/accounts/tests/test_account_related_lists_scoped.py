@@ -49,14 +49,16 @@ def world(org_a, admin_user, user_profile):
 
     mine = {
         "deal": related(Opportunity, True, name="Mine deal", amount="10"),
-        "ticket": related(Case, True, name="Mine ticket", status="New"),
+        "ticket": related(
+            Case, True, name="Mine ticket", status="New", priority="Normal"
+        ),
         "task": related(Task, True, title="Mine task", status="New", priority="Low"),
         "invoice": related(
             Invoice, True, invoice_title="Mine invoice", invoice_number="M-1"
         ),
     }
     related(Opportunity, False, name="Hidden deal", amount=HIDDEN_AMOUNT)
-    related(Case, False, name="Hidden ticket", status="New")
+    related(Case, False, name="Hidden ticket", status="New", priority="Normal")
     related(Task, False, title="Hidden task", status="New", priority="Low")
 
     person = Contact.objects.create(

@@ -56,6 +56,8 @@ import { documentHref } from './files.js';
 import { getOrgPeopleAndTeams } from './org-people.js';
 
 /** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+/** @typedef {import('#lib/api-errors.js').ApiError} ApiError */
+/** @typedef {import('#lib/api-errors.js').ApiErrorBody} ApiErrorBody */
 
 const API_BASE_URL = `${env.PUBLIC_DJANGO_API_URL}/api`;
 
@@ -99,11 +101,11 @@ function viewerClaims(cookies) {
 /**
  * A person's display name from a nested ProfileSerializer row.
  *
- * @param {any} profile
+ * @param {Schemas['Profile']} profile
  */
 function personName(profile) {
-  const d = profile?.user_details ?? {};
-  return d.name || d.email || 'Unnamed';
+  const d = profile.user_details;
+  return d?.name || d?.email || 'Unnamed';
 }
 
 /**
@@ -128,7 +130,7 @@ function fileKind(path = '') {
  * user id matches `created_by`. It gates the Edit link so the row never offers
  * an action the server would refuse, but the view enforces it regardless.
  *
- * @param {any} d
+ * @param {Schemas['Document']} d
  * @param {{ isAdmin: boolean, userId: string | null }} viewer
  */
 function toDoc(d, viewer) {
@@ -143,13 +145,11 @@ function toDoc(d, viewer) {
     file_kind: fileKind(d.document_file),
     size_bytes: typeof d.size_bytes === 'number' ? d.size_bytes : null,
     status: d.status,
-    /** @type {{ id: string, name: string }[]} */
-    shared_to: (d.shared_to ?? []).map((/** @type {any} */ p) => ({
+    shared_to: (d.shared_to ?? []).map((p) => ({
       id: p.id,
       name: personName(p)
     })),
-    /** @type {{ id: string, name: string, member_count: number }[]} */
-    teams: (d.teams ?? []).map((/** @type {any} */ t) => ({
+    teams: (d.teams ?? []).map((t) => ({
       id: t.id,
       name: t.name,
       member_count: t.member_count ?? 0
@@ -200,13 +200,8 @@ export async function listDocuments({ cookies }, params) {
   /** @type {Schemas['DocumentListResponse']} */
   const resp = await apiRequest(`/documents/?${query}`, {}, { cookies });
 
-  // The schema types each envelope as a bare dict; its list is DocumentSerializer rows.
-  const active = /** @type {Schemas['Document'][]} */ (
-    resp?.documents_active?.documents_active ?? []
-  );
-  const inactive = /** @type {Schemas['Document'][]} */ (
-    resp?.documents_inactive?.documents_inactive ?? []
-  );
+  const active = resp?.documents_active?.documents_active ?? [];
+  const inactive = resp?.documents_inactive?.documents_inactive ?? [];
   const results = [...active, ...inactive]
     .map((d) => toDoc(d, viewer))
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -247,13 +242,14 @@ export async function getDocumentForEdit({ cookies }, id) {
   const raw = await apiRequest(`/documents/${id}/`, {}, { cookies });
   const doc = toDoc(raw.doc_obj, viewer);
 
-  if (!doc.can_write) return { can_edit: false };
+  // Literal flags, so the page's `{#if !data.can_edit}` narrows `data.document`.
+  if (!doc.can_write) return { can_edit: /** @type {const} */ (false) };
 
   const { people, teams, options_failed } = await getOrgPeopleAndTeams(cookies);
   const offered = new Set(people.map((p) => p.id));
   const shared = doc.shared_to.map((p) => p.id);
   return {
-    can_edit: true,
+    can_edit: /** @type {const} */ (true),
     people,
     teams,
     options_failed,
@@ -283,6 +279,7 @@ export async function getDocumentForEdit({ cookies }, id) {
  *
  * @param {import('@sveltejs/kit').Cookies} cookies
  * @param {{ title: string, status: string, file: File, shared_to: string[], teams: string[] }} values
+ * @returns {Promise<Schemas['DocumentCreateResponse']>}
  */
 export function uploadDocument(cookies, values) {
   return sendMultipart(cookies, '/documents/', 'POST', values);
@@ -303,6 +300,7 @@ export function uploadDocument(cookies, values) {
  * @param {string} path
  * @param {'POST'|'PUT'|'PATCH'} method
  * @param {{ title: string, status: string, file: File, shared_to?: string[], teams?: string[] }} values
+ * @returns {Promise<Schemas['DocumentCreateResponse'] | Schemas['DocumentUpdateResponse'] | Schemas['DocumentPatchResponse']>}
  */
 async function sendMultipart(cookies, path, method, values) {
   const body = new FormData();
@@ -324,10 +322,9 @@ async function sendMultipart(cookies, path, method, values) {
   });
 
   if (!response.ok) {
+    /** @type {ApiErrorBody} */
     const data = await response.json().catch(() => ({}));
-    const failure = /** @type {Error & { status: number, body: any }} */ (
-      new Error(JSON.stringify(data))
-    );
+    const failure = /** @type {ApiError} */ (new Error(JSON.stringify(data)));
     failure.status = response.status;
     failure.body = data;
     throw failure;

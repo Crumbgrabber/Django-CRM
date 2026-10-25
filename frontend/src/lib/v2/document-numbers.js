@@ -43,6 +43,18 @@ export function numberSeries(prefix, datePart, today) {
 }
 
 /**
+ * The numbering fields of `/api/org/settings/`; a form mid-edit holds strings.
+ *
+ * @typedef {{
+ *   number_date_part: string,
+ *   invoice_number_prefix: string,
+ *   estimate_number_prefix: string,
+ *   number_padding: number | string,
+ *   invoice_number_start?: number | string | null
+ * }} NumberingSettings
+ */
+
+/**
  * What a new number looks like in the format `settings` describe: the series
  * and its first counter. `settings` carries the five `/api/org/settings/`
  * fields, as stored or as a form holds them mid-edit.
@@ -52,7 +64,7 @@ export function numberSeries(prefix, datePart, today) {
  * sends 1 in that case. The width is clamped to the server's 1 to 10, so a
  * width still being typed cannot build an enormous string.
  *
- * @param {Record<string, any>} settings
+ * @param {NumberingSettings} settings
  * @param {'invoice' | 'estimate'} kind
  * @param {string} today `YYYY-MM-DD` in the org's day
  */
@@ -70,12 +82,12 @@ export function exampleNumber(settings, kind, today) {
  * The shape of the next number, with its counter left as `n`s: what a create
  * form can honestly promise before the server counts. `INV-2026-nnnn`.
  *
- * @param {Record<string, any>} settings
+ * @param {NumberingSettings} settings
  * @param {'invoice' | 'estimate'} kind
  * @param {string} today `YYYY-MM-DD` in the org's day
  */
 export function numberPattern(settings, kind, today) {
   const prefix =
     kind === 'invoice' ? settings.invoice_number_prefix : settings.estimate_number_prefix;
-  return `${numberSeries(prefix, settings.number_date_part, today)}${'n'.repeat(settings.number_padding)}`;
+  return `${numberSeries(prefix, settings.number_date_part, today)}${'n'.repeat(Number(settings.number_padding))}`;
 }

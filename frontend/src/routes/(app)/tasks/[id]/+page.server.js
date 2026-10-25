@@ -3,6 +3,7 @@ import { getTask, setTaskDone, updateTask, deleteTask, addTaskNote } from '#lib/
 import { readableError } from '#lib/server/v2/form-errors.js';
 import { loadRelated, relatedActions } from '#lib/server/v2/related-records.js';
 import { isOrgAdmin } from '#lib/admin.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 /**
  * One task.
@@ -23,7 +24,7 @@ export async function load({ cookies, locals, params }) {
     related,
     // Decides what renders, never what is allowed. The API refuses a delete
     // from an assignee with a 403 whatever this says.
-    canDelete: isOrgAdmin(/** @type {any} */ (locals).profile)
+    canDelete: isOrgAdmin(locals.profile)
   };
 }
 
@@ -36,7 +37,7 @@ export const actions = {
     const done = form.get('done')?.toString() === 'true';
     try {
       await setTaskDone({ cookies }, params.id, done);
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       return fail(400, { error: readableError(err, 'Could not change the status.') });
     }
     return { done };
@@ -66,7 +67,7 @@ export const actions = {
 
     try {
       await addTaskNote({ cookies }, params.id, body, file);
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       return fail(400, { error: readableError(err, 'Could not post that comment.') });
     }
     return { commented: true };
@@ -88,7 +89,7 @@ export const actions = {
       .filter(Boolean);
     try {
       await updateTask({ cookies }, params.id, { assigned_to: ids });
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       return fail(400, { error: readableError(err, 'Could not reassign this task.') });
     }
     return { assigned: true };
@@ -104,10 +105,10 @@ export const actions = {
     await request.formData();
     try {
       await deleteTask({ cookies }, params.id);
-    } catch (/** @type {any} */ err) {
-      return fail(err?.status === 403 ? 403 : 400, {
+    } catch (err) {
+      return fail(apiStatus(err) === 403 ? 403 : 400, {
         error:
-          err?.status === 403
+          apiStatus(err) === 403
             ? 'Only an admin or whoever created this task can delete it.'
             : readableError(err, 'Could not delete this task.')
       });

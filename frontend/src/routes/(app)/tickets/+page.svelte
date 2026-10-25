@@ -16,7 +16,7 @@
   import { Download, Plus, LifeBuoy, Upload } from '@lucide/svelte';
   import { isOn, labelOf } from '#lib/v2/modules.js';
 
-  /** @type {{ data: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data } = $props();
 
   let tickets = $derived(data.tickets);
@@ -70,7 +70,7 @@
    * clock. Past the deadline a bar pinned at 100% says nothing about how bad
    * it is, so we stop drawing one and say how far over it went instead.
    *
-   * @param {any} t
+   * @param {import('./$types').PageData['tickets'][number]} t
    * @returns {{ state: 'met' | 'none' | 'breached' | 'running', label: string, tone: keyof typeof TONE_VAR, pct?: number }}
    */
   function responsePressure(t) {

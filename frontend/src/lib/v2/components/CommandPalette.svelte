@@ -50,14 +50,19 @@
   };
 
   let query = $state('');
-  let hits = $state(/** @type {any[]} */ ([]));
+  /**
+   * A palette row: a search hit (`#lib/server/v2/search.js`) or an action.
+   *
+   * @typedef {{ kind: string, id: string, title: string, meta: string, href: string, icon?: typeof Plus }} PaletteRow
+   */
+  let hits = $state(/** @type {PaletteRow[]} */ ([]));
   let cursor = $state(0);
   /** @type {HTMLInputElement | undefined} */
   let input = $state();
 
   let rows = $derived(query.trim() ? hits : actions);
 
-  /** @typedef {{ kind: string, rows: any[] }} Group */
+  /** @typedef {{ kind: string, rows: PaletteRow[] }} Group */
   /** Grouped for display, but `rows` stays flat so ↑/↓ crosses group borders. */
   let groups = $derived(
     rows.reduce((/** @type {Group[]} */ acc, r) => {

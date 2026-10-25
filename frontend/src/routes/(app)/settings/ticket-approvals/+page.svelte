@@ -44,7 +44,9 @@
   } from './matching.js';
   import { Plus, TriangleAlert, ChevronRight } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @typedef {import('#lib/server/v2/ticket-approvals.js').ApprovalRuleRow} ApprovalRuleRow */
+
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   // cases.approvals: PRIORITY_CHOICE and CASE_TYPE. Not in `#lib/v2/enums.js`
@@ -65,13 +67,13 @@
   // `null` when the panel is closed, `'new'` when adding, or the rule object
   // when editing that row. One panel, two modes, so two rows can never be
   // open for edit at once.
-  let editing = $state(/** @type {any} */ (null));
+  let editing = $state(/** @type {'new' | ApprovalRuleRow | null} */ (null));
 
   function openCreate() {
     editing = 'new';
   }
 
-  /** @param {any} r */
+  /** @param {ApprovalRuleRow} r */
   function openEdit(r) {
     editing = r;
   }
@@ -114,17 +116,18 @@
 <div class="v2-scroll">
   <div class="v2-pad" style="padding-top:18px;padding-bottom:32px">
     {#if editing}
+      {@const current = editing}
       <SettingsFormPanel
-        title={editing === 'new' ? 'New rule' : `Edit ${editing.name}`}
-        action={editing === 'new' ? '?/create' : '?/update'}
-        error={editing === 'new' ? form?.create?.error : form?.update?.error}
-        submitLabel={editing === 'new' ? 'Add rule' : 'Save rule'}
+        title={current === 'new' ? 'New rule' : `Edit ${current.name}`}
+        action={current === 'new' ? '?/create' : '?/update'}
+        error={current === 'new' ? form?.create?.error : form?.update?.error}
+        submitLabel={current === 'new' ? 'Add rule' : 'Save rule'}
         oncancel={() => (editing = null)}
         ondone={() => (editing = null)}
       >
         {#snippet fields()}
-          {#if editing !== 'new'}
-            <input type="hidden" name="id" value={editing.id} />
+          {#if current !== 'new'}
+            <input type="hidden" name="id" value={current.id} />
           {/if}
 
           <div class="v2-field">
@@ -135,7 +138,7 @@
               name="name"
               maxlength="128"
               required
-              value={editing === 'new' ? '' : editing.name}
+              value={current === 'new' ? '' : current.name}
             />
           </div>
 
@@ -145,7 +148,7 @@
               {#each ['ADMIN', 'MANAGER'] as role (role)}
                 <option
                   value={role}
-                  selected={editing === 'new' ? role === 'ADMIN' : editing.approver_role === role}
+                  selected={current === 'new' ? role === 'ADMIN' : current.approver_role === role}
                 >
                   {approverRoleLabel(role)}
                 </option>
@@ -174,8 +177,7 @@
               {#each data.people as p (p.id)}
                 <option
                   value={p.id}
-                  selected={editing !== 'new' &&
-                    editing.approvers.some((/** @type {any} */ a) => a.id === p.id)}
+                  selected={current !== 'new' && current.approvers.some((a) => a.id === p.id)}
                 >
                   {p.name}
                 </option>
@@ -199,9 +201,9 @@
           <div class="v2-field">
             <label for="a-priority">Priority</label>
             <select id="a-priority" class="v2-input" name="match_priority">
-              <option value="" selected={editing === 'new' || !editing.match_priority}>Any</option>
+              <option value="" selected={current === 'new' || !current.match_priority}>Any</option>
               {#each MATCH_PRIORITIES as p (p)}
-                <option value={p} selected={editing !== 'new' && editing.match_priority === p}>
+                <option value={p} selected={current !== 'new' && current.match_priority === p}>
                   {p}
                 </option>
               {/each}
@@ -211,11 +213,11 @@
           <div class="v2-field">
             <label for="a-type">Ticket type</label>
             <select id="a-type" class="v2-input" name="match_case_type">
-              <option value="" selected={editing === 'new' || !editing.match_case_type}>
+              <option value="" selected={current === 'new' || !current.match_case_type}>
                 Any
               </option>
               {#each MATCH_CASE_TYPES as t (t)}
-                <option value={t} selected={editing !== 'new' && editing.match_case_type === t}>
+                <option value={t} selected={current !== 'new' && current.match_case_type === t}>
                   {t}
                 </option>
               {/each}
@@ -225,14 +227,14 @@
           <div class="v2-field">
             <label for="a-team">Team</label>
             <select id="a-team" class="v2-input" name="match_team_id">
-              <option value="" selected={editing === 'new' || !editing.match_team}>Any team</option>
+              <option value="" selected={current === 'new' || !current.match_team}>Any team</option>
               {#if missingTeam}
                 <option value={missingTeam.id} selected>{missingTeam.name}</option>
               {/if}
               {#each data.teams as t (t.id)}
                 <option
                   value={t.id}
-                  selected={editing !== 'new' && editing.match_team?.id === t.id}
+                  selected={current !== 'new' && current.match_team?.id === t.id}
                 >
                   {t.name}
                 </option>
@@ -240,7 +242,7 @@
             </select>
             {#if data.options_failed}
               <p class="v2-hint" role="alert">
-                The people and teams list did not load. {editing === 'new'
+                The people and teams list did not load. {current === 'new'
                   ? 'Reload the page to pick a team or named approvers.'
                   : 'Saving keeps the current team and approvers; reload the page to change them.'}
               </p>
@@ -249,7 +251,7 @@
             {/if}
           </div>
 
-          {#if editing === 'new'}
+          {#if current === 'new'}
             <div class="v2-field">
               <label for="a-active">Active</label>
               <label style="display:flex;gap:8px;align-items:center;font-weight:400">
@@ -268,10 +270,10 @@
     {#if form?.activate?.error}
       <p class="v2-error" style="margin-bottom:12px">{form.activate.error}</p>
     {/if}
-    {#if form?.remove?.error}
+    {#if form?.remove && 'error' in form.remove && form.remove.error}
       <p class="v2-error" style="margin-bottom:12px">{form.remove.error}</p>
     {/if}
-    {#if form?.remove?.turned_off}
+    {#if form?.remove && 'turned_off' in form.remove && form.remove.turned_off}
       <!-- What actually happened, not what the button said. The backend
            soft-disables a rule that has approval history rather than
            destroying it, so the row is still in the list below, off, and

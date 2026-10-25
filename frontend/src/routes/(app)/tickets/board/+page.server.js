@@ -1,6 +1,7 @@
 import { fail } from '@sveltejs/kit';
 import { getTicketBoard, moveTicket } from '#lib/server/v2/ticket-board.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 /**
  * Tickets by status, or by the stages of one case pipeline when
@@ -38,7 +39,7 @@ export const actions = {
       return { success: true };
     } catch (err) {
       const message = readableError(err, 'Could not move the ticket.').replace(/^status: /, '');
-      return fail(/** @type {any} */ (err)?.status === 403 ? 403 : 400, { error: message });
+      return fail(apiStatus(err) === 403 ? 403 : 400, { error: message });
     }
   }
 };

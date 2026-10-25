@@ -11,9 +11,10 @@ import { nextInRotation, rotationPool } from './rotation.js';
 /** @param {string} id @param {string} name */
 const person = (id, name, is_active = true) => ({ id, name, is_active });
 
+/** @param {{ strategy?: string, target_assignees?: ReturnType<typeof person>[], state?: { last_assigned_index: number } | null }} [overrides] */
 const rule = (overrides = {}) => ({
   strategy: 'round_robin',
-  target_assignees: [],
+  target_assignees: /** @type {ReturnType<typeof person>[]} */ ([]),
   state: null,
   ...overrides
 });
@@ -26,14 +27,14 @@ describe('nextInRotation', () => {
       target_assignees: [person('a', 'Ada'), person('b', 'Brin'), person('c', 'Cai')],
       state: { last_assigned_index: 1 }
     });
-    expect(nextInRotation(r).name).toBe('Brin');
+    expect(nextInRotation(r)?.name).toBe('Brin');
   });
 
   it('starts at the first agent when the rotation has never run', () => {
     // The engine's own dry run is `state.last_assigned_index if state else 0`,
     // so a rule with no state row yet is answerable rather than unknown.
     const r = rule({ target_assignees: [person('a', 'Ada'), person('b', 'Brin')] });
-    expect(nextInRotation(r).name).toBe('Ada');
+    expect(nextInRotation(r)?.name).toBe('Ada');
   });
 
   it('wraps rather than running off the end', () => {
@@ -41,7 +42,7 @@ describe('nextInRotation', () => {
       target_assignees: [person('a', 'Ada'), person('b', 'Brin')],
       state: { last_assigned_index: 7 }
     });
-    expect(nextInRotation(r).name).toBe('Brin');
+    expect(nextInRotation(r)?.name).toBe('Brin');
   });
 
   it('never names a deactivated agent', () => {
@@ -52,7 +53,7 @@ describe('nextInRotation', () => {
       target_assignees: [person('a', 'Ada', false), person('b', 'Brin'), person('c', 'Cai')],
       state: { last_assigned_index: 0 }
     });
-    expect(nextInRotation(r).name).toBe('Brin');
+    expect(nextInRotation(r)?.name).toBe('Brin');
   });
 
   it('indexes the pool in id order, not the order it arrived in', () => {
@@ -61,7 +62,7 @@ describe('nextInRotation', () => {
       target_assignees: [person('c', 'Cai'), person('a', 'Ada')],
       state: { last_assigned_index: 0 }
     });
-    expect(nextInRotation(r).name).toBe('Ada');
+    expect(nextInRotation(r)?.name).toBe('Ada');
   });
 
   it('says nothing for the strategies that have no cursor', () => {

@@ -10,7 +10,7 @@
   import { CURRENCY_CODES } from '#lib/constants/filters.js';
   import { TriangleAlert } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form: result } = $props();
 
   /**

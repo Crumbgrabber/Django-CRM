@@ -14,20 +14,25 @@ import {
 import { UUID } from '#lib/v2/custom-objects.js';
 import { checkId } from '#lib/server/v2/custom-objects.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiErrorBody, apiStatus } from '#lib/api-errors.js';
 
 const RECORD_GONE = 'That record does not exist, or you cannot open it.';
 
 /**
- * @param {any} err
+ * @param {unknown} err
  * @param {string} fallback
  */
 function sentence(err, fallback) {
-  return typeof err?.body?.detail === 'string' ? err.body.detail : readableError(err, fallback);
+  const detail = apiErrorBody(err)?.detail;
+  return typeof detail === 'string' ? detail : readableError(err, fallback);
 }
 
-/** @param {any} err */
+/** @param {unknown} err */
 function statusOf(err) {
-  return Number.isInteger(err?.status) && err.status >= 400 && err.status < 600 ? err.status : 400;
+  const status = apiStatus(err);
+  return status !== undefined && Number.isInteger(status) && status >= 400 && status < 600
+    ? status
+    : 400;
 }
 
 /**
@@ -39,9 +44,9 @@ export async function load(event) {
   const { id } = event.params;
   if (!UUID.test(id)) error(404, RULE_GONE);
   const list = await listRules(event);
-  if (list.forbidden) return { forbidden: true };
+  if (list.forbidden) return { forbidden: /** @type {const} */ (true) };
   const [catalogue, rule] = await Promise.all([getCatalogue(event), getRule(event, id)]);
-  const row = (list.rules ?? []).find((/** @type {any} */ r) => r.id === rule.id) ?? null;
+  const row = (list.rules ?? []).find((r) => r.id === rule.id) ?? null;
   return { catalogue, rule, row };
 }
 
@@ -68,17 +73,19 @@ export const actions = {
     const form = await event.request.formData();
     const recordId = form.get('record_id');
     const name = form.get('record_name');
+    /** @type {string} */
+    let record;
     try {
-      checkId(/** @type {any} */ (recordId));
+      record = checkId(recordId);
     } catch {
       return fail(404, { tryError: RECORD_GONE });
     }
     try {
-      const steps = await tryRule(event, id, /** @type {string} */ (recordId));
+      const steps = await tryRule(event, id, record);
       const recordName = typeof name === 'string' ? name.trim().slice(0, 120) : '';
       return { tried: { recordName, steps } };
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 404) return fail(404, { tryError: RECORD_GONE });
+    } catch (err) {
+      if (apiStatus(err) === 404) return fail(404, { tryError: RECORD_GONE });
       return fail(statusOf(err), { tryError: sentence(err, 'Could not try the rule.') });
     }
   },
@@ -88,7 +95,7 @@ export const actions = {
     if (!UUID.test(id)) return fail(400, { switchOff: { general: RULE_GONE } });
     try {
       await switchOff(event, id);
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       return fail(statusOf(err), {
         switchOff: { general: sentence(err, 'Could not switch the rule off.') }
       });
@@ -101,7 +108,7 @@ export const actions = {
     if (!UUID.test(id)) return fail(400, { remove: { general: RULE_GONE } });
     try {
       await deleteRule(event, id);
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       return fail(statusOf(err), {
         remove: { general: sentence(err, 'Could not delete the rule.') }
       });

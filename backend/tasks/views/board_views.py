@@ -1,8 +1,8 @@
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Prefetch, Q
 from django.shortcuts import get_object_or_404
-from drf_spectacular.utils import OpenApiParameter, extend_schema
-from rest_framework import status
+from drf_spectacular.utils import OpenApiParameter, extend_schema, inline_serializer
+from rest_framework import serializers, status
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.pagination import LimitOffsetPagination
 from rest_framework.permissions import IsAuthenticated
@@ -113,6 +113,7 @@ class BoardListCreateView(APIView, LimitOffsetPagination):
 
     @extend_schema(
         tags=["Boards"],
+        operation_id="boards_list",
         parameters=[
             OpenApiParameter(
                 name="org", description="Organization ID", required=True, type=str
@@ -130,7 +131,17 @@ class BoardListCreateView(APIView, LimitOffsetPagination):
                 type=bool,
             ),
         ],
-        responses={200: BoardListSerializer(many=True)},
+        responses={
+            200: inline_serializer(
+                name="BoardListResponse",
+                fields={
+                    "count": serializers.IntegerField(),
+                    "next": serializers.URLField(allow_null=True),
+                    "previous": serializers.URLField(allow_null=True),
+                    "results": BoardListSerializer(many=True),
+                },
+            )
+        },
     )
     def get(self, request):
         """List all boards for the user's organization"""

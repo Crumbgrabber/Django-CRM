@@ -15,9 +15,8 @@ checked in ``common/saved_views.py``.
 
 from django.db.models.functions import Lower
 from django.http import Http404
-from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import OpenApiParameter, extend_schema
-from rest_framework import status
+from drf_spectacular.utils import OpenApiParameter, extend_schema, inline_serializer
+from rest_framework import serializers, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -44,7 +43,13 @@ class SavedViewListView(APIView):
                 "module", str, enum=sorted(LISTS), description="Only this list's views."
             )
         ],
-        responses=OpenApiTypes.OBJECT,
+        responses=inline_serializer(
+            name="SavedViewListResponse",
+            fields={
+                "saved_views": SavedViewSerializer(many=True),
+                "limit": serializers.IntegerField(),
+            },
+        ),
     )
     def get(self, request):
         profile = request.profile

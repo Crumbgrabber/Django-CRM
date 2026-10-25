@@ -13,6 +13,7 @@
  */
 import { error } from '@sveltejs/kit';
 import { apiRequest } from '#lib/api-helpers.js';
+import { apiErrorBody, apiStatus } from '#lib/api-errors.js';
 import { rethrowModuleOff } from '#lib/server/v2/modules.js';
 import { viewerIsAdmin } from '#lib/server/v2/organization.js';
 import { UUID } from '#lib/v2/custom-objects.js';
@@ -21,30 +22,35 @@ import { cleanMapping } from '#lib/v2/lead-intakes.js';
 const INTAKE_GONE = 'That webhook does not exist.';
 
 /** @typedef {{ cookies: import('@sveltejs/kit').Cookies }} Event */
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
 
 /**
  * A list read off any of the shapes a DRF list view answers with.
  *
- * @param {any} resp
+ * @template T
+ * @param {Record<string, T[] | undefined> | T[] | null | undefined} resp
  * @param {string} key
- * @returns {any[]}
+ * @returns {T[]}
  */
 function listOf(resp, key) {
   if (Array.isArray(resp)) return resp;
-  if (Array.isArray(resp?.[key])) return resp[key];
+  const listed = resp?.[key];
+  if (Array.isArray(listed)) return listed;
   return Array.isArray(resp?.results) ? resp.results : [];
 }
 
-/** @param {any} value an id, or an object carrying one */
+/** @param {unknown} value an id, or an object carrying one */
 function idOf(value) {
   if (typeof value === 'string') return value;
-  return typeof value?.id === 'string' ? value.id : null;
+  return value && typeof value === 'object' && 'id' in value && typeof value.id === 'string'
+    ? value.id
+    : null;
 }
 
 /**
  * The fields the pages read. `key` is deliberately not among them.
  *
- * @param {any} raw
+ * @param {Schemas['LeadIntake'] | null | undefined} raw
  */
 export function toIntake(raw) {
   const owner = raw?.assignee_details;
@@ -68,7 +74,7 @@ export function toIntake(raw) {
   };
 }
 
-/** @param {any} raw */
+/** @param {Schemas['LeadIntakeDelivery'] | null | undefined} raw */
 function toDelivery(raw) {
   return {
     id: raw?.id ?? '',
@@ -92,11 +98,12 @@ function checkId(id) {
  */
 export async function listIntakes({ cookies }) {
   try {
+    /** @type {Schemas['LeadIntakeListResponse']} */
     const resp = await apiRequest('/leads/intakes/', { expectedStatuses: [403, 404] }, { cookies });
     return { state: 'ok', intakes: listOf(resp, 'intakes').map(toIntake) };
-  } catch (/** @type {any} */ err) {
-    if (err?.status === 403) return { state: 'forbidden', intakes: [] };
-    if (err?.status === 404) return { state: 'absent', intakes: [] };
+  } catch (err) {
+    if (apiStatus(err) === 403) return { state: 'forbidden', intakes: [] };
+    if (apiStatus(err) === 404) return { state: 'absent', intakes: [] };
     return { state: 'failed', intakes: [] };
   }
 }
@@ -107,19 +114,30 @@ export async function listIntakes({ cookies }) {
  *
  * @param {Event} event
  * @param {string} id
+ * @returns {Promise<{ forbidden: true } | { forbidden: false, intake: ReturnType<typeof toIntake>, deliveries: ReturnType<typeof toDelivery>[], deliveriesFailed: boolean }>}
  */
 export async function getIntake({ cookies }, id) {
   checkId(id);
+  /** @type {Promise<Schemas['LeadIntake']>} */
+  const detailRead = apiRequest(
+    `/leads/intakes/${id}/`,
+    { expectedStatuses: [403, 404] },
+    { cookies }
+  );
+  /** @type {Promise<Schemas['LeadIntakeDeliveriesResponse']>} */
+  const deliveriesRead = apiRequest(
+    `/leads/intakes/${id}/deliveries/`,
+    { quietErrors: true },
+    { cookies }
+  );
   const [detail, deliveries] = await Promise.all([
-    apiRequest(`/leads/intakes/${id}/`, { expectedStatuses: [403, 404] }, { cookies }).catch(
-      (/** @type {any} */ err) => {
-        if (err?.status === 403) return null;
-        rethrowModuleOff(err);
-        if (err?.status === 404) error(404, INTAKE_GONE);
-        throw err;
-      }
-    ),
-    apiRequest(`/leads/intakes/${id}/deliveries/`, { quietErrors: true }, { cookies }).then(
+    detailRead.catch((err) => {
+      if (apiStatus(err) === 403) return null;
+      rethrowModuleOff(err);
+      if (apiStatus(err) === 404) error(404, INTAKE_GONE);
+      throw err;
+    }),
+    deliveriesRead.then(
       (resp) =>
         listOf(resp, 'deliveries')
           .map(toDelivery)
@@ -148,9 +166,9 @@ const WRITABLE = [
   'is_active'
 ];
 
-/** @param {Record<string, any>} values */
+/** @param {Record<string, unknown>} values */
 export function intakeBody(values) {
-  /** @type {Record<string, any>} */
+  /** @type {Record<string, unknown>} */
   const body = {};
   for (const key of WRITABLE) {
     if (values[key] !== undefined) body[key] = values[key];
@@ -176,15 +194,16 @@ export function intakeBody(values) {
  * shows once: where to post and with what.
  *
  * @param {Event} event
- * @param {Record<string, any>} values
+ * @param {Record<string, unknown>} values
  */
 export async function createIntake({ cookies }, values) {
   const body = intakeBody(values);
   if (!body.name) throw new Error('A webhook needs a name.');
+  /** @type {Schemas['LeadIntakeKeyed']} */
   const resp = await apiRequest('/leads/intakes/', { method: 'POST', body }, { cookies });
   return {
     id: resp?.id ?? '',
-    name: resp?.name ?? body.name,
+    name: resp?.name ?? String(body.name),
     url: resp?.url ?? '',
     key: typeof resp?.key === 'string' ? resp.key : ''
   };
@@ -193,7 +212,8 @@ export async function createIntake({ cookies }, values) {
 /**
  * @param {Event} event
  * @param {string} id
- * @param {Record<string, any>} values
+ * @param {Record<string, unknown>} values
+ * @returns {Promise<Schemas['LeadIntake']>}
  */
 export async function updateIntake({ cookies }, id, values) {
   checkId(id);
@@ -219,11 +239,18 @@ export async function deleteIntake({ cookies }, id) {
  */
 export async function replaceIntakeKey({ cookies }, id) {
   checkId(id);
+  /** @type {Schemas['LeadIntakeKeyed']} */
   const resp = await apiRequest(`/leads/intakes/${id}/key/`, { method: 'POST' }, { cookies });
   return { key: typeof resp?.key === 'string' ? resp.key : '' };
 }
 
-/** Logs a `test` delivery and makes no lead. @param {Event} event @param {string} id */
+/**
+ * Logs a `test` delivery and makes no lead.
+ *
+ * @param {Event} event
+ * @param {string} id
+ * @returns {Promise<Schemas['LeadIntakeTestResponse']>}
+ */
 export async function testIntake({ cookies }, id) {
   checkId(id);
   return await apiRequest(`/leads/intakes/${id}/test/`, { method: 'POST' }, { cookies });
@@ -239,6 +266,7 @@ export async function testIntake({ cookies }, id) {
 export async function intakesSummary({ cookies }) {
   if (!viewerIsAdmin(cookies)) return null;
   try {
+    /** @type {Schemas['LeadIntakeListResponse']} */
     const resp = await apiRequest(
       '/leads/intakes/',
       { quietErrors: true, expectedStatuses: [403, 404] },
@@ -246,7 +274,7 @@ export async function intakesSummary({ cookies }) {
     );
     const rows = listOf(resp, 'intakes');
     return { count: rows.length, active: rows.filter((r) => r?.is_active !== false).length };
-  } catch (/** @type {any} */ err) {
-    return err?.status === 404 && err?.body?.code !== 'module_off' ? false : null;
+  } catch (err) {
+    return apiStatus(err) === 404 && apiErrorBody(err)?.code !== 'module_off' ? false : null;
   }
 }

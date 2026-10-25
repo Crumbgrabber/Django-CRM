@@ -46,7 +46,9 @@
   } from './delivery.js';
   import { Plus, MailWarning, KeyRound } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @typedef {import('#lib/server/v2/inbound-email.js').MailboxRow} MailboxRow */
+
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   // cases.InboundMailbox.PROVIDER_CHOICES is MAILBOX_PROVIDER_LABEL's key
@@ -66,7 +68,7 @@
   // `null` when the panel is closed, `'new'` when adding, or the mailbox
   // object when editing that row. One panel, two modes, so two rows can
   // never be open for edit at once.
-  let editing = $state(/** @type {any} */ (null));
+  let editing = $state(/** @type {'new' | MailboxRow | null} */ (null));
   // What the open form makes, and whether the server picks the address.
   let creates = $state('tickets');
   // The provider picked in the open form, which decides the credential shown.
@@ -88,7 +90,7 @@
     addressMode = data.generated_domain ? 'generate' : 'own';
   }
 
-  /** @param {any} m */
+  /** @param {MailboxRow} m */
   function openEdit(m) {
     editing = m;
     creates = m.creates;
@@ -131,24 +133,25 @@
 <div class="v2-scroll">
   <div class="v2-pad" style="padding-top:18px;padding-bottom:32px">
     {#if editing}
+      {@const current = editing}
       <SettingsFormPanel
-        title={editing === 'new' ? 'New address' : `Edit ${editing.address}`}
-        action={editing === 'new' ? '?/create' : '?/update'}
-        error={editing === 'new' ? form?.create?.error : form?.update?.error}
-        submitLabel={editing === 'new' ? 'Add address' : 'Save address'}
+        title={current === 'new' ? 'New address' : `Edit ${current.address}`}
+        action={current === 'new' ? '?/create' : '?/update'}
+        error={current === 'new' ? form?.create?.error : form?.update?.error}
+        submitLabel={current === 'new' ? 'Add address' : 'Save address'}
         oncancel={() => (editing = null)}
         ondone={() => (editing = null)}
       >
         {#snippet fields()}
-          {#if editing !== 'new'}
-            <input type="hidden" name="id" value={editing.id} />
+          {#if current !== 'new'}
+            <input type="hidden" name="id" value={current.id} />
           {/if}
 
           {#if offerLeads}
             <div class="v2-field">
               <label for="m-creates">Each email becomes</label>
               <select id="m-creates" class="v2-input" name="creates" bind:value={creates}>
-                {#if ticketsOn || (editing !== 'new' && editing.creates === 'tickets')}
+                {#if ticketsOn || (current !== 'new' && current.creates === 'tickets')}
                   <option value="tickets">A ticket</option>
                 {/if}
                 <option value="leads">A lead</option>
@@ -162,7 +165,7 @@
             </div>
           {/if}
 
-          {#if editing === 'new' && data.generated_domain}
+          {#if current === 'new' && data.generated_domain}
             <div class="v2-field">
               <span class="v2-label" id="m-mode-label">Address</span>
               <div role="radiogroup" aria-labelledby="m-mode-label" class="v2-mbx-modes">
@@ -184,11 +187,11 @@
           {/if}
 
           {#if serverOwned}
-            {#if editing !== 'new'}
+            {#if current !== 'new'}
               <div class="v2-field">
                 <span class="v2-label">Address</span>
                 <p class="v2-hint" style="margin:0">
-                  {editing.address}, made by this server. It cannot be changed; add a new one
+                  {current.address}, made by this server. It cannot be changed; add a new one
                   instead.
                 </p>
               </div>
@@ -202,11 +205,11 @@
                 type="email"
                 name="address"
                 required
-                value={editing === 'new' ? '' : editing.address}
+                value={current === 'new' ? '' : current.address}
               />
-              {#if editing !== 'new'}
+              {#if current !== 'new'}
                 <p class="v2-hint">
-                  Mail to the old address stops becoming {editing.creates === 'leads'
+                  Mail to the old address stops becoming {current.creates === 'leads'
                     ? 'leads'
                     : 'tickets'}.
                 </p>
@@ -230,7 +233,7 @@
 
             {#if SECRET_PROVIDERS.includes(provider)}
               {@const setupUrl =
-                editing === 'new' ? null : webhookSetupUrl(provider, editing.id, data.api_base)}
+                current === 'new' ? null : webhookSetupUrl(provider, current.id, data.api_base)}
               <div class="v2-field">
                 <label for="m-secret"
                   >{provider === 'postmark' ? 'Basic-auth password' : 'Webhook signing key'}</label
@@ -244,12 +247,12 @@
                   autocapitalize="off"
                   spellcheck="false"
                   maxlength="128"
-                  placeholder={editing !== 'new' && editing.has_webhook_secret
+                  placeholder={current !== 'new' && current.has_webhook_secret
                     ? 'A secret is stored; type to replace it'
                     : ''}
                 />
                 <p class="v2-hint">
-                  {editing !== 'new' && editing.has_webhook_secret
+                  {current !== 'new' && current.has_webhook_secret
                     ? 'A secret is stored. It is never shown; leave blank to keep it.'
                     : 'No secret is stored, so every post to this address is refused.'}
                   {provider === 'postmark'
@@ -261,7 +264,7 @@
                     {provider === 'postmark' ? 'Inbound webhook URL' : 'Route action'}:
                     <code style="word-break:break-all">{setupUrl}</code>
                   </p>
-                {:else if editing === 'new'}
+                {:else if current === 'new'}
                   <p class="v2-hint">The setup URL appears here once the address is saved.</p>
                 {/if}
               </div>
@@ -276,12 +279,12 @@
                   autocapitalize="off"
                   spellcheck="false"
                   placeholder="arn:aws:sns:us-east-1:123456789012:inbound-mail"
-                  value={editing === 'new' ? '' : (editing.topic_arn ?? '')}
+                  value={current === 'new' ? '' : (current.topic_arn ?? '')}
                 />
                 <input
                   type="hidden"
                   name="topic_arn_was"
-                  value={editing === 'new' ? '' : (editing.topic_arn ?? '')}
+                  value={current === 'new' ? '' : (current.topic_arn ?? '')}
                 />
                 <p class="v2-hint">
                   Mail is accepted only from this exact topic. Left blank, it is set by the first
@@ -301,10 +304,10 @@
                 id="m-lead-source"
                 class="v2-input"
                 name="lead_source"
-                value={editing === 'new' ? newLeadSource : editing.lead_source}
+                value={current === 'new' ? newLeadSource : current.lead_source}
               >
                 <option value="">Not specified</option>
-                {#each sourceOptions(data.sources, editing === 'new' ? '' : editing.lead_source) as s (s.key)}
+                {#each sourceOptions(data.sources, current === 'new' ? '' : current.lead_source) as s (s.key)}
                   <option value={s.key}>{s.label}</option>
                 {/each}
               </select>
@@ -317,7 +320,7 @@
                 name="lead_source_detail"
                 maxlength="100"
                 placeholder="e.g. Zillow"
-                value={editing === 'new' ? '' : editing.lead_source_detail}
+                value={current === 'new' ? '' : current.lead_source_detail}
               />
             </div>
           {/if}
@@ -328,7 +331,7 @@
               {#each PRIORITIES as p (p)}
                 <option
                   value={p}
-                  selected={editing === 'new' ? p === 'Normal' : editing.default_priority === p}
+                  selected={current === 'new' ? p === 'Normal' : current.default_priority === p}
                 >
                   {p}
                 </option>
@@ -339,11 +342,11 @@
           <div class="v2-field" hidden={creates === 'leads'}>
             <label for="m-type">Opens as type</label>
             <select id="m-type" class="v2-input" name="default_case_type">
-              <option value="" selected={editing === 'new' || !editing.default_case_type}>
+              <option value="" selected={current === 'new' || !current.default_case_type}>
                 None
               </option>
               {#each CASE_TYPES as t (t)}
-                <option value={t} selected={editing !== 'new' && editing.default_case_type === t}>
+                <option value={t} selected={current !== 'new' && current.default_case_type === t}>
                   {t}
                 </option>
               {/each}
@@ -353,7 +356,7 @@
           <div class="v2-field">
             <label for="m-assignee">Default assignee</label>
             <select id="m-assignee" class="v2-input" name="default_assignee_id">
-              <option value="" selected={editing === 'new' || !editing.default_assignee}>
+              <option value="" selected={current === 'new' || !current.default_assignee}>
                 Unassigned
               </option>
               {#if missingAssignee}
@@ -364,7 +367,7 @@
               {#each data.people as p (p.id)}
                 <option
                   value={p.id}
-                  selected={editing !== 'new' && editing.default_assignee?.id === p.id}
+                  selected={current !== 'new' && current.default_assignee?.id === p.id}
                 >
                   {p.name}
                 </option>
@@ -383,7 +386,7 @@
             {/if}
           </div>
 
-          {#if editing === 'new'}
+          {#if current === 'new'}
             <div class="v2-field">
               <label for="m-active">Active</label>
               <label style="display:flex;gap:8px;align-items:center;font-weight:400">

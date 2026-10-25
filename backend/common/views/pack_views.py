@@ -6,7 +6,8 @@ one or clear sample data. The org is always request.profile.org, never a
 body field. Org.vertical is descriptive and is never read here for access control.
 """
 
-from rest_framework import status
+from drf_spectacular.utils import extend_schema, inline_serializer
+from rest_framework import serializers, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -16,6 +17,37 @@ from common.models import PackApplication
 from common.packs.applier import clear_sample_data
 from common.packs.loader import get_pack, get_registry
 from common.permissions import HasOrgContext, is_org_admin
+
+
+def _skipped():
+    return inline_serializer(
+        name="PackSkippedItem",
+        many=True,
+        fields={
+            "type": serializers.CharField(),
+            "name": serializers.CharField(),
+            "reason": serializers.CharField(),
+        },
+    )
+
+
+_REPORT = inline_serializer(
+    name="PackApplyReport",
+    fields={
+        "created": inline_serializer(
+            name="PackCreatedItem",
+            many=True,
+            fields={"type": serializers.CharField(), "name": serializers.CharField()},
+        ),
+        "skipped": _skipped(),
+        # Nothing records a failure today, so it is always empty.
+        "failed": _skipped(),
+    },
+)
+
+
+def _counts():
+    return serializers.DictField(child=serializers.IntegerField())
 
 
 def _require_admin(request):
@@ -40,6 +72,25 @@ class PackListView(APIView):
     # applies. This is not anonymous.
     permission_classes = (IsAuthenticated,)
 
+    @extend_schema(
+        responses={
+            200: inline_serializer(
+                name="PackListResponse",
+                fields={
+                    "packs": inline_serializer(
+                        name="PackSummary",
+                        many=True,
+                        fields={
+                            "id": serializers.CharField(),
+                            "name": serializers.CharField(),
+                            "description": serializers.CharField(),
+                            "version": serializers.IntegerField(),
+                        },
+                    )
+                },
+            )
+        }
+    )
     def get(self, request):
         packs = [
             {
@@ -60,6 +111,12 @@ class PackApplyView(APIView):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
+    @extend_schema(
+        request=None,
+        responses={
+            200: inline_serializer(name="PackApplyResponse", fields={"report": _REPORT})
+        },
+    )
     def post(self, request, pack_id):
         denied = _require_admin(request)
         if denied:
@@ -83,6 +140,19 @@ class PackApplyView(APIView):
 class PackSampleDataView(APIView):
     permission_classes = (IsAuthenticated, HasOrgContext)
 
+    @extend_schema(
+        responses={
+            200: inline_serializer(
+                name="PackSampleDataClearResponse",
+                fields={
+                    "deleted": serializers.IntegerField(),
+                    "deleted_by_type": _counts(),
+                    "retained_by_type": _counts(),
+                    "switched_off_by_type": _counts(),
+                },
+            )
+        }
+    )
     def delete(self, request):
         denied = _require_admin(request)
         if denied:

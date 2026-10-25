@@ -29,7 +29,7 @@
   import { hubGroups } from '#lib/v2/settings-hub.js';
   import { ChevronRight, ShieldAlert } from '@lucide/svelte';
 
-  /** @type {{ data: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data } = $props();
 
   let org = $derived(data.org);

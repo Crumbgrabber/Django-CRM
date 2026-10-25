@@ -6,11 +6,10 @@
    * typed. Arrow keys move, Enter or Tab inserts, Escape closes. Every other
    * attribute goes to the textarea, and `ref` is the textarea element.
    *
-   * @type {{
+   * @type {Omit<import('svelte/elements').HTMLTextareaAttributes, 'value'> & {
    *   value: string,
    *   people?: import('#lib/v2/mentions.js').MentionPerson[],
-   *   ref?: HTMLTextAreaElement,
-   *   [key: string]: any
+   *   ref?: HTMLTextAreaElement
    * }}
    */
   // No fallback on `ref`: Svelte refuses `bind:ref={undefined}` against one.

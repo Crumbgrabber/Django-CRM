@@ -5,7 +5,7 @@ Not gated by a module: deals and contacts read the same list.
 
 from django.db import IntegrityError, transaction
 from django.db.models import Q
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import extend_schema, inline_serializer
 from rest_framework import serializers, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -40,6 +40,21 @@ def _forbidden():
     return Response({"error": ADMIN_ONLY}, status=status.HTTP_403_FORBIDDEN)
 
 
+class LeadSourceSerializer(serializers.Serializer):
+    """Response-only: one `_row`."""
+
+    id = serializers.CharField()
+    key = serializers.CharField()
+    label = serializers.CharField()
+    is_active = serializers.BooleanField()
+    order = serializers.IntegerField()
+
+
+_SOURCE_LIST = inline_serializer(
+    "LeadSourceListResponse", {"sources": LeadSourceSerializer(many=True)}
+)
+
+
 class SourceCreateSerializer(serializers.Serializer):
     label = serializers.CharField(max_length=LABEL_MAX)
 
@@ -66,7 +81,9 @@ class SourceOrderSerializer(serializers.Serializer):
 class LeadSourceListCreateView(APIView):
     permission_classes = (IsAuthenticated, HasOrgContext)
 
-    @extend_schema(tags=["Leads"], operation_id="lead_sources_list")
+    @extend_schema(
+        tags=["Leads"], operation_id="lead_sources_list", responses={200: _SOURCE_LIST}
+    )
     def get(self, request):
         sources = org_sources(request.profile.org)
         return Response({"sources": [_row(s) for s in sources]})
@@ -75,6 +92,7 @@ class LeadSourceListCreateView(APIView):
         tags=["Leads"],
         operation_id="lead_sources_create",
         request=SourceCreateSerializer,
+        responses={201: LeadSourceSerializer},
     )
     def post(self, request):
         if not is_org_admin(request.profile):
@@ -109,6 +127,7 @@ class LeadSourceDetailView(APIView):
         tags=["Leads"],
         operation_id="lead_sources_update",
         request=SourceUpdateSerializer,
+        responses={200: LeadSourceSerializer},
     )
     def patch(self, request, pk):
         if not is_org_admin(request.profile):
@@ -143,6 +162,7 @@ class LeadSourceOrderView(APIView):
         tags=["Leads"],
         operation_id="lead_sources_order",
         request=SourceOrderSerializer,
+        responses={200: _SOURCE_LIST},
     )
     @transaction.atomic
     def post(self, request):

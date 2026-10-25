@@ -22,7 +22,7 @@
   import { Plus, FileText } from '@lucide/svelte';
   import { isOn } from '#lib/v2/modules.js';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   let totals = $derived(data.totals);
@@ -47,7 +47,8 @@
     ['Draft', 'Sent', 'Viewed'].includes(e.status) && !e.is_expired;
 
   /* Per currency, never added across: there are no exchange rates. */
-  const perCurrency = (/** @type {any[]} */ list) => moneyEach(list) || money(0, data.org.currency);
+  const perCurrency = (/** @type {{ currency: string, amount: number }[]} */ list) =>
+    moneyEach(list) || money(0, data.org.currency);
 </script>
 
 <PageHeader title="Estimates">

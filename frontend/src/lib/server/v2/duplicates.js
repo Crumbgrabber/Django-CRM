@@ -14,13 +14,21 @@
  */
 import { error, fail, redirect } from '@sveltejs/kit';
 import { apiRequest } from '#lib/api-helpers.js';
+import { apiStatus } from '#lib/api-errors.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+
+/** A record off its detail endpoint; the three modules' bodies differ. @typedef {Record<string, unknown>} MergeRecord */
+
+/** @param {unknown} value */
+const text = (value) => (typeof value === 'string' ? value : undefined);
 
 /**
  * The modules that have duplicates, the query fields each one's create form
  * may send, and what the compare page shows side by side.
  *
- * @type {Record<string, { singular: string, record: string, query: string[], compare: Array<[string, (o: any) => any]> }>}
+ * @type {Record<string, { singular: string, record: string, query: string[], compare: Array<[string, (o: MergeRecord) => string | undefined]> }>}
  */
 export const DUPLICATE_MODULES = {
   leads: {
@@ -29,12 +37,12 @@ export const DUPLICATE_MODULES = {
     query: ['email', 'phone', 'first_name', 'last_name', 'company_name'],
     compare: [
       ['Name', (o) => personName(o)],
-      ['Company', (o) => o.company_name],
-      ['Email', (o) => o.email],
-      ['Phone', (o) => o.phone],
-      ['Website', (o) => o.website],
-      ['Status', (o) => o.status],
-      ['Created', (o) => o.created_at?.slice(0, 10)]
+      ['Company', (o) => text(o.company_name)],
+      ['Email', (o) => text(o.email)],
+      ['Phone', (o) => text(o.phone)],
+      ['Website', (o) => text(o.website)],
+      ['Status', (o) => text(o.status)],
+      ['Created', (o) => text(o.created_at)?.slice(0, 10)]
     ]
   },
   contacts: {
@@ -43,12 +51,12 @@ export const DUPLICATE_MODULES = {
     query: ['email', 'phone', 'first_name', 'last_name'],
     compare: [
       ['Name', (o) => personName(o)],
-      ['Job title', (o) => o.title],
-      ['Company', (o) => o.organization],
-      ['Email', (o) => o.email],
-      ['Phone', (o) => o.phone],
-      ['City', (o) => o.city],
-      ['Created', (o) => o.created_at?.slice(0, 10)]
+      ['Job title', (o) => text(o.title)],
+      ['Company', (o) => text(o.organization)],
+      ['Email', (o) => text(o.email)],
+      ['Phone', (o) => text(o.phone)],
+      ['City', (o) => text(o.city)],
+      ['Created', (o) => text(o.created_at)?.slice(0, 10)]
     ]
   },
   accounts: {
@@ -56,21 +64,23 @@ export const DUPLICATE_MODULES = {
     record: 'account_obj',
     query: ['name', 'email', 'phone', 'website'],
     compare: [
-      ['Name', (o) => o.name],
-      ['Website', (o) => o.website],
-      ['Email', (o) => o.email],
-      ['Phone', (o) => o.phone],
-      ['Industry', (o) => o.industry],
-      ['City', (o) => o.city],
-      ['Created', (o) => o.created_at?.slice(0, 10)]
+      ['Name', (o) => text(o.name)],
+      ['Website', (o) => text(o.website)],
+      ['Email', (o) => text(o.email)],
+      ['Phone', (o) => text(o.phone)],
+      ['Industry', (o) => text(o.industry)],
+      ['City', (o) => text(o.city)],
+      ['Created', (o) => text(o.created_at)?.slice(0, 10)]
     ]
   }
 };
 
-/** @param {any} o */
+/** @param {MergeRecord} o */
 function personName(o) {
   return [o.first_name, o.last_name].filter(Boolean).join(' ');
 }
+
+/** @typedef {'leads' | 'contacts' | 'accounts'} MergeModule */
 
 /** @param {string} module */
 function spec(module) {
@@ -108,7 +118,7 @@ export function matchedLabel(reasons) {
   return `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}`;
 }
 
-/** @param {any} hit */
+/** @param {Schemas['DuplicateHit']} hit */
 function toHit(hit) {
   return {
     id: hit.id,
@@ -138,6 +148,7 @@ export async function checkDuplicates({ cookies }, module, criteria) {
     if (typeof value === 'string' && value.trim()) body[field] = value.trim();
   }
   if (!Object.keys(body).length) return [];
+  /** @type {Schemas['DuplicatesResponse']} */
   const response = await apiRequest(
     `/${module}/duplicates/`,
     { method: 'POST', body },
@@ -158,6 +169,7 @@ export async function recordDuplicates({ cookies }, module, id) {
   spec(module);
   recordId(id);
   try {
+    /** @type {Schemas['RecordDuplicatesResponse']} */
     const response = await apiRequest(`/${module}/${id}/duplicates/`, {}, { cookies });
     return {
       can_delete: Boolean(response?.can_delete),
@@ -174,7 +186,7 @@ export async function recordDuplicates({ cookies }, module, id) {
  * missing id.
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
- * @param {string} module
+ * @param {MergeModule} module
  * @param {string} id
  * @param {string | null} otherId
  */
@@ -186,21 +198,28 @@ export async function getMergePair({ cookies }, module, id, otherId) {
 
   const load = async (/** @type {string} */ pk) => {
     try {
+      /** @type {Promise<Record<string, unknown>>} */
+      const detailCall = apiRequest(`/${module}/${pk}/`, {}, { cookies });
+      /** @type {Promise<Schemas['RecordDuplicatesResponse']>} */
+      const dupsCall = apiRequest(`/${module}/${pk}/duplicates/`, {}, { cookies });
       const [detail, dups] = await Promise.all([
-        apiRequest(`/${module}/${pk}/`, {}, { cookies }),
+        detailCall,
         // Only for `can_delete`. If it fails the page still loads, and that
         // record is simply not offered as the one to merge away.
-        apiRequest(`/${module}/${pk}/duplicates/`, {}, { cookies }).catch(() => null)
+        dupsCall.catch(() => null)
       ]);
-      const obj = detail[record];
+      const obj = /** @type {MergeRecord} */ (detail[record]);
       return {
-        id: obj.id,
-        name: record === 'account_obj' ? obj.name : personName(obj) || obj.email || singular,
+        id: /** @type {string} */ (obj.id),
+        name:
+          record === 'account_obj'
+            ? /** @type {string} */ (obj.name)
+            : personName(obj) || text(obj.email) || singular,
         can_delete: Boolean(dups?.can_delete),
         fields: compare.map(([label, read]) => ({ label, value: read(obj) || '' }))
       };
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 404) {
+    } catch (err) {
+      if (apiStatus(err) === 404) {
         error(404, `That ${singular} does not exist, or you do not have access to it.`);
       }
       throw err;
@@ -216,7 +235,7 @@ export async function getMergePair({ cookies }, module, id, otherId) {
  * caller's rights on each; a refusal arrives as a thrown error with its status.
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
- * @param {string} module
+ * @param {MergeModule} module
  * @param {string} keeperId
  * @param {string} loserId
  */
@@ -241,7 +260,7 @@ export async function mergeRecords({ cookies }, module, keeperId, loserId) {
  * the keeper must be one of the two records on the page and the loser is the
  * other one; the API re-checks both.
  *
- * @param {string} module
+ * @param {MergeModule} module
  */
 export function mergeRoute(module) {
   return {
@@ -268,8 +287,9 @@ export function mergeRoute(module) {
         const loser = keep === params.id ? other : params.id;
         try {
           await mergeRecords({ cookies }, module, keep, loser);
-        } catch (/** @type {any} */ err) {
-          return fail(err?.status === 404 || err?.status === 403 ? err.status : 400, {
+        } catch (err) {
+          const status = apiStatus(err);
+          return fail(status === 404 || status === 403 ? status : 400, {
             error: readableError(err, 'Could not merge these records.')
           });
         }

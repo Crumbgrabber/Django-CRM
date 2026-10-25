@@ -27,7 +27,7 @@
 /**
  * The page's filters as a view stores them, read off its query string.
  *
- * @param {URLSearchParams} params
+ * @param {import('$app/state').ReadonlyURLSearchParams} params
  * @param {Spec} spec
  * @returns {Record<string, string[]>}
  */
@@ -55,7 +55,7 @@ export function pickFilters(params, spec) {
  * current URL is cleared, so opening a view is a fresh start rather than a
  * merge with the chips already up.
  *
- * @param {URL} url the current page
+ * @param {import('$app/state').ReadonlyURL} url the current page
  * @param {Record<string, string[]>} filters
  * @param {Spec} spec
  */
@@ -98,7 +98,7 @@ export function droppedValues(filters, spec) {
  * values here: the list is then showing something else. Order of repeated
  * values does not matter.
  *
- * @param {URLSearchParams} params
+ * @param {import('$app/state').ReadonlyURLSearchParams} params
  * @param {Record<string, string[]>} filters
  * @param {Spec} spec
  */

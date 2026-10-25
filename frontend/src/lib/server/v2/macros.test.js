@@ -109,7 +109,7 @@ describe('getMacros', () => {
 
     expect(data.my_profile_id).toBe('profile-77');
     const mine = data.macros.find((/** @type {any} */ m) => m.id === 'm1');
-    expect(mine.owner.id).toBe(data.my_profile_id);
+    expect(mine?.owner?.id).toBe(data.my_profile_id);
   });
 
   it('my_profile_id falls back to an empty string, never a value that could collide with an owner id', async () => {

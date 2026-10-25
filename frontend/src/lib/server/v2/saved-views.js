@@ -17,6 +17,7 @@
  */
 import { fail, redirect } from '@sveltejs/kit';
 import { apiRequest } from '#lib/api-helpers.js';
+import { apiErrorBody, apiStatus } from '#lib/api-errors.js';
 import { pickFilters } from '#lib/v2/saved-views.js';
 import { readableError } from './form-errors.js';
 import { FILTER_FIELDS as LEAD_FIELDS } from './leads.js';
@@ -26,6 +27,8 @@ import { FILTER_FIELDS as DEAL_FIELDS, BOARD_FIELDS } from './deals.js';
 import { FILTER_FIELDS as TICKET_FIELDS, OPEN_STATUSES } from './tickets.js';
 import { FILTER_FIELDS as INVOICE_FIELDS } from './invoices.js';
 import { FILTERS } from '#lib/v2/filters.js';
+
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
 
 /**
  * Per API list, the URL parameters its page forwards to the list under the
@@ -68,9 +71,7 @@ const PAGE = {
  * @returns {import('#lib/v2/saved-views.js').Spec}
  */
 export function savedViewSpec(module, params) {
-  const multi = FILTERS[PAGE[module]].fields
-    .filter((/** @type {any} */ f) => f.multi)
-    .map((/** @type {any} */ f) => f.key);
+  const multi = FILTERS[PAGE[module]].fields.filter((f) => f.multi).map((f) => f.key);
   if (module === 'opportunities') {
     const board = params.get('view') === 'board';
     return {
@@ -94,7 +95,7 @@ export function savedViewSpec(module, params) {
  * a whole sentence (`{"name": ["You already have a view with this name for
  * this list."]}`), so the field name in front of it would only be noise.
  *
- * @param {any} body
+ * @param {import('#lib/api-errors.js').ApiErrorBody | undefined} body
  * @returns {string | null}
  */
 function firstSentence(body) {
@@ -117,6 +118,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export async function loadSavedViews({ cookies, url }, module) {
   const spec = savedViewSpec(module, url.searchParams);
   try {
+    /** @type {Schemas['SavedViewListResponse']} */
     const resp = await apiRequest(`/saved-views/?module=${module}`, {}, { cookies });
     return { spec, views: resp.saved_views ?? [], limit: resp.limit ?? null };
   } catch {
@@ -143,7 +145,7 @@ function backTo(url, form) {
 export function savedViewActions(module) {
   /**
    * @param {import('@sveltejs/kit').RequestEvent} event
-   * @param {(form: FormData) => { path: string, method: string, body?: any } | string} build
+   * @param {(form: FormData) => { path: string, method: string, body?: Record<string, unknown> } | string} build
    *   the API call, or a sentence refusing it
    * @param {string} fallback
    */
@@ -154,13 +156,13 @@ export function savedViewActions(module) {
     try {
       await apiRequest(call.path, { method: call.method, body: call.body }, { cookies });
     } catch (err) {
-      const status = /** @type {any} */ (err)?.status;
+      const status = apiStatus(err);
       if (!status) throw err;
       return fail(status === 404 ? 404 : 400, {
         savedViewError:
           status === 404
             ? 'That view no longer exists.'
-            : (firstSentence(/** @type {any} */ (err).body) ?? readableError(err, fallback))
+            : (firstSentence(apiErrorBody(err)) ?? readableError(err, fallback))
       });
     }
     redirect(303, backTo(url, form));

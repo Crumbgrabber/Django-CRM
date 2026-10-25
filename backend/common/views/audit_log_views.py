@@ -36,7 +36,8 @@ before it gets here, the same way `/api/webhooks/` is.
 """
 
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import OpenApiParameter, extend_schema
+from drf_spectacular.utils import OpenApiParameter, extend_schema, inline_serializer
+from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 from rest_framework.pagination import LimitOffsetPagination
 from rest_framework.permissions import IsAuthenticated
@@ -121,6 +122,34 @@ def _entry(row):
     }
 
 
+class AuditLogActorSerializer(serializers.Serializer):
+    id = serializers.CharField()
+    name = serializers.CharField()
+    email = serializers.CharField()
+
+
+class AuditLogEntrySerializer(serializers.Serializer):
+    """Response only: one row as ``_entry`` builds it."""
+
+    id = serializers.CharField()
+    event_type = serializers.CharField()
+    event_label = serializers.CharField()
+    created_at = serializers.DateTimeField()
+    success = serializers.BooleanField()
+    actor = AuditLogActorSerializer(allow_null=True)
+    ip_address = serializers.CharField(allow_null=True)
+    user_agent = serializers.CharField()
+    request_method = serializers.CharField()
+    request_path = serializers.CharField()
+    # The allow-listed metadata keys this row carries, values as written.
+    details = serializers.DictField(child=serializers.JSONField())
+
+
+class AuditLogEventTypeSerializer(serializers.Serializer):
+    value = serializers.CharField()
+    label = serializers.CharField()
+
+
 class SecurityAuditLogListView(APIView):
     permission_classes = (IsAuthenticated, HasOrgContext, IsOrgAdmin)
 
@@ -139,7 +168,18 @@ class SecurityAuditLogListView(APIView):
                 description="`true` to list token refreshes, hidden by default.",
             ),
         ],
-        responses=OpenApiTypes.OBJECT,
+        responses={
+            200: inline_serializer(
+                name="AuditLogListResponse",
+                fields={
+                    "count": serializers.IntegerField(),
+                    "next": serializers.CharField(allow_null=True),
+                    "previous": serializers.CharField(allow_null=True),
+                    "results": AuditLogEntrySerializer(many=True),
+                    "event_types": AuditLogEventTypeSerializer(many=True),
+                },
+            )
+        },
     )
     def get(self, request):
         params = request.query_params

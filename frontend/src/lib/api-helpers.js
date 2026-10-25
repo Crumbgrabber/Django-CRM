@@ -6,12 +6,16 @@
  */
 
 import * as env from '$app/env/public';
+import { apiErrorBody, apiStatus } from '#lib/api-errors.js';
 
 const API_BASE_URL = `${env.PUBLIC_DJANGO_API_URL}/api`;
 
 /**
  * @typedef {import('@sveltejs/kit').Cookies} Cookies
  */
+
+/** @typedef {import('#lib/api-errors.js').ApiErrorBody} ApiErrorBody */
+/** @typedef {import('#lib/api-errors.js').ApiError} ApiError */
 
 /**
  * Make authenticated API request to Django backend
@@ -28,7 +32,9 @@ const API_BASE_URL = `${env.PUBLIC_DJANGO_API_URL}/api`;
  *   (a 404 from a route this install does not have): they are thrown as usual,
  *   with `status` and `body`, but never logged.
  * @param {{ cookies?: Cookies, org?: { id: string } } | Cookies} locals - SvelteKit locals object or cookies directly
- * @returns {Promise<any>} Response data
+ * @template [T=unknown] The reply's type, taken from the variable or return type it is
+ *   assigned to. Annotate with the generated schema type (`#lib/api-schema.js`).
+ * @returns {Promise<T>} Response data
  * @throws {Error} If request fails
  */
 export async function apiRequest(endpoint, options = {}, locals) {
@@ -87,6 +93,7 @@ export async function apiRequest(endpoint, options = {}, locals) {
 
     // Handle error responses
     if (!response.ok) {
+      /** @type {ApiErrorBody} */
       const errorData = await response.json().catch(() => ({}));
 
       // Extract meaningful error message from various Django error formats
@@ -105,7 +112,7 @@ export async function apiRequest(endpoint, options = {}, locals) {
       } else if (errorData.non_field_errors) {
         errorMessage = Array.isArray(errorData.non_field_errors)
           ? errorData.non_field_errors.join(', ')
-          : errorData.non_field_errors;
+          : String(errorData.non_field_errors);
       } else if (typeof errorData === 'object' && Object.keys(errorData).length > 0) {
         // Handle field-level validation errors from DRF serializers
         const fieldErrors = Object.entries(errorData)
@@ -147,9 +154,7 @@ export async function apiRequest(endpoint, options = {}, locals) {
        * to recover a number that was right there is a bug waiting for the day
        * somebody rewords an error.
        */
-      const failure = /** @type {Error & { status: number, body: any }} */ (
-        new Error(errorMessage)
-      );
+      const failure = /** @type {ApiError} */ (new Error(errorMessage));
       failure.status = response.status;
       failure.body = errorData;
       throw failure;
@@ -157,15 +162,14 @@ export async function apiRequest(endpoint, options = {}, locals) {
 
     // Handle 204 No Content
     if (response.status === 204) {
-      return null;
+      return /** @type {T} */ (null);
     }
 
     // Return JSON response
     return await response.json();
   } catch (error) {
-    const { status, body: failedBody } = /** @type {{ status?: number, body?: any }} */ (
-      error ?? {}
-    );
+    const status = apiStatus(error);
+    const failedBody = apiErrorBody(error);
     if (
       (status !== undefined && expectedStatuses.includes(status)) ||
       failedBody?.code === 'module_off'
@@ -173,7 +177,7 @@ export async function apiRequest(endpoint, options = {}, locals) {
       // An expected answer, already left unlogged above.
     } else if (!quietErrors) {
       console.error(`API request failed: ${method} ${endpoint}`, error);
-    } else if (!(/** @type {{ status?: number }} */ (error).status)) {
+    } else if (!status) {
       // A network failure; an error reply was logged quietly above. The
       // error object itself is not logged, since it carries the body.
       console.error(`API request failed: ${method} ${endpoint}`, String(error));

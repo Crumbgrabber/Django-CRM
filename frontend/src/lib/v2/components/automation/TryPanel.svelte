@@ -7,7 +7,11 @@
    * Plans the saved rule on one record; nothing is written. The result comes
    * back as `form.tried`, and every step is shown as text.
    *
-   * @type {{ rule: any, dirty: boolean, form: any }}
+   * @type {{
+   *   rule: import('#lib/api-schema.js').components['schemas']['Rule'],
+   *   dirty: boolean,
+   *   form: import('#lib/v2/automation.js').EditorForm
+   * }}
    */
   let { rule, dirty, form } = $props();
 

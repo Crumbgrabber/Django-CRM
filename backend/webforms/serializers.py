@@ -15,6 +15,7 @@ Two rules run through all of this:
 from urllib.parse import urlparse
 
 from django.db import transaction
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from common.links import api_url
@@ -126,8 +127,25 @@ class WebFormListSerializer(serializers.ModelSerializer):
         )
 
 
+class WebFormMemberSerializer(serializers.Serializer):
+    """Response-only: one `WebFormDetailSerializer._profile_details`."""
+
+    id = serializers.CharField()
+    email = serializers.CharField()
+    name = serializers.CharField()
+    is_active = serializers.BooleanField()
+
+
+@extend_schema_field(serializers.ListField(child=serializers.CharField()))
+class AllowedOriginsField(serializers.JSONField):
+    """`allowed_origins`: a list of origins, checked by `validate_allowed_origins`."""
+
+
 class WebFormDetailSerializer(serializers.ModelSerializer):
     fields = WebFormFieldSerializer(many=True, required=False)
+    allowed_origins = AllowedOriginsField(
+        required=False, help_text=WebForm._meta.get_field("allowed_origins").help_text
+    )
     embed_html = serializers.SerializerMethodField()
     embed_js = serializers.SerializerMethodField()
     # Whether a secret is stored, never which one. Turnstile fails closed, so a
@@ -331,14 +349,14 @@ class WebFormDetailSerializer(serializers.ModelSerializer):
     def _public_base(self, obj):
         return api_url(f"/api/public/forms/{obj.org_id}/{obj.id}/")
 
-    def get_embed_html(self, obj):
+    def get_embed_html(self, obj) -> str:
         return (
             f'<iframe src="{self._public_base(obj)}embed/" '
             f'style="width:100%;border:0" height="500" '
             f'title="{obj.name}"></iframe>'
         )
 
-    def get_has_captcha_secret(self, obj):
+    def get_has_captcha_secret(self, obj) -> bool:
         return bool(obj.captcha_secret)
 
     @staticmethod
@@ -352,17 +370,20 @@ class WebFormDetailSerializer(serializers.ModelSerializer):
             "is_active": profile.is_active,
         }
 
+    @extend_schema_field(WebFormMemberSerializer(allow_null=True))
     def get_assign_to_details(self, obj):
         return self._profile_details(obj.assign_to)
 
+    @extend_schema_field(WebFormMemberSerializer(many=True))
     def get_rotation_members_details(self, obj):
         members = obj.rotation_members.select_related("user").order_by("id")
         return [self._profile_details(profile) for profile in members]
 
+    @extend_schema_field(WebFormMemberSerializer(allow_null=True))
     def get_rotation_last_assigned_details(self, obj):
         return self._profile_details(obj.rotation_last_assigned)
 
-    def get_embed_js(self, obj):
+    def get_embed_js(self, obj) -> str:
         return (
             f'<div id="bottlecrm-webform-{obj.id}"></div>\n'
             f'<script src="{self._public_base(obj)}embed.js" async></script>'
@@ -605,12 +626,12 @@ class WebFormSubmissionSerializer(serializers.ModelSerializer):
                 data[field] = data[f"{field}_name"] = None
         return data
 
-    def get_lead_name(self, obj):
+    def get_lead_name(self, obj) -> str | None:
         if obj.lead is None:
             return None
         return str(obj.lead)
 
-    def get_case_name(self, obj):
+    def get_case_name(self, obj) -> str | None:
         if obj.case is None:
             return None
         return obj.case.name

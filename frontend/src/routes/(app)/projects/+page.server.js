@@ -30,6 +30,6 @@ export async function load(event) {
     q,
     people: orgPeople.people,
     accounts: accounts.accounts,
-    meId: resolveMe(orgPeople.people, /** @type {any} */ (locals).user?.email)
+    meId: resolveMe(orgPeople.people, locals.user?.email)
   };
 }

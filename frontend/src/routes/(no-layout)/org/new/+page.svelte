@@ -7,6 +7,7 @@
   import imgLogo from '#lib/assets/images/logo.png';
   import { ArrowLeft, Check, AlertCircle } from '@lucide/svelte';
 
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   let packs = $derived(data?.packs ?? []);

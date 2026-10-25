@@ -6,7 +6,7 @@
   import RecordFieldInputs from '#lib/v2/components/RecordFieldInputs.svelte';
   import { TriangleAlert } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form: result } = $props();
 
   let def = $derived(data.definition);
@@ -15,11 +15,11 @@
   let recordPath = $derived(`/objects/${def.key}/${record.id}`);
 
   // What was typed comes back after a refusal.
-  let typed = $derived(result?.values ?? {});
+  let typed = $derived(result?.values);
   let fields = $derived(
-    data.fields.map((/** @type {any} */ f) => {
-      const v = typed.custom_fields?.[f.key];
-      if (!typed.custom_fields || !(f.key in typed.custom_fields)) return f;
+    data.fields.map((f) => {
+      const v = typed?.custom_fields?.[f.key];
+      if (!typed?.custom_fields || !(f.key in typed.custom_fields)) return f;
       return { ...f, value: f.field_type === 'checkbox' ? Boolean(v) : v == null ? '' : String(v) };
     })
   );
@@ -68,7 +68,7 @@
         class="v2-input"
         required
         maxlength="255"
-        value={typed.name ?? record.name}
+        value={typed?.name ?? record.name}
       />
     </div>
 

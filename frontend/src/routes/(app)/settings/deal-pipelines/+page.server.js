@@ -10,6 +10,7 @@ import {
   moveStage
 } from '#lib/server/v2/deal-pipelines.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 const ADMIN_ONLY = 'Only an admin can change deal pipelines.';
 const KINDS = ['open', 'won', 'lost'];
@@ -60,13 +61,13 @@ function stageProblem(values) {
  *
  * @param {string} key
  * @param {string} fallback
- * @param {() => Promise<any>} write
+ * @param {() => Promise<unknown>} write
  */
 async function attempt(key, fallback, write) {
   try {
     await write();
-  } catch (/** @type {any} */ err) {
-    if (err?.status === 403) return fail(403, { [key]: { error: ADMIN_ONLY } });
+  } catch (err) {
+    if (apiStatus(err) === 403) return fail(403, { [key]: { error: ADMIN_ONLY } });
     return fail(400, { [key]: { error: readableError(err, fallback) } });
   }
   return null;
@@ -78,14 +79,13 @@ export const actions = {
     const form = await event.request.formData();
     const name = form.get('name')?.toString().trim() ?? '';
     if (!name) return fail(400, { createPipeline: { error: 'Give the pipeline a name.' } });
-    /** @type {any} */
-    let created = null;
+    let createdId = '';
     const refused = await attempt('createPipeline', 'Could not create the pipeline.', async () => {
-      created = await createPipeline(event, { name });
+      createdId = (await createPipeline(event, { name })).id;
     });
     if (refused) return refused;
     // Straight to the new pipeline, so its seeded stages are what is on screen.
-    redirect(303, `/settings/deal-pipelines?pipeline=${encodeURIComponent(created.id)}`);
+    redirect(303, `/settings/deal-pipelines?pipeline=${encodeURIComponent(createdId)}`);
   },
 
   async renamePipeline(event) {

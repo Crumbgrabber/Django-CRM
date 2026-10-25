@@ -23,7 +23,10 @@
   import { deserialize } from '$app/forms';
   import { holdLockedCard } from '#lib/v2/board-drag.js';
 
-  /** @type {{ data: any }} */
+  /** @typedef {import('./$types').PageData['lanes'][number]} Lane */
+  /** @typedef {CustomEvent<import('svelte-dnd-action').DndEvent<Lane['rows'][number]>>} CardEvent */
+
+  /** @type {import('./$types').PageProps} */
   let { data } = $props();
 
   const FLIP_MS = 160;
@@ -44,12 +47,7 @@
   /* Each deal's meter steps through its OWN pipeline's open stages; the list
      can hold deals from several pipelines at once. */
   let openSteps = $derived(
-    Object.fromEntries(
-      data.pipelines.map((/** @type {any} */ p) => [
-        p.id,
-        p.stages.filter((/** @type {any} */ s) => s.kind === 'open')
-      ])
-    )
+    Object.fromEntries(data.pipelines.map((p) => [p.id, p.stages.filter((s) => s.kind === 'open')]))
   );
 
   /* The Stage filter offers the chosen pipeline's stages, or every code in
@@ -57,7 +55,7 @@
      pipeline created from the defaults repeats them). */
   let stageOptions = $derived.by(() => {
     const pool = data.pipelineId
-      ? data.pipelines.filter((/** @type {any} */ p) => p.id === data.pipelineId)
+      ? data.pipelines.filter((p) => p.id === data.pipelineId)
       : data.pipelines;
     /** @type {Record<string, string>} */
     const byCode = {};
@@ -71,9 +69,10 @@
      local copy. Rebuilt whenever the server sends new lanes, which is what
      makes a rejected move snap back: the action calls `refreshAll()` and
      this effect overwrites the optimistic arrangement with the stored one. */
-  let boardLanes = $state(/** @type {any[]} */ ([]));
+  /** @type {Lane[]} */
+  let boardLanes = $state([]);
   $effect(() => {
-    boardLanes = lanes.map((/** @type {any} */ lane) => ({ ...lane, rows: [...lane.rows] }));
+    boardLanes = lanes.map((lane) => ({ ...lane, rows: [...lane.rows] }));
   });
 
   let moveError = $state('');
@@ -81,26 +80,26 @@
   /* The header has to describe the cards under it after an optimistic move,
      not the count the server sent before it. A capped lane keeps the server's
      total, since its own rows are not the whole story either way. */
-  function laneCount(/** @type {any} */ lane) {
+  function laneCount(/** @type {Lane} */ lane) {
     return lane.truncated ? lane.count : lane.rows.length;
   }
   /* Money per currency, never added across: there are no exchange rates.
      Nothing priced reads as zero in the org's own currency. */
-  function laneMoney(/** @type {any} */ lane) {
+  function laneMoney(/** @type {Lane} */ lane) {
     return perCurrency(sumByCurrency(lane.rows));
   }
   function perCurrency(/** @type {{ currency: string, amount: number }[]} */ list) {
     return moneyEach(list) || money(0, data.org.currency);
   }
 
-  function onConsider(/** @type {any} */ lane, /** @type {any} */ e) {
+  function onConsider(/** @type {Lane} */ lane, /** @type {CardEvent} */ e) {
     lane.rows = e.detail.items;
   }
 
-  async function onFinalize(/** @type {any} */ lane, /** @type {any} */ e) {
+  async function onFinalize(/** @type {Lane} */ lane, /** @type {CardEvent} */ e) {
     lane.rows = e.detail.items;
     const movedId = e.detail.info?.id;
-    const index = e.detail.items.findIndex((/** @type {any} */ r) => r.id === movedId);
+    const index = e.detail.items.findIndex((r) => r.id === movedId);
     // Finalize fires on both lanes of a cross-lane move. Only the lane now
     // holding the card knows where it landed, so only that one persists.
     if (index === -1) return;
@@ -136,9 +135,8 @@
         moveError = '';
         return;
       }
-      moveError =
-        (result.type === 'failure' && /** @type {any} */ (result.data)?.error) ||
-        'Could not move the deal; reverted.';
+      const refusal = result.type === 'failure' ? result.data?.error : undefined;
+      moveError = (typeof refusal === 'string' && refusal) || 'Could not move the deal; reverted.';
     } catch {
       moveError = 'Could not move the deal, reverted.';
     }
@@ -281,10 +279,8 @@
         <div
           class="v2-lane-body"
           use:dndzone={{ items: lane.rows, flipDurationMs: FLIP_MS }}
-          onconsider={(/** @type {CustomEvent<import('svelte-dnd-action').DndEvent>} */ e) =>
-            onConsider(lane, e)}
-          onfinalize={(/** @type {CustomEvent<import('svelte-dnd-action').DndEvent>} */ e) =>
-            onFinalize(lane, e)}
+          onconsider={(/** @type {CardEvent} */ e) => onConsider(lane, e)}
+          onfinalize={(/** @type {CardEvent} */ e) => onFinalize(lane, e)}
           onmousedowncapture={holdLockedCard}
           ontouchstartcapture={holdLockedCard}
           onkeydowncapture={holdLockedCard}

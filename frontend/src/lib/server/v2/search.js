@@ -8,6 +8,9 @@
  */
 import { apiRequest } from '#lib/api-helpers.js';
 
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+/** @typedef {{ kind: string, id: string, title: string, meta: string, href: string }} SearchHit */
+
 /** Backend `type` → palette group label + detail route. */
 const MAP = {
   lead: { kind: 'Leads', href: (/** @type {string} */ id) => `/leads/${id}` },
@@ -29,29 +32,29 @@ const MAP = {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} q
- * @returns {Promise<{ results: any[] }>}
+ * @returns {Promise<{ results: SearchHit[] }>}
  */
 export async function search({ cookies }, q) {
   const query = (q || '').trim();
   if (query.length < 2) return { results: [] };
 
+  /** @type {Schemas['GlobalSearchResponse']} */
   const data = await apiRequest(`/search/?q=${encodeURIComponent(query)}`, {}, { cookies });
 
-  const results = (data.results || [])
-    .map(
-      /** @param {any} r */ (r) => {
-        const m = MAP[/** @type {keyof typeof MAP} */ (r.type)];
-        if (!m) return null;
-        return {
-          kind: m.kind,
-          id: r.id,
-          title: r.title,
-          meta: r.subtitle || '',
-          href: m.href(r.id)
-        };
-      }
-    )
-    .filter(Boolean);
+  /** @type {SearchHit[]} */
+  const results = [];
+  for (const r of data.results || []) {
+    const m = Object.hasOwn(MAP, r.type) ? MAP[/** @type {keyof typeof MAP} */ (r.type)] : null;
+    if (m) {
+      results.push({
+        kind: m.kind,
+        id: r.id,
+        title: r.title,
+        meta: r.subtitle || '',
+        href: m.href(r.id)
+      });
+    }
+  }
 
   return { results };
 }

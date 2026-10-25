@@ -10,6 +10,7 @@ import {
 } from '#lib/server/v2/web-forms.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
 import { getLeadSources } from '#lib/server/v2/lead-sources.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 /**
  * The form, its recent submissions, and its 30-day analytics.
@@ -25,12 +26,12 @@ import { getLeadSources } from '#lib/server/v2/lead-sources.js';
 export async function load(event) {
   const { id } = event.params;
 
-  /** @type {any} */
+  /** @type {Awaited<ReturnType<typeof getWebForm>>} */
   let detail;
   try {
     detail = await getWebForm(event, id);
-  } catch (/** @type {any} */ err) {
-    if (err?.status === 404) error(404, 'That web form does not exist.');
+  } catch (err) {
+    if (apiStatus(err) === 404) error(404, 'That web form does not exist.');
     throw err;
   }
 
@@ -64,6 +65,7 @@ function readFields(form) {
   const raw = form.get('fields')?.toString();
   if (!raw) return null;
   try {
+    /** @type {unknown} */
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : null;
   } catch {
@@ -87,7 +89,7 @@ function readOrigins(form) {
 
 /** @param {FormData} form */
 function readValues(form) {
-  /** @type {Record<string, any>} */
+  /** @type {Record<string, unknown>} */
   const values = {
     name: form.get('name')?.toString() ?? '',
     submit_button_label: form.get('submit_button_label')?.toString() ?? '',
@@ -152,13 +154,13 @@ function readValues(form) {
 }
 
 /**
- * @param {any} err
+ * @param {unknown} err
  * @param {string} forbidden
  * @param {string} fallback
  */
 function actionError(err, forbidden, fallback) {
-  if (err?.status === 403) return { status: 403, message: forbidden };
-  if (err?.status === 404) return { status: 404, message: 'That form no longer exists.' };
+  if (apiStatus(err) === 403) return { status: 403, message: forbidden };
+  if (apiStatus(err) === 404) return { status: 404, message: 'That form no longer exists.' };
   return { status: 400, message: readableError(err, fallback) };
 }
 
@@ -168,7 +170,7 @@ export const actions = {
     const form = await event.request.formData();
     try {
       await updateWebForm(event, event.params.id, readValues(form));
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       const { status, message } = actionError(
         err,
         'Only an admin can change a web form.',
@@ -182,7 +184,7 @@ export const actions = {
   async publish(event) {
     try {
       await publishWebForm(event, event.params.id);
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       // The 400 body carries the reason ("add an email field first"), and that
       // reason is the entire useful content of the response.
       const { status, message } = actionError(
@@ -198,7 +200,7 @@ export const actions = {
   async unpublish(event) {
     try {
       await unpublishWebForm(event, event.params.id);
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       const { status, message } = actionError(
         err,
         'Only an admin can unpublish a web form.',
@@ -212,7 +214,7 @@ export const actions = {
   async delete(event) {
     try {
       await deleteWebForm(event, event.params.id);
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       const { status, message } = actionError(
         err,
         'Only an admin can remove a web form.',

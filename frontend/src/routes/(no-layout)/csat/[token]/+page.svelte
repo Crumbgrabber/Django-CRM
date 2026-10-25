@@ -25,7 +25,7 @@
   import { longDate, relativeDays } from '#lib/v2/format.js';
   import { Star, CheckCircle2, Clock } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   let survey = $derived(data.survey);

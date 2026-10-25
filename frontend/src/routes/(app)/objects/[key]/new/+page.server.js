@@ -19,7 +19,7 @@ export async function load({ cookies, params }) {
     getOrgPeopleAndTeams(cookies)
   ]);
   if (definition.is_active === false) error(404, OBJECT_GONE);
-  const plain = definition.fields.filter((/** @type {any} */ f) => f.field_type !== 'link');
+  const plain = definition.fields.filter((f) => f.field_type !== 'link');
   return {
     definition,
     people,
@@ -37,11 +37,11 @@ export const actions = {
     const form = await request.formData();
     const body = readRecordForm(form, definition);
 
-    /** @type {any} */
+    /** @type {import('#lib/server/v2/custom-objects.js').RecordDetail} */
     let created;
     try {
       created = await createRecord(event, key, body);
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       return fail(400, {
         values: {
           name: body.name,

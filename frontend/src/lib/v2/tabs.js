@@ -65,7 +65,8 @@ export const TAB_SETS = {
  */
 export function visibleTabs(set, { isAdmin = false, modules = null } = {}) {
   return (TAB_SETS[set] ?? []).filter((tab) => {
-    const t = /** @type {any} */ (tab);
+    /** @type {{ admin?: boolean, module?: string, anyOf?: string[] }} */
+    const t = tab;
     if (t.admin && !isAdmin) return false;
     if (t.module && !isOn(modules, t.module)) return false;
     if (t.anyOf && !t.anyOf.some((/** @type {string} */ k) => isOn(modules, k))) return false;

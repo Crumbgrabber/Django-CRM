@@ -15,7 +15,7 @@ export async function load({ cookies, locals, params }) {
   const { article } = await getArticle({ cookies }, params.id);
   return {
     article,
-    canRelease: isOrgAdmin(/** @type {any} */ (locals).profile),
+    canRelease: isOrgAdmin(locals.profile),
     // Archived tags are filtered out for the reason given on the create page:
     // `_apply_tags` refuses them, so the checkbox would do nothing. That also
     // means an article already carrying a tag archived later has no box for
@@ -27,7 +27,7 @@ export async function load({ cookies, locals, params }) {
       title: article.title,
       description: article.description,
       status: article.status,
-      tags: (article.tags ?? []).map((/** @type {any} */ t) => t.id)
+      tags: (article.tags ?? []).map((t) => t.id)
     }
   };
 }
@@ -37,11 +37,12 @@ export const actions = {
   save: async ({ cookies, params, request }) => {
     const form = await request.formData();
 
-    /** @type {Record<string, any>} */
+    const tags = form.getAll('tags').map(String);
+    /** @type {{ title: string, description: string, tags?: string[], status?: string }} */
     const values = {
       title: form.get('title')?.toString().trim() ?? '',
       description: form.get('description')?.toString().trim() ?? '',
-      tags: form.getAll('tags').map(String)
+      tags
     };
 
     // Tags go only when somebody changed them. `_apply_tags` leaves an absent
@@ -51,8 +52,8 @@ export const actions = {
     // that do have a box as `tags_original`. An unticked box is still a
     // deliberate "not this one" once something changed.
     const tagsWere = form.getAll('tags_original').map(String);
-    const tagsForRetry = values.tags;
-    if (sameIds(values.tags, tagsWere)) delete values.tags;
+    const tagsForRetry = tags;
+    if (sameIds(tags, tagsWere)) delete values.tags;
 
     /*
      * The status is only sent when somebody actually changed it.
@@ -74,7 +75,7 @@ export const actions = {
 
     try {
       await updateArticle({ cookies }, params.id, values);
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       return fail(400, {
         values: { ...values, tags: tagsForRetry },
         error: readableError(err, 'Could not save this article.')

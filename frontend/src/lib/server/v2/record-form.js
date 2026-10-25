@@ -5,11 +5,11 @@
  */
 import { collectFromForm, collectLinks, collectAssignees } from '#lib/server/v2/record-fields.js';
 
-/** @typedef {{ name: string, custom_fields: Record<string, any>, links?: Record<string, string[]>, assigned_to?: string[] }} RecordBody */
+/** @typedef {{ name: string, custom_fields: Record<string, string | boolean | null>, links?: Record<string, string[]>, assigned_to?: string[] }} RecordBody */
 
 /**
  * @param {FormData} form
- * @param {{ fields?: any[] }} definition The object with its active fields.
+ * @param {{ fields?: Array<import('#lib/server/v2/record-fields.js').FieldDefinition & { is_active?: boolean }> }} definition The object with its active fields.
  * @returns {RecordBody}
  */
 export function readRecordForm(form, definition) {

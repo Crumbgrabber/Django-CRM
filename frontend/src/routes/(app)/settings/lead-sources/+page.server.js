@@ -6,6 +6,7 @@ import {
   updateLeadSource
 } from '#lib/server/v2/lead-sources.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiStatus } from '#lib/api-errors.js';
 import { moveKeys } from '#lib/v2/lead-sources.js';
 
 /** @type {import('./$types').PageServerLoad} */
@@ -18,12 +19,13 @@ export async function load(event) {
  * server-side; the page hides the controls from a member, and a member
  * posting anyway reads this.
  *
- * @param {any} err @param {string} fallback
+ * @param {unknown} err @param {string} fallback
  * @returns {{ status: number, error: string }}
  */
 function refusal(err, fallback) {
-  if (err?.status === 403) return { status: 403, error: 'Only an admin can change lead sources.' };
-  if (err?.status === 404) return { status: 404, error: 'That source no longer exists.' };
+  if (apiStatus(err) === 403)
+    return { status: 403, error: 'Only an admin can change lead sources.' };
+  if (apiStatus(err) === 404) return { status: 404, error: 'That source no longer exists.' };
   return { status: 400, error: readableError(err, fallback) };
 }
 
@@ -31,7 +33,7 @@ function refusal(err, fallback) {
 function refused(
   /** @type {string} */ key,
   /** @type {string} */ id,
-  /** @type {any} */ err,
+  /** @type {unknown} */ err,
   /** @type {string} */ fallback
 ) {
   const { status, error } = refusal(err, fallback);

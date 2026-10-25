@@ -12,8 +12,10 @@
  * different opinions about who may open a record.
  */
 
+import { apiErrorBody } from '#lib/api-errors.js';
+
 /**
- * @param {any} err the error thrown by `apiRequest`
+ * @param {unknown} err the error thrown by `apiRequest`
  * @param {string} fallback what to say when the response explained nothing
  * @returns {string} a message worth putting in front of somebody
  */
@@ -38,7 +40,8 @@ export function readableError(err, fallback) {
    * because the flattened message in that case is the bare string "errors:"
    * and an empty apology beside a failed save reads as though it worked.
    */
-  const direct = err?.body?.errors;
+  const body = apiErrorBody(err);
+  const direct = body?.errors;
   if (typeof direct === 'string') return direct.trim() || fallback;
 
   /*
@@ -47,10 +50,12 @@ export function readableError(err, fallback) {
    * it to "message: <sentence>" the same way. A body that also carries a
    * per-field `errors` map is left to the field handling below.
    */
-  const said = err?.body?.message;
+  const said = body?.message;
   if (typeof said === 'string' && direct === undefined) return said.trim() || fallback;
 
-  const message = String(err?.message ?? '');
+  const message = String(
+    /** @type {{ message?: unknown } | null | undefined} */ (err)?.message ?? ''
+  );
   const start = message.indexOf('{');
   if (start === -1) return message || fallback;
   try {

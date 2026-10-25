@@ -21,7 +21,7 @@
   import { REOPEN_TO_STATUSES } from '#lib/v2/enums.js';
   import { RotateCcw, MailX } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   let editing = $state(false);

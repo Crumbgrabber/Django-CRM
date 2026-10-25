@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 from django.utils import timezone
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from interactions.access import PERSON_ORIGINS, may_change_interaction
@@ -24,7 +25,17 @@ TOO_LATE = "This is more than five minutes in the future."
 CALLS_ONLY = "Only a call has an outcome."
 
 
+class InteractionPersonSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    name = serializers.CharField()
+    email = serializers.EmailField()
+
+
 class InteractionSerializer(serializers.ModelSerializer):
+    # Declared for the schema: a read-only model field leaves out the blank choice.
+    outcome = serializers.ChoiceField(
+        choices=CALL_OUTCOMES, allow_blank=True, read_only=True
+    )
     logged_by_details = serializers.SerializerMethodField()
     can_edit = serializers.SerializerMethodField()
 
@@ -56,7 +67,8 @@ class InteractionSerializer(serializers.ModelSerializer):
         )
         read_only_fields = fields
 
-    def get_logged_by_details(self, obj) -> dict | None:
+    @extend_schema_field(InteractionPersonSerializer(allow_null=True))
+    def get_logged_by_details(self, obj):
         profile = obj.logged_by
         if profile is None:
             return None

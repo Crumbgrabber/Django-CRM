@@ -36,18 +36,13 @@ import { apiRequest } from '#lib/api-helpers.js';
 /** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
 
 /**
- * `user_details` is a SerializerMethodField, so the schema types it as a bare dict.
- * @typedef {{ name?: string, email?: string }} UserDetails
- */
-
-/**
  * A profile as the pickers label it.
  *
  * @param {Schemas['Profile']} profile
  */
 function personName(profile) {
-  const d = /** @type {UserDetails} */ (profile?.user_details ?? {});
-  return d.name || d.email || 'Unnamed';
+  const d = profile?.user_details;
+  return d?.name || d?.email || 'Unnamed';
 }
 
 /**
@@ -62,7 +57,7 @@ export async function getOrgPeopleAndTeams(cookies) {
       people: (resp?.profiles ?? []).map((p) => ({
         id: p.id,
         name: personName(p),
-        email: /** @type {UserDetails} */ (p.user_details)?.email ?? ''
+        email: p.user_details?.email ?? ''
       })),
       teams: (resp?.teams ?? []).map((t) => ({ id: t.id, name: t.name })),
       options_failed: false

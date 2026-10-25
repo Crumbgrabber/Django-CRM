@@ -21,7 +21,7 @@
   import { RECURRING_FREQUENCY_LABEL, PAYMENT_TERMS_LABEL } from '#lib/v2/enums.js';
   import { Plus, RefreshCw, Hand, Pause, Play } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   let totals = $derived(data.totals);

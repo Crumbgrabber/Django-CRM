@@ -1,3 +1,4 @@
+import { apiStatus } from '#lib/api-errors.js';
 import { checkDuplicates } from '#lib/server/v2/duplicates.js';
 
 /**
@@ -14,7 +15,7 @@ import { checkDuplicates } from '#lib/server/v2/duplicates.js';
  * @type {import('./$types').RequestHandler}
  */
 export async function POST({ params, request, cookies }) {
-  /** @type {any} */
+  /** @type {Record<string, unknown>} */
   let criteria;
   try {
     criteria = await request.json();
@@ -25,8 +26,8 @@ export async function POST({ params, request, cookies }) {
     return Response.json({
       duplicates: await checkDuplicates({ cookies }, params.module, criteria)
     });
-  } catch (/** @type {any} */ err) {
-    if (err?.status === 404) throw err;
+  } catch (err) {
+    if (apiStatus(err) === 404) throw err;
     return Response.json({ duplicates: [] });
   }
 }

@@ -16,7 +16,7 @@
   import { TASK_PRIORITY_TONE } from '#lib/v2/enums.js';
   import { ChevronLeft, ChevronRight, CalendarDays } from '@lucide/svelte';
 
-  /** @type {{ data: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data } = $props();
 
   /** @type {Record<string, string>} */
@@ -29,7 +29,7 @@
   };
 
   /** Overdue trumps priority. A late card is rust whatever it was set to. */
-  const dot = (/** @type {any} */ t) =>
+  const dot = (/** @type {{ overdue: boolean, priority: string }} */ t) =>
     t.overdue ? TONE_VAR.rust : (TONE_VAR[TASK_PRIORITY_TONE[t.priority]] ?? TONE_VAR.slate);
 
   const CAP = 4; // chips per cell before it collapses to "+N more"

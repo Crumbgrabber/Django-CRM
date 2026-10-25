@@ -4,6 +4,13 @@
   import XIcon from '@lucide/svelte/icons/x';
   import * as Dialog from './index.js';
   import { cn } from '#lib/utils.js';
+  /**
+   * @type {import('bits-ui').WithoutChildrenOrChild<import('bits-ui').DialogContentProps> & {
+   *   portalProps?: import('bits-ui').DialogPortalProps,
+   *   children: import('svelte').Snippet,
+   *   showCloseButton?: boolean
+   * }}
+   */
   let {
     ref = $bindable(null),
     class: className = undefined,

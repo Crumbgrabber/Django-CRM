@@ -53,7 +53,10 @@
   import { BILL_GROUPINGS } from '#lib/v2/projects.js';
   import { isOrgAdmin } from '#lib/admin.js';
 
-  /** @type {{ data: any, form: any }} */
+  /** @typedef {import('./$types').PageData} PageData */
+  /** @typedef {import('#lib/api-schema.js').components['schemas']['TimeEntry']} TimeEntry */
+
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
   let related = $derived(relatedView(data.related));
 
@@ -87,8 +90,8 @@
    * picker itself is a GET form (`?merge=1&q=`), so searching works without
    * scripting; the candidates are the API's `merge-targets/`, never the list.
    */
-  let mergeTarget = $state(/** @type {any} */ (null));
-  let unmergeSource = $state(/** @type {any} */ (null));
+  let mergeTarget = $state(/** @type {PageData['merge']['targets'][number] | null} */ (null));
+  let unmergeSource = $state(/** @type {PageData['mergedFrom'][number] | null} */ (null));
 
   /*
    * Parent and child tickets, the same arrangement: the parent picker is a GET
@@ -98,7 +101,7 @@
    * `link/` takes). The panel shows for a ticket in a tree, a problem ticket,
    * or while the picker is open.
    */
-  let linkTarget = $state(/** @type {any} */ (null));
+  let linkTarget = $state(/** @type {PageData['link']['candidates'][number] | null} */ (null));
   let confirmDetach = $state(false);
   let inTree = $derived(Boolean(ticket.parent || ticket.child_count > 0 || ticket.is_problem));
 
@@ -150,11 +153,11 @@
    * write rule), and the API checks it again on apply.
    */
   let pickedId = $state('');
-  let picked = $derived(data.macros?.find((/** @type {any} */ m) => m.id === pickedId) ?? null);
+  let picked = $derived(data.macros?.find((m) => m.id === pickedId) ?? null);
 
   /** @param {string | null | undefined} id */
   function macroWithActions(id) {
-    const m = data.macros?.find((/** @type {any} */ x) => x.id === id);
+    const m = data.macros?.find((x) => x.id === id);
     return m?.chips?.length ? m : null;
   }
   let composerMacro = $state(untrack(() => macroWithActions(form?.macroId)));
@@ -166,9 +169,7 @@
       )
     )
   );
-  let keptChips = $derived(
-    (composerMacro?.chips ?? []).filter((/** @type {any} */ c) => kept.includes(c.key))
-  );
+  let keptChips = $derived((composerMacro?.chips ?? []).filter((c) => kept.includes(c.key)));
 
   function dropMacro() {
     composerMacro = null;
@@ -235,7 +236,7 @@
         );
         body = next.text;
         composerMacro = macroWithActions(id);
-        kept = (composerMacro?.chips ?? []).map((/** @type {any} */ c) => c.key);
+        kept = (composerMacro?.chips ?? []).map((c) => c.key);
         requestAnimationFrame(() => {
           replyBox?.focus();
           replyBox?.setSelectionRange(next.caret, next.caret);
@@ -308,7 +309,7 @@
    * browser only ever contributes minutes it watched pass, so a machine with
    * the wrong date cannot report a timer as eight hours old.
    *
-   * @param {any} entry
+   * @param {TimeEntry} entry
    */
   const runningMinutes = (entry) =>
     Math.floor((Date.parse(time.now) - Date.parse(entry.started_at)) / 60000) + sinceLoad;
@@ -319,12 +320,12 @@
    * Profile id to it would be false for everyone, silently, and the Stop
    * button would never appear.
    *
-   * @param {any} entry
+   * @param {TimeEntry} entry
    */
   const isMine = (entry) => entry.profile?.user_details?.id === time.viewerUserId;
 
   /** This person's own running timer, if they have one on this ticket. */
-  let myTimer = $derived((entries ?? []).find((/** @type {any} */ e) => !e.ended_at && isMine(e)));
+  let myTimer = $derived((entries ?? []).find((e) => !e.ended_at && isMine(e)));
 
   let timeBusy = $state(false);
 
@@ -1178,12 +1179,12 @@
                     use:enhance={timeSubmit}
                     class="time-log-form"
                   >
-                    <input type="hidden" name="account_id" value={ticket.account.id} />
+                    <input type="hidden" name="account_id" value={ticket.account?.id} />
                     <p class="time-wide time-bill-text">
                       <b class="v2-num">{toBill.ids.length}</b>
                       billable {toBill.ids.length === 1 ? 'entry' : 'entries'},
                       <b class="v2-num">{hm(toBill.minutes)}</b>, not yet billed, onto a draft
-                      invoice for {ticket.account.name}.
+                      invoice for {ticket.account?.name}.
                     </p>
                     {#if toBill.currencies.length > 1}
                       <p class="v2-error time-wide">
@@ -1520,7 +1521,7 @@
             </form>
             {#if picked && !picked.has_body && picked.chips.length}
               <p class="v2-sub macro-note">
-                Applies now: {picked.chips.map((/** @type {any} */ c) => c.label).join(' · ')}
+                Applies now: {picked.chips.map((c) => c.label).join(' · ')}
               </p>
             {/if}
             {#if macroError || form?.macroError}
@@ -1564,7 +1565,7 @@
                 bind:value={body}
                 people={data.mentionPeople}
                 name="body"
-                rows="3"
+                rows={3}
                 placeholder={internal ? 'Note for the team…' : 'Write a reply…'}
                 style="width:100%;border:none;background:transparent;resize:vertical;font:inherit;font-size:13.5px;line-height:1.55;color:var(--v2-ink);outline:none"
               />

@@ -12,6 +12,9 @@
  * `include_token_refresh=true` is sent (or `event_type=TOKEN_REFRESH`).
  */
 import { apiRequest } from '#lib/api-helpers.js';
+import { apiStatus } from '#lib/api-errors.js';
+
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
 
 /** Entries per page. */
 export const AUDIT_PAGE = 25;
@@ -41,10 +44,24 @@ export function auditFilters(params) {
 }
 
 /**
+ * @typedef {{
+ *   forbidden: false,
+ *   filters: Record<string, string>,
+ *   offset: number,
+ *   pageSize: number,
+ *   error: string | null,
+ *   entries: Schemas['AuditLogEntry'][],
+ *   count: number,
+ *   eventTypes: Schemas['AuditLogEventType'][]
+ * }} AuditLogPage
+ */
+
+/**
  * One page of the caller's org's audit log.
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {Record<string, string>} filters
  * @param {number} offset
+ * @returns {Promise<{ forbidden: true } | AuditLogPage>}
  */
 export async function listAuditLog({ cookies }, filters, offset = 0) {
   const query = new URLSearchParams({
@@ -53,16 +70,17 @@ export async function listAuditLog({ cookies }, filters, offset = 0) {
     offset: String(offset)
   });
   const page = { filters, offset, pageSize: AUDIT_PAGE };
+  /** @type {Schemas['AuditLogListResponse']} */
   let resp;
   try {
     resp = await apiRequest(`/org/audit-log/?${query}`, {}, { cookies });
-  } catch (/** @type {any} */ err) {
-    if (err?.status === 403) return { forbidden: true };
-    if (err?.status === 400) {
+  } catch (err) {
+    if (apiStatus(err) === 403) return { forbidden: true };
+    if (apiStatus(err) === 400) {
       return {
         forbidden: false,
         ...page,
-        error: err.message || 'That filter is not valid.',
+        error: (err instanceof Error && err.message) || 'That filter is not valid.',
         entries: [],
         count: 0,
         eventTypes: []

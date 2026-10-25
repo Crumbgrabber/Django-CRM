@@ -14,7 +14,7 @@
   import { Download, Plus, Receipt } from '@lucide/svelte';
   import { isOn } from '#lib/v2/modules.js';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   let invoices = $derived(data.invoices);
@@ -29,7 +29,7 @@
    */
   let picked = $state(null);
   let cur = $derived(
-    totals.currencies.includes(picked)
+    picked !== null && totals.currencies.includes(picked)
       ? picked
       : totals.currencies.includes(data.org.currency)
         ? data.org.currency

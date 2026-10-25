@@ -115,7 +115,9 @@ export function sidebarGroups(modules, { isAdmin = false, terminology = undefine
       items: group.items
         .filter((item) => isAdmin || !('admin' in item && item.admin))
         .map((item) => {
-          const { termKey, admin: _admin, ...rest } = /** @type {any} */ (item);
+          /** @type {NavItem & { termKey?: string, admin?: boolean }} */
+          const row = item;
+          const { termKey, admin: _admin, ...rest } = row;
           return termKey ? { ...rest, label: t(terminology, termKey, rest.label) } : rest;
         })
     }))

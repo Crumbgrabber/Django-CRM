@@ -22,7 +22,7 @@ export const actions = {
 
     try {
       await stopTimer(event, entryId);
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       return fail(400, { error: readableError(err, 'Could not stop the timer.') });
     }
 

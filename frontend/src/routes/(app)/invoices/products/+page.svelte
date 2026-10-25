@@ -19,7 +19,7 @@
   import { Plus, Package, Pencil } from '@lucide/svelte';
   import { isOn } from '#lib/v2/modules.js';
 
-  /** @type {{ data: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data } = $props();
 
   let totals = $derived(data.totals);
@@ -35,7 +35,7 @@
    * order, which is the order the list already arrives in.
    */
   let groups = $derived.by(() => {
-    /** @type {Record<string, any[]>} */
+    /** @type {Record<string, typeof data.products>} */
     const byCategory = {};
     for (const p of data.products) {
       (byCategory[p.category] ??= []).push(p);
@@ -97,7 +97,7 @@
                 <Pill tone="slate">Retired</Pill>
               {/if}
               <span class="v2-num" style="font-weight:600;font-size:13px">
-                {money(p.price, p.currency)}
+                {money(p.price, p.currency || data.org.currency)}
               </span>
               {#if canManage}
                 <a

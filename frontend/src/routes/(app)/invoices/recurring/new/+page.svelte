@@ -54,7 +54,7 @@
   import { todayIn } from '#lib/v2/dates.js';
   import { CURRENCY_CODES } from '#lib/constants/filters.js';
 
-  /** @type {{ data: { products: any[], accounts: any[], contacts: any[], customFields: any[], org: { timezone: string } }, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   // The org's day: a UTC date is yesterday for a morning east of UTC.
@@ -145,7 +145,7 @@
    * are its to derive, so none are here.
    */
   let payload = $derived.by(() => {
-    /** @type {Record<string, any>} */
+    /** @type {Record<string, unknown>} */
     const body = {
       account_id: accountId,
       contact_id: contactId,

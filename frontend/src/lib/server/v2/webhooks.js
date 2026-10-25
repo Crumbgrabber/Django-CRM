@@ -17,6 +17,7 @@
  * serializer refuses a body that names one; `org` comes from the JWT.
  */
 import { apiRequest } from '#lib/api-helpers.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 /** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
 
@@ -26,9 +27,9 @@ export const DELIVERY_PAGE = 20;
 /** The fields an admin edits. Nothing else is ever sent. */
 const EDITABLE = ['url', 'description', 'events', 'format', 'is_active'];
 
-/** @param {Record<string, any>} values */
+/** @param {Record<string, unknown>} values */
 export function buildBody(values) {
-  /** @type {Record<string, any>} */
+  /** @type {Record<string, unknown>} */
   const body = {};
   for (const key of EDITABLE) {
     if (values[key] !== undefined) body[key] = values[key];
@@ -47,13 +48,17 @@ export function eventsFromForm(form) {
     .filter(Boolean);
 }
 
-/** @param {{ cookies: import('@sveltejs/kit').Cookies }} event */
+/**
+ * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
+ * @returns {Promise<{ forbidden: true } | { forbidden: false, endpoints: Schemas['WebhookEndpoint'][], catalogue: Schemas['WebhookEventGroup'][], limit: number }>}
+ */
 export async function listWebhooks({ cookies }) {
+  /** @type {Schemas['WebhookListResponse']} */
   let resp;
   try {
     resp = await apiRequest('/webhooks/', {}, { cookies });
-  } catch (/** @type {any} */ err) {
-    if (err?.status === 403) return { forbidden: true };
+  } catch (err) {
+    if (apiStatus(err) === 403) return { forbidden: true };
     throw err;
   }
   return {
@@ -71,18 +76,17 @@ export async function listWebhooks({ cookies }) {
  * @param {number} offset
  */
 export async function getWebhook({ cookies }, id, offset = 0) {
-  // The delivery log is a plain limit/offset page, which the schema describes
-  // as a bare list.
-  /** @type {[Schemas['WebhookEndpoint'], any, { count: number, results: Schemas['WebhookDelivery'][] }]} */
-  const [endpoint, list, deliveries] = await Promise.all([
-    apiRequest(`/webhooks/${id}/`, {}, { cookies }),
-    apiRequest('/webhooks/', {}, { cookies }),
-    apiRequest(
-      `/webhooks/${id}/deliveries/?limit=${DELIVERY_PAGE}&offset=${offset}`,
-      {},
-      { cookies }
-    )
-  ]);
+  /** @type {Promise<Schemas['WebhookEndpoint']>} */
+  const endpointRead = apiRequest(`/webhooks/${id}/`, {}, { cookies });
+  /** @type {Promise<Schemas['WebhookListResponse']>} */
+  const listRead = apiRequest('/webhooks/', {}, { cookies });
+  /** @type {Promise<Schemas['WebhookDeliveryListResponse']>} */
+  const deliveriesRead = apiRequest(
+    `/webhooks/${id}/deliveries/?limit=${DELIVERY_PAGE}&offset=${offset}`,
+    {},
+    { cookies }
+  );
+  const [endpoint, list, deliveries] = await Promise.all([endpointRead, listRead, deliveriesRead]);
   return {
     endpoint,
     catalogue: list?.event_catalogue ?? [],
@@ -93,7 +97,10 @@ export async function getWebhook({ cookies }, id, offset = 0) {
   };
 }
 
-/** @param {{ cookies: import('@sveltejs/kit').Cookies }} event @param {Record<string, any>} values */
+/**
+ * @param {{ cookies: import('@sveltejs/kit').Cookies }} event @param {Record<string, unknown>} values
+ * @returns {Promise<Schemas['WebhookEndpointCreated']>}
+ */
 export async function createWebhook({ cookies }, values) {
   return apiRequest('/webhooks/', { method: 'POST', body: buildBody(values) }, { cookies });
 }
@@ -101,14 +108,17 @@ export async function createWebhook({ cookies }, values) {
 /**
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
- * @param {Record<string, any>} values
+ * @param {Record<string, unknown>} values
  * @returns {Promise<Schemas['WebhookEndpoint']>}
  */
 export async function updateWebhook({ cookies }, id, values) {
   return apiRequest(`/webhooks/${id}/`, { method: 'PATCH', body: buildBody(values) }, { cookies });
 }
 
-/** @param {{ cookies: import('@sveltejs/kit').Cookies }} event @param {string} id */
+/**
+ * @param {{ cookies: import('@sveltejs/kit').Cookies }} event @param {string} id
+ * @returns {Promise<null>}
+ */
 export async function deleteWebhook({ cookies }, id) {
   return apiRequest(`/webhooks/${id}/`, { method: 'DELETE' }, { cookies });
 }
@@ -122,7 +132,10 @@ export async function testWebhook({ cookies }, id) {
   return apiRequest(`/webhooks/${id}/test/`, { method: 'POST' }, { cookies });
 }
 
-/** @param {{ cookies: import('@sveltejs/kit').Cookies }} event @param {string} id */
+/**
+ * @param {{ cookies: import('@sveltejs/kit').Cookies }} event @param {string} id
+ * @returns {Promise<Schemas['WebhookRotateSecretResponse']>}
+ */
 export async function rotateWebhookSecret({ cookies }, id) {
   return apiRequest(`/webhooks/${id}/rotate-secret/`, { method: 'POST' }, { cookies });
 }

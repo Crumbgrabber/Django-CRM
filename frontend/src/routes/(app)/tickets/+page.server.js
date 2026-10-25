@@ -54,7 +54,7 @@ export async function load({ cookies, url, locals }) {
     people: orgPeople.people,
     tags: tagList.tags ?? [],
     savedViews,
-    meId: resolveMe(orgPeople.people, /** @type {any} */ (locals).user?.email)
+    meId: resolveMe(orgPeople.people, locals.user?.email)
   };
 }
 
@@ -68,7 +68,7 @@ export const actions = {
     try {
       const res = await bulkUpdateTickets({ cookies }, ids, fields);
       return { ok: true, kind: 'update', summary: summarizeBulk(res.results) };
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       return fail(400, { message: readableError(err, 'Could not update these tickets.') });
     }
   },
@@ -78,7 +78,7 @@ export const actions = {
     try {
       const res = await bulkDeleteTickets({ cookies }, ids);
       return { ok: true, kind: 'delete', summary: summarizeBulk(res.results) };
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       return fail(400, { message: readableError(err, 'Could not delete these tickets.') });
     }
   },

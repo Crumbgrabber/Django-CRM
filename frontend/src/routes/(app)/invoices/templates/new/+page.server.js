@@ -2,6 +2,7 @@ import { fail, redirect } from '@sveltejs/kit';
 import { createInvoiceTemplate } from '#lib/server/v2/templates.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
 import { isOrgAdmin } from '#lib/admin.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 /**
  * Creating a template.
@@ -16,7 +17,7 @@ import { isOrgAdmin } from '#lib/admin.js';
  * @type {import('./$types').PageServerLoad}
  */
 export function load({ locals }) {
-  return { can_manage: isOrgAdmin(/** @type {any} */ (locals).profile) };
+  return { can_manage: isOrgAdmin(locals.profile) };
 }
 
 /**
@@ -47,11 +48,11 @@ export const actions = {
 
     try {
       await createInvoiceTemplate({ cookies }, values, logoFile);
-    } catch (/** @type {any} */ err) {
-      return fail(err?.status === 403 ? 403 : 400, {
+    } catch (err) {
+      return fail(apiStatus(err) === 403 ? 403 : 400, {
         values,
         error:
-          err?.status === 403
+          apiStatus(err) === 403
             ? 'Only an admin can create an invoice template.'
             : readableError(err, 'Could not create the template.')
       });

@@ -59,13 +59,13 @@ export const MACRO_STATUSES = CASE_STATUSES.filter((s) => s !== 'Duplicate');
 /** The action names `POST /macros/<id>/apply/` takes in `only`. */
 export const MACRO_ACTION_KEYS = ['status', 'priority', 'assignees', 'tags'];
 
-/** @param {{ name?: string, email?: string, is_active?: boolean }} p */
+/** @param {{ id?: string, name?: string, email?: string, is_active?: boolean }} p */
 function personLabel(p) {
   const name = p.name || p.email || 'Unknown';
   return p.is_active === false ? `${name} (deactivated)` : name;
 }
 
-/** @param {{ name?: string, is_active?: boolean }} t */
+/** @param {{ id?: string, name?: string, is_active?: boolean }} t */
 function tagLabel(t) {
   const name = t.name || 'Unnamed';
   return t.is_active === false ? `${name} (archived)` : name;
@@ -74,7 +74,12 @@ function tagLabel(t) {
 /**
  * One chip per action a macro carries, in `MACRO_ACTION_KEYS` order.
  *
- * @param {any} m a macro row from the API
+ * @param {{
+ *   set_status?: string | null,
+ *   set_priority?: string | null,
+ *   set_assignees_details?: { id?: string, name?: string, email?: string, is_active?: boolean }[],
+ *   add_tags_details?: { id?: string, name?: string, is_active?: boolean }[]
+ * } | null | undefined} m a macro row from the API
  * @returns {{ key: string, label: string }[]}
  */
 export function macroActionChips(m) {
@@ -97,9 +102,10 @@ export function macroActionChips(m) {
  * as such. Without the second half a select with no matching option submits
  * nothing, and saving the form would drop them.
  *
+ * @template {{ id: string }} R
  * @param {{ id: string, name: string }[]} active
- * @param {any[]} stored the macro's `*_details`
- * @param {(row: any) => string} label
+ * @param {R[] | null | undefined} stored the macro's `*_details`
+ * @param {(row: R) => string} label
  */
 export function optionsWithStored(active, stored, label) {
   const seen = new Set(active.map((o) => o.id));
@@ -151,18 +157,21 @@ async function listActiveTags(cookies) {
   }
 }
 
+/** @typedef {Awaited<ReturnType<typeof getMacros>>['macros'][number]} MacroRow */
+
 /**
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
- * @returns {Promise<{ macros: any[], people: { id: string, name: string }[], tags: { id: string, name: string }[], statuses: string[], totals: any, placeholders: any[], can_create_org: boolean, my_profile_id: string }>}
  */
 export async function getMacros({ cookies }) {
+  /** @type {Promise<Schemas['MacroListResponse']>} */
+  const listing = apiRequest('/macros/', {}, { cookies });
   const [resp, people, tags] = await Promise.all([
-    apiRequest('/macros/', {}, { cookies }),
+    listing,
     getOrgPeopleAndTeams(cookies),
     listActiveTags(cookies)
   ]);
   const activePeople = people.people.map((p) => ({ id: p.id, name: p.name }));
-  const results = (resp.results ?? []).map((/** @type {any} */ m) => ({
+  const results = (resp.results ?? []).map((m) => ({
     ...m,
     owner: m.owner ? { id: m.owner, name: m.owner_name || m.owner } : null,
     chips: macroActionChips(m),
@@ -201,6 +210,8 @@ export async function getMacros({ cookies }) {
  *  derived server-side by `_resolve_scope_and_owner` from `request.profile`,
  *  never from the body, so it can never appear here. `org` is a JWT claim
  *  for the same reason. */
+/** @typedef {{ [key: string]: unknown, set_assignees?: unknown[], add_tags?: unknown[] }} MacroValues */
+
 const WRITABLE_FIELDS = [
   'title',
   'body',
@@ -221,10 +232,10 @@ const WRITABLE_FIELDS = [
  * `_resolve_scope_and_owner` rejects any scope outside these two, so the
  * server re-validates everything here regardless of what this lets through.
  *
- * @param {{ [key: string]: any }} values
+ * @param {MacroValues} values
  */
 function buildBody(values) {
-  /** @type {Record<string, any>} */
+  /** @type {MacroValues} */
   const body = {};
   for (const field of WRITABLE_FIELDS) {
     if (values[field] === undefined) continue;
@@ -248,7 +259,8 @@ function buildBody(values) {
 
 /**
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
- * @param {{ [key: string]: unknown }} values
+ * @param {MacroValues} values
+ * @returns {Promise<Schemas['Macro']>}
  */
 export async function createMacro({ cookies }, values) {
   const body = buildBody(values);
@@ -263,7 +275,8 @@ export async function createMacro({ cookies }, values) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
- * @param {{ [key: string]: unknown }} values
+ * @param {MacroValues} values
+ * @returns {Promise<Schemas['Macro']>}
  */
 export async function updateMacro({ cookies }, id, values) {
   if (!id) throw new Error('Which macro? No macro id was given.');
@@ -279,6 +292,7 @@ export async function updateMacro({ cookies }, id, values) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
+ * @returns {Promise<null>}
  */
 export async function deleteMacro({ cookies }, id) {
   if (!id) throw new Error('Which macro? No macro id was given.');
@@ -299,6 +313,7 @@ export async function deleteMacro({ cookies }, id) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
+ * @returns {Promise<Schemas['Macro']>}
  */
 export async function activateMacro({ cookies }, id) {
   if (!id) throw new Error('Which macro? No macro id was given.');
@@ -318,8 +333,9 @@ export async function activateMacro({ cookies }, id) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  */
 export async function listUsableMacros({ cookies }) {
+  /** @type {Schemas['MacroListResponse']} */
   const resp = await apiRequest('/macros/?active=true', {}, { cookies });
-  return (resp.results ?? []).map((/** @type {any} */ m) => ({
+  return (resp.results ?? []).map((m) => ({
     id: m.id,
     title: m.title ?? '',
     has_body: Boolean(String(m.body ?? '').trim()),
@@ -339,6 +355,7 @@ export async function listUsableMacros({ cookies }) {
  * @returns {Promise<string>}
  */
 export async function renderMacro({ cookies }, macroId, caseId) {
+  /** @type {Schemas['MacroRenderResponse']} */
   const resp = await apiRequest(
     `/macros/${macroId}/render/`,
     { method: 'POST', body: { case_id: caseId } },
@@ -361,7 +378,7 @@ export async function renderMacro({ cookies }, macroId, caseId) {
  * @returns {Promise<{ applied: string[], skipped: { action: string, reason: string }[] }>}
  */
 export async function applyMacro({ cookies }, macroId, caseId, only) {
-  /** @type {Record<string, any>} */
+  /** @type {Record<string, unknown>} */
   const body = { case_id: caseId };
   if (only) body.only = only;
   return await apiRequest(`/macros/${macroId}/apply/`, { method: 'POST', body }, { cookies });

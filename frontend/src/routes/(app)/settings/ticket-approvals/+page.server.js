@@ -7,6 +7,7 @@ import {
 } from '#lib/server/v2/ticket-approvals.js';
 import { getOrgPeopleAndTeams } from '#lib/server/v2/org-people.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 // The rule list and the create/edit form's approver picker are two independent
 // fetches: `getApprovalRules` does not fold `getOrgPeopleAndTeams` into its own
@@ -57,8 +58,8 @@ export const actions = {
     const values = { ...readValues(form), is_active: form.get('is_active') === 'true' };
     try {
       await createApprovalRule(event, values);
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, { create: { error: 'Only an admin can change approval rules.' } });
       }
       return fail(400, { create: { error: readableError(err, 'Could not add the rule.') } });
@@ -72,8 +73,8 @@ export const actions = {
     const values = readValues(form);
     try {
       await updateApprovalRule(event, id, values);
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, { update: { error: 'Only an admin can change approval rules.' } });
       }
       return fail(400, { update: { error: readableError(err, 'Could not save the rule.') } });
@@ -86,8 +87,8 @@ export const actions = {
     const id = form.get('id')?.toString() ?? '';
     try {
       await updateApprovalRule(event, id, { is_active: false });
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, { deactivate: { error: 'Only an admin can change approval rules.' } });
       }
       return fail(400, {
@@ -110,8 +111,8 @@ export const actions = {
     const id = form.get('id')?.toString() ?? '';
     try {
       await updateApprovalRule(event, id, { is_active: true });
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, { activate: { error: 'Only an admin can change approval rules.' } });
       }
       return fail(400, {
@@ -135,8 +136,8 @@ export const actions = {
     let outcome;
     try {
       outcome = await deleteApprovalRule(event, id);
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, { remove: { error: 'Only an admin can change approval rules.' } });
       }
       return fail(400, { remove: { error: readableError(err, 'Could not delete the rule.') } });

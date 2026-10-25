@@ -10,7 +10,7 @@
   import { enhance } from '$app/forms';
   import { ChevronRight } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   let { invoice, lineItems } = $derived(data);
@@ -28,10 +28,14 @@
       : PATH.slice(0, PATH.indexOf(invoice.status) + 1)
   );
 
-  /** A form submit that flips `busy` so the buttons show they are working. */
+  /**
+   * A form submit that flips `busy` so the buttons show they are working.
+   *
+   * @type {import('./$types').SubmitFunction}
+   */
   const working = () => {
     busy = true;
-    return async (/** @type {any} */ { update }) => {
+    return async ({ update }) => {
       await update();
       busy = false;
     };

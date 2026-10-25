@@ -6,6 +6,7 @@
  */
 import { fail } from '@sveltejs/kit';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 /**
  * The comment text and the picked file, if any, off a submitted form.
@@ -35,8 +36,9 @@ export function commentAction(post) {
     }
     try {
       await post({ cookies }, params.id, comment, file);
-    } catch (/** @type {any} */ err) {
-      const code = err?.status >= 400 && err?.status < 500 ? err.status : 400;
+    } catch (err) {
+      const status = apiStatus(err);
+      const code = status !== undefined && status >= 400 && status < 500 ? status : 400;
       return fail(code, { noteError: readableError(err, 'Could not save that.') });
     }
     return { commented: true };

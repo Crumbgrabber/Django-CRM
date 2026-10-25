@@ -10,6 +10,7 @@
  * the org already pays for stays on this page.
  */
 import { error } from '@sveltejs/kit';
+import { apiErrorBody, apiStatus } from '#lib/api-errors.js';
 import { apiRequest } from '#lib/api-helpers.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
 
@@ -21,6 +22,32 @@ const PLAN_CODES = ['plan_limit', 'plan_required'];
 const NOT_OFFERED = 'Billing is not available here.';
 
 /** @typedef {{ cookies: import('@sveltejs/kit').Cookies }} Event */
+
+/**
+ * What the enterprise `billing_body` sends: `plan` and `can_manage` to every
+ * member, the rest to admins only. `POST /billing/change/` adds `message`.
+ *
+ * @typedef {{
+ *   key: string,
+ *   name: string,
+ *   price_text: string,
+ *   features: string[],
+ *   current: boolean,
+ *   action: 'choose' | 'switch' | 'keep' | null,
+ *   confirm: string | null
+ * }} BillingPlanBody
+ *
+ * @typedef {{
+ *   plan: { key: string, name: string },
+ *   can_manage: boolean,
+ *   state?: { code: string, sentence: string },
+ *   notice?: { sentence: string } | null,
+ *   plans?: BillingPlanBody[]
+ * }} BillingBody
+ *
+ * @typedef {BillingBody & { message: string }} BillingChangeBody
+ * @typedef {{ url: string }} BillingRedirectBody
+ */
 
 /**
  * @typedef {{
@@ -56,7 +83,7 @@ export function isSessionId(id) {
 const text = (value) => (typeof value === 'string' ? value.trim() : '');
 
 /**
- * @param {any} raw
+ * @param {BillingPlanBody} raw
  * @returns {PlanOffer | null}
  */
 function toPlan(raw) {
@@ -67,13 +94,13 @@ function toPlan(raw) {
     priceText: text(raw.price_text),
     features: Array.isArray(raw.features) ? raw.features.map(text).filter(Boolean) : [],
     current: raw.current === true,
-    action: ACTIONS.includes(raw.action) ? raw.action : null,
+    action: raw.action && ACTIONS.includes(raw.action) ? raw.action : null,
     confirm: text(raw.confirm)
   };
 }
 
 /**
- * @param {any} raw
+ * @param {BillingBody} raw
  * @returns {Billing | null}
  */
 function toBilling(raw) {
@@ -84,7 +111,7 @@ function toBilling(raw) {
   return {
     plan: { key: raw.plan.key, name },
     canManage: raw.can_manage === true,
-    state: sentence ? { code: text(raw.state.code), sentence } : null,
+    state: sentence ? { code: text(raw.state?.code), sentence } : null,
     notice: notice ? { sentence: notice } : null,
     plans: Array.isArray(raw.plans) ? toPlans(raw.plans) : null
   };
@@ -93,7 +120,7 @@ function toBilling(raw) {
 /**
  * Each plan once, by key, since the page keys its cards on it.
  *
- * @param {any[]} rows
+ * @param {BillingPlanBody[]} rows
  * @returns {PlanOffer[]}
  */
 function toPlans(rows) {
@@ -128,6 +155,7 @@ export function resetBillingAbsentMemo() {
 export async function getBilling({ cookies }) {
   if (absent()) return null;
   try {
+    /** @type {BillingBody} */
     const body = await apiRequest(
       '/billing/',
       { quietErrors: true, expectedStatuses: [404] },
@@ -135,8 +163,8 @@ export async function getBilling({ cookies }) {
     );
     absentUntil = 0;
     return toBilling(body);
-  } catch (/** @type {any} */ err) {
-    if (err?.status === 404) absentUntil = Date.now() + ABSENT_FOR_MS;
+  } catch (err) {
+    if (apiStatus(err) === 404) absentUntil = Date.now() + ABSENT_FOR_MS;
     return null;
   }
 }
@@ -150,12 +178,12 @@ export async function getBilling({ cookies }) {
  */
 export async function readBilling({ cookies }) {
   if (absent()) error(404, NOT_OFFERED);
-  /** @type {any} */
+  /** @type {BillingBody} */
   let body;
   try {
     body = await apiRequest('/billing/', { expectedStatuses: [404] }, { cookies });
-  } catch (/** @type {any} */ err) {
-    if (err?.status === 404) {
+  } catch (err) {
+    if (apiStatus(err) === 404) {
       absentUntil = Date.now() + ABSENT_FOR_MS;
       error(404, NOT_OFFERED);
     }
@@ -235,6 +263,7 @@ function requirePlanKey(plan) {
  */
 export async function openCheckout({ cookies }, plan) {
   requirePlanKey(plan);
+  /** @type {BillingRedirectBody} */
   const body = await apiRequest(
     '/billing/checkout/',
     { method: 'POST', body: { plan }, expectedStatuses: [400, 403, 404, 409] },
@@ -251,6 +280,7 @@ export async function openCheckout({ cookies }, plan) {
  * @returns {Promise<string | null>}
  */
 export async function openPortal({ cookies }) {
+  /** @type {BillingRedirectBody} */
   const body = await apiRequest(
     '/billing/portal/',
     { method: 'POST', expectedStatuses: [403, 404, 409] },
@@ -270,6 +300,7 @@ export async function openPortal({ cookies }) {
  */
 export async function changePlan({ cookies }, plan) {
   requirePlanKey(plan);
+  /** @type {BillingChangeBody} */
   const body = await apiRequest(
     '/billing/change/',
     { method: 'POST', body: { plan }, expectedStatuses: [400, 402, 403, 404, 409] },
@@ -283,16 +314,17 @@ export async function changePlan({ cookies }, plan) {
  * server's own reason; a server or network failure gets `fallback`, never a
  * status line.
  *
- * @param {any} err
+ * @param {unknown} err
  * @param {string} fallback
  * @returns {string}
  */
 export function billingRefusal(err, fallback) {
-  const status = err?.status;
+  const status = apiStatus(err);
   if (status === 403) return 'Only an organization admin can change the plan.';
   if (status === 404) return NOT_OFFERED;
-  if (!Number.isInteger(status) || status < 400 || status >= 500) return fallback;
-  const detail = text(err?.body?.detail);
+  if (status === undefined || !Number.isInteger(status) || status < 400 || status >= 500)
+    return fallback;
+  const detail = text(apiErrorBody(err)?.detail);
   return detail || readableError(err, fallback);
 }
 
@@ -300,9 +332,10 @@ export function billingRefusal(err, fallback) {
  * Whether an API refusal is a plan limit, which an admin may lift on the
  * Billing page.
  *
- * @param {any} err
+ * @param {unknown} err
  * @returns {boolean}
  */
 export function isPlanRefusal(err) {
-  return err?.status === 403 && PLAN_CODES.includes(err?.body?.code);
+  const code = apiErrorBody(err)?.code;
+  return apiStatus(err) === 403 && typeof code === 'string' && PLAN_CODES.includes(code);
 }

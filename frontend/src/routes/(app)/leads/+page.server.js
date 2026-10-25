@@ -44,7 +44,7 @@ export async function load({ cookies, url, locals }) {
     tags: tagList.tags ?? [],
     savedViews,
     sources,
-    meId: resolveMe(orgPeople.people, /** @type {any} */ (locals).user?.email)
+    meId: resolveMe(orgPeople.people, locals.user?.email)
   };
 }
 

@@ -32,7 +32,16 @@
  */
 import { apiRequest } from '#lib/api-helpers.js';
 
-const num = (/** @type {any} */ value) => {
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+
+/**
+ * The schedule builder's fields, as `invoices/recurring/new/+page.svelte`
+ * serialises them into its `payload`. Only `CREATE_FIELDS` reach the API.
+ *
+ * @typedef {{ account_id?: string, contact_id?: string, title?: string, frequency?: string, custom_days?: number, auto_send?: boolean, line_items?: unknown[], custom_fields?: Record<string, unknown>, [key: string]: unknown }} RecurringValues
+ */
+
+const num = (/** @type {unknown} */ value) => {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
 };
@@ -62,7 +71,7 @@ const YEARLY_OCCURRENCES = {
 };
 
 /** One schedule's contribution to the monthly run rate: amount × runs-per-month. */
-function monthlyRunRate(/** @type {any} */ s) {
+function monthlyRunRate(/** @type {ScheduleRow} */ s) {
   let perYear;
   if (s.frequency === 'CUSTOM') {
     perYear = s.custom_days ? 365.25 / s.custom_days : 0;
@@ -77,7 +86,7 @@ function monthlyRunRate(/** @type {any} */ s) {
  * `account` uuid and `account_name`; the page wants the nested `{ id, name }`,
  * and reads `contact` as a plain name.
  *
- * @param {any} row
+ * @param {Schemas['RecurringInvoiceList']} row
  */
 function toRow(row) {
   return {
@@ -99,6 +108,8 @@ function toRow(row) {
   };
 }
 
+/** @typedef {ReturnType<typeof toRow>} ScheduleRow */
+
 /**
  * The four header figures, derived from the visible rows.
  *
@@ -107,7 +118,7 @@ function toRow(row) {
  * - `due_within_7d`, active schedules generating within a week (or overdue):
  *   drafts to check before they send.
  *
- * @param {any[]} rows
+ * @param {ScheduleRow[]} rows
  */
 function computeTotals(rows) {
   let active = 0;
@@ -124,7 +135,7 @@ function computeTotals(rows) {
 }
 
 /** Active schedules first, then soonest to next generate. */
-function bySchedulePriority(/** @type {any} */ a, /** @type {any} */ b) {
+function bySchedulePriority(/** @type {ScheduleRow} */ a, /** @type {ScheduleRow} */ b) {
   if (a.is_active !== b.is_active) return Number(b.is_active) - Number(a.is_active);
   const da = daysUntil(a.next_generation_date);
   const db = daysUntil(b.next_generation_date);
@@ -154,6 +165,7 @@ export async function listRecurringInvoices({ cookies }, params) {
   // One page covers every real org; totals derive from what comes back.
   if (!query.has('limit')) query.set('limit', '1000');
 
+  /** @type {Schemas['RecurringInvoicePage']} */
   const response = await apiRequest(`/invoices/recurring/?${query.toString()}`, {}, { cookies });
   const rows = (response.results ?? []).map(toRow);
   rows.sort(bySchedulePriority);
@@ -175,6 +187,7 @@ export async function listRecurringInvoices({ cookies }, params) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
+ * @returns {Promise<Schemas['RecurringInvoiceToggled']>}
  */
 export async function toggleRecurring({ cookies }, id) {
   return apiRequest(`/invoices/recurring/${id}/toggle/`, { method: 'POST', body: {} }, { cookies });
@@ -227,11 +240,11 @@ export const CREATE_FIELDS = [
  * so nobody reads this function as a deeper guarantee than it gives.
  *
  * @param {string[]} allowed
- * @param {Record<string, any>} values
- * @returns {Record<string, any>}
+ * @param {Record<string, unknown>} values
+ * @returns {Record<string, unknown>}
  */
 export function buildBody(allowed, values) {
-  /** @type {Record<string, any>} */
+  /** @type {Record<string, unknown>} */
   const body = {};
   for (const key of allowed) {
     const value = values[key];
@@ -272,8 +285,8 @@ export function buildBody(allowed, values) {
  * throwing.
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
- * @param {Record<string, any>} values
- * @returns {Promise<any>}
+ * @param {RecurringValues} values
+ * @returns {Promise<Schemas['RecurringInvoice']>}
  */
 export async function createRecurringInvoice({ cookies }, values) {
   if (!values.account_id) throw new Error('Choose an account.');
@@ -288,6 +301,7 @@ export async function createRecurringInvoice({ cookies }, values) {
   }
 
   const body = buildBody(CREATE_FIELDS, values);
+  /** @type {Schemas['RecurringInvoiceSaved']} */
   const resp = await apiRequest('/invoices/recurring/', { method: 'POST', body }, { cookies });
   return resp.recurring_invoice ?? resp;
 }

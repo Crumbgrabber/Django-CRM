@@ -13,6 +13,7 @@ import {
 import { readableError } from '#lib/server/v2/form-errors.js';
 import { readFieldForm, readObjectForm } from '#lib/server/v2/object-settings.js';
 import { viewerIsAdmin } from '#lib/server/v2/organization.js';
+import { apiErrorBody, apiStatus } from '#lib/api-errors.js';
 
 /** @type {import('./$types').PageServerLoad} */
 export async function load({ cookies, params }) {
@@ -36,12 +37,12 @@ export async function load({ cookies, params }) {
 async function attempt(name, forbidden, fallback, write, values) {
   try {
     await write();
-  } catch (/** @type {any} */ err) {
-    if (err?.status === 403) {
-      return fail(403, { [name]: { error: err?.body?.detail ?? forbidden } });
+  } catch (err) {
+    const detail = apiErrorBody(err)?.detail;
+    if (apiStatus(err) === 403) {
+      return fail(403, { [name]: { error: detail ?? forbidden } });
     }
-    const error =
-      typeof err?.body?.detail === 'string' ? err.body.detail : readableError(err, fallback);
+    const error = typeof detail === 'string' ? detail : readableError(err, fallback);
     return fail(400, { [name]: { error, values } });
   }
   return null;

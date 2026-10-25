@@ -11,6 +11,7 @@
  */
 import { error } from '@sveltejs/kit';
 import { apiRequest } from '#lib/api-helpers.js';
+import { apiStatus } from '#lib/api-errors.js';
 import { rethrowModuleOff } from '#lib/server/v2/modules.js';
 import { attachmentHref } from '#lib/server/v2/files.js';
 import { invoiceFromTimeEntries } from '#lib/server/v2/invoices.js';
@@ -19,6 +20,8 @@ import { listAccountsPicker } from '#lib/server/v2/accounts.js';
 import { listDeals } from '#lib/server/v2/deals.js';
 import { getOrgPeopleAndTeams } from '#lib/server/v2/org-people.js';
 import { billGrouping, isoDateOrNull, isUuid } from '#lib/v2/projects.js';
+
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
 
 /** Every list filter `listProjects` forwards; see the note in tickets.js. */
 export const FILTER_FIELDS = ['status', 'account', 'assigned_to'];
@@ -39,14 +42,14 @@ function intOrNull(value) {
  * A profile as the pages show it: the deal endpoints' shape, read the way
  * `tasks.js` reads it.
  *
- * @param {any} profile
+ * @param {Schemas['Profile'] | null | undefined} profile
  */
 export function toPerson(profile) {
-  const user = profile?.user_details ?? profile?.user ?? {};
-  return { id: profile?.id ?? '', name: user.name || user.email || 'Someone' };
+  const user = profile?.user_details;
+  return { id: profile?.id ?? '', name: user?.name || user?.email || 'Someone' };
 }
 
-/** @param {any} burn */
+/** @param {Partial<Schemas['ProjectBurn']> | null | undefined} burn */
 function toBurn(burn) {
   return {
     logged_hours: num(burn?.logged_hours) ?? 0,
@@ -60,7 +63,7 @@ function toBurn(burn) {
   };
 }
 
-/** @param {any} p a list item */
+/** @param {Schemas['ProjectList']} p a list item */
 function toRow(p) {
   return {
     id: p.id,
@@ -76,9 +79,7 @@ function toRow(p) {
     start_date: p.start_date ?? null,
     due_date: p.due_date ?? null,
     assigned_to: (p.assigned_to ?? []).map(toPerson),
-    tags: (p.tags ?? [])
-      .map((/** @type {any} */ t) => (typeof t === 'string' ? t : t?.name))
-      .filter((/** @type {any} */ t) => typeof t === 'string' && t),
+    tags: (p.tags ?? []).map((t) => t?.name).filter((t) => typeof t === 'string' && t),
     burn: toBurn(p.burn),
     created_at: p.created_at ?? null,
     updated_at: p.updated_at ?? null
@@ -88,15 +89,15 @@ function toRow(p) {
 /**
  * Comments, newest first, in the shape `Timeline` renders.
  *
- * @param {any[] | undefined} comments
+ * @param {Schemas['Comment'][] | undefined} comments
  */
 export function toComments(comments) {
   return (comments ?? [])
-    .map((/** @type {any} */ c) => ({
+    .map((c) => ({
       id: String(c.id),
       type: 'note',
       at: c.commented_on,
-      by: c.commented_by?.user_details?.email || c.commented_by_user?.email || null,
+      by: c.commented_by?.user_details?.email || null,
       body: c.comment ?? ''
     }))
     .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
@@ -105,11 +106,11 @@ export function toComments(comments) {
 /**
  * Files, newest first, each linked through the download proxy.
  *
- * @param {any[] | undefined} attachments
+ * @param {Schemas['Attachments'][] | undefined} attachments
  */
 export function toFiles(attachments) {
   return (attachments ?? [])
-    .map((/** @type {any} */ a) => ({
+    .map((a) => ({
       id: String(a.id),
       name: a.file_name || 'Attachment',
       at: a.created_at ?? null,
@@ -127,11 +128,11 @@ export function toFiles(attachments) {
 export async function listProjects({ cookies }, params) {
   const query = new URLSearchParams(params ?? undefined);
   if (!query.has('limit')) query.set('limit', '50');
-  /** @type {any} */
+  /** @type {Schemas['ProjectListResponse']} */
   let response;
   try {
     response = await apiRequest(`/projects/?${query}`, {}, { cookies });
-  } catch (/** @type {any} */ err) {
+  } catch (err) {
     rethrowModuleOff(err);
     throw err;
   }
@@ -168,12 +169,12 @@ export async function projectChoices(event) {
 export async function projectChoice({ cookies }, id) {
   if (!isUuid(id)) return null;
   try {
-    const response = await apiRequest(
+    /** @type {Schemas['ProjectDetail'] | null} */
+    const raw = await apiRequest(
       `/projects/${id}/`,
       { quietErrors: true, expectedStatuses: [404] },
       { cookies }
     );
-    const raw = response?.project ?? response;
     return raw?.id ? { id: raw.id, name: raw.name ?? '' } : null;
   } catch {
     return null;
@@ -217,29 +218,27 @@ export async function getProjectFormOptions(event, { dealsOn }) {
  * @param {string} id
  */
 export async function getProject({ cookies }, id) {
-  /** @type {any} */
-  let response;
+  /** @type {Schemas['ProjectDetail']} */
+  let raw;
   try {
-    response = await apiRequest(`/projects/${id}/`, {}, { cookies });
-  } catch (/** @type {any} */ err) {
+    raw = await apiRequest(`/projects/${id}/`, {}, { cookies });
+  } catch (err) {
     rethrowModuleOff(err);
-    if (err?.status === 404) {
+    if (apiStatus(err) === 404) {
       error(404, 'That project does not exist, or you do not have access to it.');
     }
     throw err;
   }
-  // The detail is the record itself; a create answers it under `project`.
-  const raw = response?.project ?? response ?? {};
   return {
     project: {
       ...toRow(raw),
       description: raw.description ?? '',
       custom_fields: raw.custom_fields ?? {},
-      rates: (raw.rates ?? []).map((/** @type {any} */ r) => ({
+      rates: (raw.rates ?? []).map((r) => ({
         profile: toPerson(r.profile),
         hourly_rate: num(r.hourly_rate)
       })),
-      invoices: (raw.invoices ?? []).map((/** @type {any} */ inv) => ({
+      invoices: (raw.invoices ?? []).map((inv) => ({
         id: inv.id,
         invoice_number: inv.invoice_number ?? '',
         status: inv.status ?? '',
@@ -258,10 +257,11 @@ export async function getProject({ cookies }, id) {
 
 /**
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
- * @param {Record<string, any>} body from `projectBody`
+ * @param {Record<string, unknown>} body from `projectBody`
  * @returns {Promise<{ id: string | null }>}
  */
 export async function createProject({ cookies }, body) {
+  /** @type {Schemas['ProjectSaved']} */
   const response = await apiRequest('/projects/', { method: 'POST', body }, { cookies });
   return { id: response?.id ?? response?.project?.id ?? null };
 }
@@ -272,7 +272,8 @@ export async function createProject({ cookies }, body) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
- * @param {Record<string, any>} body from `projectBody`
+ * @param {Record<string, unknown>} body from `projectBody`
+ * @returns {Promise<Schemas['ProjectSaved']>}
  */
 export async function updateProject({ cookies }, id, body) {
   return await apiRequest(`/projects/${id}/`, { method: 'PATCH', body }, { cookies });
@@ -284,6 +285,7 @@ export async function updateProject({ cookies }, id, body) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
+ * @returns {Promise<null>} the API answers 204
  */
 export async function deleteProject({ cookies }, id) {
   return await apiRequest(`/projects/${id}/`, { method: 'DELETE' }, { cookies });
@@ -297,6 +299,7 @@ export async function deleteProject({ cookies }, id) {
  * @param {string} id
  * @param {string} comment
  * @param {File | null} [file]
+ * @returns {Promise<Schemas['ProjectDetail']>}
  */
 export async function addProjectNote({ cookies }, id, comment, file = null) {
   if (file) {
@@ -315,6 +318,7 @@ export async function addProjectNote({ cookies }, id, comment, file = null) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} dealId
+ * @returns {Promise<Schemas['ProjectDraft'] | null>}
  */
 export async function getProjectDraft({ cookies }, dealId) {
   try {
@@ -323,9 +327,10 @@ export async function getProjectDraft({ cookies }, dealId) {
       { quietErrors: true, expectedStatuses: [404] },
       { cookies }
     );
-  } catch (/** @type {any} */ err) {
+  } catch (err) {
     rethrowModuleOff(err);
-    if (err?.status === 404 || err?.status === 400) return null;
+    const status = apiStatus(err);
+    if (status === 404 || status === 400) return null;
     throw err;
   }
 }
@@ -337,10 +342,11 @@ export async function getProjectDraft({ cookies }, dealId) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
- * @returns {Promise<any[] | null>}
+ * @returns {Promise<Schemas['TimeEntry'][] | null>}
  */
 export async function listProjectTime({ cookies }, id) {
   try {
+    /** @type {Schemas['TimeEntry'][]} */
     const entries = await apiRequest(`/projects/${id}/time-entries/`, {}, { cookies });
     return Array.isArray(entries) ? entries : [];
   } catch {
@@ -356,6 +362,7 @@ export async function listProjectTime({ cookies }, id) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
  * @param {{ task?: string, billable: boolean }} options
+ * @returns {Promise<Schemas['TimeEntry']>} the started entry
  */
 export async function startProjectTimer({ cookies }, id, { task = '', billable }) {
   /** @type {{ billable: boolean, task?: string }} */
@@ -376,6 +383,7 @@ export async function startProjectTimer({ cookies }, id, { task = '', billable }
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
  * @param {{ minutes: number|string, description: string, billable?: boolean, hourlyRate?: string|number|null, task?: string }} entry
+ * @returns {Promise<Schemas['TimeEntry']>} the logged entry
  */
 export async function logProjectTime({ cookies }, id, entry) {
   const body = loggedEntryBody({ ...entry, currency: null });
@@ -395,6 +403,7 @@ export async function getUnbilled({ cookies }, id, upTo) {
   const date = isoDateOrNull(upTo);
   const qs = date ? `?${new URLSearchParams({ up_to: date })}` : '';
   try {
+    /** @type {Schemas['ProjectUnbilled']} */
     const r = await apiRequest(`/projects/${id}/unbilled/${qs}`, {}, { cookies });
     return {
       entry_count: Number(r?.entry_count) || 0,
@@ -431,7 +440,7 @@ export async function billProjectTime(event, id, { upTo, groupBy }) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
  * @param {Record<string, string>} body from `invoiceAmountBody`
- * @returns {Promise<{ invoice_id?: string, invoice_number?: string }>}
+ * @returns {Promise<Schemas['ProjectInvoiceAmount']>}
  */
 export async function invoiceProjectAmount({ cookies }, id, body) {
   return await apiRequest(`/projects/${id}/invoice-amount/`, { method: 'POST', body }, { cookies });

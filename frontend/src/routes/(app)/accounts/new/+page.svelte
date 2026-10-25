@@ -20,7 +20,7 @@
   import DuplicateNotice from '#lib/v2/components/DuplicateNotice.svelte';
   import { ChevronRight, TriangleAlert } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form: result } = $props();
 
   /* What was typed survives a rejected submit, and `untrack` keeps a

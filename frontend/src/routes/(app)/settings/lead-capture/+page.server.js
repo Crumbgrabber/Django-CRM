@@ -5,6 +5,7 @@ import { getWebForms } from '#lib/server/v2/web-forms.js';
 import { getMailboxes } from '#lib/server/v2/inbound-email.js';
 import { getModules } from '#lib/server/v2/modules.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiStatus } from '#lib/api-errors.js';
 import { mailboxesOn } from '#lib/v2/modules.js';
 import { INTAKE_PRESETS } from '#lib/v2/lead-intakes.js';
 
@@ -29,11 +30,9 @@ export async function load(event) {
     intakes: intakes.intakes,
     intakesState: intakes.state,
     sources,
-    webForms: forms ? forms.forms.filter((/** @type {any} */ f) => f.target !== 'ticket') : null,
+    webForms: forms ? forms.forms.filter((f) => f.target !== 'ticket') : null,
     webFormsTruncated: forms?.truncated ?? false,
-    leadAddresses: mailboxes
-      ? mailboxes.mailboxes.filter((/** @type {any} */ m) => m.creates === 'leads')
-      : null,
+    leadAddresses: mailboxes ? mailboxes.mailboxes.filter((m) => m.creates === 'leads') : null,
     leadAddressesOffered: mailboxes?.can_create_leads ?? false
   };
 }
@@ -60,8 +59,8 @@ export const actions = {
     }
     try {
       return { created: await createIntake(event, values) };
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, { create: { error: 'Only an admin can add webhooks.', values } });
       }
       return fail(400, {

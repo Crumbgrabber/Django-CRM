@@ -19,6 +19,8 @@
  */
 import { apiRequest } from '#lib/api-helpers.js';
 
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+
 /**
  * The minimal shape `apiRequest` actually needs: something with a `.get()`
  * that returns the access token. A real SvelteKit `Cookies` satisfies this
@@ -32,12 +34,13 @@ import { apiRequest } from '#lib/api-helpers.js';
 
 /**
  * @param {import('@sveltejs/kit').Cookies | CookieReader} cookies
- * @returns {Promise<Array<{ id: string, name: string, description: string, version: string }>>}
+ * @returns {Promise<Schemas['PackSummary'][]>}
  */
 export async function listPacks(cookies) {
   // apiRequest's own type only accepts a real Cookies here; at runtime it
   // only ever calls `.get()`, which both a real Cookies and a CookieReader
   // provide, so this cast is safe.
+  /** @type {Schemas['PackListResponse']} */
   const res = await apiRequest(
     '/packs/',
     { method: 'GET' },
@@ -53,7 +56,7 @@ export async function listPacks(cookies) {
  *
  * @param {import('@sveltejs/kit').Cookies | CookieReader} cookies
  * @param {string} packId
- * @returns {Promise<{ report: { created: any[], skipped: any[], failed: any[] } }>}
+ * @returns {Promise<Schemas['PackApplyResponse']>}
  */
 export async function applyPack(cookies, packId) {
   return apiRequest(
@@ -83,7 +86,7 @@ export async function applyPack(cookies, packId) {
  * ask; the count only exists once this call has already acted.
  *
  * @param {import('@sveltejs/kit').Cookies | CookieReader} cookies
- * @returns {Promise<{ deleted: number, deleted_by_type: Record<string, number>, retained_by_type: Record<string, number> }>}
+ * @returns {Promise<Schemas['PackSampleDataClearResponse']>}
  */
 export async function clearSampleData(cookies) {
   return apiRequest(

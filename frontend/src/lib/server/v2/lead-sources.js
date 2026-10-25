@@ -12,6 +12,7 @@
  */
 import { error } from '@sveltejs/kit';
 import { apiRequest } from '#lib/api-helpers.js';
+import { apiErrorBody, apiStatus } from '#lib/api-errors.js';
 import { rethrowModuleOff } from '#lib/server/v2/modules.js';
 import { viewerIsAdmin } from '#lib/server/v2/organization.js';
 import { LEGACY_LEAD_SOURCES } from '#lib/v2/lead-sources.js';
@@ -22,13 +23,13 @@ const SOURCE_GONE = 'That source does not exist.';
 
 /** @typedef {import('#lib/v2/lead-sources.js').LeadSource} LeadSource */
 /** @typedef {{ cookies: import('@sveltejs/kit').Cookies }} Event */
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
 
 /**
- * @param {any} resp
+ * @param {Schemas['LeadSourceListResponse'] | null | undefined} resp
  * @returns {LeadSource[]}
  */
 function shape(resp) {
-  /** @type {any[]} */
   const rows = Array.isArray(resp?.sources) ? resp.sources : [];
   return rows
     .filter((s) => s && typeof s.key === 'string')
@@ -53,14 +54,15 @@ function shape(resp) {
  */
 export async function getLeadSources({ cookies }) {
   try {
+    /** @type {Schemas['LeadSourceListResponse']} */
     const resp = await apiRequest(
       '/leads/sources/',
       { quietErrors: true, expectedStatuses: [404] },
       { cookies }
     );
     return { sources: shape(resp), live: true };
-  } catch (/** @type {any} */ err) {
-    if (err?.status === 404 && err?.body?.code !== 'module_off') {
+  } catch (err) {
+    if (apiStatus(err) === 404 && apiErrorBody(err)?.code !== 'module_off') {
       return { sources: LEGACY_LEAD_SOURCES, live: false };
     }
     return { sources: [], live: false };
@@ -75,12 +77,13 @@ export async function getLeadSources({ cookies }) {
  */
 export async function listSourcesForSettings({ cookies }) {
   try {
+    /** @type {Schemas['LeadSourceListResponse']} */
     const resp = await apiRequest('/leads/sources/', { expectedStatuses: [404] }, { cookies });
     // A display hint; every write is refused server-side to a member.
     return { sources: shape(resp), canEdit: viewerIsAdmin(cookies) };
-  } catch (/** @type {any} */ err) {
+  } catch (err) {
     rethrowModuleOff(err);
-    if (err?.status === 404) error(404, NOT_AVAILABLE);
+    if (apiStatus(err) === 404) error(404, NOT_AVAILABLE);
     throw err;
   }
 }
@@ -94,6 +97,7 @@ export async function listSourcesForSettings({ cookies }) {
  */
 export async function leadSourcesSummary({ cookies }) {
   try {
+    /** @type {Schemas['LeadSourceListResponse']} */
     const resp = await apiRequest(
       '/leads/sources/',
       { quietErrors: true, expectedStatuses: [404] },
@@ -101,8 +105,8 @@ export async function leadSourcesSummary({ cookies }) {
     );
     const sources = shape(resp);
     return { active: sources.filter((s) => s.is_active).length, count: sources.length };
-  } catch (/** @type {any} */ err) {
-    return err?.status === 404 && err?.body?.code !== 'module_off' ? false : null;
+  } catch (err) {
+    return apiStatus(err) === 404 && apiErrorBody(err)?.code !== 'module_off' ? false : null;
   }
 }
 
@@ -117,6 +121,7 @@ function checkId(id) {
  *
  * @param {Event} event
  * @param {string} label
+ * @returns {Promise<Schemas['LeadSource']>}
  */
 export async function createLeadSource({ cookies }, label) {
   const clean = String(label ?? '').trim();
@@ -135,10 +140,11 @@ export async function createLeadSource({ cookies }, label) {
  * @param {Event} event
  * @param {string} id
  * @param {{ label?: string, is_active?: boolean }} values
+ * @returns {Promise<Schemas['LeadSource']>}
  */
 export async function updateLeadSource({ cookies }, id, values) {
   checkId(id);
-  /** @type {Record<string, any>} */
+  /** @type {{ label?: string, is_active?: boolean }} */
   const body = {};
   if (values.label !== undefined) {
     body.label = String(values.label).trim();
@@ -151,6 +157,7 @@ export async function updateLeadSource({ cookies }, id, values) {
 /**
  * @param {Event} event
  * @param {string[]} keys every key, in the new order
+ * @returns {Promise<Schemas['LeadSourceListResponse']>}
  */
 export async function orderLeadSources({ cookies }, keys) {
   return await apiRequest(

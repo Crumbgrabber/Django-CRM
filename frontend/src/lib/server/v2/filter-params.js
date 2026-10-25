@@ -83,7 +83,7 @@ export function readFilters(url, pageKey) {
 /**
  * Whether `value` is one `field` can hold.
  *
- * @param {any} field
+ * @param {import('#lib/v2/filters.js').Field} field
  * @param {string} value
  */
 function isValid(field, value) {

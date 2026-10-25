@@ -20,7 +20,8 @@ Routes (all under /api/macros/):
 from django.db import transaction
 from django.db.models import F, Q
 from django.shortcuts import get_object_or_404
-from rest_framework import status
+from drf_spectacular.utils import extend_schema, inline_serializer
+from rest_framework import serializers, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -35,6 +36,31 @@ from macros.render import (
     render_macro,
 )
 from macros.serializers import MacroSerializer
+
+_MACRO_LIST_RESPONSE = inline_serializer(
+    name="MacroListResponse",
+    fields={
+        "results": MacroSerializer(many=True),
+        "totals": inline_serializer(
+            name="MacroTotals",
+            fields={
+                "count": serializers.IntegerField(),
+                "org": serializers.IntegerField(),
+                "personal": serializers.IntegerField(),
+                "inactive": serializers.IntegerField(),
+                "with_unknown_placeholders": serializers.IntegerField(),
+            },
+        ),
+        "placeholders": inline_serializer(
+            name="MacroPlaceholder",
+            fields={
+                "token": serializers.CharField(),
+                "resolves": serializers.CharField(),
+            },
+            many=True,
+        ),
+    },
+)
 
 
 def _visible_qs(profile):
@@ -125,6 +151,7 @@ def _resolve_scope_and_owner(profile, payload, instance=None):
 class MacroListCreateView(APIView):
     permission_classes = (IsAuthenticated, HasOrgContext)
 
+    @extend_schema(tags=["Macros"], responses={200: _MACRO_LIST_RESPONSE})
     def get(self, request, *args, **kwargs):
         visible = _visible_qs(request.profile)
         totals = _compute_totals(visible)
@@ -146,6 +173,9 @@ class MacroListCreateView(APIView):
             }
         )
 
+    @extend_schema(
+        tags=["Macros"], request=MacroSerializer, responses={201: MacroSerializer}
+    )
     def post(self, request, *args, **kwargs):
         serializer = MacroSerializer(
             data=request.data, context={"org": request.profile.org}
@@ -199,6 +229,7 @@ class MacroDetailView(APIView):
             )
         return macro
 
+    @extend_schema(tags=["Macros"], responses={200: MacroSerializer})
     def get(self, request, pk, *args, **kwargs):
         macro = get_object_or_404(Macro, pk=pk, org=request.profile.org)
         # Visibility: same rule as the list filter.
@@ -206,9 +237,15 @@ class MacroDetailView(APIView):
             return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
         return Response(_serialize(request, macro))
 
+    @extend_schema(
+        tags=["Macros"], request=MacroSerializer, responses={200: MacroSerializer}
+    )
     def put(self, request, pk, *args, **kwargs):
         return self._update(request, pk, partial=False)
 
+    @extend_schema(
+        tags=["Macros"], request=MacroSerializer, responses={200: MacroSerializer}
+    )
     def patch(self, request, pk, *args, **kwargs):
         return self._update(request, pk, partial=True)
 
@@ -244,6 +281,7 @@ class MacroDetailView(APIView):
             _save_actions(macro, data)
         return Response(_serialize(request, macro))
 
+    @extend_schema(tags=["Macros"], responses={204: None})
     def delete(self, request, pk, *args, **kwargs):
         result = self._get_writable(request, pk)
         if isinstance(result, Response):
@@ -262,6 +300,18 @@ class MacroRenderView(APIView):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
+    @extend_schema(
+        tags=["Macros"],
+        request=inline_serializer(
+            name="MacroRenderRequest", fields={"case_id": serializers.UUIDField()}
+        ),
+        responses={
+            200: inline_serializer(
+                name="MacroRenderResponse",
+                fields={"rendered_body": serializers.CharField()},
+            )
+        },
+    )
     def post(self, request, pk, *args, **kwargs):
         result = _usable_or_response(request, pk)
         if isinstance(result, Response):
@@ -302,6 +352,36 @@ class MacroApplyView(APIView):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
+    @extend_schema(
+        tags=["Macros"],
+        request=inline_serializer(
+            name="MacroApplyRequest",
+            fields={
+                "case_id": serializers.UUIDField(),
+                "only": serializers.ListField(
+                    child=serializers.CharField(), required=False
+                ),
+            },
+        ),
+        responses={
+            200: inline_serializer(
+                name="MacroApplyResponse",
+                fields={
+                    "error": serializers.BooleanField(),
+                    "message": serializers.CharField(),
+                    "applied": serializers.ListField(child=serializers.CharField()),
+                    "skipped": inline_serializer(
+                        name="MacroApplySkipped",
+                        fields={
+                            "action": serializers.CharField(),
+                            "reason": serializers.CharField(),
+                        },
+                        many=True,
+                    ),
+                },
+            )
+        },
+    )
     def post(self, request, pk, *args, **kwargs):
         result = _usable_or_response(request, pk)
         if isinstance(result, Response):

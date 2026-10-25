@@ -5,7 +5,6 @@ from accounts.models import Account, AccountEmail, AccountEmailLog
 from cases.access import visible_cases_qs
 from common.modules import only_available
 from common.serializer import (
-    AttachmentsSerializer,
     OrganizationSerializer,
     ProfileSerializer,
     TagsSerializer,
@@ -23,27 +22,52 @@ from tasks.access import visible_tasks_qs
 # - created_on_arrow (frontend computes its own humanized timestamps)
 
 
+class AccountMoneyRowSerializer(serializers.Serializer):
+    """One currency's money in `AccountRollupsSerializer.by_currency`."""
+
+    currency = serializers.CharField()
+    won_amount = serializers.CharField()
+    open_pipeline = serializers.CharField()
+    overdue_amount = serializers.CharField()
+
+
+class AccountRollupsSerializer(serializers.Serializer):
+    """The shape of `AccountSerializer.rollups`, for the schema.
+
+    A money total is the amount when at most one currency is present and null
+    when several are (`common.money.currency_block`).
+    """
+
+    won_count = serializers.IntegerField()
+    open_deal_count = serializers.IntegerField()
+    open_tickets = serializers.IntegerField()
+    first_won_on = serializers.DateField(allow_null=True)
+    won_amount = serializers.CharField(allow_null=True)
+    open_pipeline = serializers.CharField(allow_null=True)
+    overdue_amount = serializers.CharField(allow_null=True)
+    by_currency = AccountMoneyRowSerializer(many=True)
+
+
 class AccountSerializer(serializers.ModelSerializer):
     """Serializer for reading Account data"""
 
-    created_by = UserSerializer()
+    created_by = UserSerializer(allow_null=True)
     org = OrganizationSerializer()
     tags = TagsSerializer(read_only=True, many=True)
     assigned_to = ProfileSerializer(read_only=True, many=True)
     contacts = serializers.SerializerMethodField()
     teams = TeamsSerializer(read_only=True, many=True)
-    account_attachment = AttachmentsSerializer(read_only=True, many=True)
     country_display = serializers.SerializerMethodField()
     cases = serializers.SerializerMethodField()
     tasks = serializers.SerializerMethodField()
     opportunities = serializers.SerializerMethodField()
     rollups = serializers.SerializerMethodField()
 
-    @extend_schema_field(str)
+    @extend_schema_field(serializers.CharField(allow_null=True))
     def get_country_display(self, obj):
         return obj.get_country_display() if obj.country else None
 
-    @extend_schema_field(dict)
+    @extend_schema_field(AccountRollupsSerializer(allow_null=True))
     def get_rollups(self, obj):
         """What this account is worth, owes and is complaining about.
 
@@ -165,7 +189,6 @@ class AccountSerializer(serializers.ModelSerializer):
             # Notes
             "description",
             # Related
-            "account_attachment",
             "cases",
             "tasks",
             "opportunities",

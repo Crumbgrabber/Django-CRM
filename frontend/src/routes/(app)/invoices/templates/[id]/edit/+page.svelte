@@ -25,11 +25,16 @@
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
   import { ChevronRight, Lock, FileCode } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   // A failed save re-renders with what was typed; a fresh load uses the saved
   // record. Without the fallback an admin loses their edits on any 400.
+  /**
+   * @typedef {{ name?: string, primary_color?: string, secondary_color?: string, default_notes?: string, default_terms?: string, footer_text?: string, template_html?: string, template_css?: string }} TemplateValues
+   */
+
+  /** @type {TemplateValues} */
   let values = $derived(form?.values ?? data.template ?? {});
 </script>
 

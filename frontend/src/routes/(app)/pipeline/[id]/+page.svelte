@@ -18,7 +18,7 @@
   import { sourceLabel } from '#lib/v2/lead-sources.js';
   import { Check, ChevronRight } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
   let related = $derived(relatedView(data.related));
 
@@ -33,10 +33,8 @@
   let { deal, activity, lineItems, contacts } = $derived(data);
   /* The deal's own pipeline's open stages: the path a deal walks. Won and
      lost are not on it; they end it. */
-  let openStages = $derived(
-    (data.pipeline?.stages ?? []).filter((/** @type {any} */ s) => s.kind === 'open')
-  );
-  let stageIndex = $derived(openStages.findIndex((/** @type {any} */ s) => s.code === deal.stage));
+  let openStages = $derived((data.pipeline?.stages ?? []).filter((s) => s.kind === 'open'));
+  let stageIndex = $derived(openStages.findIndex((s) => s.code === deal.stage));
 
   /**
    * The discount is per line item: `OpportunityLineItem.save()` computes

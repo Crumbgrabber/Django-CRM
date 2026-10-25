@@ -63,7 +63,8 @@
   import { resolve } from '$app/paths';
   import { asInternalPath } from '#lib/utils/paths.js';
   /**
-   * @type {{
+   * @type {Omit<import('svelte/elements').HTMLButtonAttributes, 'type'> &
+   *   Omit<import('svelte/elements').HTMLAnchorAttributes, 'type'> & {
    *   class?: string,
    *   variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link',
    *   size?: 'default' | 'sm' | 'lg' | 'icon' | 'icon-sm' | 'icon-lg',
@@ -71,8 +72,7 @@
    *   href?: string,
    *   type?: 'button' | 'submit' | 'reset',
    *   disabled?: boolean,
-   *   children?: import('svelte').Snippet,
-   *   [key: string]: any
+   *   children?: import('svelte').Snippet
    * }}
    */
   let {

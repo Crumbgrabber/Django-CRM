@@ -1,6 +1,7 @@
 import { fail } from '@sveltejs/kit';
 import { getLeadBoard, moveLead } from '#lib/server/v2/lead-board.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 /**
  * Leads grouped by the stages of one lead pipeline. `?pipeline=<id>` picks
@@ -31,7 +32,7 @@ export const actions = {
       await moveLead({ cookies }, id, { stageId, aboveId, belowId });
       return { success: true };
     } catch (err) {
-      if (/** @type {any} */ (err)?.status === 404) {
+      if (apiStatus(err) === 404) {
         return fail(404, { error: 'That lead is not one you can move.' });
       }
       return fail(400, { error: readableError(err, 'Could not move the lead.') });

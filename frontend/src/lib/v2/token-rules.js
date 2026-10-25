@@ -20,6 +20,20 @@
 import { daysSince } from '#lib/v2/format.js';
 
 /**
+ * A token row of either list: the org oversight one carries `owner`, and the
+ * self list has `is_live` derived in `listMyTokens`.
+ *
+ * @typedef {{
+ *   last_used_at?: string | null,
+ *   created_at?: string | null,
+ *   revoked_at?: string | null,
+ *   is_live?: boolean,
+ *   scopes?: string[],
+ *   owner?: { name?: string | null } | null
+ * }} TokenRow
+ */
+
+/**
  * When this token last did anything, falling back to when it was issued.
  *
  * **`last_used_at` being null does not mean "long ago".** It is null both for a
@@ -43,7 +57,7 @@ export function lastActivityAt(token) {
  * Only for a live token: a revoked or expired one is already not a credential,
  * and flagging it as neglected as well would bury the rows worth acting on.
  *
- * @param {any} token
+ * @param {TokenRow | null | undefined} token
  * @param {Date} [now]
  * @returns {string | null}
  */
@@ -58,7 +72,7 @@ export function staleness(token, now = new Date()) {
  * Revoked and expired are different reasons for the same outcome, so they read
  * differently and tone the same. Neither is a live credential.
  *
- * @param {any} token
+ * @param {TokenRow | null | undefined} token
  * @returns {{ label: string, tone: 'ink'|'slate'|'clay'|'rust'|'moss' }}
  */
 export function tokenStatus(token) {
@@ -78,7 +92,7 @@ export function tokenStatus(token) {
  * its rows (the endpoint is already scoped to you), and "Everything its owner
  * can" is a strange thing to read on a page about your own tokens.
  *
- * @param {any} token
+ * @param {TokenRow | null | undefined} token
  * @param {{ ownerLabel?: string }} [options]
  * @returns {string}
  */
@@ -89,7 +103,7 @@ export function scopeSummary(token, options = {}) {
     const first = (token?.owner?.name ?? '').split(' ')[0];
     return first ? `Everything ${first} can` : 'Everything its owner can';
   }
-  if (scopes.every((/** @type {string} */ s) => s.endsWith(':read'))) return 'Read only';
+  if (scopes.every((s) => s.endsWith(':read'))) return 'Read only';
   return scopes.join(', ');
 }
 

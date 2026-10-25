@@ -71,8 +71,9 @@ export const actions = {
         secure,
         maxAge: 60 * 60 * 24 * 365 // 1 year
       });
-    } catch (/** @type {any} */ error) {
-      return fail(400, { error: error.response?.data?.error || 'Verification failed' });
+    } catch (error) {
+      const failure = /** @type {{ response?: { data?: { error?: unknown } } }} */ (error);
+      return fail(400, { error: failure.response?.data?.error || 'Verification failed' });
     }
 
     // Success - redirect to org selection (same as Google OAuth)

@@ -15,7 +15,7 @@
   import Pill from '#lib/v2/components/Pill.svelte';
   import { ExternalLink, Globe } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   let editing = $state(false);

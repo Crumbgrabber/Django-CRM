@@ -41,6 +41,7 @@
  */
 import { error } from '@sveltejs/kit';
 import { apiRequest } from '#lib/api-helpers.js';
+import { apiStatus } from '#lib/api-errors.js';
 import { fieldsForDetail, fieldsForEdit } from '#lib/server/v2/record-custom-fields.js';
 import { attachmentHref } from '#lib/server/v2/files.js';
 
@@ -61,10 +62,10 @@ function num(value) {
 }
 
 /**
- * @param {any} profile
+ * @param {Schemas['Profile']} profile
  */
 function profileName(profile) {
-  return profile?.user_details?.email || profile?.user?.email || 'Unknown';
+  return profile?.user_details?.email || 'Unknown';
 }
 
 /**
@@ -76,19 +77,19 @@ function profileName(profile) {
  * others there are. A person attached to three accounts should not silently
  * look like they belong to one.
  *
- * @param {any} contact
+ * @param {Schemas['Contact']} contact
  */
 function accountLink(contact) {
   const linked = contact.linked_accounts ?? [];
   const primary = contact.account_detail ?? linked[0] ?? null;
-  const others = linked.filter((/** @type {any} */ row) => row.id !== primary?.id);
+  const others = linked.filter((row) => row.id !== primary?.id);
   return { account: primary, other_accounts: others };
 }
 
 /**
  * The subset of a Django contact the v2 pages read.
  *
- * @param {any} contact
+ * @param {Schemas['Contact']} contact
  */
 function toRow(contact) {
   const owners = contact.assigned_to ?? [];
@@ -146,6 +147,7 @@ export async function listContacts({ cookies }, params) {
   const query = new URLSearchParams(params ?? undefined);
   if (!query.has('limit')) query.set('limit', '25');
 
+  /** @type {Schemas['ContactListResponse']} */
   const response = await apiRequest(`/contacts/?${query}`, {}, { cookies });
   const rows = (response.results ?? []).map(toRow);
 
@@ -158,8 +160,8 @@ export async function listContacts({ cookies }, params) {
       shown: rows.length,
       // Two facts worth surfacing on a page about reaching people: how many of
       // them you are not allowed to phone, and how many have no email at all.
-      do_not_call: rows.filter((/** @type {any} */ row) => row.do_not_call).length,
-      no_email: rows.filter((/** @type {any} */ row) => !row.email).length
+      do_not_call: rows.filter((row) => row.do_not_call).length,
+      no_email: rows.filter((row) => !row.email).length
     }
   };
 }
@@ -183,8 +185,8 @@ export async function getContact({ cookies }, id) {
   return {
     contact,
     owners: (response.contact_obj.assigned_to ?? []).map(profileName),
-    teams: (response.contact_obj.teams ?? []).map((/** @type {any} */ team) => team.name),
-    deals: (response.opportunities ?? []).map((/** @type {any} */ deal) => ({
+    teams: (response.contact_obj.teams ?? []).map((team) => team.name),
+    deals: (response.opportunities ?? []).map((deal) => ({
       id: deal.id,
       name: deal.name ?? '',
       stage: deal.stage,
@@ -201,26 +203,26 @@ export async function getContact({ cookies }, id) {
     // `deals` list stops at 10 rows, so totalling it undercounted.
     openDeals: {
       count: response.open_deals?.count ?? 0,
-      by_currency: (response.open_deals?.by_currency ?? []).map((/** @type {any} */ row) => ({
+      by_currency: (response.open_deals?.by_currency ?? []).map((row) => ({
         currency: row.currency,
         amount: num(row.amount) ?? 0
       }))
     },
-    tickets: (response.cases ?? []).map((/** @type {any} */ ticket) => ({
+    tickets: (response.cases ?? []).map((ticket) => ({
       id: ticket.id,
       name: ticket.name ?? '',
       status: ticket.status,
       priority: ticket.priority,
       created_at: ticket.created_at
     })),
-    tasks: (response.tasks ?? []).map((/** @type {any} */ task) => ({
+    tasks: (response.tasks ?? []).map((task) => ({
       id: task.id,
       title: task.title ?? '',
       status: task.status,
       priority: task.priority,
       due_date: task.due_date ?? null
     })),
-    colleagues: (response.colleagues ?? []).map((/** @type {any} */ person) => ({
+    colleagues: (response.colleagues ?? []).map((person) => ({
       id: person.id,
       name: [person.first_name, person.last_name].filter(Boolean).join(' ').trim(),
       title: person.title ?? ''
@@ -247,11 +249,11 @@ export async function getContact({ cookies }, id) {
  * file's author is left unnamed rather than printing an id, the note author,
  * which arrives as a nested profile, is shown.
  *
- * @param {any} response
+ * @param {Schemas['ContactDetailResponse']} response
  */
 function buildContactActivity(response) {
   /** @type {Array<{id:string,type:'note'|'file'|'status',at:string,by:string|null,body:string,href?:string|null}>} */
-  const events = (response.comments ?? []).map((/** @type {any} */ c) => ({
+  const events = (response.comments ?? []).map((c) => ({
     id: `note-${c.id}`,
     type: 'note',
     at: c.commented_on,
@@ -281,10 +283,7 @@ function buildContactActivity(response) {
     });
   }
 
-  return events.sort(
-    (/** @type {any} */ a, /** @type {any} */ b) =>
-      new Date(b.at).getTime() - new Date(a.at).getTime()
-  );
+  return events.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
 }
 
 /**
@@ -354,28 +353,32 @@ export const EDITABLE_FIELDS = [
  * @param {import('@sveltejs/kit').Cookies} cookies
  */
 async function listChoices(cookies) {
+  /** @type {Promise<Schemas['ContactListResponse']>} */
+  const contactsRequest = apiRequest('/contacts/?limit=1', {}, { cookies });
+  /** @type {Promise<Schemas['AccountListResponse']>} */
+  const accountsRequest = apiRequest('/accounts/?limit=200', {}, { cookies });
   const [contactsResponse, accountsResponse] = await Promise.all([
-    apiRequest('/contacts/?limit=1', {}, { cookies }),
-    apiRequest('/accounts/?limit=200', {}, { cookies })
+    contactsRequest,
+    accountsRequest
   ]);
-  const active = accountsResponse.active_accounts ?? {};
-  const accounts = (active.open_accounts ?? []).map((/** @type {any} */ account) => ({
+  const active = accountsResponse.active_accounts;
+  const accounts = (active?.open_accounts ?? []).map((account) => ({
     id: account.id,
     name: account.name
   }));
-  accounts.sort((/** @type {any} */ a, /** @type {any} */ b) => a.name.localeCompare(b.name));
+  accounts.sort((a, b) => a.name.localeCompare(b.name));
 
   return {
-    countries: (contactsResponse.countries ?? []).map((/** @type {any} */ pair) => ({
+    countries: (contactsResponse.countries ?? []).map((pair) => ({
       value: pair[0],
       label: pair[1]
     })),
-    owners: (contactsResponse.users ?? []).map((/** @type {any} */ user) => ({
+    owners: (contactsResponse.users ?? []).map((user) => ({
       id: user.id,
       name: user.user__email
     })),
     accounts,
-    account_total: active.open_accounts_count ?? accounts.length
+    account_total: active?.open_accounts_count ?? accounts.length
   };
 }
 
@@ -387,7 +390,7 @@ async function listChoices(cookies) {
  */
 export async function getContactFormOptions({ cookies }, accountId = null) {
   const choices = await listChoices(cookies);
-  const known = choices.accounts.some((/** @type {any} */ row) => row.id === accountId);
+  const known = choices.accounts.some((row) => row.id === accountId);
   return { ...choices, defaults: { country: '', account: known ? accountId : '' } };
 }
 
@@ -415,7 +418,7 @@ export async function getContactForEdit({ cookies }, id) {
    */
   const stored = raw.account_detail;
   const accounts =
-    stored && !choices.accounts.some((/** @type {any} */ row) => row.id === stored.id)
+    stored && !choices.accounts.some((row) => row.id === stored.id)
       ? [{ id: stored.id, name: stored.name }, ...choices.accounts]
       : choices.accounts;
 
@@ -466,10 +469,10 @@ export async function getContactForEdit({ cookies }, id) {
  * Absent stays absent. A field the form did not send is a field the save
  * leaves alone, which is the whole reason for PATCH below.
  *
- * @param {Record<string, any>} values
+ * @param {Record<string, unknown>} values
  */
 function toBody(values) {
-  /** @type {Record<string, any>} */
+  /** @type {Record<string, unknown>} */
   const body = {};
   for (const field of EDITABLE_FIELDS) {
     if (!(field in values)) continue;
@@ -498,7 +501,7 @@ function toBody(values) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
- * @param {Record<string, any>} values
+ * @param {Record<string, unknown>} values
  * @returns {Promise<Schemas['ContactPatchResponse']>}
  */
 export async function updateContact({ cookies }, id, values) {
@@ -533,7 +536,8 @@ export async function deleteContact({ cookies }, id) {
  * Without it a client cannot open what it just made.
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
- * @param {Record<string, any>} values
+ * @param {Record<string, unknown>} values
+ * @returns {Promise<Schemas['ContactCreateResponse']>}
  */
 export async function createContact({ cookies }, values) {
   return await apiRequest('/contacts/', { method: 'POST', body: toBody(values) }, { cookies });
@@ -548,14 +552,15 @@ export async function createContact({ cookies }, values) {
  *
  * @param {import('@sveltejs/kit').Cookies} cookies
  * @param {string} id
+ * @returns {Promise<Schemas['ContactDetailResponse']>}
  */
 async function fetchDetail(cookies, id) {
   try {
     return await apiRequest(`/contacts/${id}/`, {}, { cookies });
-  } catch (/** @type {any} */ err) {
+  } catch (err) {
     // On the status, not on the wording. Django answers a missing record with
     // "No Contact matches the given query.", no "404" in it anywhere.
-    if (err?.status === 404) {
+    if (apiStatus(err) === 404) {
       error(404, 'That contact does not exist, or you do not have access to them.');
     }
     throw err;

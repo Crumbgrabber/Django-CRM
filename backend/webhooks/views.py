@@ -24,9 +24,8 @@ member may not be allowed to see.
 Another org's id answers 404, never 403, so ids cannot be probed.
 """
 
-from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import extend_schema
-from rest_framework import status
+from drf_spectacular.utils import extend_schema, inline_serializer
+from rest_framework import serializers, status
 from rest_framework.pagination import LimitOffsetPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -38,7 +37,11 @@ from common.permissions import HasOrgContext, IsOrgAdmin
 from webhooks import events
 from webhooks.emit import envelope, queue_delivery
 from webhooks.models import PENDING, WebhookDelivery, WebhookEndpoint, generate_secret
-from webhooks.serializers import WebhookDeliverySerializer, WebhookEndpointSerializer
+from webhooks.serializers import (
+    WebhookDeliverySerializer,
+    WebhookEndpointCreatedSerializer,
+    WebhookEndpointSerializer,
+)
 
 MAX_ENDPOINTS_PER_ORG = 10
 
@@ -60,7 +63,28 @@ class WebhookBaseView(APIView):
 
 class WebhookListCreateView(WebhookBaseView):
     @extend_schema(
-        tags=["Webhooks"], operation_id="webhooks_list", responses=OpenApiTypes.OBJECT
+        tags=["Webhooks"],
+        operation_id="webhooks_list",
+        responses={
+            200: inline_serializer(
+                name="WebhookListResponse",
+                fields={
+                    "endpoints": WebhookEndpointSerializer(many=True),
+                    "event_catalogue": inline_serializer(
+                        name="WebhookEventGroup",
+                        fields={
+                            "module": serializers.CharField(),
+                            "label": serializers.CharField(),
+                            "events": serializers.ListField(
+                                child=serializers.CharField()
+                            ),
+                        },
+                        many=True,
+                    ),
+                    "limit": serializers.IntegerField(),
+                },
+            )
+        },
     )
     def get(self, request):
         endpoints = WebhookEndpoint.objects.filter(
@@ -77,7 +101,7 @@ class WebhookListCreateView(WebhookBaseView):
     @extend_schema(
         tags=["Webhooks"],
         request=WebhookEndpointSerializer,
-        responses=OpenApiTypes.OBJECT,
+        responses={201: WebhookEndpointCreatedSerializer},
     )
     def post(self, request):
         org = request.profile.org
@@ -139,7 +163,9 @@ class WebhookDetailView(WebhookBaseView):
 
 
 class WebhookTestView(WebhookBaseView):
-    @extend_schema(tags=["Webhooks"], request=None, responses=WebhookDeliverySerializer)
+    @extend_schema(
+        tags=["Webhooks"], request=None, responses={202: WebhookDeliverySerializer}
+    )
     def post(self, request, pk):
         endpoint = self.get_endpoint(request, pk)
         if not endpoint.is_active:
@@ -154,7 +180,19 @@ class WebhookTestView(WebhookBaseView):
 
 
 class WebhookRotateSecretView(WebhookBaseView):
-    @extend_schema(tags=["Webhooks"], request=None, responses=OpenApiTypes.OBJECT)
+    @extend_schema(
+        tags=["Webhooks"],
+        request=None,
+        responses={
+            200: inline_serializer(
+                name="WebhookRotateSecretResponse",
+                fields={
+                    "secret": serializers.CharField(),
+                    "secret_hint": serializers.CharField(),
+                },
+            )
+        },
+    )
     def post(self, request, pk):
         endpoint = self.get_endpoint(request, pk)
         previous_creator_id = endpoint.created_by_id
@@ -172,7 +210,20 @@ class WebhookRotateSecretView(WebhookBaseView):
 
 
 class WebhookDeliveryListView(WebhookBaseView):
-    @extend_schema(tags=["Webhooks"], responses=WebhookDeliverySerializer(many=True))
+    @extend_schema(
+        tags=["Webhooks"],
+        responses={
+            200: inline_serializer(
+                name="WebhookDeliveryListResponse",
+                fields={
+                    "count": serializers.IntegerField(),
+                    "next": serializers.CharField(allow_null=True),
+                    "previous": serializers.CharField(allow_null=True),
+                    "results": WebhookDeliverySerializer(many=True),
+                },
+            )
+        },
+    )
     def get(self, request, pk):
         endpoint = self.get_endpoint(request, pk)
         queryset = WebhookDelivery.objects.filter(
@@ -186,7 +237,9 @@ class WebhookDeliveryListView(WebhookBaseView):
 
 
 class WebhookRedeliverView(WebhookBaseView):
-    @extend_schema(tags=["Webhooks"], request=None, responses=WebhookDeliverySerializer)
+    @extend_schema(
+        tags=["Webhooks"], request=None, responses={202: WebhookDeliverySerializer}
+    )
     def post(self, request, pk):
         original = get_scoped_or_404(WebhookDelivery, pk, request.profile.org)
         if original.status == PENDING:

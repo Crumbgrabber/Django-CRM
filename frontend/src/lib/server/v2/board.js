@@ -18,21 +18,16 @@
 import { apiRequest } from '#lib/api-helpers.js';
 
 /** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
-/**
- * `GET /boards/` answers the pagination envelope, though the schema says a bare list.
- *
- * @typedef {{ count: number, next: string | null, previous: string | null, results: Schemas['BoardList'][] }} BoardPage
- */
 
 /** A board card's assignee → `{ id, name }`. ProfileSerializer nests the
  *  display name under `user_details`; fall back to the email, then a label. */
-function assignee(/** @type {any} */ p) {
-  const d = p.user_details || {};
-  return { id: p.id, name: d.name || d.email || 'Unknown' };
+function assignee(/** @type {Schemas['Profile']} */ p) {
+  const d = p.user_details;
+  return { id: p.id, name: d?.name || d?.email || 'Unknown' };
 }
 
 /** One nested BoardTask → the flat card shape the board renders. */
-function toCard(/** @type {any} */ t, /** @type {string} */ columnId) {
+function toCard(/** @type {Schemas['BoardTask']} */ t, /** @type {string} */ columnId) {
   return {
     id: t.id,
     column_id: columnId,
@@ -56,7 +51,7 @@ const EMPTY = { board: null, boards: [], columns: [], tasks: [] };
  * @param {{ cookies: import('@sveltejs/kit').Cookies, boardId?: string | null }} event
  */
 export async function getBoard({ cookies, boardId = null }) {
-  /** @type {BoardPage} */
+  /** @type {Schemas['BoardListResponse']} */
   const listResp = await apiRequest('/boards/?archived=false', {}, { cookies });
   const results = listResp.results || [];
   if (results.length === 0) return { ...EMPTY };
@@ -74,7 +69,7 @@ export async function getBoard({ cookies, boardId = null }) {
     color: c.color
   }));
 
-  /** @type {any[]} */
+  /** @type {ReturnType<typeof toCard>[]} */
   const tasks = [];
   for (const c of sorted) {
     for (const t of c.tasks || []) tasks.push(toCard(t, c.id));
@@ -111,10 +106,10 @@ export async function getBoard({ cookies, boardId = null }) {
  * @returns {Promise<Schemas['BoardColumn']>}
  */
 export async function createColumn({ cookies }, boardId, { name, color, order }) {
-  /** @type {Record<string, any>} */
+  /** @type {Record<string, string | number>} */
   const body = { name };
   if (color) body.color = color;
-  if (Number.isFinite(order)) body.order = order;
+  if (order !== undefined && Number.isFinite(order)) body.order = order;
   return apiRequest(`/boards/${boardId}/columns/`, { method: 'POST', body }, { cookies });
 }
 
@@ -135,7 +130,7 @@ export async function createColumn({ cookies }, boardId, { name, color, order })
  * @returns {Promise<Schemas['Board']>}
  */
 export async function createBoard({ cookies }, { name, description }) {
-  /** @type {Record<string, any>} */
+  /** @type {Record<string, string>} */
   const body = { name };
   if (description) body.description = description;
   return apiRequest('/boards/', { method: 'POST', body }, { cookies });
@@ -153,7 +148,7 @@ export async function createBoard({ cookies }, { name, description }) {
  * @returns {Promise<Schemas['BoardTask']>}
  */
 export async function createCard({ cookies }, columnId, { title, description, priority }) {
-  /** @type {Record<string, any>} */
+  /** @type {Record<string, string>} */
   const body = { title };
   if (description) body.description = description;
   if (priority) body.priority = priority;

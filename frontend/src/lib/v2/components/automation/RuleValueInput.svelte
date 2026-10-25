@@ -7,12 +7,12 @@
    * selected and marked, so saving never drops it.
    *
    * @type {{
-   *   field: { key: string, label: string, type: string, choices: any[] } | null,
+   *   field: import('#lib/v2/automation.js').Field | null,
    *   kind: string,
-   *   value: any,
+   *   value: import('#lib/v2/automation.js').RuleValue | undefined,
    *   people: { id: string, name: string }[],
    *   settableOnly?: boolean,
-   *   lostLabel?: (value: any) => string | undefined,
+   *   lostLabel?: (value: string) => string | undefined,
    *   id: string,
    *   label?: string,
    *   invalid?: boolean,
@@ -34,13 +34,13 @@
 
   let choices = $derived(
     withStored(
-      (field?.choices ?? []).filter((/** @type {any} */ c) => !settableOnly || c.settable),
+      (field?.choices ?? []).filter((c) => !settableOnly || c.settable),
       value,
       { label: lostLabel }
     )
   );
   let groups = $derived.by(() => {
-    /** @type {{ group: string, options: any[] }[]} */
+    /** @type {{ group: string, options: import('#lib/v2/automation.js').Option[] }[]} */
     const out = [];
     for (const option of choices) {
       const group = option.group ?? '';

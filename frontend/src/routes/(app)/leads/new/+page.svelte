@@ -24,7 +24,7 @@
   import { money } from '#lib/v2/format.js';
   import { TriangleAlert } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form: result } = $props();
 
   // Seeded from the load once, on purpose: a half-typed form must not be
@@ -117,7 +117,7 @@
       return;
     }
     busy = true;
-    return async (/** @type {any} */ { update }) => {
+    return async ({ update }) => {
       await update();
       busy = false;
     };

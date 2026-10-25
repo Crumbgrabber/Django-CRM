@@ -22,7 +22,7 @@ export const actions = {
   async create(event) {
     const form = await event.request.formData();
 
-    /** @type {Record<string, any>} */
+    /** @type {import('#lib/server/v2/leads.js').LeadFormValues} */
     const values = {};
     for (const field of [...EDITABLE_FIELDS, 'assigned_to']) {
       if (form.has(field)) values[field] = form.get(field)?.toString().trim() ?? '';
@@ -31,11 +31,9 @@ export const actions = {
     if (custom.refusal) return fail(503, { values, ...custom.refusal });
     if (custom.values) values.custom_fields = custom.values;
 
-    /** @type {any} */
-    let created;
     try {
-      created = await createLead(event, values);
-    } catch (/** @type {any} */ err) {
+      await createLead(event, values);
+    } catch (err) {
       // Values go back so a rejected form is not a blank form.
       return fail(400, {
         values,
@@ -43,6 +41,8 @@ export const actions = {
       });
     }
 
-    redirect(303, created?.id ? `/leads/${created.id}` : '/leads');
+    // `LeadListView.post` answers without the new lead's id, so there is
+    // nothing to open: the list is where a created lead lands.
+    redirect(303, '/leads');
   }
 };

@@ -24,7 +24,9 @@
   import SecretOnce from './SecretOnce.svelte';
   import { wordsOn } from '#lib/v2/modules.js';
 
-  /** @type {{ data: any, form: any }} */
+  /** @typedef {import('#lib/api-schema.js').components['schemas']['WebhookEndpoint']} WebhookEndpoint */
+
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   // "a lead, deal, ticket or other record", naming only the modules that are on.
@@ -47,9 +49,10 @@
 
   let atLimit = $derived(!data.forbidden && data.endpoints.length >= data.limit);
 
+  /** @type {import('$app/forms').SubmitFunction} */
   const createSubmit = () => {
     busy = true;
-    return async (/** @type {any} */ { update, result }) => {
+    return async ({ update, result }) => {
       await update({ reset: false });
       busy = false;
       if (result?.type === 'success' && result?.data?.created) creating = false;
@@ -59,13 +62,13 @@
   /**
    * Who answers for an endpoint. Nobody once their user has been deleted,
    * which also pauses it.
-   * @param {any} e
+   * @param {WebhookEndpoint} e
    */
   function creatorLabel(e) {
     return e.created_by ? e.created_by.name || e.created_by.email : 'a removed user';
   }
 
-  /** @param {any} e */
+  /** @param {WebhookEndpoint} e */
   function endpointState(e) {
     if (e.is_active) return { tone: /** @type {const} */ ('moss'), label: 'Sending' };
     // The server turned it off: a 410 from the receiver, or its creator lost
@@ -79,9 +82,7 @@
   {#snippet crumb()}<SettingsCrumb />{/snippet}
   {#snippet sub()}
     {#if !data.forbidden}
-      <span class="v2-num"
-        >{count(data.endpoints.filter((/** @type {any} */ e) => e.is_active).length)}</span
-      >
+      <span class="v2-num">{count(data.endpoints.filter((e) => e.is_active).length)}</span>
       sending of <span class="v2-num">{count(data.endpoints.length)}</span>
     {/if}
   {/snippet}

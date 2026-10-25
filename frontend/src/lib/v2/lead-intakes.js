@@ -85,13 +85,13 @@ export function targetsFor(targets, mapping) {
 /**
  * Rows as the API takes them: trimmed strings, both halves set, nothing else.
  *
- * @param {any} rows
+ * @param {unknown} rows
  * @returns {{ from: string, to: string }[]}
  */
 export function cleanMapping(rows) {
   if (!Array.isArray(rows)) return [];
   return rows
-    .map((r) => ({
+    .map((/** @type {{ from?: unknown, to?: unknown } | null | undefined} */ r) => ({
       from: typeof r?.from === 'string' ? r.from.trim() : '',
       to: typeof r?.to === 'string' ? r.to.trim() : ''
     }))

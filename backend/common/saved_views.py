@@ -26,6 +26,7 @@ import re
 
 from django.db import IntegrityError, transaction
 from django.http import QueryDict
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from accounts.views import account_list_queryset
@@ -247,6 +248,16 @@ def _check_values(request, module, filters):
         raise serializers.ValidationError({"filters": detail}) from None
 
 
+@extend_schema_field(
+    {
+        "type": "object",
+        "additionalProperties": {"type": "array", "items": {"type": "string"}},
+    }
+)
+class _FiltersField(serializers.JSONField):
+    """Stored as ``_clean_filters`` leaves it: ``{param: [text, ...]}``."""
+
+
 class SavedViewSerializer(serializers.ModelSerializer):
     """One saved view, as its owner reads and writes it.
 
@@ -255,6 +266,8 @@ class SavedViewSerializer(serializers.ModelSerializer):
     view exists: a view's filters only mean something to the list they came
     from.
     """
+
+    filters = _FiltersField(required=False)
 
     class Meta:
         model = SavedView

@@ -4,6 +4,7 @@
   import '#lib/v2/styles/v2.css';
   import imgLogo from '#lib/assets/images/logo.png';
 
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   const error = $derived(form?.error ?? data.error);

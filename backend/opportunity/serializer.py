@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from django.db.models import Sum
-from drf_spectacular.utils import extend_schema_field
+from drf_spectacular.utils import extend_schema_field, inline_serializer
 from rest_framework import serializers
 
 from accounts.access import has_account_access
@@ -20,6 +20,7 @@ from invoices.serializer import LineAmountsMixin, ProductSerializer
 from leads.source_rules import DEAL_PICKER_KEYS, check_source
 from opportunity.access import has_deal_access
 from opportunity.models import (
+    DISCOUNT_TYPES,
     DealPipeline,
     DealStage,
     Opportunity,
@@ -42,7 +43,7 @@ MAX_DEAL_TYPE_WEIGHT = 100
 class OpportunityLineItemSerializer(serializers.ModelSerializer):
     """Serializer for reading OpportunityLineItem data"""
 
-    product = ProductSerializer(read_only=True)
+    product = ProductSerializer(read_only=True, allow_null=True)
     product_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
     formatted_unit_price = serializers.SerializerMethodField()
     formatted_total = serializers.SerializerMethodField()
@@ -180,7 +181,8 @@ class DealStageFieldsMixin:
         stage = obj.current_stage(self._stages(obj))
         return stage.label if stage else obj.stage
 
-    @extend_schema_field(str)
+    # None when the deal's code is not a stage of its pipeline.
+    @extend_schema_field(serializers.CharField(allow_null=True))
     def get_stage_kind(self, obj):
         stage = obj.current_stage(self._stages(obj))
         return stage.kind if stage else None
@@ -199,9 +201,9 @@ class OpportunitySerializer(DealStageFieldsMixin, serializers.ModelSerializer):
 
     # `{id, name}` only. Seeing this record is not access to its account, and
     # both clients read only these two; the rest is on `/api/accounts/<id>/`.
-    account = AccountPickerSerializer(read_only=True)
-    closed_by = ProfileSerializer()
-    created_by = UserSerializer()
+    account = AccountPickerSerializer(read_only=True, allow_null=True)
+    closed_by = ProfileSerializer(allow_null=True)
+    created_by = UserSerializer(allow_null=True)
     org = OrganizationSerializer()
     tags = TagsSerializer(read_only=True, many=True)
     assigned_to = ProfileSerializer(read_only=True, many=True)
@@ -514,6 +516,7 @@ class OpportunityCreateSerializer(serializers.ModelSerializer):
 # ============================================================================
 
 
+@extend_schema_field(AccountPickerSerializer(allow_null=True))
 class _MinimalAccountField(serializers.RelatedField):
     """Account FK rendered as `{id, name}` so kanban cards can show the parent
     without the heavyweight AccountSerializer (which pulls in addresses, tags,
@@ -528,6 +531,12 @@ class _KanbanLineItemSerializer(serializers.ModelSerializer):
     columns only, so a board of cards adds one prefetch and no query per line
     (the full `OpportunityLineItemSerializer` reads each line's product and
     its deal)."""
+
+    # Declared so the schema keeps the blank choice, which `read_only_fields`
+    # strips from the generated field.
+    discount_type = serializers.ChoiceField(
+        choices=DISCOUNT_TYPES, allow_blank=True, read_only=True
+    )
 
     class Meta:
         model = OpportunityLineItem
@@ -752,9 +761,18 @@ class DealPipelineSerializer(serializers.ModelSerializer):
         return value
 
 
+@extend_schema_field(serializers.DictField(child=serializers.FloatField()))
+class _TypeWeightsField(serializers.JSONField):
+    """`SalesGoal.type_weights`, typed in the schema as the map
+    `validate_type_weights` accepts: deal type to multiplier."""
+
+
 class SalesGoalSerializer(serializers.ModelSerializer):
-    assigned_to_detail = ProfileSerializer(source="assigned_to", read_only=True)
+    assigned_to_detail = ProfileSerializer(
+        source="assigned_to", read_only=True, allow_null=True
+    )
     team_detail = serializers.SerializerMethodField()
+    type_weights = _TypeWeightsField(read_only=True)
     progress_value = serializers.SerializerMethodField()
     progress_percent = serializers.SerializerMethodField()
     status = serializers.SerializerMethodField()
@@ -787,17 +805,27 @@ class SalesGoalSerializer(serializers.ModelSerializer):
             "status",
         )
 
+    @extend_schema_field(
+        inline_serializer(
+            "SalesGoalTeam",
+            {"id": serializers.UUIDField(), "name": serializers.CharField()},
+            allow_null=True,
+        )
+    )
     def get_team_detail(self, obj):
         if obj.team:
             return {"id": str(obj.team.id), "name": obj.team.name}
         return None
 
-    def get_progress_value(self, obj):
+    def get_progress_value(self, obj) -> float:
         return float(obj.compute_progress())
 
-    def get_progress_percent(self, obj):
+    def get_progress_percent(self, obj) -> int:
         return obj.progress_percent
 
+    @extend_schema_field(
+        serializers.ChoiceField(choices=("completed", "on_track", "at_risk", "behind"))
+    )
     def get_status(self, obj):
         return obj.status
 

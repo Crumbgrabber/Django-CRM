@@ -28,7 +28,7 @@
   import { money, longDate } from '#lib/v2/format.js';
   import { Download, CheckCircle2, XCircle, AlertTriangle } from '@lucide/svelte';
 
-  /** @type {{ data: { estimate: any, token: string }, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   let est = $derived(data.estimate);

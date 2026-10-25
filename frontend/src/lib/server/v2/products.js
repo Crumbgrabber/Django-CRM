@@ -36,6 +36,8 @@
 import { apiRequest } from '#lib/api-helpers.js';
 import { viewerIsAdmin } from './organization.js';
 
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+
 /**
  * The currency codes the backend accepts (`common/utils.CURRENCY_CODES`).
  * A short, fixed list, so the form offers a select rather than a free text box
@@ -66,7 +68,7 @@ const CURRENCY_CODES = new Set(CURRENCY_CHOICES.map((c) => c.code));
  * carry none); `price` is a number for the money formatter; `used_on` is the
  * count the API now returns.
  *
- * @param {any} p
+ * @param {Schemas['Product']} p
  */
 function toProduct(p) {
   return {
@@ -104,7 +106,7 @@ function computeTotals(items) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  */
 export async function listProducts({ cookies }) {
-  /** @type {{ results?: any[] }} */
+  /** @type {Schemas['ProductPage']} */
   const resp = await apiRequest('/invoices/products/?limit=1000', {}, { cookies });
   const results = (resp?.results ?? [])
     .map(toProduct)
@@ -138,6 +140,7 @@ export function getNewProductOptions({ cookies }) {
  */
 export async function getProductForEdit({ cookies }, id) {
   if (!viewerIsAdmin(cookies)) return { can_edit: false };
+  /** @type {Schemas['Product']} */
   const raw = await apiRequest(`/invoices/products/${id}/`, {}, { cookies });
   const p = toProduct(raw);
   return {
@@ -168,7 +171,7 @@ export async function getProductForEdit({ cookies }, id) {
  *   currency?: string, category?: string, is_active: boolean }} values
  */
 function toPayload(values) {
-  /** @type {Record<string, any>} */
+  /** @type {Record<string, unknown>} */
   const body = {
     name: values.name,
     price: values.price,
@@ -185,6 +188,7 @@ function toPayload(values) {
  * `POST /api/invoices/products/`. Admin-only server-side.
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {Parameters<typeof toPayload>[0]} values
+ * @returns {Promise<Schemas['ProductSaved']>}
  */
 export function createProduct({ cookies }, values) {
   return apiRequest(
@@ -199,6 +203,7 @@ export function createProduct({ cookies }, values) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
  * @param {Parameters<typeof toPayload>[0]} values
+ * @returns {Promise<Schemas['ProductSaved']>}
  */
 export function updateProduct({ cookies }, id, values) {
   return apiRequest(
@@ -215,6 +220,7 @@ export function updateProduct({ cookies }, id, values) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
+ * @returns {Promise<Schemas['InvoicesMessage']>}
  */
 export function deleteProduct({ cookies }, id) {
   return apiRequest(`/invoices/products/${id}/`, { method: 'DELETE' }, { cookies });

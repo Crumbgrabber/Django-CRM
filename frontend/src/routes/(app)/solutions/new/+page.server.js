@@ -14,7 +14,7 @@ export async function load({ cookies, locals }) {
     // Decides whether the form offers "Approved" and the publish switch at
     // all. The API refuses both for anyone else, so offering them would be a
     // form that fails on submit for reasons the writer cannot see.
-    canRelease: isOrgAdmin(/** @type {any} */ (locals).profile)
+    canRelease: isOrgAdmin(locals.profile)
   };
 }
 
@@ -33,11 +33,11 @@ export const actions = {
       tags: form.getAll('tags').map(String)
     };
 
-    /** @type {any} */
+    /** @type {import('#lib/api-schema.js').components['schemas']['Solution']} */
     let created;
     try {
       created = await createArticle({ cookies }, values);
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       return fail(400, { values, error: readableError(err, 'Could not save this article.') });
     }
 

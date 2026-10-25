@@ -131,6 +131,16 @@ def _non_text_error(params):
     return None
 
 
+class TagsListRowSerializer(TagsSerializer):
+    """Schema only: a tag as the list returns it, with its per-model usage."""
+
+    # One count per `_TAGGABLE` key whose module is on.
+    usage = serializers.DictField(child=serializers.IntegerField(), read_only=True)
+
+    class Meta(TagsSerializer.Meta):
+        fields = (*TagsSerializer.Meta.fields, "usage")
+
+
 class TagsListView(APIView, LimitOffsetPagination):
     model = Tags
     permission_classes = (IsAuthenticated, HasOrgContext)
@@ -161,8 +171,15 @@ class TagsListView(APIView, LimitOffsetPagination):
                 name="TagsListResponse",
                 fields={
                     "tags_count": serializers.IntegerField(),
-                    "tags": TagsSerializer(many=True),
-                    "totals": serializers.DictField(),
+                    "tags": TagsListRowSerializer(many=True),
+                    "totals": inline_serializer(
+                        name="TagsListTotals",
+                        fields={
+                            "count": serializers.IntegerField(),
+                            "active": serializers.IntegerField(),
+                            "unused": serializers.IntegerField(),
+                        },
+                    ),
                 },
             )
         },
@@ -187,8 +204,9 @@ class TagsListView(APIView, LimitOffsetPagination):
         operation_id="tags_create",
         request=TagsSerializer,
         parameters=swagger_params.organization_params,
+        # 201 for a new tag, 200 when an archived one of the same name is revived.
         responses={
-            200: inline_serializer(
+            code: inline_serializer(
                 name="TagCreateResponse",
                 fields={
                     "error": serializers.BooleanField(),
@@ -196,6 +214,7 @@ class TagsListView(APIView, LimitOffsetPagination):
                     "tag": TagsSerializer(),
                 },
             )
+            for code in (200, 201)
         },
     )
     def post(self, request, *args, **kwargs):

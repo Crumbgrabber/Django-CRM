@@ -352,6 +352,8 @@ export function activePresetKey(
   return descriptor.presets.find((p) => Object.keys(p.params).length === 0)?.key ?? '';
 }
 
+/** @typedef {{ id: string, name?: string | null }} ChipLookup */
+
 /**
  * One chip per explicitly-set filter param.
  *
@@ -367,11 +369,11 @@ export function activePresetKey(
 export function activeChips(
   /** @type {string} */ pageKey,
   /** @type {import('$app/state').ReadonlyURL} */ url,
-  /** @type {{people?: any[], tags?: any[], accounts?: any[], stages?: any[], sources?: any[]}} */ lookups = {}
+  /** @type {{ [K in 'people' | 'tags' | 'accounts' | 'stages' | 'sources']?: ChipLookup[] }} */ lookups = {}
 ) {
   const descriptor = FILTERS[pageKey];
   if (!descriptor) return [];
-  const nameFrom = (/** @type {any[]} */ list, /** @type {string} */ id) =>
+  const nameFrom = (/** @type {ChipLookup[]} */ list, /** @type {string} */ id) =>
     list?.find((o) => o.id === id)?.name ?? id;
 
   const chips = [];

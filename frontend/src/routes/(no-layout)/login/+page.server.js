@@ -140,7 +140,9 @@ async function handleOAuthCallback(code, returnedState, cookies, visitor) {
     // this call is the authorization code plus the PKCE code_verifier, and a
     // token endpoint's response body can carry tokens.
     console.error('OAuth token exchange failed:', describeError(error));
-    const errorMessage = error.response?.data?.error || error.message || 'Unknown error';
+    const failure =
+      /** @type {{ response?: { data?: { error?: unknown } }, message?: unknown }} */ (error);
+    const errorMessage = failure.response?.data?.error || failure.message || 'Unknown error';
 
     // Provide user-friendly error messages
     let userError = 'auth_failed';

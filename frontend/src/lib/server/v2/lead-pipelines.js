@@ -26,8 +26,7 @@ import { viewerIsAdmin } from './organization.js';
  * @param {string | null} [pipelineId]
  */
 export async function getLeadPipelines({ cookies }, pipelineId = null) {
-  // `{ pipelines }`, an envelope the schema's bare list does not describe.
-  /** @type {{ pipelines?: Schemas['LeadPipelineList'][] }} */
+  /** @type {Schemas['LeadPipelineListResponse']} */
   const listed = await apiRequest('/leads/pipelines/', {}, { cookies });
   const pipelines = (listed.pipelines ?? []).map((p) => ({
     id: p.id,

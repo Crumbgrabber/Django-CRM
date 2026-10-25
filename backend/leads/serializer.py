@@ -1,10 +1,9 @@
 from django.db.models import Count, Q
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from common.client_version import is_legacy_phone
 from common.serializer import (
-    AttachmentsSerializer,
-    LeadCommentSerializer,
     ProfileSerializer,
     TagsSerializer,
     TeamsSerializer,
@@ -18,15 +17,20 @@ from leads.source_rules import check_source
 from leads.workflow import IRREVERSIBLE_STATUSES
 
 
+class LeadResponderSerializer(serializers.Serializer):
+    """Schema only: who first answered a lead, as `LeadSerializer` sends it."""
+
+    id = serializers.CharField()
+    name = serializers.CharField()
+
+
 class LeadSerializer(serializers.ModelSerializer):
     # Neither client reads these; the name is enough to say who they are.
     contacts = ContactPickerSerializer(read_only=True, many=True)
     assigned_to = ProfileSerializer(read_only=True, many=True)
-    created_by = UserSerializer()
+    created_by = UserSerializer(allow_null=True)
     tags = TagsSerializer(read_only=True, many=True)
-    lead_attachment = AttachmentsSerializer(read_only=True, many=True)
     teams = TeamsSerializer(read_only=True, many=True)
-    lead_comments = LeadCommentSerializer(read_only=True, many=True)
     first_response_by_details = serializers.SerializerMethodField()
     # Annotations from `leads.response.with_response_state`, which every
     # queryset this serializer reads is built with.
@@ -73,8 +77,6 @@ class LeadSerializer(serializers.ModelSerializer):
             "description",
             # Related
             "contacts",
-            "lead_attachment",
-            "lead_comments",
             "tags",
             # System
             "created_by",
@@ -117,6 +119,7 @@ class LeadSerializer(serializers.ModelSerializer):
             "last_outbound_at",
         )
 
+    @extend_schema_field(LeadResponderSerializer(allow_null=True))
     def get_first_response_by_details(self, obj) -> dict | None:
         profile = obj.first_response_by
         if profile is None:
@@ -402,7 +405,7 @@ class LeadStageSerializer(serializers.ModelSerializer):
         # it has to fit `lead_probability_range` or the move is a 500.
         extra_kwargs = {"win_probability": {"min_value": 0, "max_value": 100}}
 
-    def get_lead_count(self, obj):
+    def get_lead_count(self, obj) -> int:
         return _visible_lead_count(self, stage=obj)
 
     def validate_name(self, value):
@@ -466,10 +469,10 @@ class LeadPipelineSerializer(serializers.ModelSerializer):
         # that still has leads. Writable here, a PUT skipped that refusal.
         read_only_fields = ("id", "is_active", "created_at", "updated_at", "org")
 
-    def get_stage_count(self, obj):
+    def get_stage_count(self, obj) -> int:
         return obj.stages.count()
 
-    def get_lead_count(self, obj):
+    def get_lead_count(self, obj) -> int:
         return _visible_lead_count(self, stage__pipeline=obj)
 
 
@@ -510,10 +513,10 @@ class LeadPipelineListSerializer(serializers.ModelSerializer):
             ),
         )
 
-    def get_stage_count(self, obj):
+    def get_stage_count(self, obj) -> int:
         return obj.stage_count
 
-    def get_lead_count(self, obj):
+    def get_lead_count(self, obj) -> int:
         return obj.lead_count
 
 

@@ -17,7 +17,7 @@
   import { ChevronLeft } from '@lucide/svelte';
   import { isOn } from '#lib/v2/modules.js';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   let ticketsOn = $derived(isOn(data.modules, 'tickets'));
@@ -40,9 +40,7 @@
   let tagsOriginal = $derived(
     (data.form.tags ?? [])
       .map(String)
-      .filter((/** @type {string} */ id) =>
-        data.tags.some((/** @type {any} */ t) => String(t.id) === id)
-      )
+      .filter((/** @type {string} */ id) => data.tags.some((t) => String(t.id) === id))
   );
 
   /** @param {string} id */

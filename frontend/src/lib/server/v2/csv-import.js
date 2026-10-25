@@ -12,6 +12,7 @@
  */
 import { fail } from '@sveltejs/kit';
 import { apiRequest } from '#lib/api-helpers.js';
+import { apiErrorBody, apiStatus } from '#lib/api-errors.js';
 
 /**
  * @param {{ request: Request, cookies: import('@sveltejs/kit').Cookies }} event
@@ -35,16 +36,16 @@ export async function forwardCsvImport({ request, cookies }, path, key) {
       [key]: await apiRequest(path, { method: 'POST', body, quietErrors: true }, { cookies })
     };
   } catch (err) {
-    const failure = /** @type {Error & { status?: number, body?: any }} */ (err);
-    if (!failure.status) throw err;
-    const data = failure.body ?? {};
-    return fail(failure.status, {
+    const status = apiStatus(err);
+    if (!status) throw err;
+    const data = apiErrorBody(err) ?? {};
+    return fail(status, {
       importError:
-        failure.status === 403
+        status === 403
           ? 'Importing needs an admin, or a member with sales access.'
-          : failure.status === 429
+          : status === 429
             ? 'Too many tries in a minute. Wait a moment, then try again.'
-            : data.message || data.header_error || 'Import failed',
+            : String(data.message || data.header_error || 'Import failed'),
       importErrors: Array.isArray(data.errors) ? data.errors : [],
       // A mapped commit with nothing importable answers 400 with the rows it
       // skipped, so the client can still say why.

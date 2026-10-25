@@ -28,6 +28,8 @@
 
 import { RESTRICTED_TICKET_NAME } from '#lib/v2/enums.js';
 
+/** @typedef {import('#lib/api-schema.js').components['schemas']['CaseTreeNodeResponse']} TreeNode */
+
 /** Statuses a cascading close leaves alone: already closed, or merged away. */
 const NOT_OPEN = ['Closed', 'Duplicate'];
 
@@ -44,9 +46,9 @@ export const RESTRICTED_NAME = RESTRICTED_TICKET_NAME;
 /**
  * The node for `id` inside the tree, or null.
  *
- * @param {any} root
+ * @param {TreeNode | null | undefined} root
  * @param {string} id
- * @returns {any}
+ * @returns {TreeNode | null}
  */
 export function findNode(root, id) {
   if (!root || !id) return null;
@@ -61,7 +63,7 @@ export function findNode(root, id) {
 /**
  * The tickets a cascading close would actually close.
  *
- * @param {any} root the tree response's `root`
+ * @param {TreeNode | null | undefined} root the tree response's `root`
  * @param {string} id the ticket being closed
  * @returns {Array<{id: string, name: string, status: string, restricted: boolean}>}
  */
@@ -71,7 +73,7 @@ export function openDescendants(root, id) {
 
   /** @type {Array<{id: string, name: string, status: string, restricted: boolean}>} */
   const out = [];
-  /** @param {any} node */
+  /** @param {TreeNode} node */
   const walk = (node) => {
     for (const child of node.children ?? []) {
       // Open AND active, matching `_open_descendants`: a Duplicate child was
@@ -79,7 +81,7 @@ export function openDescendants(root, id) {
       if (!NOT_OPEN.includes(child.status) && child.is_active !== false) {
         out.push({
           id: child.id,
-          name: child.restricted ? RESTRICTED_NAME : child.name,
+          name: child.restricted ? RESTRICTED_NAME : (child.name ?? ''),
           status: child.status,
           restricted: Boolean(child.restricted)
         });
@@ -102,15 +104,14 @@ export function openDescendants(root, id) {
  * close than the confirm step can name, and it says so instead of implying a
  * complete list.
  *
- * @param {any} root
+ * @param {TreeNode | null | undefined} root
  * @param {string} id
  */
 export function subtreeTruncated(root, id) {
   const focus = findNode(root, id);
   if (!focus) return false;
-  /** @param {any} node @returns {boolean} */
-  const walk = (node) =>
-    Boolean(node.truncated) || (node.children ?? []).some((/** @type {any} */ c) => walk(c));
+  /** @param {TreeNode} node @returns {boolean} */
+  const walk = (node) => Boolean(node.truncated) || (node.children ?? []).some((c) => walk(c));
   return walk(focus);
 }
 
@@ -151,7 +152,7 @@ export function closeResultMessage({ cascade, cascaded }) {
 /**
  * How many tickets the response says were closed alongside.
  *
- * @param {any} body
+ * @param {{ cascaded_case_ids?: string[] } | null | undefined} body
  */
 export function cascadedCount(body) {
   return (body?.cascaded_case_ids ?? []).length;

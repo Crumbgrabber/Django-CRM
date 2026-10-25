@@ -64,12 +64,44 @@ def _admin_required():
     )
 
 
+class RoutingRuleRotationStateSerializer(serializers.Serializer):
+    last_assigned_index = serializers.IntegerField()
+
+
+class RoutingRuleListRowSerializer(RoutingRuleSerializer):
+    """Schema only: a rule as the list returns it, with the keys the view adds."""
+
+    matched_last_30d = serializers.IntegerField(read_only=True)
+    state = RoutingRuleRotationStateSerializer(read_only=True, allow_null=True)
+
+    class Meta(RoutingRuleSerializer.Meta):
+        fields = (*RoutingRuleSerializer.Meta.fields, "matched_last_30d", "state")
+
+
 class RoutingRuleListCreateView(APIView):
     """GET lists rules ordered by priority_order; POST creates one (admin)."""
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
-    @extend_schema(tags=["Routing"], responses={200: RoutingRuleSerializer(many=True)})
+    @extend_schema(
+        tags=["Routing"],
+        responses={
+            200: inline_serializer(
+                name="RoutingRuleListResponse",
+                fields={
+                    "rules": RoutingRuleListRowSerializer(many=True),
+                    "totals": inline_serializer(
+                        name="RoutingRuleListTotals",
+                        fields={
+                            "count": serializers.IntegerField(),
+                            "active": serializers.IntegerField(),
+                            "unrouted_last_30d": serializers.IntegerField(),
+                        },
+                    ),
+                },
+            )
+        },
+    )
     def get(self, request, *args, **kwargs):
         org = request.profile.org
         qs = (

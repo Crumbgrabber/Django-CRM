@@ -40,7 +40,7 @@ def account(org_a, admin_user, user_profile):
 
     for visible, label in ((True, "Mine"), (False, "Hidden")):
         related(Opportunity, visible, name=f"{label} deal", amount="10")
-        related(Case, visible, name=f"{label} ticket", status="New")
+        related(Case, visible, name=f"{label} ticket", status="New", priority="Normal")
         related(Task, visible, title=f"{label} task", status="New", priority="Low")
         related(
             Invoice,

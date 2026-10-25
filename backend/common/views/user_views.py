@@ -94,6 +94,16 @@ class GetTeamsAndUsersView(APIView):
         return Response(data)
 
 
+class UserListRowSerializer(ProfileSerializer):
+    """Response-only: a `UsersListView` row, which also counts the profile's
+    live tokens."""
+
+    active_token_count = serializers.IntegerField(read_only=True)
+
+    class Meta(ProfileSerializer.Meta):
+        fields = (*ProfileSerializer.Meta.fields, "active_token_count")
+
+
 class UsersListView(APIView, LimitOffsetPagination):
     permission_classes = (IsAuthenticated, HasOrgContext)
 
@@ -187,11 +197,30 @@ class UsersListView(APIView, LimitOffsetPagination):
             200: inline_serializer(
                 name="UsersListResponse",
                 fields={
-                    "active_users": serializers.DictField(),
-                    "inactive_users": serializers.DictField(),
+                    "active_users": inline_serializer(
+                        name="UsersActiveBlock",
+                        fields={
+                            "active_users_count": serializers.IntegerField(),
+                            "active_users": UserListRowSerializer(many=True),
+                            "offset": serializers.IntegerField(allow_null=True),
+                        },
+                    ),
+                    "inactive_users": inline_serializer(
+                        name="UsersInactiveBlock",
+                        fields={
+                            "inactive_users_count": serializers.IntegerField(),
+                            "inactive_users": UserListRowSerializer(many=True),
+                            "offset": serializers.IntegerField(allow_null=True),
+                        },
+                    ),
                     "admin_email": serializers.CharField(),
-                    "roles": serializers.ListField(),
-                    "status": serializers.ListField(),
+                    # [value, label] pairs.
+                    "roles": serializers.ListField(
+                        child=serializers.ListField(child=serializers.CharField())
+                    ),
+                    "status": serializers.ListField(
+                        child=serializers.ListField(child=serializers.CharField())
+                    ),
                 },
             )
         },

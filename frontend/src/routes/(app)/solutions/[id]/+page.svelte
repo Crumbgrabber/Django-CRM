@@ -29,7 +29,7 @@
   import { ChevronRight, Eye, EyeOff } from '@lucide/svelte';
   import { isOn } from '#lib/v2/modules.js';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   let { article, tickets, hidden_ticket_count, canRelease, canEdit, canDelete } = $derived(data);

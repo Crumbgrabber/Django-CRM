@@ -7,6 +7,7 @@ import {
   deleteWebForm
 } from '#lib/server/v2/web-forms.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 /** @type {import('./$types').PageServerLoad} */
 export async function load({ cookies }) {
@@ -25,14 +26,14 @@ export async function load({ cookies }) {
  * which forms exist elsewhere; the copy below keeps that distinction rather
  * than collapsing it back into "forbidden".
  *
- * @param {any} err
+ * @param {unknown} err
  * @param {string} forbidden
  * @param {string} missing
  * @param {string} fallback
  */
 function actionError(err, forbidden, missing, fallback) {
-  if (err?.status === 403) return { status: 403, message: forbidden };
-  if (err?.status === 404) return { status: 404, message: missing };
+  if (apiStatus(err) === 403) return { status: 403, message: forbidden };
+  if (apiStatus(err) === 404) return { status: 404, message: missing };
   return { status: 400, message: readableError(err, fallback) };
 }
 
@@ -52,11 +53,10 @@ export const actions = {
     const name = form.get('name')?.toString() ?? '';
     const target = form.get('target')?.toString() ?? '';
     if (!target) return fail(400, { create: { error: 'Choose what each submission creates.' } });
-    /** @type {any} */
     let created;
     try {
       created = await createWebForm(event, { name, target });
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       const { status, message } = actionError(
         err,
         'Only an admin can create a web form. A form accepts submissions from anyone on the internet, so making one is an admin action.',
@@ -75,7 +75,7 @@ export const actions = {
     const id = form.get('id')?.toString() ?? '';
     try {
       await publishWebForm(event, id);
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       // The 400 body is the whole point here: "add an email field before
       // publishing" is the response, and `readableError` carries it through.
       const { status, message } = actionError(
@@ -94,7 +94,7 @@ export const actions = {
     const id = form.get('id')?.toString() ?? '';
     try {
       await unpublishWebForm(event, id);
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       const { status, message } = actionError(
         err,
         'Only an admin can unpublish a web form.',
@@ -111,7 +111,7 @@ export const actions = {
     const id = form.get('id')?.toString() ?? '';
     try {
       await deleteWebForm(event, id);
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       const { status, message } = actionError(
         err,
         'Only an admin can remove a web form.',

@@ -13,7 +13,11 @@
   import { t } from '#lib/terminology.js';
   import { holdLockedCard } from '#lib/v2/board-drag.js';
 
-  /** @type {{ data: any }} */
+  /** @typedef {import('./$types').PageData['lanes'][number]} Lane */
+  /** @typedef {Lane['rows'][number]} Card */
+  /** @typedef {CustomEvent<import('svelte-dnd-action').DndEvent<Card>>} CardEvent */
+
+  /** @type {import('./$types').PageProps} */
   let { data } = $props();
 
   const FLIP_MS = 160;
@@ -32,17 +36,16 @@
   /* `dndzone` reorders the array it is handed, so the board renders from a
      local copy that is rebuilt whenever the server sends new lanes. That
      rebuild is what makes a refused move snap back. */
-  let boardLanes = $state(/** @type {any[]} */ ([]));
+  /** @type {Lane[]} */
+  let boardLanes = $state([]);
   $effect(() => {
-    boardLanes = data.lanes.map((/** @type {any} */ lane) => ({ ...lane, rows: [...lane.rows] }));
+    boardLanes = data.lanes.map((lane) => ({ ...lane, rows: [...lane.rows] }));
   });
 
   /** The stages a card can be sent to: every lane except "No stage". */
-  let stages = $derived(data.lanes.filter((/** @type {any} */ lane) => !lane.unstaged));
-  let inPipeline = $derived(
-    stages.reduce((/** @type {number} */ n, /** @type {any} */ lane) => n + lane.count, 0)
-  );
-  let unstagedLane = $derived(data.lanes.find((/** @type {any} */ lane) => lane.unstaged));
+  let stages = $derived(data.lanes.filter((lane) => !lane.unstaged));
+  let inPipeline = $derived(stages.reduce((n, lane) => n + lane.count, 0));
+  let unstagedLane = $derived(data.lanes.find((lane) => lane.unstaged));
   let unstagedCount = $derived(unstagedLane?.count ?? 0);
 
   let moveError = $state('');
@@ -50,25 +53,25 @@
 
   /* A capped lane keeps the server's total; otherwise the header follows the
      cards on screen, so an optimistic move updates it without a round-trip. */
-  function laneCount(/** @type {any} */ lane) {
+  function laneCount(/** @type {Lane} */ lane) {
     return lane.truncated ? lane.count : lane.rows.length;
   }
 
-  function onConsider(/** @type {any} */ lane, /** @type {any} */ e) {
+  function onConsider(/** @type {Lane} */ lane, /** @type {CardEvent} */ e) {
     lane.rows = e.detail.items;
   }
 
-  async function onFinalize(/** @type {any} */ lane, /** @type {any} */ e) {
+  async function onFinalize(/** @type {Lane} */ lane, /** @type {CardEvent} */ e) {
     lane.rows = e.detail.items;
     const movedId = e.detail.info?.id;
-    const index = e.detail.items.findIndex((/** @type {any} */ r) => r.id === movedId);
+    const index = e.detail.items.findIndex((r) => r.id === movedId);
     // Finalize fires on both lanes of a cross-lane move; only the lane now
     // holding the card persists it.
     if (index === -1) return;
     // A reorder inside "No stage" has no stage to store the order against, so
     // the cards go back rather than pretend it saved. A card dropped in from a
     // stage is a real move: it leaves the pipeline.
-    if (lane.unstaged && unstagedLane?.rows.some((/** @type {any} */ r) => r.id === movedId)) {
+    if (lane.unstaged && unstagedLane?.rows.some((r) => r.id === movedId)) {
       await refreshAll();
       return;
     }
@@ -102,9 +105,9 @@
         moveError = '';
         return true;
       }
+      const refusal = result.type === 'failure' ? result.data?.error : undefined;
       moveError =
-        (result.type === 'failure' && /** @type {any} */ (result.data)?.error) ||
-        'Could not move the lead, so it went back.';
+        (typeof refusal === 'string' && refusal) || 'Could not move the lead, so it went back.';
     } catch {
       moveError = 'Could not move the lead, so it went back.';
     }
@@ -214,10 +217,8 @@
             flipDurationMs: FLIP_MS,
             dragDisabled: busy || stages.length === 0
           }}
-          onconsider={(/** @type {CustomEvent<import('svelte-dnd-action').DndEvent>} */ e) =>
-            onConsider(lane, e)}
-          onfinalize={(/** @type {CustomEvent<import('svelte-dnd-action').DndEvent>} */ e) =>
-            onFinalize(lane, e)}
+          onconsider={(/** @type {CardEvent} */ e) => onConsider(lane, e)}
+          onfinalize={(/** @type {CardEvent} */ e) => onFinalize(lane, e)}
           onmousedowncapture={holdLockedCard}
           ontouchstartcapture={holdLockedCard}
           onkeydowncapture={holdLockedCard}

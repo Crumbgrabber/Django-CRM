@@ -283,7 +283,7 @@ export const handle = sequence(Sentry.sentryHandle(), async function _handle({ e
           id: jwtPayload.org_id || orgId,
           name: jwtPayload.org_name || 'Organization'
         };
-        /** @type {any} */ (event.locals).profile = {
+        event.locals.profile = {
           org: event.locals.org,
           role: jwtPayload.role || 'USER',
           // The admin fact every admin gate reads (`#lib/admin.js`). Server
@@ -324,7 +324,7 @@ export const handle = sequence(Sentry.sentryHandle(), async function _handle({ e
           // read both from it. Assuming 'USER' here would drop an admin's
           // admin-only nav for the one navigation right after an org switch.
           const newPayload = decodeJwtPayload(switchResult.access_token);
-          /** @type {any} */ (event.locals).profile = {
+          event.locals.profile = {
             org: switchResult.current_org,
             role: newPayload?.role || 'USER',
             is_organization_admin: isOrgAdmin(newPayload)

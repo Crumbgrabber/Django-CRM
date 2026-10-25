@@ -11,7 +11,7 @@ export function parseBulkForm(formData) {
   const ids = formData.getAll('ids').map(String);
   const field = String(formData.get('field') ?? '');
   const values = formData.getAll('value').map(String);
-  /** @type {Record<string, any>} */
+  /** @type {Record<string, string | string[]>} */
   const fields = {};
   if (field) {
     fields[field] = M2M_FIELDS.has(field) ? values : (values[0] ?? '');

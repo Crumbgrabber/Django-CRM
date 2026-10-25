@@ -26,7 +26,7 @@ export const actions = {
   async create(event) {
     const form = await event.request.formData();
 
-    /** @type {Record<string, any>} */
+    /** @type {import('#lib/server/v2/deals.js').DealFormValues} */
     const values = {};
     for (const field of [...EDITABLE_FIELDS, 'assigned_to']) {
       if (form.has(field)) values[field] = form.get(field)?.toString().trim() ?? '';
@@ -36,11 +36,10 @@ export const actions = {
     if (custom.refusal) return fail(503, { values, ...custom.refusal });
     if (custom.values) values.custom_fields = custom.values;
 
-    /** @type {any} */
     let created;
     try {
       created = await createDeal(event, values);
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       // `values` goes back so a rejected form is not a blank form. Retyping
       // eight fields because the ninth collided is how people learn to
       // distrust a create page.

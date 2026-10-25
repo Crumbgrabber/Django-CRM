@@ -166,13 +166,69 @@ class ApiHomeView(APIView):
                     "contacts_count": serializers.IntegerField(),
                     "leads_count": serializers.IntegerField(),
                     "opportunities_count": serializers.IntegerField(),
-                    "urgent_counts": serializers.DictField(),
-                    "pipeline_by_stage": serializers.DictField(),
-                    "revenue_metrics": serializers.DictField(),
-                    "hot_leads": serializers.ListField(),
+                    "urgent_counts": inline_serializer(
+                        name="ApiHomeUrgentCounts",
+                        fields={
+                            "overdue_tasks": serializers.IntegerField(),
+                            "tasks_due_today": serializers.IntegerField(),
+                            "followups_today": serializers.IntegerField(),
+                            "hot_leads": serializers.IntegerField(),
+                        },
+                    ),
+                    # Keyed by stage code; empty while Pipeline is off.
+                    "pipeline_by_stage": serializers.DictField(
+                        child=inline_serializer(
+                            name="ApiHomeStageFigures",
+                            fields={
+                                "count": serializers.IntegerField(),
+                                "value": serializers.FloatField(),
+                                "label": serializers.CharField(),
+                                "kind": serializers.CharField(),
+                                "order": serializers.IntegerField(),
+                            },
+                        )
+                    ),
+                    "revenue_metrics": inline_serializer(
+                        name="ApiHomeRevenueMetrics",
+                        fields={
+                            "pipeline_value": serializers.FloatField(),
+                            "open_opportunities_count": serializers.IntegerField(),
+                            "weighted_pipeline": serializers.FloatField(),
+                            "won_this_month": serializers.FloatField(),
+                            "conversion_rate": serializers.FloatField(),
+                            "currency": serializers.CharField(),
+                            "other_currency_count": serializers.IntegerField(),
+                        },
+                    ),
+                    "hot_leads": inline_serializer(
+                        name="ApiHomeHotLead",
+                        many=True,
+                        fields={
+                            "id": serializers.UUIDField(),
+                            "first_name": serializers.CharField(allow_null=True),
+                            "last_name": serializers.CharField(allow_null=True),
+                            "company": serializers.CharField(allow_null=True),
+                            "rating": serializers.CharField(allow_null=True),
+                            "next_follow_up": serializers.DateField(allow_null=True),
+                            "last_contacted": serializers.DateField(allow_null=True),
+                        },
+                    ),
                     "tasks": TaskSerializer(many=True),
                     "activities": serializer.DashboardActivitySerializer(many=True),
-                    "goal_summary": serializers.ListField(),
+                    "goal_summary": inline_serializer(
+                        name="ApiHomeGoal",
+                        many=True,
+                        fields={
+                            "id": serializers.UUIDField(),
+                            "name": serializers.CharField(),
+                            "goal_type": serializers.CharField(),
+                            "currency": serializers.CharField(allow_null=True),
+                            "target_value": serializers.FloatField(),
+                            "progress_value": serializers.FloatField(),
+                            "progress_percent": serializers.IntegerField(),
+                            "status": serializers.CharField(),
+                        },
+                    ),
                     "empty_workspace": serializers.BooleanField(),
                     "can_import": serializers.BooleanField(),
                     "unanswered_leads": _UNANSWERED_LEADS,
@@ -462,14 +518,34 @@ class ApiTodayView(APIView):
             200: inline_serializer(
                 name="ApiTodayResponse",
                 fields={
-                    "queue": serializers.ListField(child=serializers.DictField()),
+                    "queue": inline_serializer(
+                        name="ApiTodayQueueItem",
+                        many=True,
+                        fields={
+                            "id": serializers.CharField(),
+                            "tone": serializers.ChoiceField(
+                                choices=["rust", "clay", "slate"]
+                            ),
+                            "due": serializers.CharField(),
+                            "title": serializers.CharField(),
+                            "detail": serializers.CharField(),
+                            "action": serializers.CharField(),
+                            "href": serializers.CharField(),
+                        },
+                    ),
                     "summary": inline_serializer(
                         name="ApiTodaySummary",
                         fields={
                             "count": serializers.IntegerField(),
                             "shown": serializers.IntegerField(),
-                            "sources": serializers.ListField(
-                                child=serializers.DictField()
+                            "sources": inline_serializer(
+                                name="ApiTodaySource",
+                                many=True,
+                                fields={
+                                    "label": serializers.CharField(),
+                                    "count": serializers.IntegerField(),
+                                    "href": serializers.CharField(),
+                                },
                             ),
                             "quiet_deals": serializers.IntegerField(),
                             "quiet_value": serializers.FloatField(),
@@ -478,7 +554,16 @@ class ApiTodayView(APIView):
                             "can_import": serializers.BooleanField(),
                         },
                     ),
-                    "later": serializers.ListField(child=serializers.DictField()),
+                    "later": inline_serializer(
+                        name="ApiTodayLaterItem",
+                        many=True,
+                        fields={
+                            "id": serializers.CharField(),
+                            "day": serializers.CharField(),
+                            "title": serializers.CharField(),
+                            "meta": serializers.CharField(),
+                        },
+                    ),
                     "unanswered_leads": _UNANSWERED_LEADS,
                 },
             )
@@ -820,7 +905,16 @@ class ActivityListView(APIView):
                 description="Filter by entity type (Account, Lead, Contact, etc.)",
             ),
         ],
-        responses={200: serializer.DashboardActivitySerializer(many=True)},
+        responses={
+            200: inline_serializer(
+                name="ActivityListResponse",
+                fields={
+                    "error": serializers.BooleanField(),
+                    "count": serializers.IntegerField(),
+                    "activities": serializer.DashboardActivitySerializer(many=True),
+                },
+            )
+        },
     )
     def get(self, request, *args, **kwargs):
         # A malformed or negative `limit` used to reach `int()` and the slice

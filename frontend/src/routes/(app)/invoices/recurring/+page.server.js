@@ -2,6 +2,7 @@ import { fail } from '@sveltejs/kit';
 import { listRecurringInvoices, toggleRecurring, FILTER_FIELDS } from '#lib/server/v2/recurring.js';
 import { readFilters, buildFilterQuery } from '#lib/server/v2/filter-params.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 /**
  * The schedules worklist. `load` returns `{ schedules, totals }`. The names the
@@ -32,8 +33,8 @@ export const actions = {
 
     try {
       await toggleRecurring({ cookies }, id);
-    } catch (/** @type {any} */ err) {
-      return fail(err?.status === 404 ? 404 : 400, {
+    } catch (err) {
+      return fail(apiStatus(err) === 404 ? 404 : 400, {
         error: readableError(err, 'Could not change this schedule.')
       });
     }

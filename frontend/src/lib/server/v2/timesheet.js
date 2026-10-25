@@ -25,6 +25,8 @@
  */
 import { apiRequest } from '#lib/api-helpers.js';
 
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+
 /**
  * The caller's timesheet for a Mon..Sun week, shaped for the page.
  *
@@ -34,10 +36,11 @@ import { apiRequest } from '#lib/api-helpers.js';
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {{ start?: string, end?: string }} [range] explicit week; the API needs both ends
- * @returns {Promise<{ week: any }>}
+ * @returns {Promise<{ week: Schemas['Timesheet'] }>}
  */
 export async function getTimesheet({ cookies }, { start, end } = {}) {
   const qs = start && end ? `?${new URLSearchParams({ start, end }).toString()}` : '';
+  /** @type {Schemas['Timesheet']} */
   const week = await apiRequest(`/time-entries/timesheet/${qs}`, {}, { cookies });
   return { week };
 }
@@ -55,7 +58,7 @@ export async function getTimesheet({ cookies }, { start, end } = {}) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} entryId
- * @returns {Promise<any>} the stopped entry
+ * @returns {Promise<Schemas['TimeEntry']>} the stopped entry
  */
 export async function stopTimer({ cookies }, entryId) {
   if (!entryId) throw new Error('Which time entry? No entry id was given.');
@@ -89,7 +92,7 @@ export const REPORT_GROUPINGS = ['agent', 'ticket', 'project', 'account'];
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {{ start?: string, end?: string, group_by?: string, billable?: string, account?: string, profile?: string, project?: string }} [filters]
  * @param {{ projectsOn?: boolean }} [options]
- * @returns {Promise<{ report: any }>}
+ * @returns {Promise<{ report: Schemas['TimeReport'] }>}
  */
 export async function getTimeReport({ cookies }, filters = {}, { projectsOn = true } = {}) {
   const groupings = projectsOn ? REPORT_GROUPINGS : REPORT_GROUPINGS.filter((g) => g !== 'project');
@@ -107,6 +110,7 @@ export async function getTimeReport({ cookies }, filters = {}, { projectsOn = tr
   if (filters.profile) qs.set('profile', filters.profile);
   if (projectsOn && filters.project) qs.set('project', filters.project);
 
+  /** @type {Schemas['TimeReport']} */
   const report = await apiRequest(`/time-entries/report/?${qs.toString()}`, {}, { cookies });
   return { report };
 }
@@ -121,11 +125,12 @@ export async function getTimeReport({ cookies }, filters = {}, { projectsOn = tr
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} ticketId
- * @returns {Promise<any[]>}
+ * @returns {Promise<Schemas['TimeEntry'][]>}
  */
 export async function listTicketTime({ cookies }, ticketId) {
   if (!ticketId) throw new Error('Which ticket? No ticket id was given.');
 
+  /** @type {Schemas['TimeEntry'][]} */
   const entries = await apiRequest(`/cases/${ticketId}/time-entries/`, {}, { cookies });
   return Array.isArray(entries) ? entries : [];
 }
@@ -140,7 +145,7 @@ export async function listTicketTime({ cookies }, ticketId) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} ticketId
- * @returns {Promise<any>} the started entry
+ * @returns {Promise<Schemas['TimeEntry']>} the started entry
  */
 export async function startTicketTimer({ cookies }, ticketId) {
   if (!ticketId) throw new Error('Which ticket? No ticket id was given.');
@@ -174,7 +179,7 @@ export async function startTicketTimer({ cookies }, ticketId) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} ticketId
  * @param {{ minutes: number|string, description: string, billable?: boolean, hourlyRate?: string|number|null, currency?: string|null }} entry
- * @returns {Promise<any>} the created entry
+ * @returns {Promise<Schemas['TimeEntry']>} the created entry
  */
 export async function logTicketTime({ cookies }, ticketId, entry) {
   if (!ticketId) throw new Error('Which ticket? No ticket id was given.');
@@ -234,7 +239,7 @@ export function loggedEntryBody(entry) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} entryId
  * @param {boolean} billable
- * @returns {Promise<any>} the updated entry
+ * @returns {Promise<Schemas['TimeEntry']>} the updated entry
  */
 export async function setEntryBillable({ cookies }, entryId, billable) {
   if (!entryId) throw new Error('Which time entry? No entry id was given.');

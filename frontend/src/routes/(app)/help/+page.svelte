@@ -33,7 +33,7 @@
   import { relativeTime } from '#lib/v2/format.js';
   import { BookOpen, LifeBuoy, Plus, Bug, Mail, ArrowUpRight, ClipboardList } from '@lucide/svelte';
 
-  /** @type {{ data: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data } = $props();
 
   /** @type {Record<string, import('#lib/v2/enums.js').Tone>} */

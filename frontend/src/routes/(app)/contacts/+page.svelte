@@ -11,7 +11,7 @@
   import { Download, Users, PhoneOff, Plus, Upload } from '@lucide/svelte';
   import { isOn } from '#lib/v2/modules.js';
 
-  /** @type {{ data: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data } = $props();
 
   let contacts = $derived(data.contacts);

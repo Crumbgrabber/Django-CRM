@@ -12,14 +12,22 @@ and rows that do not fit are skipped instead of refusing the file. Without
 `mapping`, both endpoints keep the template-only behaviour.
 """
 
-from drf_spectacular.utils import extend_schema, inline_serializer
+from drf_spectacular.utils import (
+    PolymorphicProxySerializer,
+    extend_schema,
+    inline_serializer,
+)
 from rest_framework import serializers, status
 from rest_framework.parsers import MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from common.import_mapping import MappingError, read_mapped_upload
+from common.import_mapping import (
+    MappingError,
+    mapped_preview_schema,
+    read_mapped_upload,
+)
 from common.permissions import HasOrgContext, can_mass_import
 from common.spreadsheet import SpreadsheetError
 from common.throttles import ImportThrottle
@@ -87,6 +95,45 @@ def _read_mapped(request):
     return mapped, None
 
 
+def _validated_rows():
+    """Rows as `ValidatedRow.to_dict()` sends them, for the preview schema."""
+    text = {
+        name: serializers.CharField(allow_null=True)
+        for name in (
+            "email",
+            "phone",
+            "organization",
+            "title",
+            "department",
+            "linkedin_url",
+            "address_line",
+            "city",
+            "state",
+            "postcode",
+            "country",
+            "description",
+            "account_id",
+        )
+    }
+    return inline_serializer(
+        name="ContactImportRow",
+        fields={
+            "row": serializers.IntegerField(),
+            "first_name": serializers.CharField(),
+            "last_name": serializers.CharField(),
+            "do_not_call": serializers.BooleanField(),
+            **text,
+            "assigned_ids": serializers.ListField(child=serializers.CharField()),
+            "team_ids": serializers.ListField(child=serializers.CharField()),
+            "tag_names": serializers.ListField(child=serializers.CharField()),
+        },
+        many=True,
+    )
+
+
+_VALIDATED_ROWS = _validated_rows()
+
+
 class ContactImportPreviewView(APIView):
     permission_classes = (IsAuthenticated, HasOrgContext)
     throttle_classes = (ImportThrottle,)
@@ -99,14 +146,39 @@ class ContactImportPreviewView(APIView):
             fields={"file": serializers.FileField(), "mapping": _MAPPING_FIELD},
         ),
         responses={
-            200: inline_serializer(
-                name="ContactImportPreviewResponse",
-                fields={
-                    "header_error": serializers.CharField(allow_null=True),
-                    "valid": serializers.ListField(child=serializers.DictField()),
-                    "errors": serializers.ListField(child=serializers.DictField()),
-                    "summary": serializers.DictField(),
-                },
+            # The template path's report, or with `mapping` the mapped one.
+            200: PolymorphicProxySerializer(
+                component_name="ContactImportPreviewResponse",
+                resource_type_field_name=None,
+                serializers=[
+                    inline_serializer(
+                        name="ContactImportTemplatePreview",
+                        fields={
+                            "header_error": serializers.CharField(allow_null=True),
+                            "valid": _VALIDATED_ROWS,
+                            "errors": inline_serializer(
+                                name="ContactImportRowError",
+                                fields={
+                                    "row": serializers.IntegerField(),
+                                    "field": serializers.CharField(),
+                                    "message": serializers.CharField(),
+                                },
+                                many=True,
+                            ),
+                            "summary": inline_serializer(
+                                name="ContactImportTemplateSummary",
+                                fields={
+                                    "total": serializers.IntegerField(),
+                                    "valid": serializers.IntegerField(),
+                                    "invalid": serializers.IntegerField(),
+                                },
+                            ),
+                        },
+                    ),
+                    mapped_preview_schema(
+                        "ContactImportMappedPreview", _VALIDATED_ROWS
+                    ),
+                ],
             )
         },
     )

@@ -24,7 +24,7 @@
  * }} ModuleRow
  */
 
-/** @typedef {{ all: string[] } | { any: string[] }} Requirement */
+/** @typedef {{ all: string[] } | { anyOf: string[] }} Requirement */
 
 export const MODULE_KEYS = [
   'deals',
@@ -135,14 +135,14 @@ const ROUTES = {
   '/settings/business-hours': { all: ['tickets'] },
   '/settings/ticket-approvals': { all: ['tickets'] },
   '/settings/reopen': { all: ['tickets'] },
-  '/settings/inbound-email': { any: ['tickets', 'leads'] },
+  '/settings/inbound-email': { anyOf: ['tickets', 'leads'] },
   '/settings/macros': { all: ['tickets'] },
   '/solutions': { all: ['knowledge_base'] },
   '/settings/help-center': { all: ['knowledge_base'] },
   '/timesheet': { all: ['timesheet'] },
   '/invoices': { all: ['invoices'] },
   '/accounts/[id]/statement': { all: ['invoices'] },
-  '/invoices/products': { any: ['invoices', 'deals'] },
+  '/invoices/products': { anyOf: ['invoices', 'deals'] },
   '/documents': { all: ['documents'] }
 };
 
@@ -176,7 +176,7 @@ export function refusalFor(routeId, modules) {
   if (!need) return null;
   let key;
   if ('all' in need) key = need.all.find((k) => !isOn(modules, k));
-  else if (!need.any.some((k) => isOn(modules, k))) key = need.any[0];
+  else if (!need.anyOf.some((k) => isOn(modules, k))) key = need.anyOf[0];
   return key ? { key, label: labelOf(modules, key) } : null;
 }
 

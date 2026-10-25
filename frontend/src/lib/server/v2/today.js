@@ -25,7 +25,7 @@ import { apiRequest } from '#lib/api-helpers.js';
  * Null hides the lead card: an API older than response tracking has no
  * `unanswered_leads`.
  *
- * @param {any} block
+ * @param {Schemas['UnansweredLeads'] | null | undefined} block
  * @returns {{ count: number, oldest_since: string | null } | null}
  */
 function unansweredBlock(block) {
@@ -40,7 +40,7 @@ function unansweredBlock(block) {
  * The current user's Today queue, shaped for the page.
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
- * @returns {Promise<{ queue: any[], summary: any, later: any[], unanswered: { count: number, oldest_since: string | null } | null }>}
+ * @returns {Promise<{ queue: Schemas['ApiTodayQueueItem'][], summary: Schemas['ApiTodaySummary'], later: Schemas['ApiTodayLaterItem'][], unanswered: { count: number, oldest_since: string | null } | null }>}
  */
 export async function getToday({ cookies }) {
   /** @type {Schemas['ApiTodayResponse']} */

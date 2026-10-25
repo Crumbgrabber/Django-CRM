@@ -1,12 +1,13 @@
 import { redirect } from '@sveltejs/kit';
 import { getCatalogue, createRule, ruleFromForm, refusedSave } from '#lib/server/v2/automation.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 /** @type {import('./$types').PageServerLoad} */
 export async function load({ cookies }) {
   try {
     return { catalogue: await getCatalogue({ cookies }) };
-  } catch (/** @type {any} */ err) {
-    if (err?.status === 403) return { forbidden: true };
+  } catch (err) {
+    if (apiStatus(err) === 403) return { forbidden: /** @type {const} */ (true) };
     throw err;
   }
 }
@@ -15,7 +16,7 @@ export async function load({ cookies }) {
 export const actions = {
   async save(event) {
     const form = await event.request.formData();
-    /** @type {any} */
+    /** @type {import('#lib/api-schema.js').components['schemas']['Rule']} */
     let created;
     try {
       const body = ruleFromForm(form, { create: true });

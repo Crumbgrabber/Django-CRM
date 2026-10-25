@@ -111,13 +111,33 @@ def _admin_required():
     )
 
 
+class EscalationBreachCountsSerializer(serializers.Serializer):
+    first_response = serializers.IntegerField()
+    resolution = serializers.IntegerField()
+
+
+class EscalationPolicyListRowSerializer(EscalationPolicySerializer):
+    """Schema only: a policy as the list returns it, with its breach counts."""
+
+    breaches_last_30d = EscalationBreachCountsSerializer(read_only=True)
+
+    class Meta(EscalationPolicySerializer.Meta):
+        fields = (*EscalationPolicySerializer.Meta.fields, "breaches_last_30d")
+
+
 class EscalationPolicyListCreateView(APIView):
     """GET lists policies for the org; POST creates one (admin)."""
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
     @extend_schema(
-        tags=["Escalation"], responses={200: EscalationPolicySerializer(many=True)}
+        tags=["Escalation"],
+        responses={
+            200: inline_serializer(
+                name="EscalationPolicyListResponse",
+                fields={"policies": EscalationPolicyListRowSerializer(many=True)},
+            )
+        },
     )
     def get(self, request, *args, **kwargs):
         org = request.profile.org

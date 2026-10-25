@@ -19,6 +19,7 @@ import {
 import { clearSampleData } from '#lib/server/packs.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
 import { viewerIsAdmin } from '#lib/server/v2/organization.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 /**
  * Settings › Apps: industry apps above the modules. `?app=<id>&do=<action>`
@@ -37,7 +38,7 @@ export async function load(event) {
 
   const known = (/** @type {string | null} */ id) => apps.apps.find((a) => a.id === id) ?? null;
 
-  /** @type {any} */
+  /** @type {{ app: string | null, action: string, preview: Awaited<ReturnType<typeof previewApp>> | null, error: string } | null} */
   let confirm = null;
   const id = url.searchParams.get('app');
   const action = url.searchParams.get('do');
@@ -45,7 +46,7 @@ export async function load(event) {
     try {
       const preview = await previewApp(cookies, /** @type {string} */ (id), String(action));
       confirm = { app: id, action, preview, error: '' };
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       confirm = { app: id, action, preview: null, error: appRefusal(err, String(action)) };
     }
   }
@@ -65,7 +66,7 @@ export async function load(event) {
 /**
  * Re-reads the list, builds the body from it and writes it.
  *
- * @param {any} event
+ * @param {import('@sveltejs/kit').RequestEvent} event
  * @param {string} key
  * @param {(rows: import('#lib/v2/modules.js').ModuleRow[]) => { off: string[], order: string[] } | null} build
  */
@@ -79,14 +80,14 @@ async function writeModules(event, key, build) {
   if (!body) return fail(400, { errors: ['That module could not be changed.'], key });
   try {
     await putModules(event, body);
-  } catch (/** @type {any} */ err) {
-    return fail(err?.status === 403 ? 403 : 400, { errors: moduleErrors(err), key });
+  } catch (err) {
+    return fail(apiStatus(err) === 403 ? 403 : 400, { errors: moduleErrors(err), key });
   }
   return { saved: true };
 }
 
 /**
- * @param {any} event
+ * @param {import('@sveltejs/kit').RequestEvent} event
  * @param {'install' | 'upgrade' | 'remove'} action
  */
 async function appAction(event, action) {
@@ -102,8 +103,9 @@ async function appAction(event, action) {
     } else {
       await removeApp(event.cookies, id);
     }
-  } catch (/** @type {any} */ err) {
-    const status = [403, 404, 409].includes(err?.status) ? err.status : 400;
+  } catch (err) {
+    const refused = apiStatus(err);
+    const status = refused === 403 || refused === 404 || refused === 409 ? refused : 400;
     return fail(status, { appError: appRefusal(err, action), app: id });
   }
   redirect(303, `/settings/apps?done=${action}&app=${encodeURIComponent(id)}`);
@@ -138,8 +140,8 @@ export const actions = {
       // Kept records are sample rows someone has since attached real work to.
       const retained = Object.values(retained_by_type ?? {}).reduce((a, b) => a + b, 0);
       return { cleared: deleted ?? 0, retained };
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, { sampleError: 'Only an administrator can clear sample data.' });
       }
       return fail(400, { sampleError: readableError(err, 'Could not clear sample data.') });

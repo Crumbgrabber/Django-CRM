@@ -15,7 +15,7 @@
   import { ChevronRight } from '@lucide/svelte';
   import { isOn } from '#lib/v2/modules.js';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   const KINDS = [
@@ -28,6 +28,7 @@
   ];
   let kinds = $derived(KINDS.filter((k) => !k.module || isOn(data.modules, k.module)));
 
+  /** @type {Partial<import('#lib/server/v2/tasks.js').TaskValues>} */
   let values = $derived(form?.values ?? data.prefill ?? {});
   let kind = $state(untrack(() => form?.values?.parent_kind ?? data.prefill?.parent_kind ?? ''));
   let options = $derived(kind ? (data.parents[kind] ?? []) : []);

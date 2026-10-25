@@ -9,7 +9,8 @@ one edit rather than an audit of every view.
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import Q
-from rest_framework import status
+from drf_spectacular.utils import extend_schema, inline_serializer
+from rest_framework import serializers, status
 from rest_framework.pagination import LimitOffsetPagination
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -17,11 +18,13 @@ from rest_framework.views import APIView
 from cases.kb_text import snippet, text_match
 from cases.models import Case, Solution
 from cases.portal_serializers import (
+    PortalArticleSuggestionSerializer,
     PortalCaseCreateSerializer,
     PortalCaseDetailSerializer,
     PortalCaseSerializer,
     PortalCommentCreateSerializer,
     PortalCommentSerializer,
+    PortalRelatedArticleSerializer,
     PortalSolutionDetailSerializer,
     PortalSolutionSerializer,
 )
@@ -128,6 +131,17 @@ class PortalBaseView(APIView):
 class PortalCaseListView(PortalBaseView, LimitOffsetPagination):
     module = "tickets"
 
+    @extend_schema(
+        responses={
+            200: inline_serializer(
+                name="PortalCaseListResponse",
+                fields={
+                    "cases": PortalCaseSerializer(many=True),
+                    "cases_count": serializers.IntegerField(),
+                },
+            )
+        },
+    )
     def get(self, request):
         if closed := self.closed(request):
             return closed
@@ -150,6 +164,15 @@ class PortalCaseListView(PortalBaseView, LimitOffsetPagination):
             }
         )
 
+    @extend_schema(
+        request=PortalCaseCreateSerializer,
+        responses={
+            201: inline_serializer(
+                name="PortalCaseCreateResponse",
+                fields={"case": PortalCaseDetailSerializer()},
+            )
+        },
+    )
     def post(self, request):
         if closed := self.closed(request):
             return closed
@@ -177,6 +200,17 @@ class PortalCaseListView(PortalBaseView, LimitOffsetPagination):
 class PortalCaseDetailView(PortalBaseView):
     module = "tickets"
 
+    @extend_schema(
+        responses={
+            200: inline_serializer(
+                name="PortalCaseDetailResponse",
+                fields={
+                    "case": PortalCaseDetailSerializer(),
+                    "comments": PortalCommentSerializer(many=True),
+                },
+            )
+        },
+    )
     def get(self, request, pk):
         if closed := self.closed(request):
             return closed
@@ -219,6 +253,17 @@ class PortalArticleView(PortalBaseView):
 
 
 class PortalArticleListView(PortalArticleView, LimitOffsetPagination):
+    @extend_schema(
+        responses={
+            200: inline_serializer(
+                name="PortalArticleListResponse",
+                fields={
+                    "articles": PortalSolutionSerializer(many=True),
+                    "articles_count": serializers.IntegerField(),
+                },
+            )
+        },
+    )
     def get(self, request):
         if closed := self.closed(request):
             return closed
@@ -244,6 +289,17 @@ class PortalArticleListView(PortalArticleView, LimitOffsetPagination):
 
 
 class PortalArticleDetailView(PortalArticleView):
+    @extend_schema(
+        responses={
+            200: inline_serializer(
+                name="PortalArticleDetailResponse",
+                fields={
+                    "article": PortalSolutionDetailSerializer(),
+                    "related": PortalRelatedArticleSerializer(many=True),
+                },
+            )
+        },
+    )
     def get(self, request, pk):
         if closed := self.closed(request):
             return closed
@@ -275,6 +331,14 @@ class PortalArticleSuggestView(PortalArticleView):
             return None
         return Response({"articles": []})
 
+    @extend_schema(
+        responses={
+            200: inline_serializer(
+                name="PortalArticleSuggestResponse",
+                fields={"articles": PortalArticleSuggestionSerializer(many=True)},
+            )
+        },
+    )
     def get(self, request):
         if closed := self.closed(request):
             return closed
@@ -307,6 +371,15 @@ class PortalArticleSuggestView(PortalArticleView):
 class PortalCaseCommentView(PortalBaseView):
     module = "tickets"
 
+    @extend_schema(
+        request=PortalCommentCreateSerializer,
+        responses={
+            201: inline_serializer(
+                name="PortalCommentCreateResponse",
+                fields={"comment": PortalCommentSerializer()},
+            )
+        },
+    )
     def post(self, request, pk):
         if closed := self.closed(request):
             return closed

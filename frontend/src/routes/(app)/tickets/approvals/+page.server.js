@@ -6,6 +6,7 @@ import {
   cancelApproval
 } from '#lib/server/v2/approvals.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 /**
  * The approvals queue. `load` returns `{ approvals, totals, rules }`; the three
@@ -28,8 +29,8 @@ export const actions = {
     if (!id) return fail(400, { error: 'Which approval? None was given.' });
     try {
       await approveApproval({ cookies }, id, form.get('note')?.toString() || '');
-    } catch (/** @type {any} */ err) {
-      return fail(err?.status === 403 ? 403 : 400, {
+    } catch (err) {
+      return fail(apiStatus(err) === 403 ? 403 : 400, {
         error: readableError(err, 'Could not approve this request.')
       });
     }
@@ -44,8 +45,8 @@ export const actions = {
     if (!reason) return fail(400, { error: 'A rejection needs a reason.' });
     try {
       await rejectApproval({ cookies }, id, reason);
-    } catch (/** @type {any} */ err) {
-      return fail(err?.status === 403 ? 403 : 400, {
+    } catch (err) {
+      return fail(apiStatus(err) === 403 ? 403 : 400, {
         error: readableError(err, 'Could not reject this request.')
       });
     }
@@ -58,8 +59,8 @@ export const actions = {
     if (!id) return fail(400, { error: 'Which approval? None was given.' });
     try {
       await cancelApproval({ cookies }, id);
-    } catch (/** @type {any} */ err) {
-      return fail(err?.status === 403 ? 403 : 400, {
+    } catch (err) {
+      return fail(apiStatus(err) === 403 ? 403 : 400, {
         error: readableError(err, 'Could not withdraw this request.')
       });
     }

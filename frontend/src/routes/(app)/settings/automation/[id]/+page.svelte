@@ -5,7 +5,7 @@
   import RuleEditor from '#lib/v2/components/automation/RuleEditor.svelte';
   import { billingHref } from '#lib/v2/billing.js';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 </script>
 

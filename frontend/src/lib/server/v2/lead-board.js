@@ -22,6 +22,8 @@
 import { apiRequest } from '#lib/api-helpers.js';
 import { canMoveCard } from '#lib/v2/board-drag.js';
 
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+
 /** The lane id standing for "in no stage". A stage id is always a UUID. */
 export const UNSTAGED = 'unstaged';
 
@@ -37,7 +39,7 @@ function swatch(value) {
   return typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value) ? value : GREY;
 }
 
-/** @param {any} lead */
+/** @param {Schemas['LeadKanbanCard']} lead */
 function toCard(lead) {
   const owner = lead.assigned_to?.[0];
   return {
@@ -56,7 +58,7 @@ function toCard(lead) {
  * @param {string} id
  * @param {string} name
  * @param {string} color
- * @param {{ lead_count?: number, leads?: any[] }} column
+ * @param {{ lead_count?: number, leads?: Schemas['LeadKanbanCard'][] }} column
  * @param {number | null} [wipLimit]
  */
 function toLane(id, name, color, column, wipLimit = null) {
@@ -87,9 +89,10 @@ const EMPTY = { pipelines: [], pipeline: null, lanes: [] };
  * @param {string | null} [pipelineId]
  */
 export async function getLeadBoard({ cookies }, pipelineId = null) {
+  /** @type {Schemas['LeadPipelineListResponse']} */
   const listed = await apiRequest('/leads/pipelines/', {}, { cookies });
   /** @type {{ id: string, name: string }[]} */
-  const pipelines = (listed.pipelines ?? []).map((/** @type {any} */ p) => ({
+  const pipelines = (listed.pipelines ?? []).map((p) => ({
     id: p.id,
     name: p.name
   }));
@@ -97,14 +100,13 @@ export async function getLeadBoard({ cookies }, pipelineId = null) {
 
   const active = pipelines.find((p) => p.id === pipelineId) ?? pipelines[0];
   const query = new URLSearchParams({ pipeline_id: active.id });
+  /** @type {Schemas['LeadKanbanResponse']} */
   const board = await apiRequest(`/leads/kanban/?${query}`, {}, { cookies });
 
   const stages = [...(board.columns ?? [])].sort((a, b) => a.order - b.order);
   const lanes = [
     toLane(UNSTAGED, 'No stage', GREY, board.unstaged ?? {}),
-    ...stages.map((/** @type {any} */ c) =>
-      toLane(String(c.id), c.name, swatch(c.color), c, c.wip_limit ?? null)
-    )
+    ...stages.map((c) => toLane(String(c.id), c.name, swatch(c.color), c, c.wip_limit ?? null))
   ];
 
   return { pipelines, pipeline: active, lanes };
@@ -117,6 +119,7 @@ export async function getLeadBoard({ cookies }, pipelineId = null) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
  * @param {{ stageId: string, aboveId?: string, belowId?: string }} target
+ * @returns {Promise<Schemas['LeadMoveResponse']>}
  */
 export async function moveLead({ cookies }, id, { stageId, aboveId, belowId }) {
   return await apiRequest(

@@ -7,6 +7,7 @@ import {
   listTimezones
 } from '#lib/server/v2/organization.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 /**
  * Editing organization settings.
@@ -49,8 +50,8 @@ export const actions = {
 
     try {
       await updateOrgSettings({ cookies }, body);
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, {
           values: body,
           error: 'Only an admin can change organization settings.'

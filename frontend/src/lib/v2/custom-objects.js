@@ -72,8 +72,12 @@ export function recordHref(target, id) {
     : null;
 }
 
+/** @typedef {import('#lib/server/v2/custom-objects.js').RelatedRecords} RelatedRecords */
+/** @typedef {import('#lib/server/v2/custom-objects.js').ObjectRef} ObjectRef */
+/** @typedef {import('#lib/server/v2/custom-objects.js').FieldRef} FieldRef */
+
 /**
- * @param {{ objects: any[] } | null} answer The `/objects/` answer, or null.
+ * @param {{ objects: { key: string, label_plural: string }[] } | null} answer The `/objects/` answer, or null.
  * @returns {{ href: string, label: string }[]}
  */
 export function objectNavItems(answer) {
@@ -84,7 +88,7 @@ export function objectNavItems(answer) {
 }
 
 /**
- * @param {{ objects: any[] } | null} answer
+ * @param {{ objects: unknown[] } | null} answer
  * @param {boolean} isAdmin
  * @returns {boolean}
  */
@@ -95,8 +99,8 @@ export function showObjectsSetting(answer, isAdmin) {
 /**
  * Shape a Related answer for the section on a built-in record's page.
  *
- * @param {{ groups: any[], can_edit: boolean, link_fields: any[] } | null} related
- * @returns {{ groups: any[], addTargets: any[] } | null}
+ * @param {RelatedRecords | null} related
+ * @returns {{ groups: Array<RelatedRecords['groups'][number] & { removable: boolean }>, addTargets: { object: ObjectRef, field: FieldRef }[] } | null}
  */
 export function relatedView(related) {
   if (!related) return null;

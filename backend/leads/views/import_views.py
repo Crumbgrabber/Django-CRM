@@ -13,14 +13,22 @@ column index to field name) takes the column-matching path: any column names,
 file. Without `mapping`, both endpoints keep the template-only behaviour.
 """
 
-from drf_spectacular.utils import extend_schema, inline_serializer
+from drf_spectacular.utils import (
+    PolymorphicProxySerializer,
+    extend_schema,
+    inline_serializer,
+)
 from rest_framework import serializers, status
 from rest_framework.parsers import MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from common.import_mapping import MappingError, read_mapped_upload
+from common.import_mapping import (
+    MappingError,
+    mapped_preview_schema,
+    read_mapped_upload,
+)
 from common.permissions import HasOrgContext, can_mass_import
 from common.spreadsheet import SpreadsheetError
 from common.throttles import ImportThrottle
@@ -39,6 +47,30 @@ _MAPPABLE_FIELDS = frozenset(name for name, _label, _required in LEAD_FIELDS)
 _MAPPING_FIELD = serializers.CharField(
     required=False,
     help_text='"auto" to guess, or JSON of column index to field name.',
+)
+
+
+# `ValidatedRow.to_dict()` in leads/csv_import.py, shared by both preview paths.
+_VALIDATED_ROWS = inline_serializer(
+    name="LeadImportRow",
+    fields={
+        "row": serializers.IntegerField(),
+        **{
+            name: serializers.CharField(allow_null=True)
+            for name in (
+                "first_name",
+                "last_name",
+                "title",
+                "email",
+                "company_name",
+                "status",
+            )
+        },
+        "assigned_ids": serializers.ListField(child=serializers.CharField()),
+        "team_ids": serializers.ListField(child=serializers.CharField()),
+        "tag_names": serializers.ListField(child=serializers.CharField()),
+    },
+    many=True,
 )
 
 
@@ -112,14 +144,37 @@ class LeadImportPreviewView(APIView):
             fields={"file": serializers.FileField(), "mapping": _MAPPING_FIELD},
         ),
         responses={
-            200: inline_serializer(
-                name="LeadImportPreviewResponse",
-                fields={
-                    "header_error": serializers.CharField(allow_null=True),
-                    "valid": serializers.ListField(child=serializers.DictField()),
-                    "errors": serializers.ListField(child=serializers.DictField()),
-                    "summary": serializers.DictField(),
-                },
+            # The template path's report, or with `mapping` the mapped one.
+            200: PolymorphicProxySerializer(
+                component_name="LeadImportPreviewResponse",
+                resource_type_field_name=None,
+                serializers=[
+                    inline_serializer(
+                        name="LeadImportTemplatePreview",
+                        fields={
+                            "header_error": serializers.CharField(allow_null=True),
+                            "valid": _VALIDATED_ROWS,
+                            "errors": inline_serializer(
+                                name="LeadImportRowError",
+                                fields={
+                                    "row": serializers.IntegerField(),
+                                    "field": serializers.CharField(),
+                                    "message": serializers.CharField(),
+                                },
+                                many=True,
+                            ),
+                            "summary": inline_serializer(
+                                name="LeadImportTemplateSummary",
+                                fields={
+                                    "total": serializers.IntegerField(),
+                                    "valid": serializers.IntegerField(),
+                                    "invalid": serializers.IntegerField(),
+                                },
+                            ),
+                        },
+                    ),
+                    mapped_preview_schema("LeadImportMappedPreview", _VALIDATED_ROWS),
+                ],
             )
         },
     )

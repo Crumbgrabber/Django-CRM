@@ -31,7 +31,14 @@
    * refused save, so nothing the admin typed is lost. `plansHref` is where a
    * plan limit can be lifted (`billingHref`), or null.
    *
-   * @type {{ catalogue: any, rule?: any, row?: any, modules?: any, form: any, plansHref?: string | null }}
+   * @type {{
+   *   catalogue: import('#lib/v2/automation.js').Catalogue,
+   *   rule?: import('#lib/api-schema.js').components['schemas']['Rule'] | null,
+   *   row?: import('#lib/api-schema.js').components['schemas']['RuleRow'] | null,
+   *   modules?: import('#lib/v2/modules.js').ModuleRow[] | null,
+   *   form: import('#lib/v2/automation.js').EditorForm,
+   *   plansHref?: string | null
+   * }}
    */
   let { catalogue, rule = null, row = null, modules = null, form, plansHref = null } = $props();
 
@@ -44,11 +51,7 @@
   let object = $derived(objectOf(catalogue, draft.object_key));
   let switchTo = $derived(switchLabel(ruleStatus(rule, row)));
   let errors = $derived(editorErrors(form?.save, sent, draft));
-  let status = $derived(
-    /** @type {Record<string, { label: string, tone: any }>} */ (STATUS)[
-      ruleStatus(rule, row) ?? ''
-    ] ?? null
-  );
+  let status = $derived(STATUS[ruleStatus(rule, row) ?? ''] ?? null);
   let held = $derived(Boolean(row) && pausedByModule(row, modules));
   let dirty = $derived(rule ? isDirty(draft, rule) : false);
   let ownerName = $derived(rule?.owner ? String(rule.owner.name ?? '').trim() : '');
@@ -109,7 +112,7 @@
             <NextAction
               label="Paused"
               tone="rust"
-              text={modulePausedNote({ name: rule.name, status_text: row.status_text })}
+              text={modulePausedNote({ name: rule.name, status_text: row?.status_text })}
               action="Open Modules"
               href="/settings/apps"
             />

@@ -8,6 +8,7 @@ import {
   readCustomFields,
   saveRefusal
 } from '#lib/server/v2/record-custom-fields.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 /** @typedef {{ id: string, name: string, email: string, account: { id: string, name: string } | null }} ContactRow */
 
@@ -51,9 +52,14 @@ export const actions = {
    * owns org, totals and invoices_generated. There is no per-schedule detail
    * route (`invoices/recurring/[id]/` does not exist), so on success we land
    * back on the schedules list rather than inventing a redirect target.
+   *
+   * Annotated so the refusal with `fieldErrors` is not folded into the bare one.
+   *
+   * @returns {Promise<import('@sveltejs/kit').ActionFailure<{ error: string, fieldErrors?: Record<string, string> }>>}
    */
   create: async ({ cookies, request }) => {
     const form = await request.formData();
+    /** @type {import('#lib/server/v2/recurring.js').RecurringValues} */
     let values;
     try {
       values = JSON.parse(form.get('payload')?.toString() || '{}');
@@ -69,8 +75,8 @@ export const actions = {
 
     try {
       await createRecurringInvoice({ cookies }, values);
-    } catch (/** @type {any} */ err) {
-      return fail(err?.status === 403 ? 403 : 400, {
+    } catch (err) {
+      return fail(apiStatus(err) === 403 ? 403 : 400, {
         ...saveRefusal(err, custom.definitions, 'Could not create the schedule.')
       });
     }

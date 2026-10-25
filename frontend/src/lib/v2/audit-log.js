@@ -19,7 +19,7 @@ export function auditActor(entry) {
 
 /**
  * One line on what happened, or '' when the event label says it all.
- * @param {{ event_type?: string, actor?: { id?: string } | null, details?: Record<string, any> }} entry
+ * @param {{ event_type?: string, actor?: { id?: string } | null, details?: Record<string, unknown> | null }} entry
  */
 export function auditDetail(entry) {
   const d = entry?.details ?? {};
@@ -28,7 +28,7 @@ export function auditDetail(entry) {
     // Duplicates usually share a name, and "X into X" says nothing, so equal
     // names each carry the start of their id.
     const same = d.merged_name === d.kept_name;
-    const tag = (/** @type {any} */ id) => (same && id ? ` (${String(id).slice(0, 8)})` : '');
+    const tag = (/** @type {unknown} */ id) => (same && id ? ` (${String(id).slice(0, 8)})` : '');
     return `Merged ${d.entity || 'record'} "${d.merged_name}"${tag(d.merged_id)} into "${d.kept_name}"${tag(d.kept_id)}.`;
   }
   if (
@@ -57,7 +57,7 @@ export function auditDetail(entry) {
 
 /**
  * The webhook an entry is about, for a link, or null.
- * @param {{ details?: Record<string, any> }} entry
+ * @param {{ details?: Record<string, unknown> | null }} entry
  * @returns {string | null}
  */
 export function auditWebhookId(entry) {

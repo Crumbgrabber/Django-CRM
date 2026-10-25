@@ -136,7 +136,9 @@ def test_csat_link_answers_its_expired_answer(client, org_a, pat):
 
 
 def test_portal_cases_close_with_tickets(portal, org_a, pat):
-    case = Case.objects.create(org=org_a, name="Login broken", status="New")
+    case = Case.objects.create(
+        org=org_a, name="Login broken", status="New", priority="Normal"
+    )
     case.contacts.add(pat)
     detail = f"/api/portal/cases/{case.id}/"
     comment = f"{detail}comment/"

@@ -16,6 +16,15 @@ from common.serializer import (
 )
 
 
+class HelpCenterSettingsReadSerializer(HelpCenterSettingsSerializer):
+    """Response-only: what `HelpCenterSettingsView` answers, with `can_edit`."""
+
+    can_edit = serializers.BooleanField(read_only=True)
+
+    class Meta(HelpCenterSettingsSerializer.Meta):
+        fields = (*HelpCenterSettingsSerializer.Meta.fields, "can_edit")
+
+
 class OrgSettingsView(APIView):
     """
     API endpoint for org settings (currency, country, locale).
@@ -26,6 +35,7 @@ class OrgSettingsView(APIView):
 
     permission_classes = (IsAuthenticated,)
 
+    @extend_schema(tags=["organization"], responses={200: OrgSettingsSerializer})
     def get(self, request):
         """Get current organization settings."""
         if not request.profile:
@@ -37,6 +47,11 @@ class OrgSettingsView(APIView):
         serializer = OrgSettingsSerializer(org, context={"request": request})
         return Response(serializer.data)
 
+    @extend_schema(
+        tags=["organization"],
+        request=OrgSettingsSerializer,
+        responses={200: OrgSettingsSerializer},
+    )
     def patch(self, request):
         """Update organization settings (admin only)."""
         if not request.profile:
@@ -92,7 +107,7 @@ class HelpCenterSettingsView(APIView):
     @extend_schema(
         tags=["organization"],
         operation_id="help_center_settings_retrieve",
-        responses={200: HelpCenterSettingsSerializer},
+        responses={200: HelpCenterSettingsReadSerializer},
     )
     def get(self, request):
         return Response(self._payload(request, request.profile.org))
@@ -101,7 +116,7 @@ class HelpCenterSettingsView(APIView):
         tags=["organization"],
         operation_id="help_center_settings_update",
         request=HelpCenterSettingsSerializer,
-        responses={200: HelpCenterSettingsSerializer},
+        responses={200: HelpCenterSettingsReadSerializer},
     )
     def patch(self, request):
         if not self._can_edit(request):

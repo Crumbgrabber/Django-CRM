@@ -9,6 +9,7 @@
   import { enhance } from '$app/forms';
   import PortalShell from '#lib/v2/components/PortalShell.svelte';
 
+  /** @type {import('./$types').PageProps} */
   let { form } = $props();
 
   let stage = $derived(form?.stage ?? 'request');

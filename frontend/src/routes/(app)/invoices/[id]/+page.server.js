@@ -8,6 +8,7 @@ import {
   updateInvoiceFields
 } from '#lib/server/v2/invoices.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiStatus } from '#lib/api-errors.js';
 import { readCustomFields, saveRefusal } from '#lib/server/v2/record-custom-fields.js';
 
 /**
@@ -22,7 +23,12 @@ export async function load({ cookies, params, url }) {
 
 /** @type {import('./$types').Actions} */
 export const actions = {
-  /** The "Edit fields" form: sends `custom_fields` and nothing else. */
+  /**
+   * The "Edit fields" form: sends `custom_fields` and nothing else. Annotated
+   * so the refusal that echoes `values` is not folded into the bare one.
+   *
+   * @returns {Promise<import('@sveltejs/kit').ActionFailure<{ fieldsError: string, fieldErrors: Record<string, string>, values?: { custom_fields: Record<string, string | boolean | null> } }>>}
+   */
   fields: async ({ cookies, params, request }) => {
     const form = await request.formData();
     const custom = await readCustomFields(cookies, 'Invoice', form);
@@ -30,13 +36,13 @@ export const actions = {
     if (custom.values) {
       try {
         await updateInvoiceFields({ cookies }, params.id, custom.values);
-      } catch (/** @type {any} */ err) {
+      } catch (err) {
         const { error, fieldErrors } = saveRefusal(
           err,
           custom.definitions,
           'Could not save these fields.'
         );
-        return fail(err?.status === 404 ? 404 : 400, {
+        return fail(apiStatus(err) === 404 ? 404 : 400, {
           fieldsError: error,
           fieldErrors,
           values: { custom_fields: custom.values }
@@ -50,8 +56,8 @@ export const actions = {
   send: async ({ cookies, params }) => {
     try {
       await sendInvoice({ cookies }, params.id);
-    } catch (/** @type {any} */ err) {
-      return fail(err?.status === 404 ? 404 : 400, {
+    } catch (err) {
+      return fail(apiStatus(err) === 404 ? 404 : 400, {
         error: readableError(err, 'Could not send this invoice.')
       });
     }
@@ -72,8 +78,8 @@ export const actions = {
         params.id,
         amount ? { amount, reference_number: reference } : { reference_number: reference }
       );
-    } catch (/** @type {any} */ err) {
-      return fail(err?.status === 404 ? 404 : 400, {
+    } catch (err) {
+      return fail(apiStatus(err) === 404 ? 404 : 400, {
         error: readableError(err, 'Could not record that payment.')
       });
     }
@@ -84,8 +90,8 @@ export const actions = {
   cancel: async ({ cookies, params }) => {
     try {
       await cancelInvoice({ cookies }, params.id);
-    } catch (/** @type {any} */ err) {
-      return fail(err?.status === 404 ? 404 : 400, {
+    } catch (err) {
+      return fail(apiStatus(err) === 404 ? 404 : 400, {
         error: readableError(err, 'Could not cancel this invoice.')
       });
     }
@@ -100,8 +106,8 @@ export const actions = {
     let created;
     try {
       created = await duplicateInvoice({ cookies }, params.id);
-    } catch (/** @type {any} */ err) {
-      return fail(err?.status === 404 ? 404 : 400, {
+    } catch (err) {
+      return fail(apiStatus(err) === 404 ? 404 : 400, {
         error: readableError(err, 'Could not duplicate this invoice.')
       });
     }

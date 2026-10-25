@@ -20,7 +20,7 @@
   import { untrack } from 'svelte';
   import { DEAL_TYPE_LABEL } from '#lib/v2/enums.js';
 
-  /** @type {{ weights?: Record<string, any>, goalType: string }} */
+  /** @type {{ weights?: Record<string, unknown> | null, goalType: string }} */
   let { weights = {}, goalType } = $props();
 
   // Open when the goal already carries weights, so an existing weighting is

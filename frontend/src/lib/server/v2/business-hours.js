@@ -34,8 +34,10 @@
 import { apiRequest } from '#lib/api-helpers.js';
 import { viewerIsAdmin } from './organization.js';
 
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+
 /** Monday-first weekday label ↔ the model's field prefix. */
-const WEEKDAYS = [
+const WEEKDAYS = /** @type {const} */ ([
   ['Monday', 'monday'],
   ['Tuesday', 'tuesday'],
   ['Wednesday', 'wednesday'],
@@ -43,7 +45,7 @@ const WEEKDAYS = [
   ['Friday', 'friday'],
   ['Saturday', 'saturday'],
   ['Sunday', 'sunday']
-];
+]);
 
 /**
  * "09:00:00" → "09:00"; null/"" stays null (a closed day).
@@ -55,9 +57,9 @@ function toHm(value) {
 
 /**
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
- * @returns {Promise<{ calendar: any, can_edit: boolean }>}
  */
 export async function getBusinessHours({ cookies }) {
+  /** @type {Schemas['BusinessCalendar']} */
   const cal = await apiRequest('/business-hours/calendar/', {}, { cookies });
   return {
     calendar: {
@@ -67,10 +69,10 @@ export async function getBusinessHours({ cookies }) {
       is_default: cal.is_default,
       days: WEEKDAYS.map(([label, key]) => ({
         day: label,
-        open: toHm(cal[`${key}_open`]),
-        close: toHm(cal[`${key}_close`])
+        open: toHm(cal[/** @type {const} */ (`${key}_open`)]),
+        close: toHm(cal[/** @type {const} */ (`${key}_close`)])
       })),
-      holidays: (cal.holidays ?? []).map((/** @type {any} */ h) => ({
+      holidays: (cal.holidays ?? []).map((h) => ({
         id: h.id,
         name: h.name,
         date: h.date
@@ -125,6 +127,7 @@ function unfoldDays(days) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} calendarId
  * @param {{ day: string, open: string | null, close: string | null }[]} days
+ * @returns {Promise<Schemas['BusinessCalendar']>}
  * @param {{ name: string, timezone: string, [key: string]: unknown }} meta caller may pass
  *   extra fields (e.g. `is_default`, read off the loaded calendar); only
  *   `name` and `timezone` are ever read out of it
@@ -151,6 +154,7 @@ export async function updateBusinessHours({ cookies }, calendarId, days, meta) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} calendarId
  * @param {{ date: string, name: string }} values
+ * @returns {Promise<Schemas['BusinessHoliday']>}
  */
 export async function addHoliday({ cookies }, calendarId, values) {
   if (!values?.date) throw new Error('A holiday needs a date.');
@@ -172,6 +176,7 @@ export async function addHoliday({ cookies }, calendarId, values) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} calendarId
  * @param {string} holidayId
+ * @returns {Promise<null>}
  */
 export async function removeHoliday({ cookies }, calendarId, holidayId) {
   if (!holidayId) throw new Error('Which holiday? No holiday id was given.');

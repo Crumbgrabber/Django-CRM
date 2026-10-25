@@ -9,6 +9,7 @@ import {
   eventsFromForm
 } from '#lib/server/v2/webhooks.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 /**
  * One webhook: its settings, its actions and a page of its delivery log.
@@ -21,20 +22,23 @@ import { readableError } from '#lib/server/v2/form-errors.js';
 export async function load(event) {
   const offset = Math.max(0, Number.parseInt(event.url.searchParams.get('offset') ?? '0', 10) || 0);
   try {
-    return { forbidden: false, ...(await getWebhook(event, event.params.id, offset)) };
-  } catch (/** @type {any} */ err) {
-    if (err?.status === 404) error(404, 'That webhook does not exist.');
-    if (err?.status === 403) return { forbidden: true };
+    return {
+      forbidden: /** @type {const} */ (false),
+      ...(await getWebhook(event, event.params.id, offset))
+    };
+  } catch (err) {
+    if (apiStatus(err) === 404) error(404, 'That webhook does not exist.');
+    if (apiStatus(err) === 403) return { forbidden: /** @type {const} */ (true) };
     throw err;
   }
 }
 
 /**
  * Turn an API refusal into the sentence the page shows, under `key`.
- * @param {string} key @param {any} err @param {string} fallback
+ * @param {string} key @param {unknown} err @param {string} fallback
  */
 function refused(key, err, fallback) {
-  if (err?.status === 403) {
+  if (apiStatus(err) === 403) {
     return fail(403, { [key]: { error: 'Only an admin can change webhooks.' } });
   }
   return fail(400, { [key]: { error: readableError(err, fallback) } });

@@ -12,7 +12,7 @@
   import RecordPicker from '#lib/v2/components/RecordPicker.svelte';
   import { X } from '@lucide/svelte';
 
-  /** @type {{ related: { groups: any[], addTargets: any[] } | null, error?: string | null, flush?: boolean }} */
+  /** @type {{ related: ReturnType<typeof import('#lib/v2/custom-objects.js').relatedView>, error?: string | null, flush?: boolean }} */
   let { related, error = null, flush = false } = $props();
 
   let chosen = $state('');

@@ -1,6 +1,7 @@
 import { fail, redirect, error } from '@sveltejs/kit';
 import { getProductForEdit, updateProduct, deleteProduct } from '#lib/server/v2/products.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 /**
  * Editing a catalogue product.
@@ -15,8 +16,8 @@ import { readableError } from '#lib/server/v2/form-errors.js';
 export async function load(event) {
   try {
     return await getProductForEdit(event, event.params.id);
-  } catch (/** @type {any} */ err) {
-    if (err?.status === 404) error(404, 'Product not found');
+  } catch (err) {
+    if (apiStatus(err) === 404) error(404, 'Product not found');
     throw err;
   }
 }
@@ -51,11 +52,11 @@ export const actions = {
 
     try {
       await updateProduct(event, event.params.id, values);
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, { values, error: 'Only an administrator can change products.' });
       }
-      if (err?.status === 404) error(404, 'Product not found');
+      if (apiStatus(err) === 404) error(404, 'Product not found');
       return fail(400, { values, error: readableError(err, 'Could not save this product.') });
     }
 
@@ -65,12 +66,12 @@ export const actions = {
   delete: async (event) => {
     try {
       await deleteProduct(event, event.params.id);
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, { error: 'Only an administrator can delete products.' });
       }
       // 404 means it is already gone: fall through to the list either way.
-      if (err?.status !== 404) {
+      if (apiStatus(err) !== 404) {
         return fail(400, { error: readableError(err, 'Could not delete this product.') });
       }
     }

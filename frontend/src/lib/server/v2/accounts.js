@@ -47,7 +47,10 @@
  */
 import { error } from '@sveltejs/kit';
 import { apiRequest } from '#lib/api-helpers.js';
+import { apiStatus } from '#lib/api-errors.js';
 import { fieldsForDetail, fieldsForEdit } from '#lib/server/v2/record-custom-fields.js';
+
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
 
 /**
  * DRF decimals are strings. `null` stays `null`. It means "not recorded".
@@ -75,7 +78,7 @@ const UNPAID_STATUSES = ['Sent', 'Viewed', 'Partially_Paid', 'Overdue'];
 /**
  * Whether this invoice is part of the figure in the header.
  *
- * @param {any} invoice
+ * @param {Schemas['InvoiceList']} invoice
  */
 function isPastDue(invoice) {
   if (!UNPAID_STATUSES.includes(invoice.status)) return false;
@@ -108,7 +111,7 @@ function industryLabel(industry) {
  * count" and "we counted nothing" are different sentences and the page prints
  * them differently.
  *
- * @param {any} rollups
+ * @param {Schemas['AccountRollups'] | null} rollups
  */
 function toRollups(rollups) {
   if (!rollups) {
@@ -122,11 +125,11 @@ function toRollups(rollups) {
       first_won_on: null
     };
   }
-  /** @param {string} field */
+  /** @param {'won_amount' | 'open_pipeline' | 'overdue_amount'} field */
   const perCurrency = (field) =>
     (rollups.by_currency ?? [])
-      .map((/** @type {any} */ r) => ({ currency: r.currency, amount: num(r[field]) ?? 0 }))
-      .filter((/** @type {any} */ m) => m.amount !== 0);
+      .map((r) => ({ currency: r.currency, amount: num(r[field]) ?? 0 }))
+      .filter((m) => m.amount !== 0);
   return {
     won_by_currency: perCurrency('won_amount'),
     won_count: rollups.won_count ?? 0,
@@ -141,7 +144,7 @@ function toRollups(rollups) {
 /**
  * The subset of a Django account the v2 pages read.
  *
- * @param {any} account
+ * @param {Schemas['Account']} account
  */
 function toRow(account) {
   return {
@@ -205,10 +208,11 @@ export async function listAccounts({ cookies }, params) {
   const query = new URLSearchParams(params ?? undefined);
   if (!query.has('limit')) query.set('limit', '25');
 
+  /** @type {Schemas['AccountListResponse']} */
   const response = await apiRequest(`/accounts/?${query}`, {}, { cookies });
-  const active = response.active_accounts ?? {};
+  const active = response.active_accounts;
   /** @type {ReturnType<typeof toRow>[]} */
-  const rows = (active.open_accounts ?? []).map(toRow);
+  const rows = (active?.open_accounts ?? []).map(toRow);
   // Largest won first within a currency, as amounts only compare there; the
   // API orders `by_currency` by code, so an account is placed by its first.
   rows.sort((a, b) => {
@@ -218,16 +222,16 @@ export async function listAccounts({ cookies }, params) {
     return x.currency === y.currency ? y.amount - x.amount : x.currency.localeCompare(y.currency);
   });
 
-  const inactive = response.closed_accounts ?? {};
+  const inactive = response.closed_accounts;
 
   return {
     results: rows,
     totals: {
-      count: active.open_accounts_count ?? rows.length,
+      count: active?.open_accounts_count ?? rows.length,
       // Every account with a deal won against it. This is the only definition
       // of "customer" the data supports; there is no customer flag.
       customers: rows.filter((row) => (row.won_count ?? 0) > 0).length,
-      inactive: inactive.close_accounts_count ?? 0,
+      inactive: inactive?.close_accounts_count ?? 0,
       shown: rows.length
     }
   };
@@ -247,10 +251,10 @@ export async function listAccounts({ cookies }, params) {
  * @returns {Promise<{ accounts: {id: string, name: string}[] }>}
  */
 export async function listAccountsPicker({ cookies }) {
+  /** @type {Schemas['AccountListResponse']} */
   const response = await apiRequest('/accounts/?limit=200', {}, { cookies });
-  const active = response.active_accounts ?? {};
   return {
-    accounts: (active.open_accounts ?? []).map((/** @type {any} */ account) => ({
+    accounts: (response.active_accounts?.open_accounts ?? []).map((account) => ({
       id: account.id,
       name: account.name ?? ''
     }))
@@ -275,8 +279,8 @@ export async function getAccount({ cookies }, id) {
   return {
     account,
     owners: (response.account_obj.assigned_to ?? []).map(profileName),
-    tags: (response.account_obj.tags ?? []).map((/** @type {any} */ tag) => tag.name),
-    deals: (response.opportunity_list ?? []).map((/** @type {any} */ deal) => ({
+    tags: (response.account_obj.tags ?? []).map((tag) => tag.name),
+    deals: (response.opportunity_list ?? []).map((deal) => ({
       id: deal.id,
       name: deal.name ?? '',
       stage: deal.stage,
@@ -292,7 +296,7 @@ export async function getAccount({ cookies }, id) {
       days_in_current_stage: deal.days_in_stage ?? 0,
       aging_status: deal.aging_status ?? 'green'
     })),
-    contacts: (response.contacts ?? []).map((/** @type {any} */ contact) => ({
+    contacts: (response.contacts ?? []).map((contact) => ({
       id: contact.id,
       first_name: contact.first_name ?? '',
       last_name: contact.last_name ?? '',
@@ -302,13 +306,13 @@ export async function getAccount({ cookies }, id) {
       phone: contact.phone ?? '',
       do_not_call: Boolean(contact.do_not_call)
     })),
-    tickets: (response.cases ?? []).map((/** @type {any} */ ticket) => ({
+    tickets: (response.cases ?? []).map((ticket) => ({
       id: ticket.id,
       name: ticket.name ?? '',
       status: ticket.status,
       priority: ticket.priority
     })),
-    invoices: (response.invoices ?? []).map((/** @type {any} */ invoice) => ({
+    invoices: (response.invoices ?? []).map((invoice) => ({
       id: invoice.id,
       invoice_number: invoice.invoice_number ?? '',
       status: invoice.status,
@@ -318,10 +322,10 @@ export async function getAccount({ cookies }, id) {
       due_date: invoice.due_date ?? null,
       past_due: isPastDue(invoice)
     })),
-    activity: (response.comments ?? []).map((/** @type {any} */ comment) => ({
+    activity: (response.comments ?? []).map((comment) => ({
       id: comment.id,
       at: comment.commented_on,
-      by: comment.commented_by_user?.email || comment.commented_by?.user_details?.email || null,
+      by: comment.commented_by?.user_details?.email || null,
       body: comment.comment
     })),
     customFields: fieldsForDetail(response, response.account_obj.custom_fields),
@@ -331,10 +335,10 @@ export async function getAccount({ cookies }, id) {
 }
 
 /**
- * @param {any} profile
+ * @param {Schemas['Profile']} profile
  */
 function profileName(profile) {
-  return profile?.user_details?.email || profile?.user?.email || 'Unknown';
+  return profile?.user_details?.email || 'Unknown';
 }
 
 /** Scalar fields the account forms own. Everything else is server-derived. */
@@ -364,17 +368,18 @@ export const EDITABLE_FIELDS = [
  * @param {import('@sveltejs/kit').Cookies} cookies
  */
 async function listChoices(cookies) {
+  /** @type {Schemas['AccountListResponse']} */
   const response = await apiRequest('/accounts/?limit=1', {}, { cookies });
   return {
-    industries: (response.industries ?? []).map((/** @type {any} */ pair) => ({
+    industries: (response.industries ?? []).map((pair) => ({
       value: pair[0],
       label: industryLabel(pair[0])
     })),
-    countries: (response.countries ?? []).map((/** @type {any} */ pair) => ({
+    countries: (response.countries ?? []).map((pair) => ({
       value: pair[0],
       label: pair[1]
     })),
-    owners: (response.users ?? []).map((/** @type {any} */ user) => ({
+    owners: (response.users ?? []).map((user) => ({
       id: user.id,
       name: user.user__email
     }))
@@ -444,10 +449,10 @@ export async function getAccountForEdit({ cookies }, id) {
  * Absent stays absent. A field the form did not send is a field the save
  * leaves alone, which is the whole reason for PATCH below.
  *
- * @param {Record<string, any>} values
+ * @param {Record<string, unknown>} values
  */
 function toBody(values) {
-  /** @type {Record<string, any>} */
+  /** @type {Record<string, unknown>} */
   const body = {};
   for (const field of EDITABLE_FIELDS) {
     if (!(field in values)) continue;
@@ -482,7 +487,8 @@ function toBody(values) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
- * @param {Record<string, any>} values
+ * @param {Record<string, unknown>} values
+ * @returns {Promise<Schemas['AccountPatchResponse']>}
  */
 export async function updateAccount({ cookies }, id, values) {
   return await apiRequest(
@@ -499,6 +505,7 @@ export async function updateAccount({ cookies }, id, values) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
+ * @returns {Promise<Schemas['AccountDeleteResponse']>}
  */
 export async function deleteAccount({ cookies }, id) {
   return await apiRequest(`/accounts/${id}/`, { method: 'DELETE' }, { cookies });
@@ -516,7 +523,8 @@ export async function deleteAccount({ cookies }, id) {
  * a race dressed up as a lookup.
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
- * @param {Record<string, any>} values
+ * @param {Record<string, unknown>} values
+ * @returns {Promise<Schemas['AccountCreateResponse']>}
  */
 export async function createAccount({ cookies }, values) {
   return await apiRequest('/accounts/', { method: 'POST', body: toBody(values) }, { cookies });
@@ -530,14 +538,15 @@ export async function createAccount({ cookies }, values) {
  *
  * @param {import('@sveltejs/kit').Cookies} cookies
  * @param {string} id
+ * @returns {Promise<Schemas['AccountDetailResponse']>}
  */
 async function fetchDetail(cookies, id) {
   try {
     return await apiRequest(`/accounts/${id}/`, {}, { cookies });
-  } catch (/** @type {any} */ err) {
+  } catch (err) {
     // On the status, not on the wording. Django answers a missing record with
     // "No Account matches the given query.", no "404" in it anywhere.
-    if (err?.status === 404) {
+    if (apiStatus(err) === 404) {
       error(404, 'That account does not exist, or you do not have access to it.');
     }
     throw err;

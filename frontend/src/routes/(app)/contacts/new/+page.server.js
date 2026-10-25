@@ -27,7 +27,7 @@ export const actions = {
   create: async ({ cookies, request }) => {
     const form = await request.formData();
 
-    /** @type {Record<string, any>} */
+    /** @type {Record<string, string | boolean>} */
     const values = {};
     for (const field of EDITABLE_FIELDS) {
       if (field === 'do_not_call' || field === 'is_active') continue;
@@ -39,16 +39,17 @@ export const actions = {
     values.assigned_to = form.get('assigned_to')?.toString().trim() ?? '';
 
     const custom = await readCustomFields(cookies, 'Contact', form);
-    if (custom.refusal) return fail(503, { values, ...custom.refusal });
-    if (custom.values) values.custom_fields = custom.values;
+    // The typed custom values ride with the scalars, so a refused save restores both.
+    const submitted = { ...values, custom_fields: custom.values };
+    if (custom.refusal) return fail(503, { values: submitted, ...custom.refusal });
 
-    /** @type {any} */
+    /** @type {Awaited<ReturnType<typeof createContact>> | undefined} */
     let created;
     try {
-      created = await createContact({ cookies }, values);
-    } catch (/** @type {any} */ err) {
+      created = await createContact({ cookies }, submitted);
+    } catch (err) {
       return fail(400, {
-        values,
+        values: submitted,
         ...saveRefusal(err, custom.definitions, 'Could not create this contact.')
       });
     }

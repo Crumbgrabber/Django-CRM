@@ -15,6 +15,8 @@ import { error, redirect } from '@sveltejs/kit';
 import * as env from '$app/env/public';
 import { relayHeaders } from '#lib/server/relay.js';
 
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+
 const API_BASE_URL = `${env.PUBLIC_DJANGO_API_URL}/api/public/help`;
 
 /** Articles per list page. Matches the API's default page size. */
@@ -58,8 +60,10 @@ export function canonicalSlug(slug, url) {
 }
 
 /**
+ * @template [T=unknown]
  * @param {{ request: Request, getClientAddress: () => string }} event
  * @param {string} path
+ * @returns {Promise<T>}
  */
 async function call(event, path) {
   // The signed visitor address, so the API's per-visitor throttle buckets the
@@ -70,7 +74,7 @@ async function call(event, path) {
   if (response.status === 404) throw notFound();
   if (response.status === 429) throw error(429, 'Too many requests. Try again shortly.');
   if (!response.ok) throw new Error(`help center request failed with ${response.status}`);
-  return response.json();
+  return /** @type {T} */ (await response.json());
 }
 
 /**
@@ -86,6 +90,7 @@ export async function getHelpCenter(event, slug, { q = '', page = 1 } = {}) {
     offset: String((page - 1) * PAGE_SIZE)
   });
   if (q) params.set('q', q);
+  /** @type {Schemas['PublicHelpCenterListResponse']} */
   const data = await call(event, `/${encodeURIComponent(slug)}/?${params}`);
   return {
     name: data.help_center?.name ?? '',
@@ -104,6 +109,7 @@ export async function getHelpCenter(event, slug, { q = '', page = 1 } = {}) {
  */
 export async function getHelpArticle(event, slug, id) {
   if (!UUID_RE.test(id)) throw notFound();
+  /** @type {Schemas['PublicHelpCenterArticleResponse']} */
   const data = await call(event, `/${encodeURIComponent(slug)}/articles/${id}/`);
   return {
     name: data.help_center?.name ?? '',
@@ -128,9 +134,10 @@ export async function listAllArticles(event, slug) {
       limit: String(SITEMAP_PAGE_SIZE),
       offset: String(pageIndex * SITEMAP_PAGE_SIZE)
     });
+    /** @type {Schemas['PublicHelpCenterListResponse']} */
     const data = await call(event, `/${encodeURIComponent(slug)}/?${params}`);
     const articles = data.articles ?? [];
-    all.push(...articles.map((/** @type {any} */ a) => ({ id: a.id, updated_at: a.updated_at })));
+    all.push(...articles.map((a) => ({ id: a.id, updated_at: a.updated_at })));
     if (all.length >= (data.articles_count ?? 0) || articles.length === 0) break;
   }
   return all;

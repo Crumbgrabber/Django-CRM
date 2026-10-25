@@ -20,7 +20,10 @@
  */
 
 import { RESTRICTED_TICKET_NAME } from '#lib/v2/enums.js';
+import { apiErrorBody } from '#lib/api-errors.js';
 import { findNode } from './close.js';
+
+/** @typedef {import('./close.js').TreeNode} TreeNode */
 
 /**
  * The tree as rows, top down, for an indented list.
@@ -29,7 +32,7 @@ import { findNode } from './close.js';
  * phone shows it too. It never gets a name or a link, because opening it would
  * only answer 404.
  *
- * @param {any} root the tree response's `root`
+ * @param {TreeNode | null | undefined} root the tree response's `root`
  * @param {string} focusId the ticket this page is about
  * @returns {Array<{id: string, name: string, status: string|null, depth: number,
  *   restricted: boolean, focus: boolean, truncated: boolean}>}
@@ -37,7 +40,7 @@ import { findNode } from './close.js';
 export function treeRows(root, focusId) {
   /** @type {ReturnType<typeof treeRows>} */
   const rows = [];
-  /** @param {any} node @param {number} depth */
+  /** @param {TreeNode} node @param {number} depth */
   const walk = (node, depth) => {
     const restricted = Boolean(node.restricted);
     rows.push({
@@ -60,13 +63,13 @@ export function treeRows(root, focusId) {
  * since that would make a cycle. The API refuses one anyway; this keeps the
  * picker from offering it.
  *
- * @param {any} root
+ * @param {TreeNode | null | undefined} root
  * @param {string} id
  * @returns {Set<string>}
  */
 export function subtreeIds(root, id) {
   const ids = new Set([id]);
-  /** @param {any} node */
+  /** @param {TreeNode} node */
   const walk = (node) => {
     for (const child of node.children ?? []) {
       ids.add(child.id);
@@ -83,8 +86,10 @@ export function subtreeIds(root, id) {
  * its own subtree, the parent it already has, and anything merged away (the
  * API refuses a merged parent).
  *
- * @param {Array<{id: string, status: string}>} rows from `listTickets`
+ * @template {{ id: string, status: string }} R
+ * @param {R[]} rows from `listTickets`
  * @param {{ exclude: Set<string>, parentId?: string|null }} args
+ * @returns {R[]}
  */
 export function parentCandidates(rows, { exclude, parentId = null }) {
   return rows.filter(
@@ -99,11 +104,11 @@ export function parentCandidates(rows, { exclude, parentId = null }) {
  * self, cycle, depth, merged) or `{"detail": "<sentence>"}`, and `apiRequest`
  * would prefix the first with the key. The key means nothing to a person.
  *
- * @param {any} err the error thrown by `apiRequest`
+ * @param {unknown} err the error thrown by `apiRequest`
  * @param {string} fallback
  */
 export function linkRefusal(err, fallback) {
-  const body = err?.body ?? {};
+  const body = apiErrorBody(err) ?? {};
   for (const said of [body.parent_id, body.detail]) {
     const text = Array.isArray(said) ? said[0] : said;
     if (typeof text === 'string' && text.trim()) return text.trim();

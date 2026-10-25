@@ -82,7 +82,7 @@ export function matchPeople(people, query) {
  */
 export function mentionTokens(body, people) {
   const byName = new Map(people.map((p) => [p.username, p]));
-  /** @type {any[]} */
+  /** @type {({ type: 'text', value: string } | { type: 'mention', value: string, person: MentionPerson })[]} */
   const out = [];
   let last = 0;
   for (const match of body.matchAll(MENTION)) {

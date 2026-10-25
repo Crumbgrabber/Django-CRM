@@ -23,7 +23,7 @@ import { isOn } from '#lib/v2/modules.js';
  * Each key's module (`COUNT_MODULES`) must be on for its count to be asked.
  */
 const LIVE_COUNTS = {
-  /** @param {any} event */
+  /** @param {import('./$types').LayoutServerLoadEvent} event */
   leads: async (event) =>
     (await listLeads(event, new URLSearchParams({ limit: '1' }))).totals.count,
   /**
@@ -32,7 +32,7 @@ const LIVE_COUNTS = {
    * its own (`#lib/server/v2/deals.js`'s FILTER_FIELDS note), so it is spelled
    * out here.
    *
-   * @param {any} event
+   * @param {import('./$types').LayoutServerLoadEvent} event
    */
   pipeline: async (event) =>
     (await listDeals(event, new URLSearchParams({ open: 'true', limit: '1' }))).totals.count,
@@ -40,7 +40,7 @@ const LIVE_COUNTS = {
    * Open tickets only. A support badge counting closed ones would never go
    * down, which is the same objection as the accounts note below.
    *
-   * @param {any} event
+   * @param {import('./$types').LayoutServerLoadEvent} event
    */
   tickets: async (event) => {
     const params = new URLSearchParams({ limit: '1' });
@@ -53,7 +53,7 @@ const LIVE_COUNTS = {
    * argument as tickets: a badge counting completed tasks would only ever go
    * up.
    *
-   * @param {any} event
+   * @param {import('./$types').LayoutServerLoadEvent} event
    */
   tasks: async (event) => (await listTasks(event, new URLSearchParams({ limit: '1' }))).totals.open,
   /**
@@ -63,7 +63,7 @@ const LIVE_COUNTS = {
    * the outstanding *amount*, which the pills on the page already show. The
    * shell has always carried a needs-action invoice badge; this keeps it real.
    *
-   * @param {any} event
+   * @param {import('./$types').LayoutServerLoadEvent} event
    */
   invoices: async (event) =>
     (await listInvoices(event, new URLSearchParams({ limit: '1' }))).totals.action_needed,
@@ -73,7 +73,7 @@ const LIVE_COUNTS = {
    * requester's own rows are excluded by the self-approval rule). This is work,
    * not inventory: it goes down as they decide, so it earns a badge.
    *
-   * @param {any} event
+   * @param {import('./$types').LayoutServerLoadEvent} event
    */
   approvals: async (event) => await countAwaitingApprovals(event),
   /**
@@ -83,7 +83,7 @@ const LIVE_COUNTS = {
    * this map). This is work, not inventory: it goes to zero as you read, so it
    * earns a badge. Was the fixture `notificationTotals.unread` until now.
    *
-   * @param {any} event
+   * @param {import('./$types').LayoutServerLoadEvent} event
    */
   notifications: async (event) => await countUnread(event)
   /*
@@ -152,11 +152,11 @@ export async function load(event) {
       // gets an addition that should not have happened, and no symbol repairs
       // it. Read from the JWT's org settings, which is also where a new deal's
       // currency comes from.
-      currency: /** @type {any} */ (event.locals).org_settings?.default_currency || 'USD',
+      currency: event.locals.org_settings?.default_currency || 'USD',
       // The org's IANA zone, from the same claim, for a form's "today"
       // default (`todayIn`, `#lib/v2/dates.js`). UTC only for a token minted
       // before the claim existed; the next refresh carries it.
-      timezone: /** @type {any} */ (event.locals).org_settings?.timezone || 'UTC'
+      timezone: event.locals.org_settings?.timezone || 'UTC'
     },
     // Server-derived from the JWT (never the client), and read only through
     // `isOrgAdmin` (`#lib/admin.js`). Display-only: it lets the shell hide
@@ -165,7 +165,9 @@ export async function load(event) {
     // control. The non-admin view when the claim is absent.
     is_organization_admin: isOrgAdmin(event.locals.profile),
     // The `/objects/` answer, or null on a self-hosted install or any failure.
-    customObjects: /** @type {any} */ (null),
+    customObjects: /** @type {import('#lib/server/v2/custom-objects.js').ObjectList | null} */ (
+      null
+    ),
     // The `/billing/` answer, or null where billing is not offered or on any
     // failure; read through `#lib/v2/billing.js`.
     billing: /** @type {import('#lib/server/v2/billing.js').Billing | null} */ (null),
@@ -184,10 +186,14 @@ export async function load(event) {
       return !module || isOn(modules, module);
     });
     return Promise.allSettled(
-      keys.map(async (key) => [
-        key,
-        await LIVE_COUNTS[/** @type {keyof typeof LIVE_COUNTS} */ (key)](event)
-      ])
+      keys.map(async (key) => {
+        /** @type {[string, number]} */
+        const entry = [
+          key,
+          await LIVE_COUNTS[/** @type {keyof typeof LIVE_COUNTS} */ (key)](event)
+        ];
+        return entry;
+      })
     );
   });
   const [modulesResult, terminologyResult, objectsResult, billingResult, countsResult] =

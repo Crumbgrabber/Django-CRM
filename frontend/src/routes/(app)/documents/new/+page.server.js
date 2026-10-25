@@ -1,6 +1,7 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { getUploadOptions, uploadDocument, STATUS_CHOICES } from '#lib/server/v2/documents.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 /**
  * Uploading a document.
@@ -46,9 +47,10 @@ export const actions = {
 
     try {
       await uploadDocument(event.cookies, { title, status, file, shared_to, teams });
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 401 || err?.status === 403) {
-        return fail(err.status, { values, error: 'You do not have permission to upload here.' });
+    } catch (err) {
+      const code = apiStatus(err);
+      if (code === 401 || code === 403) {
+        return fail(code, { values, error: 'You do not have permission to upload here.' });
       }
       return fail(400, {
         values,

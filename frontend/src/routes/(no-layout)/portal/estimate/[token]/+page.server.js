@@ -6,6 +6,7 @@
  */
 
 import { error, fail } from '@sveltejs/kit';
+import { apiStatus } from '#lib/api-errors.js';
 import * as env from '$app/env/public';
 import { relayHeaders } from '#lib/server/relay.js';
 
@@ -13,6 +14,8 @@ import { relayHeaders } from '#lib/server/relay.js';
 // that only resolves behind a production reverse proxy) so the anonymous portal
 // works the same in dev and prod. The CSAT loader takes the same approach.
 const API_BASE_URL = `${env.PUBLIC_DJANGO_API_URL}/api`;
+
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
 
 /** @type {import('./$types').PageServerLoad} */
 export async function load({ params, fetch }) {
@@ -35,11 +38,12 @@ export async function load({ params, fetch }) {
       throw error(response.status, 'Failed to load estimate');
     }
 
+    /** @type {Schemas['PublicEstimate']} */
     const estimate = await response.json();
 
     return { estimate, token };
   } catch (err) {
-    if (err.status) throw err;
+    if (apiStatus(err)) throw err;
     console.error('Error loading public estimate:', err);
     throw error(500, 'Failed to load estimate');
   }
@@ -77,6 +81,7 @@ export const actions = {
       });
 
       if (!response.ok) {
+        /** @type {{ message?: string }} */
         const data = await response.json().catch(() => ({}));
         return fail(response.status, {
           error: data.message || 'Failed to accept estimate',
@@ -103,6 +108,7 @@ export const actions = {
       });
 
       if (!response.ok) {
+        /** @type {{ message?: string }} */
         const data = await response.json();
         return fail(response.status, { error: data.message || 'Failed to decline estimate' });
       }

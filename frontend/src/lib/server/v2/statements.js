@@ -16,8 +16,11 @@ import * as env from '$app/env/public';
 import { apiRequest } from '#lib/api-helpers.js';
 import { moduleOffDetail, rethrowModuleOff } from '#lib/server/v2/modules.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiErrorBody, apiStatus } from '#lib/api-errors.js';
 
-const num = (/** @type {any} */ value) => {
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+
+const num = (/** @type {unknown} */ value) => {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
 };
@@ -56,7 +59,7 @@ export function previousMonth(iso) {
   return { start_date: `${year}-${mm}-01`, end_date: `${year}-${mm}-${last}` };
 }
 
-/** @param {any} section */
+/** @param {Schemas['StatementCurrency']} section */
 function toSection(section) {
   return {
     currency: section.currency,
@@ -65,7 +68,7 @@ function toSection(section) {
     paid: num(section.paid),
     cancelled: num(section.cancelled),
     closing_balance: num(section.closing_balance),
-    entries: (section.entries ?? []).map((/** @type {any} */ entry) => ({
+    entries: (section.entries ?? []).map((entry) => ({
       date: entry.date,
       kind: entry.kind,
       invoice_id: entry.invoice_id,
@@ -86,6 +89,7 @@ function toSection(section) {
  * @param {URLSearchParams} searchParams the page's own query string
  */
 export async function getStatement({ cookies }, accountId, searchParams) {
+  /** @type {Schemas['AccountStatement']} */
   let body;
   try {
     body = await apiRequest(
@@ -93,15 +97,15 @@ export async function getStatement({ cookies }, accountId, searchParams) {
       {},
       { cookies }
     );
-  } catch (/** @type {any} */ err) {
-    if (err?.status === 403) return { can_view: false, statement: null, error: null };
+  } catch (err) {
+    if (apiStatus(err) === 403) return { can_view: false, statement: null, error: null };
     rethrowModuleOff(err);
-    if (err?.status === 404) {
+    if (apiStatus(err) === 404) {
       error(404, 'That account does not exist, or you do not have access to it.');
     }
-    if (err?.status === 400) {
+    if (apiStatus(err) === 400) {
       // `{"end_date": ["..."]}`: the sentence alone, the field is on the form.
-      const said = Object.values(err.body ?? {})
+      const said = Object.values(apiErrorBody(err) ?? {})
         .flat()
         .find((m) => typeof m === 'string');
       return {

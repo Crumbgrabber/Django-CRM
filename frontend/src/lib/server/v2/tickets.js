@@ -45,25 +45,40 @@
  */
 import { error, redirect } from '@sveltejs/kit';
 import { apiRequest } from '#lib/api-helpers.js';
+import { apiStatus } from '#lib/api-errors.js';
 import { fieldsForDetail, fieldsForEdit } from '#lib/server/v2/record-custom-fields.js';
 import { rethrowModuleOff } from '#lib/server/v2/modules.js';
 import { attachmentHref } from '#lib/server/v2/files.js';
 import { RESTRICTED_TICKET_NAME } from '#lib/v2/enums.js';
 
 /** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+/** @typedef {ReturnType<typeof toRow>} TicketRow */
+/**
+ * One entry of a ticket's conversation; `subject` is on emails only.
+ *
+ * @typedef {{ id: string, kind: 'comment' | 'note' | 'email', direction: 'in' | 'out' | 'note', author: string, at: string, body: string, subject?: string }} ConversationEntry
+ */
+/** @typedef {'name' | 'status' | 'priority' | 'case_type' | 'description' | 'closed_on' | 'account'} TicketField */
+/**
+ * What the ticket forms send: the scalar fields, the single owner, the
+ * contacts and the custom-field values, each present only when the form
+ * decided it changed.
+ *
+ * @typedef {{ [F in TicketField]?: string } & { assigned_to?: string, contacts?: string[], custom_fields?: Record<string, string | boolean | null> }} TicketValues
+ */
 
 /** Statuses where somebody still owes the customer something. Mirrors `cases.views.OPEN_STATUSES`. */
 export const OPEN_STATUSES = ['New', 'Assigned', 'Pending'];
 
 /**
- * @param {any} profile
+ * @param {Schemas['Profile']} profile
  */
 function profileName(profile) {
-  return profile?.user_details?.email || profile?.user?.email || 'Unknown';
+  return profile.user_details?.email || 'Unknown';
 }
 
 /**
- * @param {any} account
+ * @param {Schemas['AccountPicker'] | null} account
  */
 function accountLink(account) {
   return account ? { id: account.id, name: account.name ?? '' } : null;
@@ -77,7 +92,7 @@ function accountLink(account) {
  * since unlinking needs write on the child alone) and reads as
  * `RESTRICTED_TICKET_NAME`, never as a link: opening it would only answer 404.
  *
- * @param {any} parent
+ * @param {Schemas['CaseParentSummary'] | null} parent
  */
 function parentLink(parent) {
   if (!parent) return null;
@@ -100,7 +115,7 @@ function parentLink(parent) {
  * reimplementing them in the browser would produce a second, quietly different
  * answer on the same screen.
  *
- * @param {any} row
+ * @param {Schemas['Case']} row
  */
 function toRow(row) {
   const assignees = row.assigned_to ?? [];
@@ -113,7 +128,7 @@ function toRow(row) {
     case_type: row.case_type ?? null,
     description: row.description ?? '',
     account: accountLink(row.account),
-    contacts: (row.contacts ?? []).map((/** @type {any} */ contact) => ({
+    contacts: (row.contacts ?? []).map((contact) => ({
       id: contact.id,
       name: [contact.first_name, contact.last_name].filter(Boolean).join(' ').trim()
     })),
@@ -185,8 +200,8 @@ export async function listTickets({ cookies }, params) {
   if (!query.has('limit')) query.set('limit', '25');
   query.set('slim', 'true');
 
+  /** @type {Schemas['CaseListResponse']} */
   const response = await apiRequest(`/cases/?${query}`, {}, { cookies });
-  /** @type {any[]} */
   const cases = response.cases ?? [];
   const rows = cases.map(toRow);
 
@@ -211,10 +226,10 @@ export async function listTickets({ cookies }, params) {
  * should reopen a ticket: a comment with a `commented_by` came from our side,
  * and one without came from the customer. Emails carry their own direction.
  *
- * @param {any} response
+ * @param {Schemas['CaseDetailResponse']} response
  */
 function toConversation(response) {
-  /** @type {any[]} */
+  /** @type {ConversationEntry[]} */
   const entries = [];
 
   for (const comment of response.comments ?? []) {
@@ -275,7 +290,7 @@ export async function getTicket({ cookies }, id) {
   const response = await fetchDetail(cookies, id);
   const ticket = toRow(response.cases_obj);
 
-  /** @type {any[]} */
+  /** @type {TicketRow[]} */
   let alsoOpen = [];
   if (ticket.account) {
     const query = new URLSearchParams({ limit: '6', slim: 'true', account: ticket.account.id });
@@ -283,7 +298,7 @@ export async function getTicket({ cookies }, id) {
     /** @type {Schemas['CaseListResponse']} */
     const siblings = await apiRequest(`/cases/?${query}`, {}, { cookies });
     alsoOpen = (siblings.cases ?? [])
-      .filter((/** @type {any} */ row) => row.id !== ticket.id)
+      .filter((row) => row.id !== ticket.id)
       .slice(0, 5)
       .map(toRow);
   }
@@ -292,7 +307,7 @@ export async function getTicket({ cookies }, id) {
     ticket,
     conversation: toConversation(response),
     // Filed against this ticket, not guessed at. See the header note.
-    articles: (response.solutions ?? []).map((/** @type {any} */ article) => ({
+    articles: (response.solutions ?? []).map((article) => ({
       id: article.id,
       title: article.title ?? '',
       status: article.status,
@@ -301,7 +316,7 @@ export async function getTicket({ cookies }, id) {
     })),
     alsoOpen,
     contacts: ticket.contacts,
-    attachments: (response.attachments ?? []).map((/** @type {any} */ file) => ({
+    attachments: (response.attachments ?? []).map((file) => ({
       id: file.id,
       name: file.file_name ?? '',
       // Resolved to an absolute URL so the rail can offer it as a download; the
@@ -319,7 +334,7 @@ export async function getTicket({ cookies }, id) {
     // two classes named `ActivitySerializer` existed and the shadowing one
     // used it; there is one class today, and
     // `common/tests/test_activity_serializer_shapes.py` pins its shape.
-    activity: (response.activities ?? []).map((/** @type {any} */ row) => ({
+    activity: (response.activities ?? []).map((row) => ({
       id: row.id,
       action: row.action,
       label: row.action_display || row.action,
@@ -341,7 +356,7 @@ export async function getTicket({ cookies }, id) {
     // Tickets merged into this one. A source the viewer may not open arrives
     // with `name: null` and `restricted: true`: it reads as the same phrase a
     // hidden parent does, and is never a link.
-    mergedFrom: (response.merged_from_cases ?? []).map((/** @type {any} */ src) => ({
+    mergedFrom: (response.merged_from_cases ?? []).map((src) => ({
       id: src.id,
       name: src.restricted ? RESTRICTED_TICKET_NAME : (src.name ?? ''),
       merged_at: src.merged_at ?? null,
@@ -361,6 +376,7 @@ export async function getTicket({ cookies }, id) {
  * @param {string} id
  */
 export async function getTicketWatchers({ cookies }, id) {
+  /** @type {Schemas['CaseWatchersResponse']} */
   const response = await apiRequest(`/cases/${id}/watchers/`, {}, { cookies });
   return {
     count: response.count ?? (response.watchers ?? []).length,
@@ -375,6 +391,7 @@ export async function getTicketWatchers({ cookies }, id) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
  * @param {boolean} watch
+ * @returns {Promise<Schemas['CaseWatchResponse'] | null>} null for an unwatch (204)
  */
 export async function setWatching({ cookies }, id, watch) {
   return apiRequest(`/cases/${id}/watch/`, { method: watch ? 'POST' : 'DELETE' }, { cookies });
@@ -391,8 +408,9 @@ export async function setWatching({ cookies }, id, watch) {
 export async function suggestTicketArticles({ cookies }, id, q) {
   const query = new URLSearchParams({ limit: '10' });
   if (q) query.set('q', q);
+  /** @type {Schemas['SolutionSuggestionsResponse']} */
   const response = await apiRequest(`/cases/${id}/solution-suggestions/?${query}`, {}, { cookies });
-  return (response.results ?? []).map((/** @type {any} */ s) => ({
+  return (response.results ?? []).map((s) => ({
     id: s.id,
     title: s.title ?? '',
     snippet: s.snippet ?? ''
@@ -407,6 +425,7 @@ export async function suggestTicketArticles({ cookies }, id, q) {
  * @param {string} id
  * @param {string} articleId
  * @param {boolean} link
+ * @returns {Promise<Schemas['CaseSolutionLinkResponse'] | null>} null for an unlink (204)
  */
 export async function setTicketArticle({ cookies }, id, articleId, link) {
   if (link) {
@@ -435,7 +454,7 @@ export async function getMergeTargets({ cookies }, id, search) {
   const query = new URLSearchParams({ search });
   /** @type {Schemas['CaseMergeTargetsResponse']} */
   const response = await apiRequest(`/cases/${id}/merge-targets/?${query}`, {}, { cookies });
-  return (response.results ?? []).map((/** @type {any} */ row) => ({
+  return (response.results ?? []).map((row) => ({
     id: row.id,
     name: row.name ?? '',
     status: row.status,
@@ -474,7 +493,11 @@ export async function unmergeTicket({ cookies }, sourceId) {
   return await apiRequest(`/cases/${sourceId}/unmerge/`, { method: 'POST', body: {} }, { cookies });
 }
 
-/** Scalar fields the ticket forms own. Everything else is server-derived. */
+/**
+ * Scalar fields the ticket forms own. Everything else is server-derived.
+ *
+ * @type {TicketField[]}
+ */
 export const EDITABLE_FIELDS = [
   'name',
   'status',
@@ -496,22 +519,23 @@ const DUPLICATE = 'Duplicate';
  * @param {import('@sveltejs/kit').Cookies} cookies
  */
 async function listChoices(cookies) {
+  /** @type {Schemas['CaseListResponse']} */
   const response = await apiRequest('/cases/?limit=1', {}, { cookies });
 
-  /** @param {any[]} pairs */
+  /** @param {string[][]} pairs */
   const choices = (pairs) => (pairs ?? []).map((pair) => ({ value: pair[0], label: pair[1] }));
 
-  const accounts = (response.accounts_list ?? []).map((/** @type {any} */ account) => ({
+  const accounts = (response.accounts_list ?? []).map((account) => ({
     id: account.id,
     name: account.name ?? ''
   }));
-  accounts.sort((/** @type {any} */ a, /** @type {any} */ b) => a.name.localeCompare(b.name));
+  accounts.sort((a, b) => a.name.localeCompare(b.name));
 
-  const contacts = (response.contacts_list ?? []).map((/** @type {any} */ contact) => ({
+  const contacts = (response.contacts_list ?? []).map((contact) => ({
     id: contact.id,
     name: [contact.first_name, contact.last_name].filter(Boolean).join(' ').trim()
   }));
-  contacts.sort((/** @type {any} */ a, /** @type {any} */ b) => a.name.localeCompare(b.name));
+  contacts.sort((a, b) => a.name.localeCompare(b.name));
 
   return {
     // Duplicate is reached only by merging (`cases.workflow.duplicate_refusal`
@@ -523,7 +547,7 @@ async function listChoices(cookies) {
     accounts,
     contacts,
     // `users` is new: the endpoint computed this list and then discarded it.
-    owners: (response.users ?? []).map((/** @type {any} */ user) => ({
+    owners: (response.users ?? []).map((user) => ({
       id: user.id,
       name: user.user__email
     }))
@@ -538,7 +562,7 @@ async function listChoices(cookies) {
  */
 export async function getTicketFormOptions({ cookies }, accountId = null) {
   const choices = await listChoices(cookies);
-  const known = choices.accounts.some((/** @type {any} */ row) => row.id === accountId);
+  const known = choices.accounts.some((row) => row.id === accountId);
   return {
     ...choices,
     defaults: {
@@ -588,7 +612,7 @@ export async function getTicketForEdit({ cookies }, id) {
       closed_on: ticket.closed_on ?? '',
       // Binds to a Profile id, not a display name.
       assigned_to: raw.assigned_to?.[0]?.id ?? '',
-      contacts: (raw.contacts ?? []).map((/** @type {any} */ contact) => contact.id)
+      contacts: (raw.contacts ?? []).map((contact) => contact.id)
     },
     server: {
       account: ticket.account,
@@ -607,10 +631,10 @@ export async function getTicketForEdit({ cookies }, id) {
  * Absent stays absent. A field the form did not send is a field the save
  * leaves alone, which is the whole reason for PATCH below.
  *
- * @param {Record<string, any>} values
+ * @param {TicketValues} values
  */
 function toBody(values) {
-  /** @type {Record<string, any>} */
+  /** @type {Record<string, unknown>} */
   const body = {};
   for (const field of EDITABLE_FIELDS) {
     if (!(field in values)) continue;
@@ -645,7 +669,7 @@ function toBody(values) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
- * @param {Record<string, any>} values
+ * @param {TicketValues} values
  * @returns {Promise<Schemas['CasePatchResponse']>}
  */
 export async function updateTicket({ cookies }, id, values) {
@@ -663,6 +687,7 @@ export async function updateTicket({ cookies }, id, values) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
+ * @returns {Promise<Schemas['CaseTreeResponse']>}
  */
 export async function getTicketTree({ cookies }, id) {
   return await apiRequest(`/cases/${id}/tree/`, {}, { cookies });
@@ -680,6 +705,7 @@ export async function getTicketTree({ cookies }, id) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
  * @param {string|null} parentId
+ * @returns {Promise<Schemas['CaseLinkParentResponse']>}
  */
 export async function linkTicketParent({ cookies }, id, parentId) {
   return await apiRequest(
@@ -705,6 +731,7 @@ export async function linkTicketParent({ cookies }, id, parentId) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
  * @param {{ cascade: boolean, resolution_comment?: string }} args
+ * @returns {Promise<Schemas['CaseCloseWithChildrenResponse']>}
  */
 export async function closeTicketWithChildren({ cookies }, id, { cascade, resolution_comment }) {
   return await apiRequest(
@@ -725,7 +752,7 @@ export async function closeTicketWithChildren({ cookies }, id, { cascade, resolu
  * accepted. It used to take anybody's.
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
- * @param {Record<string, any>} values
+ * @param {TicketValues} values
  * @returns {Promise<Schemas['CaseCreateResponse']>}
  */
 export async function createTicket({ cookies }, values) {
@@ -770,9 +797,10 @@ export async function replyToTicket({ cookies }, id, reply) {
  * { status, priority, case_type, closed_on, assigned_to: string[], tags: string[] }.
  * The backend enforces per-case write access and the close gate, so this only
  * forwards; it never gates.
- * @param {{ cookies: any }} evt
+ * @param {{ cookies: import('@sveltejs/kit').Cookies }} evt
  * @param {string[]} ids
- * @param {Record<string, any>} fields
+ * @param {Record<string, unknown>} fields
+ * @returns {Promise<Schemas['BulkUpdateCasesResponse']>}
  */
 export async function bulkUpdateTickets({ cookies }, ids, fields) {
   return await apiRequest(
@@ -785,8 +813,9 @@ export async function bulkUpdateTickets({ cookies }, ids, fields) {
 /**
  * Bulk soft-delete tickets. Backend deletes only those the caller may delete
  * (admin or creator) and reports the rest as no_access.
- * @param {{ cookies: any }} evt
+ * @param {{ cookies: import('@sveltejs/kit').Cookies }} evt
  * @param {string[]} ids
+ * @returns {Promise<Schemas['BulkDeleteCasesResponse']>}
  */
 export async function bulkDeleteTickets({ cookies }, ids) {
   return await apiRequest('/cases/bulk/delete/', { method: 'POST', body: { ids } }, { cookies });
@@ -796,7 +825,7 @@ export async function bulkDeleteTickets({ cookies }, ids) {
  * Count a bulk `results` array by outcome status, for the summary banner.
  * Each entry also carries an `id` and, on some outcomes, a `detail`; only
  * `status` is read here.
- * @param {Array<{status: string, [key: string]: any}>} results
+ * @param {Schemas['BulkCaseOutcome'][]} results
  */
 export function summarizeBulk(results) {
   /** @type {Record<string, number>} */
@@ -828,21 +857,22 @@ export function summarizeBulk(results) {
  *
  * @param {import('@sveltejs/kit').Cookies} cookies
  * @param {string} id
+ * @returns {Promise<Schemas['CaseDetailResponse']>}
  */
 async function fetchDetail(cookies, id) {
-  /** @type {any} */
+  /** @type {Schemas['CaseRetrieveResponse']} */
   let response;
   try {
     response = await apiRequest(`/cases/${id}/`, {}, { cookies });
-  } catch (/** @type {any} */ err) {
+  } catch (err) {
     rethrowModuleOff(err);
     // On the status, not on the wording.
-    if (err?.status === 404) {
+    if (apiStatus(err) === 404) {
       error(404, 'That ticket does not exist, or you do not have access to it.');
     }
     throw err;
   }
-  if (response?.redirect_to) {
+  if ('redirect_to' in response) {
     redirect(307, `/tickets/${response.redirect_to}`);
   }
   return response;

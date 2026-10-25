@@ -13,7 +13,10 @@
   import { deserialize } from '$app/forms';
   import { holdLockedCard } from '#lib/v2/board-drag.js';
 
-  /** @type {{ data: any }} */
+  /** @typedef {import('./$types').PageData['lanes'][number]} Lane */
+  /** @typedef {Lane['rows'][number]} Card */
+
+  /** @type {import('./$types').PageProps} */
   let { data } = $props();
 
   const FLIP_MS = 160;
@@ -21,9 +24,9 @@
   /* `dndzone` reorders the array it is handed, so the board renders from a
      local copy that is rebuilt whenever the server sends new lanes. That
      rebuild is what makes a refused move snap back. */
-  let boardLanes = $state(/** @type {any[]} */ ([]));
+  let boardLanes = $state(/** @type {Lane[]} */ ([]));
   $effect(() => {
-    boardLanes = data.lanes.map((/** @type {any} */ lane) => ({ ...lane, rows: [...lane.rows] }));
+    boardLanes = data.lanes.map((lane) => ({ ...lane, rows: [...lane.rows] }));
   });
 
   let moveError = $state('');
@@ -31,18 +34,24 @@
 
   /* A capped lane keeps the server's total; otherwise the header follows the
      cards on screen, so an optimistic move updates it without a round-trip. */
-  function laneCount(/** @type {any} */ lane) {
+  function laneCount(/** @type {Lane} */ lane) {
     return lane.truncated ? lane.count : lane.rows.length;
   }
 
-  function onConsider(/** @type {any} */ lane, /** @type {any} */ e) {
+  function onConsider(
+    /** @type {Lane} */ lane,
+    /** @type {CustomEvent<import('svelte-dnd-action').DndEvent<Card>>} */ e
+  ) {
     lane.rows = e.detail.items;
   }
 
-  async function onFinalize(/** @type {any} */ lane, /** @type {any} */ e) {
+  async function onFinalize(
+    /** @type {Lane} */ lane,
+    /** @type {CustomEvent<import('svelte-dnd-action').DndEvent<Card>>} */ e
+  ) {
     lane.rows = e.detail.items;
     const movedId = e.detail.info?.id;
-    const index = e.detail.items.findIndex((/** @type {any} */ r) => r.id === movedId);
+    const index = e.detail.items.findIndex((r) => r.id === movedId);
     // Finalize fires on both lanes of a cross-lane move; only the lane now
     // holding the card persists it.
     if (index === -1) return;
@@ -79,9 +88,9 @@
         moveError = '';
         return true;
       }
+      const refusal = result.type === 'failure' ? result.data?.error : undefined;
       moveError =
-        (result.type === 'failure' && /** @type {any} */ (result.data)?.error) ||
-        'Could not move the ticket, so it went back.';
+        (typeof refusal === 'string' && refusal) || 'Could not move the ticket, so it went back.';
     } catch {
       moveError = 'Could not move the ticket, so it went back.';
     }
@@ -180,9 +189,9 @@
         <div
           class="v2-lane-body tb-lane-body"
           use:dndzone={{ items: lane.rows, flipDurationMs: FLIP_MS, dragDisabled: busy }}
-          onconsider={(/** @type {CustomEvent<import('svelte-dnd-action').DndEvent>} */ e) =>
+          onconsider={(/** @type {CustomEvent<import('svelte-dnd-action').DndEvent<Card>>} */ e) =>
             onConsider(lane, e)}
-          onfinalize={(/** @type {CustomEvent<import('svelte-dnd-action').DndEvent>} */ e) =>
+          onfinalize={(/** @type {CustomEvent<import('svelte-dnd-action').DndEvent<Card>>} */ e) =>
             onFinalize(lane, e)}
           onmousedowncapture={holdLockedCard}
           ontouchstartcapture={holdLockedCard}
@@ -204,9 +213,7 @@
               <div class="v2-deal-card-foot">
                 {#if ticket.owner}<Avatar name={ticket.owner} size={21} />{/if}
                 {#if ticket.priority}
-                  <Pill tone={/** @type {any} */ (PRIORITY_TONE)[ticket.priority] ?? 'slate'}
-                    >{ticket.priority}</Pill
-                  >
+                  <Pill tone={PRIORITY_TONE[ticket.priority] ?? 'slate'}>{ticket.priority}</Pill>
                 {/if}
                 {#if ticket.slaBreached}
                   <Pill tone="rust" dot>SLA breached</Pill>

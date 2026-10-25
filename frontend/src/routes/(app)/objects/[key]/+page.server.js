@@ -14,20 +14,20 @@ export async function load({ cookies, params, url }) {
   const definition = await getObject({ cookies }, key);
   if (definition.is_active === false) error(404, OBJECT_GONE);
   const columns = (definition.fields ?? [])
-    .filter((/** @type {any} */ f) => f.field_type !== 'link')
+    .filter((f) => f.field_type !== 'link')
     .slice(0, LIST_COLUMNS);
 
   const { count, results } = await listRecords({ cookies }, key, { q, page: pageNumber });
   return {
     definition,
-    columns: columns.map((/** @type {any} */ f) => ({ key: f.key, label: f.label })),
+    columns: columns.map((f) => ({ key: f.key, label: f.label })),
     page: {
       count,
-      results: results.map((/** @type {any} */ r) => ({
+      results: results.map((r) => ({
         id: r.id,
         name: r.name,
-        cells: columns.map((/** @type {any} */ f) => displayValue(f, r.custom_fields?.[f.key])),
-        assignees: (r.assigned_to ?? []).map((/** @type {any} */ p) => p.name || p.email)
+        cells: columns.map((f) => displayValue(f, r.custom_fields?.[f.key])),
+        assignees: (r.assigned_to ?? []).map((p) => p.name || p.email)
       }))
     },
     q,

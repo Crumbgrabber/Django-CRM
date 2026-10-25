@@ -30,8 +30,11 @@
  * view, exactly as before.
  */
 import { apiRequest } from '#lib/api-helpers.js';
+import { apiStatus } from '#lib/api-errors.js';
 
-const num = (/** @type {any} */ value) => {
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+
+const num = (/** @type {unknown} */ value) => {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
 };
@@ -39,7 +42,11 @@ const num = (/** @type {any} */ value) => {
 /** The header window; the revenue call asks for the trailing 12 months. */
 const WINDOW_MONTHS = 12;
 
-/** The overdue buckets, in the order the page draws them. */
+/**
+ * The overdue buckets, in the order the page draws them.
+ *
+ * @type {{ key: string, label: string, field: '1_30_days' | '31_60_days' | '61_90_days' | 'over_90_days' }[]}
+ */
 const BUCKETS = [
   { key: '1_30', label: '1-30 days', field: '1_30_days' },
   { key: '31_60', label: '31-60 days', field: '31_60_days' },
@@ -51,19 +58,20 @@ const BUCKETS = [
  * The entry for `code` in a block's `by_currency` list, or `{}` when that
  * currency has nothing in this block.
  *
- * @param {any} block
+ * @template {{ currency: string }} R
+ * @param {{ by_currency?: R[] } | null | undefined} block
  * @param {string} code
+ * @returns {Partial<R>}
  */
-const entry = (block, code) =>
-  (block?.by_currency ?? []).find((/** @type {any} */ r) => r.currency === code) ?? {};
+const entry = (block, code) => (block?.by_currency ?? []).find((r) => r.currency === code) ?? {};
 
 /**
  * Every figure the page draws, in one currency. With no `code` (and no data)
  * it is the all-zero view, so a non-admin or empty-org render never throws.
  *
- * @param {any} dashboard
- * @param {any} revenue
- * @param {any} aging
+ * @param {Schemas['InvoiceDashboard'] | null} dashboard
+ * @param {Schemas['RevenueReport'] | null} revenue
+ * @param {Schemas['AgingReport'] | null} aging
  * @param {string} code
  */
 function view(dashboard, revenue, aging, code) {
@@ -80,9 +88,9 @@ function view(dashboard, revenue, aging, code) {
     // Only the months that had money in this currency, as the endpoint only
     // returns months that had money at all.
     revenue: (revenue?.data ?? [])
-      .map((/** @type {any} */ r) => ({ period: r.period, figures: entry(r, code) }))
-      .filter((/** @type {any} */ r) => r.figures.currency === code)
-      .map((/** @type {any} */ r) => ({
+      .map((r) => ({ period: r.period, figures: entry(r, code) }))
+      .filter((r) => r.figures.currency === code)
+      .map((r) => ({
         period: r.period,
         invoiced: num(r.figures.invoiced),
         paid: num(r.figures.revenue)
@@ -101,8 +109,8 @@ function view(dashboard, revenue, aging, code) {
       overdue_count: overdue.count ?? 0
     },
     overdueByAccount: (aging?.by_account ?? [])
-      .filter((/** @type {any} */ a) => a.currency === code)
-      .map((/** @type {any} */ a) => ({
+      .filter((a) => a.currency === code)
+      .map((a) => ({
         id: a.id,
         name: a.name,
         count: a.count,
@@ -134,13 +142,15 @@ export async function listReports({ cookies }) {
   let revenue;
   let aging;
   try {
-    [dashboard, revenue, aging] = await Promise.all([
+    /** @type {[Promise<Schemas['InvoiceDashboard']>, Promise<Schemas['RevenueReport']>, Promise<Schemas['AgingReport']>]} */
+    const requests = [
       apiRequest('/invoices/reports/dashboard/', {}, { cookies }),
       apiRequest('/invoices/reports/revenue/?group_by=month', {}, { cookies }),
       apiRequest('/invoices/reports/aging/', {}, { cookies })
-    ]);
-  } catch (/** @type {any} */ err) {
-    if (err?.status === 403) return { can_view: false, ...EMPTY };
+    ];
+    [dashboard, revenue, aging] = await Promise.all(requests);
+  } catch (err) {
+    if (apiStatus(err) === 403) return { can_view: false, ...EMPTY };
     throw err;
   }
 
@@ -148,9 +158,7 @@ export async function listReports({ cookies }) {
   // every currency the revenue and aging reports can mention. The backend
   // orders them by code.
   /** @type {string[]} */
-  const currencies = (dashboard.summary?.by_currency ?? []).map(
-    (/** @type {any} */ r) => r.currency
-  );
+  const currencies = (dashboard.summary?.by_currency ?? []).map((r) => r.currency);
 
   return {
     ...EMPTY,

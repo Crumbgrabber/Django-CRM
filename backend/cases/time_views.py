@@ -37,7 +37,8 @@ from datetime import datetime, timedelta
 from django.db import IntegrityError, transaction
 from django.db.models import Q, Sum
 from django.utils import timezone
-from rest_framework import status
+from drf_spectacular.utils import extend_schema, inline_serializer
+from rest_framework import serializers, status
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -47,6 +48,7 @@ from cases import time_reports
 from cases.access import assert_case_write_access, get_case_or_404
 from cases.models import TimeEntry
 from cases.serializer import (
+    CaseTimeSummarySerializer,
     TimeEntryCreateSerializer,
     TimeEntrySerializer,
     TimeEntryUpdateSerializer,
@@ -65,6 +67,103 @@ from projects.entries import billable_on, rate_for, task_on_project
 # enough to cover "what did we do this month", short enough that a stray click
 # does not scan a year.
 DEFAULT_REPORT_DAYS = 30
+
+
+class _TimesheetEntrySchema(TimeEntrySerializer):
+    """A timesheet entry as `TimesheetView` sends it: the entry with its ticket
+    and invoice expanded, and a live duration while the timer runs."""
+
+    case = inline_serializer(
+        "TimesheetEntryCase",
+        {"id": serializers.UUIDField(), "name": serializers.CharField()},
+        allow_null=True,
+    )
+    invoice = inline_serializer(
+        "TimesheetEntryInvoice",
+        {"id": serializers.UUIDField(), "invoice_number": serializers.CharField()},
+        allow_null=True,
+    )
+    is_running = serializers.BooleanField()
+    live_duration_minutes = serializers.IntegerField(required=False)
+
+    class Meta(TimeEntrySerializer.Meta):
+        ref_name = "TimesheetEntry"
+        fields = (
+            *TimeEntrySerializer.Meta.fields,
+            "is_running",
+            "live_duration_minutes",
+        )
+
+
+def _minutes():
+    return {
+        "total_minutes": serializers.IntegerField(),
+        "billable_minutes": serializers.IntegerField(),
+    }
+
+
+_TIMESHEET = inline_serializer(
+    "Timesheet",
+    {
+        "profile_id": serializers.UUIDField(),
+        "profile": inline_serializer(
+            "TimesheetProfile",
+            {"id": serializers.UUIDField(), "name": serializers.CharField()},
+        ),
+        "start": serializers.DateField(),
+        "end": serializers.DateField(),
+        "days": inline_serializer(
+            "TimesheetDay",
+            {
+                "date": serializers.DateField(),
+                "entries": _TimesheetEntrySchema(many=True),
+                **_minutes(),
+            },
+            many=True,
+        ),
+        **_minutes(),
+        "running_count": serializers.IntegerField(),
+        "server_now": serializers.DateTimeField(),
+    },
+)
+
+
+def _report_money():
+    return serializers.DecimalField(max_digits=None, decimal_places=2)
+
+
+_TIME_REPORT = inline_serializer(
+    "TimeReport",
+    {
+        "start": serializers.DateField(),
+        "end": serializers.DateField(),
+        "group_by": serializers.ChoiceField(choices=time_reports.GROUPINGS),
+        "rows": inline_serializer(
+            "TimeReportRow",
+            {
+                "key": serializers.CharField(allow_null=True),
+                "name": serializers.CharField(),
+                **_minutes(),
+                "billable_value": _report_money(),
+                "entry_count": serializers.IntegerField(),
+                # Only when grouped by agent; null for an agent with no time.
+                "billable_share": serializers.FloatField(
+                    required=False, allow_null=True
+                ),
+            },
+            many=True,
+        ),
+        "totals": inline_serializer(
+            "TimeReportTotals",
+            {
+                **_minutes(),
+                "billable_value": _report_money(),
+                "entry_count": serializers.IntegerField(),
+            },
+        ),
+        "currencies": serializers.ListField(child=serializers.CharField()),
+    },
+)
 
 
 def _visible_entry_qs(profile):
@@ -249,6 +348,7 @@ def start_timer(request, *, case=None, project=None):
 class TimeEntryListCreateView(APIView):
     permission_classes = (IsAuthenticated, HasOrgContext)
 
+    @extend_schema(tags=["Cases"], responses={200: TimeEntrySerializer(many=True)})
     def get(self, request, pk):
         case = get_case_or_404(request.profile, pk)
         entries = (
@@ -256,6 +356,11 @@ class TimeEntryListCreateView(APIView):
         )
         return Response(TimeEntrySerializer(entries, many=True).data)
 
+    @extend_schema(
+        tags=["Cases"],
+        request=TimeEntryCreateSerializer,
+        responses={201: TimeEntrySerializer},
+    )
     def post(self, request, pk):
         case = get_case_or_404(request.profile, pk)
         assert_case_write_access(request.profile, case)
@@ -265,6 +370,17 @@ class TimeEntryListCreateView(APIView):
 class TimeEntryStartView(APIView):
     permission_classes = (IsAuthenticated, HasOrgContext)
 
+    @extend_schema(
+        tags=["Cases"],
+        request=inline_serializer(
+            name="TimeEntryStartRequest",
+            fields={
+                "description": serializers.CharField(required=False),
+                "billable": serializers.BooleanField(required=False),
+            },
+        ),
+        responses={201: TimeEntrySerializer},
+    )
     @transaction.atomic
     def post(self, request, pk):
         case = get_case_or_404(request.profile, pk)
@@ -281,6 +397,7 @@ class TimeSummaryView(APIView):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
+    @extend_schema(tags=["Cases"], responses={200: CaseTimeSummarySerializer})
     def get(self, request, pk):
         case = get_case_or_404(request.profile, pk)
         qs = case.time_entries.filter(ended_at__isnull=False)
@@ -330,6 +447,7 @@ class TimeEntryDetailView(APIView):
             return False  # Sentinel: row exists but caller is not authorized.
         return entry
 
+    @extend_schema(responses=TimeEntrySerializer)
     @transaction.atomic
     def put(self, request, pk):
         entry = self._get_entry(request, pk)
@@ -397,6 +515,7 @@ class TimeEntryStopView(APIView):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
+    @extend_schema(responses=TimeEntrySerializer)
     @transaction.atomic
     def post(self, request, pk):
         entry = (
@@ -431,6 +550,7 @@ class UnbilledEntriesView(APIView):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
+    @extend_schema(responses=TimeEntrySerializer(many=True))
     def get(self, request):
         account_id = uuid_param(request.query_params, "account")
         qs = (
@@ -453,6 +573,7 @@ class TimesheetView(APIView):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
+    @extend_schema(responses=_TIMESHEET)
     def get(self, request):
         profile_param = uuid_param(request.query_params, "profile")
         target_profile_id = request.profile.id
@@ -599,6 +720,7 @@ class TimeReportView(APIView):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
+    @extend_schema(responses=_TIME_REPORT)
     def get(self, request):
         group_by = request.query_params.get("group_by") or "agent"
         try:

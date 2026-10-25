@@ -1,6 +1,11 @@
 <script>
   import { resolve } from '$app/paths';
   import { asInternalPath } from '#lib/utils/paths.js';
+  import { X, Plus, ChevronDown } from '@lucide/svelte';
+  import { FILTERS, activeChips, activePresetKey, withParams } from '#lib/v2/filters.js';
+  import { invoiceStatusLabel } from '#lib/v2/enums.js';
+  import SavedViews from '#lib/v2/components/SavedViews.svelte';
+
   /**
    * One filter system, for every v2 list page.
    *
@@ -20,7 +25,7 @@
    *
    * @type {{
    *   page: string,
-   *   url: URL,
+   *   url: import('$app/state').ReadonlyURL,
    *   people?: {id: string, name: string}[],
    *   tags?: {id: string, name: string}[],
    *   accounts?: {id: string, name: string}[],
@@ -30,13 +35,9 @@
    *   meta?: string | null,
    *   onlyFields?: string[],
    *   onlyPresets?: string[],
-   *   saved?: any
+   *   saved?: import('svelte').ComponentProps<typeof SavedViews>['saved'] | null
    * }}
    */
-  import { X, Plus, ChevronDown } from '@lucide/svelte';
-  import { FILTERS, activeChips, activePresetKey, withParams } from '#lib/v2/filters.js';
-  import { invoiceStatusLabel } from '#lib/v2/enums.js';
-  import SavedViews from '#lib/v2/components/SavedViews.svelte';
 
   let {
     page,
@@ -88,9 +89,7 @@
   // meId is passed so a "@me" preset matches only the viewer's own id. Without
   // it, filtering by a colleague would light up "Mine".
   let activeKey = $derived(activePresetKey(page, url, meId));
-  let activeLabel = $derived(
-    descriptor.presets.find((/** @type {any} */ p) => p.key === activeKey)?.label ?? 'All'
-  );
+  let activeLabel = $derived(descriptor.presets.find((p) => p.key === activeKey)?.label ?? 'All');
 
   /**
    * A preset's href. Every param the preset does not set is cleared, so
@@ -101,7 +100,7 @@
    * not be resolved: a "Mine" link that filters to nobody looks like the viewer
    * owns nothing.
    */
-  const presetHref = (/** @type {any} */ preset) => {
+  const presetHref = (/** @type {import('#lib/v2/filters.js').Preset} */ preset) => {
     /** @type {Record<string, string|null>} */
     const params = {};
     for (const field of descriptor.fields) {
@@ -114,21 +113,21 @@
       for (const key of Object.keys(other.params)) params[key] = null;
     }
     for (const [key, value] of Object.entries(preset.params)) {
-      params[key] = value === '@me' ? meId : /** @type {string} */ (value);
+      params[key] = value === '@me' ? meId : value;
     }
     return withParams(url, params);
   };
 
-  const usable = (/** @type {any} */ preset) =>
+  const usable = (/** @type {import('#lib/v2/filters.js').Preset} */ preset) =>
     !Object.values(preset.params).includes('@me') || Boolean(meId);
 
-  const optionsFor = (/** @type {any} */ field) => {
+  const optionsFor = (/** @type {import('#lib/v2/filters.js').Field} */ field) => {
     if (field.type === 'person') return people;
     if (field.type === 'tag') return tags;
     if (field.type === 'account') return accounts;
     if (field.type === 'stage') return stages;
     if (field.type === 'source') return sources;
-    return (field.options ?? []).map((/** @type {string} */ v) => ({
+    return (field.options ?? []).map((v) => ({
       id: v,
       name: field.labelFor ? field.labelFor(v) : invoiceStatusLabel(v)
     }));
@@ -186,7 +185,7 @@
              the kind of param this view cannot honour, so submitting Apply
              here drops it rather than carrying it along as a hidden input. -->
         {#each [...url.searchParams] as [key, value] (key)}
-          {#if !descriptor.fields.some((/** @type {any} */ f) => f.key === key || f.gteKey === key || f.lteKey === key)}
+          {#if !descriptor.fields.some((f) => f.key === key || f.gteKey === key || f.lteKey === key)}
             <input type="hidden" name={key} {value} />
           {/if}
         {/each}
@@ -200,13 +199,13 @@
                   class="v2-input"
                   type="date"
                   name={field.gteKey}
-                  value={url.searchParams.get(field.gteKey) ?? ''}
+                  value={url.searchParams.get(field.gteKey ?? '') ?? ''}
                 />
                 <input
                   class="v2-input"
                   type="date"
                   name={field.lteKey}
-                  value={url.searchParams.get(field.lteKey) ?? ''}
+                  value={url.searchParams.get(field.lteKey ?? '') ?? ''}
                 />
               </span>
             {:else if field.type === 'number-range'}
@@ -216,7 +215,7 @@
                   type="number"
                   min="0"
                   name={field.gteKey}
-                  value={url.searchParams.get(field.gteKey) ?? ''}
+                  value={url.searchParams.get(field.gteKey ?? '') ?? ''}
                   placeholder="Min"
                 />
                 <input
@@ -224,7 +223,7 @@
                   type="number"
                   min="0"
                   name={field.lteKey}
-                  value={url.searchParams.get(field.lteKey) ?? ''}
+                  value={url.searchParams.get(field.lteKey ?? '') ?? ''}
                   placeholder="Max"
                 />
               </span>

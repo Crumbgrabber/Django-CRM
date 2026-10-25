@@ -12,7 +12,7 @@ export const actions = {
   save: async ({ cookies, params, request }) => {
     const form = await request.formData();
 
-    /** @type {Record<string, any>} */
+    /** @type {Record<string, string>} */
     const values = {};
     for (const field of EDITABLE_FIELDS) {
       // Only fields the form actually submitted. A control that is absent or
@@ -35,14 +35,15 @@ export const actions = {
     if (owner !== ownerWas) values.assigned_to = owner;
 
     const custom = await readCustomFields(cookies, 'Account', form);
-    if (custom.refusal) return fail(503, { values, ...custom.refusal });
-    if (custom.values) values.custom_fields = custom.values;
+    // The typed custom values ride with the scalars, so a refused save restores both.
+    const submitted = { ...values, custom_fields: custom.values };
+    if (custom.refusal) return fail(503, { values: submitted, ...custom.refusal });
 
     try {
-      await updateAccount({ cookies }, params.id, values);
-    } catch (/** @type {any} */ err) {
+      await updateAccount({ cookies }, params.id, submitted);
+    } catch (err) {
       return fail(400, {
-        values,
+        values: submitted,
         ...saveRefusal(err, custom.definitions, 'Could not save this account.')
       });
     }

@@ -25,6 +25,8 @@
  * `mobile/lib/data/models/routing_rule.dart` carries the same rule.
  */
 
+/** @typedef {{ id: string, is_active?: boolean }} RotationPerson */
+
 /**
  * The people the engine actually rotates over: active only, ordered by id.
  *
@@ -33,15 +35,14 @@
  * Postgres orders `uuid` by its bytes, and the canonical lowercase hex form
  * compares the same way lexically.
  *
- * @param {any} rule
- * @returns {any[]}
+ * @template {RotationPerson} P
+ * @param {{ target_assignees?: P[] } | null | undefined} rule
+ * @returns {P[]}
  */
 export function rotationPool(rule) {
   return (rule?.target_assignees ?? [])
-    .filter((/** @type {any} */ p) => p.is_active)
-    .sort((/** @type {any} */ a, /** @type {any} */ b) =>
-      String(a.id) < String(b.id) ? -1 : String(a.id) > String(b.id) ? 1 : 0
-    );
+    .filter((p) => p.is_active)
+    .sort((a, b) => (String(a.id) < String(b.id) ? -1 : String(a.id) > String(b.id) ? 1 : 0));
 }
 
 /**
@@ -51,8 +52,9 @@ export function rotationPool(rule) {
  * the other strategies it depends on the ticket or on live workload, and
  * guessing would be worse than silence.
  *
- * @param {any} rule
- * @returns {any | null}
+ * @template {RotationPerson} P
+ * @param {{ strategy?: string, target_assignees?: P[], state?: { last_assigned_index: number } | null } | null | undefined} rule
+ * @returns {P | null}
  */
 export function nextInRotation(rule) {
   if (rule?.strategy !== 'round_robin') return null;

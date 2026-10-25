@@ -10,9 +10,13 @@ import {
 import { pairForDisplay } from '#lib/server/v2/record-fields.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
 import { uploadTooLarge } from '#lib/v2/custom-objects.js';
+import { apiStatus } from '#lib/api-errors.js';
 
-/** @param {any} err */
-const refusalCode = (err) => (err?.status >= 400 && err?.status < 500 ? err.status : 400);
+/** @param {unknown} err */
+const refusalCode = (err) => {
+  const status = apiStatus(err);
+  return status !== undefined && status >= 400 && status < 500 ? status : 400;
+};
 
 /** @type {import('./$types').PageServerLoad} */
 export async function load({ cookies, params }) {
@@ -21,10 +25,10 @@ export async function load({ cookies, params }) {
   return {
     ...page,
     details: pairForDisplay(
-      fields.filter((/** @type {any} */ f) => f.field_type !== 'link'),
+      fields.filter((f) => f.field_type !== 'link'),
       page.record.custom_fields
     ),
-    linkFields: fields.filter((/** @type {any} */ f) => f.field_type === 'link')
+    linkFields: fields.filter((f) => f.field_type === 'link')
   };
 }
 
@@ -35,7 +39,7 @@ export const actions = {
     const id = checkId(params.id);
     try {
       await deleteRecord({ cookies }, key, id);
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       return fail(refusalCode(err), {
         deleteError: readableError(err, 'Could not delete this record.')
       });
@@ -54,7 +58,7 @@ export const actions = {
     if (tooLarge) return fail(400, { uploadError: tooLarge });
     try {
       await uploadAttachment({ cookies }, key, id, picked);
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       return fail(refusalCode(err), {
         uploadError: readableError(err, 'Could not upload that file.')
       });
@@ -68,7 +72,7 @@ export const actions = {
     const attachment = checkId(String((await request.formData()).get('attachment') ?? ''));
     try {
       await deleteAttachment({ cookies }, key, id, attachment);
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       return fail(refusalCode(err), {
         fileError: readableError(err, 'Could not delete that file.')
       });

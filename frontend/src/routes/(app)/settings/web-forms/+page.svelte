@@ -42,7 +42,7 @@
   import { WEBFORM_TARGETS } from '#lib/v2/webform-fields.js';
   import { isOn, OBJECT_MODULES } from '#lib/v2/modules.js';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   let totals = $derived(data.totals);
@@ -55,10 +55,14 @@
   let creating = $state(false);
   let busy = $state(false);
 
-  /** A submit handler that flips `busy` while the action runs. */
+  /**
+   * A submit handler that flips `busy` while the action runs.
+   *
+   * @type {import('./$types').SubmitFunction}
+   */
   const working = () => {
     busy = true;
-    return async (/** @type {any} */ { update }) => {
+    return async ({ update }) => {
       await update();
       busy = false;
     };

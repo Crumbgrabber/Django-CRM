@@ -36,7 +36,7 @@
   import { money, longDate } from '#lib/v2/format.js';
   import { Download, CheckCircle2 } from '@lucide/svelte';
 
-  /** @type {{ data: { invoice: any, token: string } }} */
+  /** @type {import('./$types').PageProps} */
   let { data } = $props();
 
   let inv = $derived(data.invoice);

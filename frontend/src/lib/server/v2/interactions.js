@@ -11,6 +11,7 @@
 import { fail } from '@sveltejs/kit';
 import { apiRequest } from '#lib/api-helpers.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiStatus } from '#lib/api-errors.js';
 import { UUID } from '#lib/v2/custom-objects.js';
 import { wallTimeToIso } from '#lib/v2/dates.js';
 import {
@@ -31,22 +32,24 @@ const FUTURE_SLACK_MS = 5 * 60 * 1000;
 /** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
 /** @typedef {{ cookies: import('@sveltejs/kit').Cookies }} Event */
 /** @typedef {ReturnType<typeof toInteraction>} Interaction */
+/** @typedef {ReturnType<typeof interactionEvents>[number]} InteractionEvent */
 
 /**
  * The fields the pages read, rebuilt from an allow-list.
  *
- * @param {any} raw
+ * @param {Partial<Schemas['Interaction']> | null | undefined} raw
  */
 export function toInteraction(raw) {
   const who = raw?.logged_by_details;
   const kind = typeof raw?.kind === 'string' ? raw.kind : '';
   const origin = typeof raw?.origin === 'string' ? raw.origin : '';
+  const seconds = raw?.duration_seconds ?? null;
   return {
     id: typeof raw?.id === 'string' ? raw.id : '',
     kind,
     direction: raw?.direction === 'inbound' ? 'inbound' : 'outbound',
     occurred_at: raw?.occurred_at ?? null,
-    duration_seconds: Number.isFinite(raw?.duration_seconds) ? raw.duration_seconds : null,
+    duration_seconds: Number.isFinite(seconds) ? seconds : null,
     duration_estimated: raw?.duration_estimated === true,
     outcome: typeof raw?.outcome === 'string' ? raw.outcome : '',
     subject: typeof raw?.subject === 'string' ? raw.subject : '',
@@ -75,18 +78,18 @@ export async function listInteractions({ cookies }, home, id, { limit = 50 } = {
   }
   const query = new URLSearchParams({ [home]: id, limit: String(limit) });
   try {
+    /** @type {Schemas['InteractionListResponse']} */
     const resp = await apiRequest(
       `/interactions/?${query}`,
       { quietErrors: true, expectedStatuses: [404] },
       { cookies }
     );
-    /** @type {any[]} */
     const rows = Array.isArray(resp?.interactions) ? resp.interactions : [];
     const interactions = rows.map(toInteraction).filter((i) => i.id);
     const count = Number.isFinite(resp?.count) ? resp.count : interactions.length;
     return { state: 'ok', interactions, count };
-  } catch (/** @type {any} */ err) {
-    return { state: err?.status === 404 ? 'absent' : 'failed', interactions: [], count: 0 };
+  } catch (err) {
+    return { state: apiStatus(err) === 404 ? 'absent' : 'failed', interactions: [], count: 0 };
   }
 }
 
@@ -104,7 +107,7 @@ export function interactionEvents(interactions) {
     if (length) facts.push(length);
     return {
       id: `ix-${i.id}`,
-      type: 'interaction',
+      type: /** @type {const} */ ('interaction'),
       kind: i.kind,
       direction: i.direction,
       at: i.occurred_at,
@@ -117,16 +120,21 @@ export function interactionEvents(interactions) {
   });
 }
 
+/** `new Date(at)` for an `at` that may be missing: null is the epoch, undefined no time. */
+const timeOf = (/** @type {string | null | undefined} */ at) =>
+  at === undefined ? NaN : new Date(at ?? 0).getTime();
+
 /**
  * A page's activity with the interactions merged in, newest first.
  *
- * @param {any[]} activity events carrying `at`
+ * @template {{ at?: string | null }} A
+ * @param {A[]} activity events carrying `at`
  * @param {Interaction[]} interactions
- * @returns {any[]}
+ * @returns {Array<A | InteractionEvent>}
  */
 export function withInteractions(activity, interactions) {
   return [...activity, ...interactionEvents(interactions)].sort(
-    (a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()
+    (a, b) => timeOf(b.at) - timeOf(a.at)
   );
 }
 
@@ -137,7 +145,7 @@ export function withInteractions(activity, interactions) {
  *
  * @param {string} home one of HOMES
  * @param {string} id
- * @param {Record<string, any>} values the form's fields
+ * @param {Record<string, string | undefined>} values the form's fields
  * @param {{ timeZone?: string, now?: Date }} [context]
  */
 export function interactionBody(home, id, values, { timeZone = 'UTC', now = new Date() } = {}) {
@@ -147,7 +155,7 @@ export function interactionBody(home, id, values, { timeZone = 'UTC', now = new 
   const kind = String(values.kind ?? '');
   if (!LOGGABLE_KINDS.includes(kind)) throw new Error('Choose what you are logging.');
 
-  /** @type {Record<string, any>} */
+  /** @type {Record<string, string | number | boolean>} */
   const body = {
     kind,
     direction: kind !== 'meeting' && values.direction === 'inbound' ? 'inbound' : 'outbound',
@@ -193,7 +201,7 @@ export function interactionBody(home, id, values, { timeZone = 'UTC', now = new 
 
 /**
  * @param {Event} event
- * @param {Record<string, any>} body from `interactionBody`
+ * @param {ReturnType<typeof interactionBody>} body
  * @returns {Promise<Schemas['Interaction']>}
  */
 export async function logInteraction({ cookies }, body) {
@@ -211,8 +219,11 @@ export async function deleteInteraction({ cookies }, id) {
   return await apiRequest(`/interactions/${id}/`, { method: 'DELETE' }, { cookies });
 }
 
-/** @param {any} err */
-const refusalCode = (err) => ([400, 403, 404].includes(err?.status) ? err.status : 400);
+/** @param {unknown} err */
+const refusalCode = (err) => {
+  const status = apiStatus(err);
+  return status !== undefined && [400, 403, 404].includes(status) ? status : 400;
+};
 
 /**
  * The two form actions a record page spreads in: `logActivity` and
@@ -238,16 +249,16 @@ export function interactionActions(home) {
       ]) {
         values[key] = form.get(key)?.toString() ?? '';
       }
-      const timeZone = /** @type {any} */ (event.locals)?.org_settings?.timezone || 'UTC';
+      const timeZone = event.locals?.org_settings?.timezone || 'UTC';
       let body;
       try {
         body = interactionBody(home, event.params.id ?? '', values, { timeZone });
-      } catch (/** @type {any} */ err) {
-        return fail(400, { activity: { error: err.message } });
+      } catch (err) {
+        return fail(400, { activity: { error: err instanceof Error ? err.message : String(err) } });
       }
       try {
         await logInteraction(event, body);
-      } catch (/** @type {any} */ err) {
+      } catch (err) {
         return fail(refusalCode(err), {
           activity: { error: readableError(err, 'Could not log that.') }
         });
@@ -258,7 +269,7 @@ export function interactionActions(home) {
       const form = await event.request.formData();
       try {
         await deleteInteraction(event, form.get('interaction')?.toString() ?? '');
-      } catch (/** @type {any} */ err) {
+      } catch (err) {
         return fail(refusalCode(err), {
           activity: { deleteError: readableError(err, 'Could not delete that activity.') }
         });

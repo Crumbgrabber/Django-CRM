@@ -15,7 +15,7 @@
   } from '#lib/v2/projects.js';
   import { Briefcase, Plus, Search } from '@lucide/svelte';
 
-  /** @type {{ data: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data } = $props();
 
   let projects = $derived(data.projects);

@@ -8,6 +8,7 @@
 
 import { error } from '@sveltejs/kit';
 import { apiRequest } from '#lib/api-helpers.js';
+import { apiErrorBody, apiStatus } from '#lib/api-errors.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
 import { listLeads } from '#lib/server/v2/leads.js';
 import { listContacts } from '#lib/server/v2/contacts.js';
@@ -29,6 +30,94 @@ const RECORD_GONE = 'That record does not exist, or you do not have access to it
 /** @typedef {{ cookies: import('@sveltejs/kit').Cookies }} Event */
 
 /**
+ * The enterprise custom objects API's bodies (`enterprise/custom_objects`),
+ * which the community schema does not describe.
+ *
+ * @typedef {{
+ *   key: string,
+ *   label: string,
+ *   label_plural: string,
+ *   name_label: string,
+ *   description: string,
+ *   record_access: 'own' | 'everyone',
+ *   is_active: boolean
+ * }} ObjectSummary
+ *
+ * @typedef {{ key: string, label: string, label_plural: string }} ObjectRef
+ * @typedef {{ key: string, label: string }} FieldRef
+ * @typedef {{ value: string, label: string }} FieldOption
+ *
+ * A custom field or a link field; `options` is set for dropdowns only, and
+ * `target` and `many` for links only.
+ *
+ * @typedef {{
+ *   key: string,
+ *   label: string,
+ *   field_type: 'text' | 'textarea' | 'number' | 'dropdown' | 'date' | 'checkbox' | 'link',
+ *   options: FieldOption[] | null,
+ *   is_required: boolean,
+ *   display_order: number,
+ *   is_active: boolean,
+ *   target: string | null,
+ *   many: boolean | null
+ * }} ObjectField
+ *
+ * `limit` is absent from an older API (see `objectLimit`).
+ *
+ * @typedef {{
+ *   has_custom_objects: boolean,
+ *   objects: ObjectSummary[],
+ *   link_targets: ObjectRef[],
+ *   limit?: number
+ * }} ObjectList
+ *
+ * @typedef {ObjectSummary & { fields: ObjectField[] }} ObjectDetail
+ * @typedef {{ id: string, name: string, email: string }} RecordPerson
+ *
+ * @typedef {{
+ *   id: string,
+ *   name: string,
+ *   custom_fields: Record<string, unknown>,
+ *   assigned_to: RecordPerson[],
+ *   created_at: string,
+ *   updated_at: string
+ * }} RecordItem
+ *
+ * @typedef {{ count: number, results: RecordItem[] }} RecordList
+ *
+ * @typedef {{
+ *   id: string,
+ *   file_name: string,
+ *   is_image: boolean,
+ *   created_by: RecordPerson | null,
+ *   created_at: string,
+ *   download_url: string,
+ *   can_delete: boolean
+ * }} RecordAttachment
+ *
+ * @typedef {{
+ *   many: boolean,
+ *   records: { id: string, object: string, name: string }[],
+ *   hidden: number
+ * }} RecordLinkValue
+ *
+ * @typedef {RecordItem & {
+ *   object: { key: string, label: string, name_label: string },
+ *   links: Record<string, RecordLinkValue>,
+ *   created_by: RecordPerson | null,
+ *   can_edit: boolean,
+ *   can_delete: boolean,
+ *   attachments: RecordAttachment[]
+ * }} RecordDetail
+ *
+ * @typedef {{
+ *   groups: { object: ObjectRef, field: FieldRef, records: { id: string, name: string }[] }[],
+ *   can_edit: boolean,
+ *   link_fields: { object: ObjectRef, field: FieldRef }[]
+ * }} RelatedRecords
+ */
+
+/**
  * @param {string} key
  * @returns {string}
  */
@@ -47,7 +136,7 @@ export function checkFieldKey(key) {
 }
 
 /**
- * @param {string} id
+ * @param {unknown} id
  * @returns {string}
  */
 export function checkId(id) {
@@ -80,8 +169,8 @@ function query(values) {
 async function orNotFound(call, message) {
   try {
     return await call();
-  } catch (/** @type {any} */ err) {
-    if (err?.status === 404) error(404, message);
+  } catch (err) {
+    if (apiStatus(err) === 404) error(404, message);
     throw err;
   }
 }
@@ -104,11 +193,12 @@ export function resetObjectsAbsentMemo() {
  * failed for any reason.
  *
  * @param {Event} event
- * @returns {Promise<{ has_custom_objects: boolean, objects: any[], link_targets: any[] } | null>}
+ * @returns {Promise<ObjectList | null>}
  */
 export async function getCustomObjects({ cookies }) {
   if (absent()) return null;
   try {
+    /** @type {ObjectList} */
     const body = await apiRequest(
       '/objects/',
       { quietErrors: true, expectedStatuses: [404] },
@@ -116,8 +206,8 @@ export async function getCustomObjects({ cookies }) {
     );
     absentUntil = 0;
     return Array.isArray(body?.objects) && Array.isArray(body?.link_targets) ? body : null;
-  } catch (/** @type {any} */ err) {
-    if (err?.status === 404) absentUntil = Date.now() + ABSENT_FOR_MS;
+  } catch (err) {
+    if (apiStatus(err) === 404) absentUntil = Date.now() + ABSENT_FOR_MS;
     return null;
   }
 }
@@ -126,7 +216,7 @@ export async function getCustomObjects({ cookies }) {
  * Every object, archived ones included (admins only see those).
  *
  * @param {Event} event
- * @returns {Promise<{ has_custom_objects: boolean, limit?: number, objects: any[], link_targets: any[] }>}
+ * @returns {Promise<ObjectList>}
  */
 export async function listObjectsForSettings({ cookies }) {
   return await orNotFound(
@@ -138,7 +228,7 @@ export async function listObjectsForSettings({ cookies }) {
 /**
  * @param {Event} event
  * @param {string} key
- * @returns {Promise<any>} The object with its active `fields`.
+ * @returns {Promise<ObjectDetail>} The object with its active `fields`.
  */
 export async function getObject({ cookies }, key) {
   checkKey(key);
@@ -151,10 +241,11 @@ export async function getObject({ cookies }, key) {
 /**
  * @param {Event} event
  * @param {string} key
- * @returns {Promise<any[]>} Admins also get turned-off fields.
+ * @returns {Promise<ObjectField[]>} Admins also get turned-off fields.
  */
 export async function listFields({ cookies }, key) {
   checkKey(key);
+  /** @type {{ fields: ObjectField[] }} */
   const response = await orNotFound(
     () => apiRequest(`/objects/${key}/fields/`, { expectedStatuses: [404] }, { cookies }),
     OBJECT_GONE
@@ -165,6 +256,7 @@ export async function listFields({ cookies }, key) {
 /**
  * @param {Event} event
  * @param {Record<string, unknown>} body
+ * @returns {Promise<ObjectSummary>}
  */
 export async function createObject({ cookies }, body) {
   return await apiRequest('/objects/', { method: 'POST', body }, { cookies });
@@ -174,6 +266,7 @@ export async function createObject({ cookies }, body) {
  * @param {Event} event
  * @param {string} key
  * @param {Record<string, unknown>} body
+ * @returns {Promise<ObjectSummary>}
  */
 export async function updateObject({ cookies }, key, body) {
   checkKey(key);
@@ -188,7 +281,7 @@ export async function updateObject({ cookies }, key, body) {
  *
  * @param {Event} event
  * @param {string} key
- * @returns {Promise<any | null>} The archived object, or null on 204.
+ * @returns {Promise<ObjectSummary | null>} The archived object, or null on 204.
  */
 export async function deleteObject({ cookies }, key) {
   checkKey(key);
@@ -202,6 +295,7 @@ export async function deleteObject({ cookies }, key) {
  * @param {Event} event
  * @param {string} key
  * @param {Record<string, unknown>} body
+ * @returns {Promise<ObjectField>}
  */
 export async function createField({ cookies }, key, body) {
   checkKey(key);
@@ -216,6 +310,7 @@ export async function createField({ cookies }, key, body) {
  * @param {string} key
  * @param {string} fieldKey
  * @param {Record<string, unknown>} body
+ * @returns {Promise<ObjectField>}
  */
 export async function updateField({ cookies }, key, fieldKey, body) {
   checkKey(key);
@@ -232,6 +327,7 @@ export async function updateField({ cookies }, key, fieldKey, body) {
  * @param {Event} event
  * @param {string} key
  * @param {string} fieldKey
+ * @returns {Promise<ObjectField>}
  */
 export async function turnOffField({ cookies }, key, fieldKey) {
   checkKey(key);
@@ -246,7 +342,7 @@ export async function turnOffField({ cookies }, key, fieldKey) {
  * @param {Event} event
  * @param {string} key
  * @param {{ q?: string, page?: number }} [params]
- * @returns {Promise<{ count: number, results: any[] }>}
+ * @returns {Promise<RecordList>}
  */
 export async function listRecords({ cookies }, key, { q = '', page = 1 } = {}) {
   checkKey(key);
@@ -262,7 +358,7 @@ export async function listRecords({ cookies }, key, { q = '', page = 1 } = {}) {
  * @param {Event} event
  * @param {string} key
  * @param {string} id
- * @returns {Promise<any>} The record detail.
+ * @returns {Promise<RecordDetail>}
  */
 export async function getRecord({ cookies }, key, id) {
   checkKey(key);
@@ -289,15 +385,15 @@ export async function recordPage(event, key, id) {
     getRecord(event, key, id)
   ]);
   if (definition.is_active === false) error(404, OBJECT_GONE);
-  const attachments = (record.attachments ?? []).map((/** @type {any} */ a) => ({
+  const attachments = (record.attachments ?? []).map((a) => ({
     ...a,
     href: attachmentHref(a.id)
   }));
   return {
     definition,
     record,
-    photos: attachments.filter((/** @type {any} */ a) => isPhoto(a)),
-    files: attachments.filter((/** @type {any} */ a) => !isPhoto(a))
+    photos: attachments.filter((a) => isPhoto(a)),
+    files: attachments.filter((a) => !isPhoto(a))
   };
 }
 
@@ -305,6 +401,7 @@ export async function recordPage(event, key, id) {
  * @param {Event} event
  * @param {string} key
  * @param {Record<string, unknown>} body
+ * @returns {Promise<RecordDetail>}
  */
 export async function createRecord({ cookies }, key, body) {
   checkKey(key);
@@ -321,6 +418,7 @@ export async function createRecord({ cookies }, key, body) {
  * @param {string} key
  * @param {string} id
  * @param {Record<string, unknown>} body
+ * @returns {Promise<RecordDetail>}
  */
 export async function updateRecord({ cookies }, key, id, body) {
   checkKey(key);
@@ -335,6 +433,7 @@ export async function updateRecord({ cookies }, key, id, body) {
  * @param {Event} event
  * @param {string} key
  * @param {string} id
+ * @returns {Promise<null>}
  */
 export async function deleteRecord({ cookies }, key, id) {
   checkKey(key);
@@ -350,6 +449,7 @@ export async function deleteRecord({ cookies }, key, id) {
  * @param {string} key
  * @param {string} id
  * @param {File} file
+ * @returns {Promise<RecordAttachment>}
  */
 export async function uploadAttachment({ cookies }, key, id, file) {
   checkKey(key);
@@ -372,6 +472,7 @@ export async function uploadAttachment({ cookies }, key, id, file) {
  * @param {string} key
  * @param {string} id
  * @param {string} attachmentId
+ * @returns {Promise<null>}
  */
 export async function deleteAttachment({ cookies }, key, id, attachmentId) {
   checkKey(key);
@@ -396,7 +497,7 @@ const BUILT_IN = ['lead', 'contact', 'account', 'deal', 'ticket', 'task'];
  * @param {Event} event
  * @param {string} to A built-in registry key.
  * @param {string} id
- * @returns {Promise<any | null>}
+ * @returns {Promise<RelatedRecords | null>}
  */
 export async function getRelated({ cookies }, to, id) {
   if (!BUILT_IN.includes(to) || !UUID.test(id)) return null;
@@ -404,6 +505,7 @@ export async function getRelated({ cookies }, to, id) {
   // which 404s on every detail view of a backend without custom objects.
   if (absentUntil && !(await getCustomObjects({ cookies }))) return null;
   try {
+    /** @type {RelatedRecords} */
     const body = await apiRequest(
       `/objects/related/?${query({ to, id })}`,
       { quietErrors: true, expectedStatuses: [404] },
@@ -443,6 +545,7 @@ export async function addRelated({ cookies }, link) {
 /**
  * @param {Event} event
  * @param {{ to: string, id: string, record: string, field: string }} link
+ * @returns {Promise<null>}
  */
 export async function removeRelated({ cookies }, link) {
   checkLink(link);
@@ -454,33 +557,31 @@ export async function removeRelated({ cookies }, link) {
   );
 }
 
+/** @param {{ results: { id: string, name: string }[] }} list */
+const byName = ({ results }) => results.map((row) => ({ id: row.id, name: row.name }));
+
 /**
  * Each built-in kind's own list helper, so a name reads as it does on that
  * module's list page.
  *
- * @type {Record<string, (event: Event, params: URLSearchParams) => Promise<{ results: any[] }>>}
+ * @type {Record<string, (event: Event, params: URLSearchParams) => Promise<{ id: string, name: string }[]>>}
  */
 const SEARCH = {
-  lead: listLeads,
-  contact: listContacts,
-  account: listAccounts,
-  deal: listDeals,
-  ticket: listTickets,
-  task: listTasks
-};
-
-/** @type {Record<string, (row: any) => string>} */
-const ROW_NAME = {
-  lead: (row) =>
-    [row.first_name, row.last_name].filter(Boolean).join(' ').trim() ||
-    row.company_name ||
-    row.email ||
-    'Untitled',
-  contact: (row) => row.name,
-  account: (row) => row.name,
-  deal: (row) => row.name,
-  ticket: (row) => row.name,
-  task: (row) => row.title
+  lead: async (event, params) =>
+    (await listLeads(event, params)).results.map((row) => ({
+      id: row.id,
+      name:
+        [row.first_name, row.last_name].filter(Boolean).join(' ').trim() ||
+        row.company_name ||
+        row.email ||
+        'Untitled'
+    })),
+  contact: async (event, params) => byName(await listContacts(event, params)),
+  account: async (event, params) => byName(await listAccounts(event, params)),
+  deal: async (event, params) => byName(await listDeals(event, params)),
+  ticket: async (event, params) => byName(await listTickets(event, params)),
+  task: async (event, params) =>
+    (await listTasks(event, params)).results.map((row) => ({ id: row.id, name: row.title }))
 };
 
 /**
@@ -496,11 +597,11 @@ export async function searchLinkTargets(event, target, q) {
   if (Object.hasOwn(SEARCH, target)) {
     const params = new URLSearchParams({ limit: String(PAGE_SIZE) });
     if (search) params.set('search', search);
-    const { results } = await SEARCH[target](event, params);
-    return results.slice(0, PAGE_SIZE).map((row) => ({ id: row.id, name: ROW_NAME[target](row) }));
+    return (await SEARCH[target](event, params)).slice(0, PAGE_SIZE);
   }
   if (typeof target === 'string' && target.startsWith('obj:') && OBJECT_KEY.test(target.slice(4))) {
     const qs = query({ q: search, limit: PAGE_SIZE });
+    /** @type {RecordList} */
     const response = await apiRequest(
       `/objects/${target.slice(4)}/records/?${qs}`,
       {},
@@ -508,7 +609,7 @@ export async function searchLinkTargets(event, target, q) {
     );
     return (response?.results ?? [])
       .slice(0, PAGE_SIZE)
-      .map((/** @type {any} */ row) => ({ id: row.id, name: row.name }));
+      .map((row) => ({ id: row.id, name: row.name }));
   }
   return [];
 }
@@ -516,25 +617,29 @@ export async function searchLinkTargets(event, target, q) {
 /** @param {unknown} value */
 const first = (value) => String(Array.isArray(value) ? value[0] : value);
 
+/** @param {unknown} value */
+const asRecord = (value) =>
+  value && typeof value === 'object' ? /** @type {Record<string, unknown>} */ (value) : {};
+
 /**
  * A refused record save as one line per refused field.
  *
- * @param {any} err The error thrown by a record write.
+ * @param {unknown} err The error thrown by a record write.
  * @param {{ key: string, label: string }[]} fields The object's field list.
  * @param {string} [nameLabel] The object's `name_label`.
  * @returns {string}
  */
 export function recordWriteError(err, fields, nameLabel = 'Name') {
-  const body = err?.body;
+  const body = apiErrorBody(err);
   /** @param {string} key */
   const label = (key) => fields.find((field) => field.key === key)?.label ?? key;
   /** @type {string[]} */
   const lines = [];
   if (body?.name) lines.push(`${nameLabel}: ${first(body.name)}`);
-  for (const [key, message] of Object.entries(body?.custom_fields ?? {})) {
+  for (const [key, message] of Object.entries(asRecord(body?.custom_fields))) {
     lines.push(key === '_size' ? first(message) : `${label(key)}: ${first(message)}`);
   }
-  for (const [key, message] of Object.entries(body?.links ?? {})) {
+  for (const [key, message] of Object.entries(asRecord(body?.links))) {
     lines.push(`${label(key)}: ${first(message)}`);
   }
   if (body?.assigned_to) lines.push(`Assignees: ${first(body.assigned_to)}`);

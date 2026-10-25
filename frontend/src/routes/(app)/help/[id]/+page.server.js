@@ -21,7 +21,7 @@ export const actions = {
     try {
       await replyToSupportTicket({ cookies }, params.id, { body, attachment });
       return { sent: true };
-    } catch (/** @type {any} */ error) {
+    } catch (error) {
       return fail(400, {
         body,
         error: readableError(error, 'Could not send this reply.')

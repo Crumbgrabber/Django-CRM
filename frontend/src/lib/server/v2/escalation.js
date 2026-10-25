@@ -55,13 +55,13 @@ function shapeTeam(team) {
   return { id: team.id, name: team.name };
 }
 
+/** @typedef {Awaited<ReturnType<typeof getEscalationPolicies>>['policies'][number]} EscalationPolicyRow */
+
 /**
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
- * @returns {Promise<{ policies: any[], can_edit: boolean }>}
  */
 export async function getEscalationPolicies({ cookies }) {
-  // `{ policies }`, an envelope the schema's bare list does not describe.
-  /** @type {{ policies?: any[] }} */
+  /** @type {Schemas['EscalationPolicyListResponse']} */
   const { policies } = await apiRequest('/cases/escalation-policies/', {}, { cookies });
   return {
     policies: (policies ?? []).map((p) => ({
@@ -138,9 +138,9 @@ function normalizeHours(value, field) {
  *  offers a control whose success is a lie. */
 export const UPDATE_FIELDS = CREATE_FIELDS.filter((f) => f !== 'priority');
 
-/** @param {string[]} allowed @param {{ [key: string]: any }} values */
+/** @param {string[]} allowed @param {{ [key: string]: unknown }} values */
 function buildBody(allowed, values) {
-  /** @type {Record<string, any>} */
+  /** @type {{ [key: string]: unknown }} */
   const body = {};
   for (const field of allowed) {
     if (values[field] === undefined) continue;
@@ -163,7 +163,7 @@ function buildBody(allowed, values) {
  */
 export async function createEscalationPolicy({ cookies }, values) {
   const body = buildBody(CREATE_FIELDS, values);
-  if (!ESCALATION_PRIORITIES.includes(body.priority)) {
+  if (typeof body.priority !== 'string' || !ESCALATION_PRIORITIES.includes(body.priority)) {
     throw new Error('Pick a priority for the policy.');
   }
   return await apiRequest('/cases/escalation-policies/', { method: 'POST', body }, { cookies });

@@ -20,8 +20,9 @@ export async function load({ cookies }) {
   // break the page. Fall back to an empty list, which renders as just the
   // "Skip for now" option.
   const [packs, timezones] = await Promise.all([
-    listPacks(cookies).catch((/** @type {any} */ err) => {
-      console.error('Could not load vertical packs:', err?.message, err?.status);
+    listPacks(cookies).catch((err) => {
+      const e = /** @type {{ message?: unknown, status?: unknown } | null | undefined} */ (err);
+      console.error('Could not load vertical packs:', e?.message, e?.status);
       return [];
     }),
     // The zone list comes from the API rather than the browser's own
@@ -30,8 +31,9 @@ export async function load({ cookies }) {
     // "Asia/Kolkata", and a select that cannot find the stored value submits
     // its first option instead. Falling back to just UTC keeps the form
     // usable; the org can be corrected in settings.
-    listTimezones(cookies).catch((/** @type {any} */ err) => {
-      console.error('Could not load timezones:', err?.message, err?.status);
+    listTimezones(cookies).catch((err) => {
+      const e = /** @type {{ message?: unknown, status?: unknown } | null | undefined} */ (err);
+      console.error('Could not load timezones:', e?.message, e?.status);
       return [{ name: 'UTC', label: 'UTC' }];
     })
   ]);
@@ -48,8 +50,8 @@ export async function load({ cookies }) {
 async function installAtSignup(bearerOnly, appId) {
   try {
     await installApp(bearerOnly, appId, true);
-  } catch (/** @type {any} */ err) {
-    if (err?.status !== 404) throw err;
+  } catch (err) {
+    if (/** @type {{ status?: unknown } | null | undefined} */ (err)?.status !== 404) throw err;
     await applyPack(bearerOnly, appId);
   }
 }
@@ -201,10 +203,14 @@ export const actions = {
           // `.config.headers.Authorization` with the bearer token in it, and
           // Node's default error formatting prints that in full. Log only
           // the message and status.
+          const e =
+            /** @type {{ message?: unknown, status?: unknown, response?: { status?: unknown } } | null | undefined} */ (
+              packErr
+            );
           console.error(
             `Industry app "${vertical}" did not install on new org ${newOrg.id} (org creation still succeeded):`,
-            packErr?.message,
-            packErr?.response?.status ?? packErr?.status
+            e?.message,
+            e?.response?.status ?? e?.status
           );
         }
       }
@@ -222,8 +228,12 @@ export const actions = {
       // A refused name or timezone. The API answers
       // `{"error": true, "errors": {"name": ["..."]}}`, so the sentences are
       // under `errors`; the top-level `error` is only the boolean flag.
-      if (err.response?.status === 400) {
-        const errors = err.response.data?.errors;
+      const failure =
+        /** @type {{ response?: { status?: number, data?: { errors?: { name?: string[], timezone?: string[] } } } }} */ (
+          err
+        );
+      if (failure.response?.status === 400) {
+        const errors = failure.response.data?.errors;
         return {
           error: {
             name:

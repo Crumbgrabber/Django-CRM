@@ -14,7 +14,7 @@
   import { Download, Plus, Upload, Target, Timer } from '@lucide/svelte';
   import { t } from '#lib/terminology.js';
 
-  /** @type {{ data: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data } = $props();
 
   let leads = $derived(data.leads);

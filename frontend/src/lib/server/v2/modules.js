@@ -8,15 +8,19 @@
 
 import { error } from '@sveltejs/kit';
 import { apiRequest } from '#lib/api-helpers.js';
+import { apiErrorBody, apiStatus } from '#lib/api-errors.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
 import { refusalFor, requirementFor } from '#lib/v2/modules.js';
 
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
 /** @typedef {import('#lib/v2/modules.js').ModuleRow} ModuleRow */
 
 /** @typedef {{ modules: ModuleRow[], canEdit: boolean }} ModulesAnswer */
 
+/** @typedef {{ cookies: import('@sveltejs/kit').Cookies, locals?: object }} ModulesEvent */
+
 /**
- * @param {any} data
+ * @param {{ modules?: ModuleRow[], can_edit?: boolean } | null} data
  * @returns {ModulesAnswer | null}
  */
 function shape(data) {
@@ -31,7 +35,7 @@ const reads = new WeakMap();
  * The list, read once per request: every load of a request (the shell, a
  * folder guard, the page) gets the same read through `event.locals`.
  *
- * @param {any} event
+ * @param {ModulesEvent} event
  * @returns {Promise<ModulesAnswer | null>}
  */
 export function getModules(event) {
@@ -46,11 +50,12 @@ export function getModules(event) {
 }
 
 /**
- * @param {any} event
+ * @param {ModulesEvent} event
  * @returns {Promise<ModulesAnswer | null>}
  */
 async function readModules(event) {
   try {
+    /** @type {Schemas['OrgModulesResponse']} */
     const data = await apiRequest(
       '/org/modules/',
       { quietErrors: true, expectedStatuses: [404] },
@@ -63,12 +68,13 @@ async function readModules(event) {
 }
 
 /**
- * @param {any} event
+ * @param {ModulesEvent} event
  * @param {{ off: string[], order: string[] }} body
  * @returns {Promise<ModulesAnswer | null>}
  */
 export async function putModules(event, { off, order }) {
   try {
+    /** @type {Schemas['OrgModulesResponse']} */
     const data = await apiRequest('/org/modules/', { method: 'PUT', body: { off, order } }, event);
     return shape(data);
   } finally {
@@ -119,12 +125,14 @@ export function moveBody(rows, key, direction) {
 }
 
 /**
- * @param {any} err the error thrown by `putModules`
+ * @param {unknown} err the error thrown by `putModules`
  * @returns {string[]}
  */
 export function moduleErrors(err) {
-  const body = err?.body;
-  if (err?.status === 400 && body && typeof body === 'object') {
+  const body = apiErrorBody(err);
+  const status = apiStatus(err);
+  if (status === 400 && body) {
+    /** @type {string[]} */
     const out = [];
     for (const field of ['off', 'order']) {
       const list = body[field];
@@ -133,7 +141,7 @@ export function moduleErrors(err) {
     }
     if (out.length) return out;
   }
-  if (err?.status === 403) {
+  if (status === 403) {
     const text = body?.errors ?? body?.detail;
     if (typeof text === 'string' && text.trim()) return [text];
   }
@@ -168,19 +176,20 @@ export async function moduleGuard(event) {
  * The page error for an API `module_off` refusal, or undefined for any other
  * error. The 409 delete refusal is a form's message, not a page.
  *
- * @param {any} err an error thrown by `apiRequest`
+ * @param {unknown} err an error thrown by `apiRequest`
  * @returns {App.Error | undefined}
  */
 export function moduleOffError(err) {
-  const body = err?.body;
-  if (err?.status !== 404 || body?.code !== 'module_off') return undefined;
-  return { status: 404, message: body.detail, code: 'module_off', module: body.module };
+  const body = apiErrorBody(err);
+  if (apiStatus(err) !== 404 || body?.code !== 'module_off') return undefined;
+  const module = typeof body.module === 'string' ? body.module : undefined;
+  return { status: 404, message: body.detail ?? '', code: 'module_off', module };
 }
 
 /**
  * Throws the module page when `err` is a `module_off` refusal; returns otherwise.
  *
- * @param {any} err
+ * @param {unknown} err
  */
 export function rethrowModuleOff(err) {
   const off = moduleOffError(err);

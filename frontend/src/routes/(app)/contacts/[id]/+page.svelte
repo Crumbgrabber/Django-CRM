@@ -63,7 +63,7 @@
   import { relatedView } from '#lib/v2/custom-objects.js';
   import { isOn } from '#lib/v2/modules.js';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
   let related = $derived(relatedView(data.related));
   let dealsOn = $derived(isOn(data.modules, 'deals'));
@@ -79,23 +79,16 @@
   let openPipeline = $derived(moneyEach(data.openDeals.by_currency) || money(0, data.org.currency));
   // Named only when it is the single open deal and it is among the rows held.
   let onlyOpenDeal = $derived(
-    openCount === 1
-      ? deals.find((/** @type {any} */ d) => !CLOSED_KINDS.includes(d.stage_kind))
-      : null
+    openCount === 1 ? deals.find((d) => !CLOSED_KINDS.includes(d.stage_kind ?? '')) : null
   );
   let overdueTasks = $derived(
-    tasks.filter(
-      (/** @type {any} */ t) =>
-        t.status !== 'Completed' && t.due_date && (daysSince(t.due_date) ?? 0) > 0
-    )
+    tasks.filter((t) => t.status !== 'Completed' && t.due_date && (daysSince(t.due_date) ?? 0) > 0)
   );
   // Open = not in a terminal state. The Case statuses are New / Assigned /
   // Pending / Closed / Rejected / Duplicate (see CASE_STATUS_TONE); the last
   // three are done, so anything else is still live.
   let openTickets = $derived(
-    tickets.filter(
-      (/** @type {any} */ t) => !['Closed', 'Rejected', 'Duplicate'].includes(t.status)
-    )
+    tickets.filter((t) => !['Closed', 'Rejected', 'Duplicate'].includes(t.status))
   );
 
   // ── note composer ────────────────────────────────────────────────────────
@@ -145,19 +138,21 @@
   // appears once there are two of the first three to choose between.
   let filter = $state(/** @type {'all'|'note'|'interaction'|'file'} */ ('all'));
   let kinds = $derived(
-    ['note', 'interaction', 'file'].filter((k) =>
-      activity.some((/** @type {any} */ e) => e.type === k)
-    )
+    ['note', 'interaction', 'file'].filter((k) => activity.some((e) => e.type === k))
   );
-  let shown = $derived(
-    filter === 'all' ? activity : activity.filter((/** @type {any} */ e) => e.type === filter)
-  );
+  let shown = $derived(filter === 'all' ? activity : activity.filter((e) => e.type === filter));
   let newestId = $derived(shown[0]?.id ?? null);
+
+  /**
+   * One feed row: the contact's notes, files and creation, or a logged
+   * interaction, which alone carries the interaction fields.
+   * @typedef {{ id: string, type: string, at: string | null, by: string | null, body: string, href?: string | null, kind?: string, direction?: string, detail?: string, interaction?: string, canDelete?: boolean }} FeedEvent
+   */
 
   /**
    * The line under an event: "Attached" for a file, the author where known, then
    * how long ago, joined so no separator dangles when a part is missing.
-   * @param {{type:string,by:string|null,at:string}} e
+   * @param {FeedEvent} e
    */
   function metaFor(e) {
     const parts = [];
@@ -167,7 +162,7 @@
     return parts.join(' · ');
   }
 
-  /** @param {string} iso */
+  /** @param {string | null} iso */
   function dayGroup(iso) {
     const n = daysSince(iso);
     if (n === 0) return 'Today';
@@ -177,7 +172,7 @@
 
   // Interleave day headers so each date is announced once, in order.
   let feed = $derived.by(() => {
-    /** @type {Array<{kind:'day',id:string,label:string}|{kind:'event',id:string,event:any}>} */
+    /** @type {Array<{kind:'day',id:string,label:string}|{kind:'event',id:string,event:FeedEvent}>} */
     const out = [];
     let last = null;
     for (const e of shown) {
@@ -317,7 +312,7 @@
                      as still running. -->
                   <div class="v2-sub" style="font-size:11.5px">
                     {d.stage_label}{d.closed_on
-                      ? CLOSED_KINDS.includes(d.stage_kind)
+                      ? CLOSED_KINDS.includes(d.stage_kind ?? '')
                         ? ` · closed ${shortDate(d.closed_on)}`
                         : ` · due ${shortDate(d.closed_on)}`
                       : ''}
@@ -549,7 +544,7 @@
                   {#if e.type === 'file'}<Paperclip size={13} />
                   {:else if e.type === 'status'}<Sparkles size={13} />
                   {:else if e.type === 'interaction'}<InteractionIcon
-                      kind={e.kind}
+                      kind={e.kind ?? ''}
                       direction={e.direction}
                     />
                   {:else}<MessageSquare size={13} />{/if}
@@ -575,7 +570,7 @@
                     <div class="tl-act">
                       <ConfirmAction
                         action="?/deleteActivity"
-                        hidden={{ interaction: e.interaction }}
+                        hidden={{ interaction: e.interaction ?? '' }}
                         label="Delete"
                         confirmLabel="Delete for good"
                         explain="Removes it from every timeline it is on."

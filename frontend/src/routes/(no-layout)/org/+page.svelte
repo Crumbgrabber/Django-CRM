@@ -6,6 +6,7 @@
   import { Building2, LogOut, Plus, ChevronRight } from '@lucide/svelte';
   import { enhance } from '$app/forms';
 
+  /** @type {import('./$types').PageProps} */
   let { data = { orgs: [] } } = $props();
   let orgs = $derived(data?.orgs ?? []);
 

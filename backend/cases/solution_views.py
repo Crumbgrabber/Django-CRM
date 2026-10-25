@@ -111,8 +111,19 @@ class SolutionListView(APIView, LimitOffsetPagination):
                 name="SolutionListResponse",
                 fields={
                     "count": serializers.IntegerField(),
+                    "next": serializers.URLField(allow_null=True),
+                    "previous": serializers.URLField(allow_null=True),
                     "results": SolutionSerializer(many=True),
-                    "totals": serializers.DictField(),
+                    "totals": inline_serializer(
+                        name="SolutionTotals",
+                        fields={
+                            "count": serializers.IntegerField(),
+                            "published": serializers.IntegerField(),
+                            "draft": serializers.IntegerField(),
+                            "reviewed": serializers.IntegerField(),
+                            "approved_unpublished": serializers.IntegerField(),
+                        },
+                    ),
                 },
             )
         },

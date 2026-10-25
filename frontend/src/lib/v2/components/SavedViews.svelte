@@ -19,7 +19,7 @@
    *
    * @type {{
    *   saved: { spec: import('#lib/v2/saved-views.js').Spec, views: { id: string, name: string, filters: Record<string, string[]> }[], limit: number | null },
-   *   url: URL
+   *   url: import('$app/state').ReadonlyURL
    * }}
    */
   let { saved, url } = $props();
@@ -31,13 +31,20 @@
   let views = $derived(saved.views ?? []);
   let active = $derived(views.find((v) => isShowing(url.searchParams, v.filters, saved.spec)));
   let full = $derived(saved.limit !== null && views.length >= saved.limit);
-  let error = $derived(/** @type {any} */ (page.form)?.savedViewError ?? null);
+  let error = $derived(
+    /** @type {{ savedViewError?: string } | null | undefined} */ (page.form)?.savedViewError ??
+      null
+  );
   let query = $derived(url.searchParams.toString());
 
-  /** Busy while posting; the form resets and the rename closes on success. */
+  /**
+   * Busy while posting; the form resets and the rename closes on success.
+   *
+   * @type {import('$app/forms').SubmitFunction}
+   */
   const submit = () => {
     busy = true;
-    return async (/** @type {any} */ { update, result }) => {
+    return async ({ update, result }) => {
       await update();
       busy = false;
       if (result.type === 'redirect' || result.type === 'success') renaming = null;

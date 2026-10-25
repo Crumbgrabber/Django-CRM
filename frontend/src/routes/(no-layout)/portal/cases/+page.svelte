@@ -8,6 +8,7 @@
   import { resolve } from '$app/paths';
   import PortalShell from '#lib/v2/components/PortalShell.svelte';
 
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   let composing = $state(false);
@@ -39,6 +40,7 @@
         `${resolve('portal/articles/suggestions')}?q=${encodeURIComponent(query)}`
       );
       if (!response.ok) return;
+      /** @type {{ articles: { id: string, title: string, snippet: string }[] }} */
       const body = await response.json();
       if (ticket === latestQuery) suggestions = body.articles ?? [];
     }, 300);

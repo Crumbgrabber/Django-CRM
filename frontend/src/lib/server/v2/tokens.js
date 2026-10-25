@@ -38,13 +38,16 @@
  *   an admin can retire any token in their own org (a colleague's included).
  */
 import { apiRequest } from '#lib/api-helpers.js';
+import { apiStatus } from '#lib/api-errors.js';
+
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
 
 /**
  * Live first, then most-recently-used first, the order an admin scans in,
  * with the dormant and revoked rows sinking to the bottom.
  *
- * @param {any} a
- * @param {any} b
+ * @param {{ is_live: boolean, last_used_at: string | null }} a
+ * @param {{ is_live: boolean, last_used_at: string | null }} b
  */
 function byUrgency(a, b) {
   if (a.is_live !== b.is_live) return a.is_live ? -1 : 1;
@@ -59,25 +62,24 @@ function byUrgency(a, b) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  */
 export async function listOrgTokens({ cookies }) {
+  /** @type {Schemas['OrgAccessTokenListResponse']} */
   let resp;
   try {
     resp = await apiRequest('/org/tokens/', {}, { cookies });
-  } catch (/** @type {any} */ err) {
-    if (err?.status === 403) return { forbidden: true };
+  } catch (err) {
+    if (apiStatus(err) === 403) return /** @type {const} */ ({ forbidden: true });
     throw err;
   }
 
   const tokens = (resp?.tokens ?? []).slice().sort(byUrgency);
   return {
-    forbidden: false,
+    forbidden: /** @type {const} */ (false),
     tokens,
     totals: resp?.totals ?? { count: 0, live: 0, orphaned: 0, unused_90d: 0 },
     // Ids of the live tokens on deactivated owners, so "revoke them all" can be
     // one submit instead of the admin hunting each row. Derived from the same
     // rows the page renders, no second source to drift.
-    orphaned_ids: tokens
-      .filter((/** @type {any} */ t) => t.is_live && !t.owner?.is_active)
-      .map((/** @type {any} */ t) => t.id)
+    orphaned_ids: tokens.filter((t) => t.is_live && !t.owner?.is_active).map((t) => t.id)
   };
 }
 
@@ -94,6 +96,7 @@ export async function listOrgTokens({ cookies }) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {{ name: string, expires_at?: string | null, scopes?: string[] }} body
+ * @returns {Promise<Schemas['PersonalAccessTokenCreated']>}
  */
 export function createToken({ cookies }, body) {
   return apiRequest('/profile/tokens/', { method: 'POST', body }, { cookies });
@@ -105,6 +108,7 @@ export function createToken({ cookies }, body) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id  the token id
+ * @returns {Promise<Schemas['AccessTokenRevokeResponse']>}
  */
 export function revokeToken({ cookies }, id) {
   return apiRequest(`/org/tokens/${id}/`, { method: 'DELETE' }, { cookies });
@@ -128,17 +132,18 @@ export function revokeToken({ cookies }, id) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  */
 export async function listMyTokens({ cookies }) {
+  /** @type {Schemas['AccessTokenListResponse']} */
   const resp = await apiRequest('/profile/tokens/', {}, { cookies });
   const now = Date.now();
   const tokens = (resp?.tokens ?? [])
-    .map((/** @type {any} */ t) => ({
+    .map((t) => ({
       ...t,
       is_live: !t.revoked_at && !(t.expires_at && new Date(t.expires_at).getTime() <= now)
     }))
     .sort(byUrgency);
   return {
     tokens,
-    live: tokens.filter((/** @type {any} */ t) => t.is_live).length
+    live: tokens.filter((t) => t.is_live).length
   };
 }
 
@@ -151,6 +156,7 @@ export async function listMyTokens({ cookies }) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
+ * @returns {Promise<Schemas['AccessTokenRevokeResponse']>}
  */
 export function revokeMyToken({ cookies }, id) {
   return apiRequest(`/profile/tokens/${id}/`, { method: 'DELETE' }, { cookies });

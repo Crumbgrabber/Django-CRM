@@ -4,7 +4,6 @@ from rest_framework import serializers
 from accounts.access import has_account_access
 from common.client_version import is_legacy_phone
 from common.serializer import (
-    AttachmentsSerializer,
     OrganizationSerializer,
     ProfileSerializer,
     TeamsSerializer,
@@ -17,17 +16,23 @@ from leads.source_rules import check_source
 # - created_on_arrow (frontend computes its own humanized timestamps)
 
 
+class ContactAccountRefSerializer(serializers.Serializer):
+    """An account a contact is linked to, as `ContactSerializer` names it."""
+
+    id = serializers.UUIDField()
+    name = serializers.CharField()
+
+
 class ContactSerializer(serializers.ModelSerializer):
     """Serializer for reading Contact data"""
 
     teams = TeamsSerializer(read_only=True, many=True)
     assigned_to = ProfileSerializer(read_only=True, many=True)
-    contact_attachment = AttachmentsSerializer(read_only=True, many=True)
     org = OrganizationSerializer()
     account_detail = serializers.SerializerMethodField()
     linked_accounts = serializers.SerializerMethodField()
 
-    @extend_schema_field(dict)
+    @extend_schema_field(ContactAccountRefSerializer(allow_null=True))
     def get_account_detail(self, obj):
         """The `account` FK, resolved to something a page can print.
 
@@ -40,7 +45,7 @@ class ContactSerializer(serializers.ModelSerializer):
             return None
         return {"id": str(obj.account.id), "name": obj.account.name}
 
-    @extend_schema_field(list)
+    @extend_schema_field(ContactAccountRefSerializer(many=True))
     def get_linked_accounts(self, obj):
         """Membership of `Account.contacts`, which is the other account link.
 
@@ -100,7 +105,6 @@ class ContactSerializer(serializers.ModelSerializer):
             "account",
             "account_detail",
             "linked_accounts",
-            "contact_attachment",
             # Per-org custom fields (validated via common.custom_fields)
             "custom_fields",
         )

@@ -11,13 +11,19 @@
  */
 
 /**
+ * A figure as a builder holds it: a number from an input, a decimal string from
+ * the API, or nothing yet.
+ * @typedef {number | string | null | undefined} Figure
+ */
+
+/**
  * A line as the builders edit it. A line started from a deal also carries the
  * deal line's discount (`discount_type`, `discount_value`); a typed line has
  * none.
- * @typedef {{ name: string, description: string, quantity: any, unit_price: any, product: string | null, discount_type?: string, discount_value?: any }} Line
+ * @typedef {{ name: string, description: string, quantity: Figure, unit_price: Figure, product: string | null, discount_type?: string, discount_value?: Figure }} Line
  */
 
-/** @param {any} v */
+/** @param {unknown} v */
 export const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
 /** An empty line, the shape both builders edit. @returns {Line} */
@@ -67,7 +73,7 @@ export function lineTotals(items) {
 /**
  * The ladder over the usable lines, in the server's order. Do not reorder.
  *
- * @param {{ lines: Array<{amount: number}>, discountType?: string, discountValue?: any, taxRate?: any, shipping?: any }} args
+ * @param {{ lines: Array<{amount: number}>, discountType?: string, discountValue?: Figure, taxRate?: Figure, shipping?: Figure }} args
  */
 export function documentTotals({
   lines,
@@ -97,7 +103,7 @@ export function documentTotals({
  */
 export function linePayload(usable) {
   return usable.map((l) => {
-    /** @type {Record<string, any>} */
+    /** @type {Record<string, string | number>} */
     const row = {
       name: l.name.trim(),
       description: (l.description || '').trim(),
@@ -125,7 +131,7 @@ const cents = (v) => Math.round(v * 100) / 100;
  * it. A hint only: the API still refuses the rest.
  *
  * @param {string} type
- * @param {any} value
+ * @param {Figure} value
  * @param {number} cap what a flat discount comes off
  * @param {string} capMessage
  */
@@ -141,7 +147,7 @@ function discountError(type, value, cap, capMessage) {
  * discount only once a type is chosen, so no type is nothing to check.
  *
  * @param {string} type
- * @param {any} value
+ * @param {Figure} value
  * @param {number} subtotal
  */
 export const documentDiscountError = (type, value, subtotal) =>
@@ -168,7 +174,7 @@ export const lineDiscountError = (line) =>
  * The server's bounds on a document's tax rate (a percentage, 0 to 100) and
  * shipping (never negative), in its words. '' when the API would take it.
  *
- * @param {any} value
+ * @param {Figure} value
  */
 export function taxRateError(value) {
   const v = num(value);
@@ -176,5 +182,5 @@ export function taxRateError(value) {
   return v > 100 ? 'Tax rate cannot exceed 100.' : '';
 }
 
-/** @param {any} value */
+/** @param {Figure} value */
 export const shippingError = (value) => (num(value) < 0 ? 'Shipping cannot be negative.' : '');

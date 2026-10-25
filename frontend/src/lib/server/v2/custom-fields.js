@@ -28,11 +28,17 @@ import { viewerIsAdmin } from './organization.js';
 /** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
 
 /**
+ * What the settings form submits. Each write reads only its allow-list.
+ *
+ * @typedef {{ [key: string]: unknown, field_type?: string, options?: { value?: string, label?: string }[] }} FieldValues
+ */
+
+/**
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
- * @returns {Promise<{ fields: any[], totals: any, can_edit: boolean }>}
+ * @returns {Promise<{ fields: Schemas['CustomFieldDefinitionRow'][], totals: Schemas['CustomFieldTotals'], can_edit: boolean }>}
  */
 export async function getCustomFields({ cookies }) {
-  /** @type {any} */
+  /** @type {Schemas['CustomFieldDefinitionListResponse']} */
   const resp = await apiRequest('/custom-fields/', {}, { cookies });
   return {
     fields: resp.definitions ?? [],
@@ -87,10 +93,10 @@ function slugifyOptionValue(label) {
  * Shape the request body from an allow-list.
  *
  * @param {string[]} allowed
- * @param {{ [key: string]: any }} values
+ * @param {FieldValues} values
  */
 function buildBody(allowed, values) {
-  /** @type {Record<string, any>} */
+  /** @type {Record<string, unknown>} */
   const body = {};
   for (const field of allowed) {
     if (values[field] === undefined) continue;
@@ -106,11 +112,11 @@ function buildBody(allowed, values) {
   // defensive noise: sending it turns a valid text field into a 400.
   if (values.field_type === 'dropdown') {
     const rows = (values.options ?? [])
-      .map((/** @type {any} */ o) => ({
+      .map((o) => ({
         value: o.value ? String(o.value) : slugifyOptionValue(String(o.label ?? '')),
         label: String(o.label ?? '').trim()
       }))
-      .filter((/** @type {any} */ o) => o.label && o.value);
+      .filter((o) => o.label && o.value);
     if (!rows.length) {
       throw new Error('A dropdown needs at least one option.');
     }
@@ -129,7 +135,7 @@ function buildBody(allowed, values) {
 
 /**
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
- * @param {{ [key: string]: any }} values
+ * @param {FieldValues} values
  * @returns {Promise<Schemas['CustomFieldDefinition']>}
  */
 export async function createCustomField({ cookies }, values) {
@@ -140,7 +146,7 @@ export async function createCustomField({ cookies }, values) {
 /**
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
- * @param {{ [key: string]: any }} values
+ * @param {FieldValues} values
  * @returns {Promise<Schemas['CustomFieldDefinition']>}
  */
 export async function updateCustomField({ cookies }, id, values) {

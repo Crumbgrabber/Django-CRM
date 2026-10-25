@@ -79,6 +79,30 @@ build the test database. See [PostgreSQL and RLS](../self-hosting/postgresql-and
 for setting that role up, and for `manage.py manage_rls --test`, which checks isolation on a real
 database outside the suite.
 
+## The schema contract
+
+The web app's API types are generated from the OpenAPI schema, so a schema that is missing or
+wrong becomes a wrong type there. An autouse fixture in `backend/conftest.py` checks every JSON
+response a test receives from an `/api/` endpoint against that schema
+(`backend/common/schema_contract.py`). A response the schema does not describe, or describes
+wrongly, fails the test with a teardown error that starts `SCHEMA-GAP`, followed by the operation,
+the place in the body and what is wrong.
+
+Fix it by describing what the view returns: `@extend_schema(responses=...)`, usually an
+`inline_serializer(name="<Thing>Response", ...)` envelope, or a typed `SerializerMethodField`. Do
+not change the view to fit the schema. There is no allowlist: every operation a test calls has to
+conform, so a new endpoint ships with its response described.
+
+Two things to know:
+
+- **Only exercised operations are checked.** An endpoint no test calls is not verified, so a
+  response you describe should have at least one test that calls it.
+- **Every field of a model serializer's response is required**, since a `ModelSerializer` always
+  sends every field. The `AutoSchema` subclass in `backend/common/custom_openapi.py` marks them so.
+  A model serializer that leaves a key out for some callers lists it in
+  `CONDITIONAL_RESPONSE_FIELDS` there. Plain serializers, `inline_serializer` envelopes included,
+  keep their own `required` flags: a key the view sometimes omits is `required=False`.
+
 ## What CI runs
 
 `.github/workflows/tests.yml` runs the backend suite three ways:

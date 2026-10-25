@@ -141,6 +141,13 @@ def deal_list_queryset(profile, params):
     return queryset.distinct()
 
 
+def _choice_pairs():
+    """Schema only: a `(value, label)` choices tuple as JSON renders it."""
+    return serializers.ListField(
+        child=serializers.ListField(child=serializers.CharField())
+    )
+
+
 class OpportunityListView(APIView, LimitOffsetPagination):
     permission_classes = (IsAuthenticated, HasOrgContext)
     model = Opportunity
@@ -256,14 +263,18 @@ class OpportunityListView(APIView, LimitOffsetPagination):
                         name="OpportunityListTotals",
                         fields={
                             "count": serializers.IntegerField(),
-                            "amount_sum": serializers.DecimalField(
-                                max_digits=14, decimal_places=2, allow_null=True
-                            ),
-                            "weighted_sum": serializers.DecimalField(
-                                max_digits=14, decimal_places=2, allow_null=True
-                            ),
-                            "by_currency": serializers.ListField(
-                                child=serializers.DictField()
+                            # Decimal strings from `currency_block`, which keeps
+                            # whatever places the database's rounding returns.
+                            "amount_sum": serializers.CharField(allow_null=True),
+                            "weighted_sum": serializers.CharField(allow_null=True),
+                            "by_currency": inline_serializer(
+                                name="OpportunityListCurrencyTotals",
+                                fields={
+                                    "currency": serializers.CharField(),
+                                    "amount_sum": serializers.CharField(),
+                                    "weighted_sum": serializers.CharField(),
+                                },
+                                many=True,
                             ),
                             "stalled_count": serializers.IntegerField(),
                         },
@@ -275,9 +286,9 @@ class OpportunityListView(APIView, LimitOffsetPagination):
                     "accounts_list": AccountPickerSerializer(many=True),
                     "contacts_list": ContactPickerSerializer(many=True),
                     "tags": TagsSerializer(many=True),
-                    "stage": serializers.ListField(),
-                    "lead_source": serializers.ListField(),
-                    "currency": serializers.ListField(),
+                    "stage": _choice_pairs(),
+                    "lead_source": _choice_pairs(),
+                    "currency": _choice_pairs(),
                 },
             )
         },
@@ -573,11 +584,19 @@ class OpportunityDetailView(APIView):
                     "attachments": AttachmentsSerializer(many=True),
                     "contacts": DealContactSerializer(many=True),
                     "users": ProfileSerializer(many=True),
-                    "stage": serializers.ListField(),
-                    "lead_source": serializers.ListField(),
-                    "currency": serializers.ListField(),
+                    "stage": _choice_pairs(),
+                    "lead_source": _choice_pairs(),
+                    "currency": _choice_pairs(),
                     "comment_permission": serializers.BooleanField(),
-                    "users_mention": serializers.ListField(),
+                    "users_mention": inline_serializer(
+                        name="OpportunityMentionUser",
+                        fields={"user__email": serializers.EmailField()},
+                        many=True,
+                    ),
+                    "custom_field_definitions": CustomFieldDefinitionSerializer(
+                        many=True
+                    ),
+                    "can_delete": serializers.BooleanField(),
                 },
             )
         },

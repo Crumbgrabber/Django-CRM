@@ -5,8 +5,15 @@
   import { isOrgAdmin } from '#lib/admin.js';
   import { ChevronRight } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
+
+  /** Only a refused save carries per-field messages; a form that would not build has none. */
+  let fieldErrors = $derived(
+    form && 'fieldErrors' in form
+      ? /** @type {Record<string, string> | undefined} */ (form.fieldErrors)
+      : undefined
+  );
 </script>
 
 <PageHeader title="Edit project" record center width="62ch">
@@ -34,7 +41,7 @@
       stored={data.stored}
       customFields={data.customFields}
       isAdmin={isOrgAdmin(data)}
-      fieldErrors={form?.fieldErrors}
+      {fieldErrors}
       edit
       cancelHref={`/projects/${data.project.id}`}
     />

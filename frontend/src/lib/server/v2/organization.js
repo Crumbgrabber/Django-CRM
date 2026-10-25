@@ -104,6 +104,7 @@ export function viewerIsAdmin(cookies) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  */
 export async function getOrgSettings({ cookies }) {
+  /** @type {Schemas['OrgSettings']} */
   const org = await apiRequest('/org/settings/', {}, { cookies });
   return { org, can_edit: viewerIsAdmin(cookies) };
 }
@@ -114,6 +115,7 @@ export async function getOrgSettings({ cookies }) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {Record<string, unknown>} body
+ * @returns {Promise<Schemas['OrgSettings']>}
  */
 export function updateOrgSettings({ cookies }, body) {
   return apiRequest('/org/settings/', { method: 'PATCH', body }, { cookies });
@@ -129,6 +131,7 @@ export function updateOrgSettings({ cookies }, body) {
  */
 export async function getNumbering({ cookies }) {
   try {
+    /** @type {Schemas['OrgSettings']} */
     const org = await apiRequest('/org/settings/', {}, { cookies });
     return {
       invoice_number_prefix: org.invoice_number_prefix,
@@ -159,6 +162,7 @@ export async function getNumbering({ cookies }) {
  * @returns {Promise<{ terminology?: Record<string, string>, vertical?: string }>}
  */
 export async function getOrgTerminology({ cookies }) {
+  /** @type {Schemas['OrgSettings']} */
   const org = await apiRequest('/org/settings/', {}, { cookies });
   return { terminology: org?.terminology, vertical: org?.vertical };
 }

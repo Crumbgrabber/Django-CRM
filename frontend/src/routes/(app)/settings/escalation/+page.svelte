@@ -55,7 +55,9 @@
   import { missingOption, inactiveOptionLabel } from '#lib/v2/pickers.js';
   import { TriangleAlert, BellOff, Plus } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @typedef {import('#lib/server/v2/escalation.js').EscalationPolicyRow} EscalationPolicyRow */
+
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   /**
@@ -80,7 +82,7 @@
   // `null` when the panel is closed, `'new'` when adding, or the policy
   // object when editing that row. One panel, two modes, so two rows can
   // never be open for edit at once.
-  let editing = $state(/** @type {any} */ (null));
+  let editing = $state(/** @type {'new' | EscalationPolicyRow | null} */ (null));
 
   // Mirrors of the four action/target fields, so the "does nothing" hint can
   // react to what is currently picked in the form, before the policy is saved,
@@ -91,8 +93,12 @@
   let resolutionAction = $state('notify');
   let firstResponseTarget = $state('');
   let resolutionTarget = $state('');
+  // A number once an edit prefills them or a number input binds them.
+  /** @type {number | string} */
   let firstResponseHours = $state('');
+  /** @type {number | string} */
   let resolutionHours = $state('');
+  /** @type {number | string} */
   let nextResponseHours = $state('');
   // Tracked so the hour placeholders follow the priority select on a create,
   // where the built-in default changes as you pick.
@@ -103,11 +109,11 @@
    * "6h" for a target this org set, "4h default" for one it never touched.
    * The distinction is the point: an unlabelled number reads as a decision.
    *
-   * @param {any} policy
+   * @param {EscalationPolicyRow} policy
    * @param {'first_response' | 'resolution' | 'next_response'} half
    */
   function targetLabel(policy, half) {
-    const configured = policy[`${half}_hours`];
+    const configured = policy[/** @type {const} */ (`${half}_hours`)];
     if (configured) return `${configured}h`;
     const fallback = (DEFAULT_SLA_HOURS[policy.priority] ?? DEFAULT_SLA_HOURS.Normal)[half];
     return `${fallback}h default`;
@@ -125,7 +131,7 @@
     nextResponseHours = '';
   }
 
-  /** @param {any} p */
+  /** @param {EscalationPolicyRow} p */
   function openEdit(p) {
     editing = p;
     firstResponseAction = p.first_response_action;
@@ -194,22 +200,23 @@
 <div class="v2-scroll">
   <div class="v2-pad" style="padding-top:18px;padding-bottom:32px">
     {#if editing}
+      {@const current = editing}
       <SettingsFormPanel
-        title={editing === 'new' ? 'New policy' : `Edit ${editing.priority} policy`}
-        action={editing === 'new' ? '?/create' : '?/update'}
-        error={editing === 'new' ? form?.create?.error : form?.update?.error}
-        submitLabel={editing === 'new' ? 'Add policy' : 'Save policy'}
+        title={current === 'new' ? 'New policy' : `Edit ${current.priority} policy`}
+        action={current === 'new' ? '?/create' : '?/update'}
+        error={current === 'new' ? form?.create?.error : form?.update?.error}
+        submitLabel={current === 'new' ? 'Add policy' : 'Save policy'}
         oncancel={() => (editing = null)}
         ondone={() => (editing = null)}
       >
         {#snippet fields()}
-          {#if editing !== 'new'}
-            <input type="hidden" name="id" value={editing.id} />
+          {#if current !== 'new'}
+            <input type="hidden" name="id" value={current.id} />
           {/if}
 
           <div class="v2-field">
             <label for="e-priority">Priority</label>
-            {#if editing === 'new'}
+            {#if current === 'new'}
               <select
                 id="e-priority"
                 class="v2-input"
@@ -222,7 +229,7 @@
                 {/each}
               </select>
             {:else}
-              <div style="font-size:13px">{editing.priority}</div>
+              <div style="font-size:13px">{current.priority}</div>
               <p class="v2-hint">Fixed after creation. One policy per priority.</p>
             {/if}
           </div>
@@ -404,14 +411,14 @@
           <div class="v2-field">
             <label for="e-team">Notify team</label>
             <select id="e-team" class="v2-input" name="notify_team_id">
-              <option value="" selected={editing === 'new' || !editing.notify_team}>No team</option>
+              <option value="" selected={current === 'new' || !current.notify_team}>No team</option>
               {#if missingTeam}
                 <option value={missingTeam.id} selected>{missingTeam.name}</option>
               {/if}
               {#each data.teams as t (t.id)}
                 <option
                   value={t.id}
-                  selected={editing !== 'new' && editing.notify_team?.id === t.id}
+                  selected={current !== 'new' && current.notify_team?.id === t.id}
                 >
                   {t.name}
                 </option>
@@ -419,7 +426,7 @@
             </select>
             {#if data.options_failed}
               <p class="v2-hint" role="alert">
-                The people and teams list did not load. {editing === 'new'
+                The people and teams list did not load. {current === 'new'
                   ? 'Reload the page to pick targets or a team.'
                   : 'Saving keeps the current targets and team; reload the page to change them.'}
               </p>
@@ -428,7 +435,7 @@
             {/if}
           </div>
 
-          {#if editing === 'new'}
+          {#if current === 'new'}
             <div class="v2-field">
               <label for="e-active">Active</label>
               <label style="display:flex;gap:8px;align-items:center;font-weight:400">

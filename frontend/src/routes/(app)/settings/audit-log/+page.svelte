@@ -23,7 +23,7 @@
   import { count, relativeTime } from '#lib/v2/format.js';
   import { auditActor, auditDetail, auditWebhookId } from '#lib/v2/audit-log.js';
 
-  /** @type {{ data: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data } = $props();
 
   /**
@@ -32,7 +32,7 @@
    * @param {Record<string, string | number | null>} changes
    */
   function pageQuery(changes) {
-    /** @type {Record<string, string | number | null>} */
+    /** @type {Record<string, string | number | null | undefined>} */
     const next = { ...data.filters, offset: data.offset, ...changes };
     if (!('offset' in changes)) next.offset = null;
     return Object.entries(next)

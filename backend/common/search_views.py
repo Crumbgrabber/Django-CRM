@@ -22,6 +22,8 @@ Matching stays on the server; the whole record set never reaches the browser.
 """
 
 from django.db.models import Q
+from drf_spectacular.utils import extend_schema, inline_serializer
+from rest_framework import serializers
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -49,6 +51,27 @@ class GlobalSearchView(APIView):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
+    @extend_schema(
+        responses={
+            200: inline_serializer(
+                name="GlobalSearchResponse",
+                fields={
+                    "query": serializers.CharField(),
+                    "results": inline_serializer(
+                        name="GlobalSearchHit",
+                        many=True,
+                        fields={
+                            # lead, deal, account, contact, ticket, invoice or solution
+                            "type": serializers.CharField(),
+                            "id": serializers.UUIDField(),
+                            "title": serializers.CharField(),
+                            "subtitle": serializers.CharField(),
+                        },
+                    ),
+                },
+            )
+        }
+    )
     def get(self, request):
         q = (request.query_params.get("q") or "").strip()
         if len(q) < MIN_QUERY:

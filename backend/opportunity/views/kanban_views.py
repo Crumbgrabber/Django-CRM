@@ -9,8 +9,8 @@ same code.
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from drf_spectacular.utils import OpenApiParameter, extend_schema
-from rest_framework import status
+from drf_spectacular.utils import OpenApiParameter, extend_schema, inline_serializer
+from rest_framework import serializers, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -31,6 +31,23 @@ from opportunity.workflow import CLOSED_KINDS, WON, stage_probability
 
 # Column colour by what the stage means; the board has no per-stage colour.
 KIND_COLORS = {"open": "#3B82F6", "won": "#22C55E", "lost": "#6B7280"}
+
+
+class OpportunityKanbanColumnSerializer(serializers.Serializer):
+    """Schema only: one stage column of `OpportunityKanbanView`."""
+
+    id = serializers.CharField()
+    name = serializers.CharField()
+    order = serializers.IntegerField()
+    kind = serializers.CharField()
+    color = serializers.CharField()
+    stage_type = serializers.CharField()
+    expected_days = serializers.IntegerField(allow_null=True)
+    warning_days = serializers.IntegerField(allow_null=True)
+    is_status_column = serializers.BooleanField()
+    wip_limit = serializers.IntegerField(allow_null=True)
+    item_count = serializers.IntegerField()
+    items = OpportunityKanbanCardSerializer(many=True)
 
 
 class OpportunityKanbanView(APIView):
@@ -64,6 +81,24 @@ class OpportunityKanbanView(APIView):
             OpenApiParameter(name="open", required=False, type=str),
             OpenApiParameter(name="rotten", required=False, type=str),
         ],
+        responses={
+            200: inline_serializer(
+                name="OpportunityKanbanResponse",
+                fields={
+                    "mode": serializers.CharField(),
+                    "pipeline": inline_serializer(
+                        name="OpportunityKanbanPipeline",
+                        fields={
+                            "id": serializers.CharField(),
+                            "name": serializers.CharField(),
+                            "is_default": serializers.BooleanField(),
+                        },
+                    ),
+                    "columns": OpportunityKanbanColumnSerializer(many=True),
+                    "total_items": serializers.IntegerField(),
+                },
+            )
+        },
     )
     def get(self, request):
         org = request.profile.org
@@ -154,6 +189,16 @@ class OpportunityMoveView(APIView):
         tags=["Opportunities Kanban"],
         operation_id="opportunity_move",
         request=OpportunityMoveSerializer,
+        responses={
+            200: inline_serializer(
+                name="OpportunityMoveResponse",
+                fields={
+                    "error": serializers.BooleanField(),
+                    "message": serializers.CharField(),
+                    "opportunity": OpportunityKanbanCardSerializer(),
+                },
+            )
+        },
     )
     @transaction.atomic
     def patch(self, request, pk):

@@ -12,7 +12,7 @@ import { daysSince, shortDate } from '#lib/v2/format.js';
  * deal (the API counts only tasks they can open), which is the flag, and
  * `undefined` when the response did not compute it, which is not.
  *
- * @param {{ stage_kind?: string | null, next_activity?: any }} deal
+ * @param {{ stage_kind?: string | null, next_activity?: { title: string, due_date: string | null } | null }} deal
  * @param {boolean} [tasksOn] false while Tasks is switched off: the API sends no next step then, so nothing is flagged
  * @param {Date} [now]
  * @returns {{ text: string, late: boolean } | null}

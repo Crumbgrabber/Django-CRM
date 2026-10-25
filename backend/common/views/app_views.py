@@ -5,7 +5,7 @@ removes one. The org is always ``request.profile.org``, and an app id is a key
 of the pack registry, never a path, so an unknown one is a 404.
 """
 
-from drf_spectacular.utils import OpenApiParameter, extend_schema
+from drf_spectacular.utils import OpenApiParameter, extend_schema, inline_serializer
 from rest_framework import serializers, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -41,10 +41,62 @@ def _unknown():
     return _refusal("Unknown app.", status.HTTP_404_NOT_FOUND)
 
 
+class AppInstalledBySerializer(serializers.Serializer):
+    id = serializers.CharField()
+    name = serializers.CharField()
+
+
+class IndustryAppSerializer(serializers.Serializer):
+    """Response only: one app as ``app_payload`` builds it."""
+
+    id = serializers.CharField()
+    name = serializers.CharField()
+    description = serializers.CharField()
+    version = serializers.IntegerField()
+    # "installed", "removed" or "not_installed".
+    status = serializers.CharField()
+    installed_version = serializers.IntegerField(allow_null=True)
+    update_available = serializers.BooleanField()
+    skipped_modules = serializers.ListField(child=serializers.CharField())
+    installed_at = serializers.DateTimeField(allow_null=True)
+    installed_by_details = AppInstalledBySerializer(allow_null=True)
+
+
+class AppPreviewItemSerializer(serializers.Serializer):
+    type = serializers.CharField()
+    target = serializers.CharField(allow_null=True)
+    label = serializers.CharField()
+    effect = serializers.CharField()
+
+
+class AppSampleDataSerializer(serializers.Serializer):
+    offered = serializers.BooleanField()
+    default_on = serializers.BooleanField()
+    records = serializers.IntegerField()
+
+
+AppListResponse = inline_serializer(
+    name="AppListResponse", fields={"apps": IndustryAppSerializer(many=True)}
+)
+AppPreviewResponse = inline_serializer(
+    name="AppPreviewResponse",
+    fields={
+        "action": serializers.CharField(),
+        "items": AppPreviewItemSerializer(many=True),
+        "sample_data": AppSampleDataSerializer(),
+    },
+)
+AppActionResponse = inline_serializer(
+    name="AppActionResponse", fields={"app": IndustryAppSerializer()}
+)
+
+
 class AppListView(APIView):
     permission_classes = (IsAuthenticated, HasOrgContext)
 
-    @extend_schema(tags=["Apps"], operation_id="apps_list", responses={200: dict})
+    @extend_schema(
+        tags=["Apps"], operation_id="apps_list", responses={200: AppListResponse}
+    )
     def get(self, request):
         return Response(apps_payload(request.profile.org))
 
@@ -56,7 +108,7 @@ class AppPreviewView(APIView):
         tags=["Apps"],
         operation_id="apps_preview",
         parameters=[OpenApiParameter("action", str, OpenApiParameter.QUERY)],
-        responses={200: dict},
+        responses={200: AppPreviewResponse},
     )
     def get(self, request, app_id):
         denied = _admin_only(request)
@@ -88,7 +140,7 @@ class _AppActionView(APIView):
     def act(self, request, profile, app_id):
         raise NotImplementedError
 
-    @extend_schema(tags=["Apps"], request=dict, responses={200: dict})
+    @extend_schema(tags=["Apps"], request=dict, responses={200: AppActionResponse})
     def post(self, request, app_id):
         denied = _admin_only(request)
         if denied:

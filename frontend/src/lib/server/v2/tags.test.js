@@ -130,7 +130,7 @@ describe('mergeTags', () => {
 
     const result = await mergeTags(event, 'drop', 'keep');
 
-    expect(result.tag.name).toBe('Invoice');
+    expect(result.tag?.name).toBe('Invoice');
     expect(result.moved).toBe(12);
   });
 

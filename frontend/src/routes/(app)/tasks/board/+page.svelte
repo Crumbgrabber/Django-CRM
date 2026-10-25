@@ -33,31 +33,44 @@
   import { BOARD_PRIORITY_LABEL, BOARD_PRIORITY_TONE } from '#lib/v2/enums.js';
   import { Plus, ChevronDown, TriangleAlert } from '@lucide/svelte';
 
-  /** @type {{ data: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data } = $props();
+
+  /** @typedef {import('./$types').PageData} Data */
+  /** @typedef {Data['tasks'][number]} Card */
+  /** @typedef {Data['columns'][number] & { cards: Card[] }} Lane */
+  /** @typedef {CustomEvent<import('svelte-dnd-action').DndEvent<Card>>} CardDrag */
 
   const FLIP_MS = 160;
 
   /**
    * Join the flat `columns` + `tasks` into draggable lanes.
    *
-   * @returns {any[]}
+   * @param {Data} d
+   * @returns {Lane[]}
    */
-  function buildLanes(/** @type {any} */ d) {
-    return d.columns.map((/** @type {any} */ c) => ({
+  function buildLanes(d) {
+    return d.columns.map((c) => ({
       ...c,
-      cards: d.tasks
-        .filter((/** @type {any} */ t) => t.column_id === c.id)
-        .sort((/** @type {any} */ a, /** @type {any} */ b) => a.order - b.order)
+      cards: d.tasks.filter((t) => t.column_id === c.id).sort((a, b) => a.order - b.order)
     }));
   }
+
+  /**
+   * The `error` a refused action returned, or `fallback`.
+   *
+   * @param {Record<string, unknown> | undefined} data
+   * @param {string} fallback
+   */
+  const failureMessage = (data, fallback) =>
+    (typeof data?.error === 'string' && data.error) || fallback;
 
   // Lanes are optimistic local state: dnd mutates them on drag, and we resync
   // from the server only when `load` actually re-runs (a genuine reload), an
   // optimistic move touches `lanes`, not `data`, so it is never clobbered.
   // svelte-ignore state_referenced_locally
   let lanes = $state(buildLanes(data));
-  /** @type {any} */
+  /** @type {Data | undefined} */
   let lastData;
   $effect(() => {
     if (lastData !== undefined && data !== lastData) lanes = buildLanes(data);
@@ -90,10 +103,11 @@
     addCardError = '';
   }
 
-  const isDone = (/** @type {any} */ t) => t.completed_at !== null;
-  const isOverdue = (/** @type {any} */ t) =>
+  /** @typedef {{ completed_at: string | null, due_date: string | null }} Dated */
+  const isDone = (/** @type {Dated} */ t) => t.completed_at !== null;
+  const isOverdue = (/** @type {Dated} */ t) =>
     !isDone(t) && t.due_date !== null && new Date(t.due_date) < new Date();
-  const overCount = (/** @type {any} */ lane) =>
+  const overCount = (/** @type {Lane} */ lane) =>
     lane.limit !== null && lane.cards.length > lane.limit;
 
   // Counts follow the live lanes, so a drag updates them with no round-trip and
@@ -111,14 +125,14 @@
     };
   });
 
-  function onConsider(/** @type {any} */ lane, /** @type {any} */ e) {
+  function onConsider(/** @type {Lane} */ lane, /** @type {CardDrag} */ e) {
     lane.cards = e.detail.items;
   }
 
-  async function onFinalize(/** @type {any} */ lane, /** @type {any} */ e) {
+  async function onFinalize(/** @type {Lane} */ lane, /** @type {CardDrag} */ e) {
     lane.cards = e.detail.items;
     const movedId = e.detail.info?.id;
-    const index = e.detail.items.findIndex((/** @type {any} */ c) => c.id === movedId);
+    const index = e.detail.items.findIndex((c) => c.id === movedId);
     // Finalize fires on both lanes of a cross-column move; only the lane that
     // now holds the card (the destination) persists it.
     if (index === -1) return;
@@ -141,8 +155,9 @@
         moveError = '';
       } else {
         moveError =
-          (result.type === 'failure' && /** @type {any} */ (result.data)?.error) ||
-          'Could not move the card; reverted.';
+          result.type === 'failure'
+            ? failureMessage(result.data, 'Could not move the card; reverted.')
+            : 'Could not move the card; reverted.';
         await refreshAll();
       }
     } catch {
@@ -214,8 +229,7 @@
               createBoardError = '';
               await refreshAll();
             } else if (result.type === 'failure') {
-              createBoardError =
-                /** @type {any} */ (result.data)?.error || 'Could not create the board.';
+              createBoardError = failureMessage(result.data, 'Could not create the board.');
             } else if (result.type === 'error') {
               createBoardError = 'Could not create the board.';
             }
@@ -289,17 +303,15 @@
         {#if over}
           <div class="v2-lane-over">
             <TriangleAlert size={12} style="flex:none" />
-            <span>{lane.cards.length - lane.limit} over the limit of {lane.limit}</span>
+            <span>{lane.cards.length - (lane.limit ?? 0)} over the limit of {lane.limit}</span>
           </div>
         {/if}
 
         <div
           class="v2-lane-body"
           use:dndzone={{ items: lane.cards, flipDurationMs: FLIP_MS }}
-          onconsider={(/** @type {CustomEvent<import('svelte-dnd-action').DndEvent>} */ e) =>
-            onConsider(lane, e)}
-          onfinalize={(/** @type {CustomEvent<import('svelte-dnd-action').DndEvent>} */ e) =>
-            onFinalize(lane, e)}
+          onconsider={(/** @type {CardDrag} */ e) => onConsider(lane, e)}
+          onfinalize={(/** @type {CardDrag} */ e) => onFinalize(lane, e)}
         >
           {#each lane.cards as t (t.id)}
             {@const overdue = isOverdue(t)}
@@ -371,8 +383,7 @@
                   closeCardForm();
                   await refreshAll();
                 } else if (result.type === 'failure') {
-                  addCardError =
-                    /** @type {any} */ (result.data)?.error || 'Could not add the card.';
+                  addCardError = failureMessage(result.data, 'Could not add the card.');
                 } else if (result.type === 'error') {
                   addCardError = 'Could not add the card.';
                 }
@@ -444,8 +455,7 @@
                   addColumnError = '';
                   await refreshAll();
                 } else if (result.type === 'failure') {
-                  addColumnError =
-                    /** @type {any} */ (result.data)?.error || 'Could not add the column.';
+                  addColumnError = failureMessage(result.data, 'Could not add the column.');
                 } else if (result.type === 'error') {
                   addColumnError = 'Could not add the column.';
                 }

@@ -40,7 +40,9 @@ def visible_records(org_a, user_profile):
         name="Acme Deal", org=org_a, account=account
     )
     opportunity.assigned_to.add(user_profile)
-    case = Case.objects.create(name="Acme Issue", org=org_a, account=account)
+    case = Case.objects.create(
+        name="Acme Issue", org=org_a, account=account, status="New", priority="Normal"
+    )
     case.assigned_to.add(user_profile)
     return {"account": account, "contact": contact, "opportunity": opportunity}
 

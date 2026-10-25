@@ -28,7 +28,7 @@
   import CurrencySwitch from '#lib/v2/components/CurrencySwitch.svelte';
   import { money, count } from '#lib/v2/format.js';
 
-  /** @type {{ data: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data } = $props();
 
   let canView = $derived(data.can_view);
@@ -37,7 +37,7 @@
   let picked = $state(null);
   /** The picked currency, else the org's own, else the first one invoiced in. */
   let cur = $derived(
-    data.currencies.includes(picked)
+    picked !== null && data.currencies.includes(picked)
       ? picked
       : data.currencies.includes(data.org.currency)
         ? data.org.currency
@@ -74,7 +74,9 @@
     'Nov',
     'Dec'
   ];
-  const monthLabel = (/** @type {string} */ period) => MONTH[Number(period.slice(5, 7)) - 1];
+  // `period` is null only for a row the API could not date, which has no month.
+  const monthLabel = (/** @type {string | null} */ period) =>
+    period ? MONTH[Number(period.slice(5, 7)) - 1] : '';
 
   let collected = $derived(
     d.total_invoiced ? Math.round((d.total_paid / d.total_invoiced) * 100) : 0

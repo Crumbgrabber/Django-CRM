@@ -13,6 +13,8 @@ import { preselectedRating } from '#lib/server/v2/csat.js';
 
 const API_BASE_URL = `${env.PUBLIC_DJANGO_API_URL}/api`;
 
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+
 /** @type {import('./$types').PageServerLoad} */
 export async function load({ params, fetch, url }) {
   const res = await fetch(`${API_BASE_URL}/public/csat/${params.token}/`);
@@ -25,7 +27,7 @@ export async function load({ params, fetch, url }) {
   if (!res.ok) {
     return { error: `Server returned ${res.status}`, token: params.token };
   }
-  const data = await res.json();
+  const data = /** @type {Schemas['PublicCsatSurvey']} */ (await res.json());
   return {
     token: params.token,
     // The star clicked in the email, if any. Only meaningful on this branch:
@@ -66,7 +68,7 @@ export const actions = {
       return fail(409, { error: 'This survey is locked. The edit window has closed.' });
     }
     if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
+      const body = /** @type {{ error?: string }} */ (await res.json().catch(() => ({})));
       return fail(res.status, {
         error: body?.error || `Server returned ${res.status}`
       });

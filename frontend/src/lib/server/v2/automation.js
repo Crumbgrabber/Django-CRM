@@ -4,6 +4,7 @@
  */
 import { error, fail } from '@sveltejs/kit';
 import { apiRequest } from '#lib/api-helpers.js';
+import { apiErrorBody, apiStatus } from '#lib/api-errors.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
 import { checkId } from '#lib/server/v2/custom-objects.js';
 import { isPlanRefusal } from '#lib/server/v2/billing.js';
@@ -20,7 +21,10 @@ export const RUN_PAGE = 20;
 /** @typedef {{ cookies: import('@sveltejs/kit').Cookies }} Event */
 /** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
 
-/** @param {Event} event */
+/**
+ * @param {Event} event
+ * @returns {Promise<Schemas['AutomationCatalogueResponse']>}
+ */
 export async function getCatalogue({ cookies }) {
   try {
     return await apiRequest(
@@ -28,24 +32,28 @@ export async function getCatalogue({ cookies }) {
       { expectedStatuses: [403, 404] },
       { cookies }
     );
-  } catch (/** @type {any} */ err) {
-    if (err?.status === 404) error(404, NOT_AVAILABLE);
+  } catch (err) {
+    if (apiStatus(err) === 404) error(404, NOT_AVAILABLE);
     throw err;
   }
 }
 
-/** @param {Event} event */
+/**
+ * @param {Event} event
+ * @returns {Promise<{ forbidden: true } | { forbidden?: undefined, summary: string | null, rules: Schemas['RuleRow'][] }>}
+ */
 export async function listRules({ cookies }) {
   try {
+    /** @type {Schemas['AutomationRuleListResponse']} */
     const resp = await apiRequest(
       '/automation/rules/',
       { expectedStatuses: [403, 404] },
       { cookies }
     );
     return { summary: resp?.summary ?? null, rules: resp?.results ?? [] };
-  } catch (/** @type {any} */ err) {
-    if (err?.status === 403) return { forbidden: true };
-    if (err?.status === 404) error(404, NOT_AVAILABLE);
+  } catch (err) {
+    if (apiStatus(err) === 403) return { forbidden: true };
+    if (apiStatus(err) === 404) error(404, NOT_AVAILABLE);
     throw err;
   }
 }
@@ -63,15 +71,15 @@ export async function getRule({ cookies }, id) {
       { expectedStatuses: [403, 404] },
       { cookies }
     );
-  } catch (/** @type {any} */ err) {
-    if (err?.status === 404) error(404, RULE_GONE);
+  } catch (err) {
+    if (apiStatus(err) === 404) error(404, RULE_GONE);
     throw err;
   }
 }
 
 /**
  * @param {Event} event
- * @param {Record<string, any>} body
+ * @param {Record<string, unknown>} body
  * @returns {Promise<Schemas['Rule']>}
  */
 export async function createRule({ cookies }, body) {
@@ -81,7 +89,7 @@ export async function createRule({ cookies }, body) {
 /**
  * @param {Event} event
  * @param {string} id
- * @param {Record<string, any>} body
+ * @param {Record<string, unknown>} body
  * @returns {Promise<Schemas['Rule']>}
  */
 export async function updateRule({ cookies }, id, body) {
@@ -110,10 +118,11 @@ export async function deleteRule({ cookies }, id) {
  * @param {Event} event
  * @param {string} id
  * @param {string} recordId
- * @returns {Promise<any[]>}
+ * @returns {Promise<Schemas['AutomationStep'][]>}
  */
 export async function tryRule({ cookies }, id, recordId) {
   checkId(id);
+  /** @type {Schemas['AutomationRuleTryResponse']} */
   const resp = await apiRequest(
     `/automation/rules/${id}/try/`,
     { method: 'POST', body: { record_id: recordId } },
@@ -131,6 +140,7 @@ export async function listRuns({ cookies }, id, rawOffset) {
   checkId(id);
   const whole = Math.trunc(Number(rawOffset));
   const offset = Number.isSafeInteger(whole) ? Math.max(0, whole) : 0;
+  /** @type {Schemas['AutomationRunListResponse']} */
   const resp = await apiRequest(
     `/automation/rules/${id}/runs/?limit=${RUN_PAGE}&offset=${offset}`,
     {},
@@ -142,6 +152,7 @@ export async function listRuns({ cookies }, id, rawOffset) {
 /**
  * @param {Event} event
  * @param {string[]} ids
+ * @returns {Promise<Schemas['AutomationRuleReorderResponse']>}
  */
 export async function reorderRules({ cookies }, ids) {
   return await apiRequest(
@@ -159,6 +170,7 @@ export async function reorderRules({ cookies }, ids) {
  */
 export async function automationSummary({ cookies }) {
   try {
+    /** @type {Schemas['AutomationRuleListResponse']} */
     const resp = await apiRequest('/automation/rules/', { quietErrors: true }, { cookies });
     const rules = Array.isArray(resp?.results) ? resp.results : [];
     let active = 0;
@@ -171,26 +183,39 @@ export async function automationSummary({ cookies }) {
       if (bad || r.status === 'paused') attention = true;
     }
     return { active, failing, attention };
-  } catch (/** @type {any} */ err) {
-    return err?.status === 404 ? false : null;
+  } catch (err) {
+    return apiStatus(err) === 404 ? false : null;
   }
 }
 
 /**
- * @param {any} source
- * @param {string[]} keys
+ * Parsed JSON as an object, or the unreadable-rule error.
+ * @param {unknown} source
+ * @returns {Record<string, unknown>}
  */
-function pick(source, keys) {
+function record(source) {
   if (source === null || typeof source !== 'object' || Array.isArray(source)) {
     throw new Error(UNREADABLE);
   }
-  /** @type {Record<string, any>} */
+  return /** @type {Record<string, unknown>} */ (source);
+}
+
+/**
+ * @param {unknown} source
+ * @param {string[]} keys
+ */
+function pick(source, keys) {
+  const from = record(source);
+  /** @type {Record<string, unknown>} */
   const out = {};
-  for (const key of keys) if (Object.hasOwn(source, key)) out[key] = source[key];
+  for (const key of keys) if (Object.hasOwn(from, key)) out[key] = from[key];
   return out;
 }
 
-/** @param {any} value */
+/**
+ * @param {unknown} value
+ * @returns {unknown[]}
+ */
 function list(value) {
   if (!Array.isArray(value)) throw new Error(UNREADABLE);
   return value;
@@ -207,18 +232,20 @@ const ACTION_KEYS = {
 
 /**
  * A rule rebuilt key by key from parsed JSON; the server validates the values.
- * @param {any} raw
+ * @param {unknown} raw
  * @param {{ create: boolean }} options
  */
 export function ruleBody(raw, { create }) {
   const body = pick(raw, ['name', 'match', 'trigger', 'conditions', 'actions']);
-  if (create && Object.hasOwn(raw, 'object_key')) body.object_key = raw.object_key;
-  if (Object.hasOwn(raw, 'trigger')) body.trigger = pick(raw.trigger, ['event', 'field', 'to']);
-  if (Object.hasOwn(raw, 'conditions')) {
-    body.conditions = list(raw.conditions).map((c) => pick(c, ['field', 'op', 'value']));
+  const source = record(raw);
+  if (create && Object.hasOwn(source, 'object_key')) body.object_key = source.object_key;
+  if (Object.hasOwn(source, 'trigger'))
+    body.trigger = pick(source.trigger, ['event', 'field', 'to']);
+  if (Object.hasOwn(source, 'conditions')) {
+    body.conditions = list(source.conditions).map((c) => pick(c, ['field', 'op', 'value']));
   }
-  if (Object.hasOwn(raw, 'actions')) {
-    body.actions = list(raw.actions).map((a) => {
+  if (Object.hasOwn(source, 'actions')) {
+    body.actions = list(source.actions).map((a) => {
       const type = pick(a, ['type']).type;
       const keys =
         typeof type === 'string' && Object.hasOwn(ACTION_KEYS, type) ? ACTION_KEYS[type] : [];
@@ -236,6 +263,7 @@ export function ruleBody(raw, { create }) {
  */
 export function ruleFromForm(form, options) {
   const raw = form.get('rule');
+  /** @type {unknown} */
   let parsed;
   try {
     parsed = JSON.parse(typeof raw === 'string' ? raw : '');
@@ -247,11 +275,12 @@ export function ruleFromForm(form, options) {
 
 /**
  * A refused save as the editor shows it, with the API's status.
- * @param {any} err
+ * @param {unknown} err
  */
 export function refusedSave(err) {
-  const status = Number.isInteger(err?.status) && err.status >= 400 && err.status < 600;
-  return fail(status ? err.status : 400, { save: ruleErrors(err) });
+  const status = apiStatus(err);
+  const usable = status !== undefined && Number.isInteger(status) && status >= 400 && status < 600;
+  return fail(usable ? status : 400, { save: ruleErrors(err) });
 }
 
 /**
@@ -281,14 +310,15 @@ function rowKey(path) {
 /**
  * `plan` marks a plan limit, which the editor links to Billing for an admin.
  *
- * @param {any} err the error thrown by `apiRequest`
+ * @param {unknown} err the error thrown by `apiRequest`
  * @returns {{ general: string | null, rows: Record<string, string>, plan?: boolean }}
  */
 export function ruleErrors(err) {
   /** @type {Record<string, string>} */
   const rows = {};
-  const errors = err?.body?.errors;
-  if (err?.status === 400 && errors && typeof errors === 'object' && !Array.isArray(errors)) {
+  const body = apiErrorBody(err);
+  const errors = body?.errors;
+  if (apiStatus(err) === 400 && errors && typeof errors === 'object' && !Array.isArray(errors)) {
     for (const [path, messages] of Object.entries(errors)) {
       const message = Array.isArray(messages) ? messages[0] : messages;
       const key = rowKey(path);
@@ -296,8 +326,8 @@ export function ruleErrors(err) {
     }
     if (Object.keys(rows).length) return { general: null, rows };
   }
-  if (err?.status === 403 && typeof err?.body?.detail === 'string') {
-    return { general: err.body.detail, rows, plan: isPlanRefusal(err) };
+  if (apiStatus(err) === 403 && typeof body?.detail === 'string') {
+    return { general: body.detail, rows, plan: isPlanRefusal(err) };
   }
   return { general: readableError(err, 'Could not save the rule.'), rows };
 }

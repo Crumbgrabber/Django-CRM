@@ -7,6 +7,7 @@ import {
   activateMacro
 } from '#lib/server/v2/macros.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 /** @type {import('./$types').PageServerLoad} */
 export async function load({ cookies }) {
@@ -48,8 +49,8 @@ export const actions = {
     const values = readValues(form);
     try {
       await createMacro(event, values);
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, {
           create: { error: 'Only an admin can create a macro shared with everyone.' }
         });
@@ -65,13 +66,13 @@ export const actions = {
     const values = readValues(form);
     try {
       await updateMacro(event, id, values);
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, {
           update: { error: 'Only an admin can change a macro shared with everyone.' }
         });
       }
-      if (err?.status === 404) {
+      if (apiStatus(err) === 404) {
         // A personal macro belonging to someone else answers 404 on purpose:
         // a 403 would confirm the row exists. Say the same thing back.
         return fail(404, { update: { error: 'That macro is not yours to change.' } });
@@ -86,13 +87,13 @@ export const actions = {
     const id = form.get('id')?.toString() ?? '';
     try {
       await deleteMacro(event, id);
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, {
           delete: { error: 'Only an admin can remove a macro shared with everyone.' }
         });
       }
-      if (err?.status === 404) {
+      if (apiStatus(err) === 404) {
         // Same reasoning as `update`: the row not being yours reads the same
         // as the row not existing, on purpose.
         return fail(404, { delete: { error: 'That macro is not yours to remove.' } });
@@ -115,13 +116,13 @@ export const actions = {
     const id = form.get('id')?.toString() ?? '';
     try {
       await activateMacro(event, id);
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, {
           activate: { error: 'Only an admin can turn on a macro shared with everyone.' }
         });
       }
-      if (err?.status === 404) {
+      if (apiStatus(err) === 404) {
         // Same reasoning as `update`/`delete`: the row not being yours reads
         // the same as the row not existing, on purpose.
         return fail(404, { activate: { error: 'That macro is not yours to turn on.' } });

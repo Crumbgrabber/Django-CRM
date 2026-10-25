@@ -25,9 +25,16 @@
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
   import { ChevronRight, Lock } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
+  /**
+   * What the form is filled from: the echoed values of a refused save.
+   *
+   * @typedef {{ name?: string, primary_color?: string, secondary_color?: string, default_notes?: string, default_terms?: string, footer_text?: string, is_default?: boolean }} TemplateValues
+   */
+
+  /** @type {TemplateValues} */
   let values = $derived(form?.values ?? {});
 
   /* True from submit until the response lands, so a second press during a

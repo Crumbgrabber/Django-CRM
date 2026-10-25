@@ -31,24 +31,26 @@
   import { Plus, KeyRound, ShieldAlert, Copy, Check } from '@lucide/svelte';
   import { tokenStatus, staleness, scopeSummary, EXPIRY_CHOICES } from '#lib/v2/token-rules.js';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   let creating = $state(false);
   let busy = $state(false);
   let copied = $state(false);
 
+  /** @type {import('$app/forms').SubmitFunction} */
   const working = () => {
     busy = true;
-    return async (/** @type {any} */ { update }) => {
+    return async ({ update }) => {
       await update();
       busy = false;
     };
   };
 
+  /** @type {import('$app/forms').SubmitFunction} */
   const createSubmit = () => {
     busy = true;
-    return async (/** @type {any} */ { update, result }) => {
+    return async ({ update, result }) => {
       await update();
       busy = false;
       if (result?.type === 'success' && result?.data?.created) creating = false;

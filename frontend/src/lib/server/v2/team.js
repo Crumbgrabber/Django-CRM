@@ -37,6 +37,7 @@
  * people rows need it to show who is on what.
  */
 import { apiRequest } from '#lib/api-helpers.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 /** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
 
@@ -105,13 +106,13 @@ function viewerUserId(cookies) {
  * `/api/user/<id>/` verb takes. Keeping both here means the template never has
  * to remember which one an action needs.
  *
- * @param {any} p
+ * @param {Schemas['UserListRow']} p
  * @param {Record<string, string[]>} teamsByProfile
  * @param {string | null} viewerId
  * @returns {Member}
  */
 function toMember(p, teamsByProfile, viewerId) {
-  const details = p.user_details ?? {};
+  const details = p.user_details;
   return {
     id: p.id,
     user_id: details.id,
@@ -143,12 +144,13 @@ export async function listTeam({ cookies }) {
   /** @type {Schemas['TeamsListResponse']} */
   let teamsResp;
   try {
-    [usersResp, teamsResp] = await Promise.all([
-      apiRequest('/users/', {}, { cookies }),
-      apiRequest('/teams/', {}, { cookies })
-    ]);
-  } catch (/** @type {any} */ err) {
-    if (err?.status === 403) return { forbidden: true };
+    /** @type {Promise<Schemas['UsersListResponse']>} */
+    const usersCall = apiRequest('/users/', {}, { cookies });
+    /** @type {Promise<Schemas['TeamsListResponse']>} */
+    const teamsCall = apiRequest('/teams/', {}, { cookies });
+    [usersResp, teamsResp] = await Promise.all([usersCall, teamsCall]);
+  } catch (err) {
+    if (apiStatus(err) === 403) return { forbidden: true };
     throw err;
   }
 
@@ -164,9 +166,8 @@ export async function listTeam({ cookies }) {
     }
   }
 
-  // The schema leaves both blocks as bare dicts; their rows are ProfileSerializer rows.
-  const activeRows = /** @type {any[]} */ (usersResp?.active_users?.active_users ?? []);
-  const inactiveRows = /** @type {any[]} */ (usersResp?.inactive_users?.inactive_users ?? []);
+  const activeRows = usersResp?.active_users?.active_users ?? [];
+  const inactiveRows = usersResp?.inactive_users?.inactive_users ?? [];
   const active = activeRows.map((p) => toMember(p, teamsByProfile, viewerId));
   const inactive = inactiveRows.map((p) => toMember(p, teamsByProfile, viewerId));
 
@@ -177,7 +178,7 @@ export async function listTeam({ cookies }) {
     member_count: (t.users ?? []).length
   }));
 
-  const admins = active.filter((/** @type {any} */ m) => m.role === 'ADMIN');
+  const admins = active.filter((m) => m.role === 'ADMIN');
 
   return {
     forbidden: false,
@@ -188,11 +189,11 @@ export async function listTeam({ cookies }) {
     totals: {
       count: active.length,
       admins: admins.length,
-      never_signed_in: active.filter((/** @type {any} */ m) => !m.last_login).length,
+      never_signed_in: active.filter((m) => !m.last_login).length,
       deactivated: inactive.length,
       // A live token outliving the account that owns it, the number worth acting on.
       tokens_on_deactivated: inactive.reduce(
-        (/** @type {number} */ a, /** @type {any} */ m) => a + m.active_token_count,
+        (/** @type {number} */ a, m) => a + m.active_token_count,
         0
       )
     },

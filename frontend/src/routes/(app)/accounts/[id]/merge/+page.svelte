@@ -1,7 +1,7 @@
 <script>
   import MergeCompare from '#lib/v2/components/MergeCompare.svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 </script>
 

@@ -21,12 +21,14 @@
 import { apiRequest } from '#lib/api-helpers.js';
 import { viewerIsAdmin } from './organization.js';
 
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+/** @typedef {Awaited<ReturnType<typeof getApprovalRules>>['rules'][number]} ApprovalRuleRow */
+
 /**
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
- * @returns {Promise<{ rules: any[], totals: any, can_edit: boolean }>}
  */
 export async function getApprovalRules({ cookies }) {
-  /** @type {{ rules?: any[], totals?: any }} */
+  /** @type {Schemas['ApprovalRuleListResponse']} */
   const { rules, totals } = await apiRequest('/cases/approval-rules/', {}, { cookies });
   return {
     rules: (rules ?? []).map((r) => ({
@@ -34,7 +36,7 @@ export async function getApprovalRules({ cookies }) {
       name: r.name,
       is_active: r.is_active,
       approver_role: r.approver_role,
-      approvers: (r.approvers ?? []).filter((/** @type {any} */ a) => a && a.id),
+      approvers: (r.approvers ?? []).filter((a) => a && a.id),
       match_priority: r.match_priority,
       match_case_type: r.match_case_type,
       match_team: r.match_team ?? null,
@@ -77,9 +79,11 @@ const UPDATE_FIELDS = CREATE_FIELDS;
  *  real select. */
 const TRIGGER_EVENT = 'pre_close';
 
-/** @param {string[]} allowed @param {{ [key: string]: any }} values */
+/** @typedef {{ [key: string]: unknown, approver_ids?: unknown[] }} RuleValues */
+
+/** @param {string[]} allowed @param {RuleValues} values */
 function buildBody(allowed, values) {
-  /** @type {Record<string, any>} */
+  /** @type {RuleValues} */
   const body = {};
   for (const field of allowed) {
     if (values[field] === undefined) continue;
@@ -100,7 +104,8 @@ function buildBody(allowed, values) {
 
 /**
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
- * @param {{ [key: string]: unknown }} values
+ * @param {RuleValues} values
+ * @returns {Promise<Schemas['ApprovalRule']>}
  */
 export async function createApprovalRule({ cookies }, values) {
   const body = buildBody(CREATE_FIELDS, values);
@@ -112,7 +117,8 @@ export async function createApprovalRule({ cookies }, values) {
 /**
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
- * @param {{ [key: string]: unknown }} values
+ * @param {RuleValues} values
+ * @returns {Promise<Schemas['ApprovalRule']>}
  */
 export async function updateApprovalRule({ cookies }, id, values) {
   if (!id) throw new Error('Which rule? No rule id was given.');
@@ -160,6 +166,7 @@ export async function updateApprovalRule({ cookies }, id, values) {
  */
 export async function deleteApprovalRule({ cookies }, id) {
   if (!id) throw new Error('Which rule? No rule id was given.');
+  /** @type {Schemas['ApprovalRuleDeactivatedResponse'] | null} */
   const resp = await apiRequest(`/cases/approval-rules/${id}/`, { method: 'DELETE' }, { cookies });
   return { turned_off: resp?.is_active === false };
 }
