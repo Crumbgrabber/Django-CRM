@@ -14,6 +14,7 @@ from django.db.models import Q
 from django.template.loader import render_to_string
 from django.utils import timezone
 
+from cases.inbound.generated import catch_all_topic, generated_domain
 from cases.inbound.threading import _SUBJECT_FALLBACK_RE as _SUBJECT_TAG_RE
 from cases.inbound.threading import short_case_id
 from cases.models import Case, CsatSurvey, EscalationPolicy, InboundMailbox, TimeEntry
@@ -442,16 +443,21 @@ def _reply_to_mailbox(case):
 
     The one the case's latest inbound email came through; else the org's only
     mailbox. Only a mailbox that can take mail counts: active, and an SES one
-    with its topic pinned, since the webhook refuses everything else and a
+    with its topic pinned (or a generated one while the server's catch-all
+    receives for its domain), since the webhook refuses everything else and a
     reply sent there would be lost. A lead address never counts: a reply sent
     there would become a lead. Always this case's org.
     """
+    can_receive = ~Q(topic_arn="")
+    if generated_domain() and catch_all_topic():
+        can_receive |= Q(is_generated=True)
     receiving = InboundMailbox.objects.filter(
+        can_receive,
         org_id=case.org_id,
         is_active=True,
         provider="ses",
         creates=InboundMailbox.CREATES_TICKETS,
-    ).exclude(topic_arn="")
+    )
     last_mailbox_id = (
         EmailMessageRecord.objects.filter(
             org_id=case.org_id,
