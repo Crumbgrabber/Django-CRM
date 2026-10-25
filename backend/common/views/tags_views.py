@@ -20,6 +20,7 @@ from contacts.models import Contact
 from leads.models import Lead, LeadIntake
 from macros.models import Macro
 from opportunity.models import Opportunity
+from projects.models import Project
 from tasks.models import Task
 from webforms.models import WebForm
 
@@ -51,6 +52,7 @@ _TAGGABLE = (
     # A macro that adds a tag uses it; archiving the tag makes the macro skip
     # it, and a merge must move the macro onto the surviving tag.
     ("macros", Macro),
+    ("projects", Project),
 )
 
 

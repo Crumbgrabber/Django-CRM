@@ -40,12 +40,12 @@ export const SECRET_PROVIDERS = ['mailgun', 'postmark'];
 /**
  * The first gate mail to this address would fail, or `'live'`.
  *
- * @param {{ is_active?: boolean, provider?: string, has_topic_arn?: boolean, has_webhook_secret?: boolean, is_generated?: boolean }} mailbox
+ * @param {{ is_active?: boolean, provider?: string, has_topic_arn?: boolean, has_webhook_secret?: boolean, is_generated?: boolean } | null | undefined} mailbox
  * @returns {'off' | 'unsupported' | 'unconfirmed' | 'live'}
  */
 export function deliveryState(mailbox) {
   if (!mailbox?.is_active) return 'off';
-  if (!SUPPORTED_PROVIDERS.includes(mailbox.provider)) return 'unsupported';
+  if (!mailbox.provider || !SUPPORTED_PROVIDERS.includes(mailbox.provider)) return 'unsupported';
   // Fails closed: a row that does not say (a member is not sent
   // `has_webhook_secret`) reads as not connected.
   if (SECRET_PROVIDERS.includes(mailbox.provider)) {
@@ -55,6 +55,7 @@ export function deliveryState(mailbox) {
   return 'live';
 }
 
+/** @type {Record<string, string>} */
 const LABEL = {
   off: 'Creating nothing',
   unsupported: 'Provider not wired up',
@@ -71,6 +72,7 @@ export function deliveryLabel(state, creates = 'tickets') {
   return LABEL[state] ?? LABEL.off;
 }
 
+/** @type {Record<string, import('#lib/v2/enums.js').Tone>} */
 const TONE = {
   off: 'clay',
   unsupported: 'rust',
@@ -120,7 +122,7 @@ export function deliveryExplanation(state, providerLabel, creates = 'tickets', p
  * every mailbox in the org unfiltered and unpaginated, so this counts the same
  * set the total does, and answers the question the header asks.
  *
- * @param {any[]} mailboxes
+ * @param {any[] | undefined} mailboxes
  */
 export function deliveringCount(mailboxes) {
   return (mailboxes ?? []).filter((m) => deliveryState(m) === 'live').length;
@@ -132,7 +134,7 @@ export function deliveringCount(mailboxes) {
  * An off address is left out on purpose. Somebody chose that, and it is the
  * one state of the three the row already reads correctly.
  *
- * @param {any[]} mailboxes
+ * @param {any[] | undefined} mailboxes
  */
 export function silentMailboxes(mailboxes) {
   return (mailboxes ?? []).filter((m) => {

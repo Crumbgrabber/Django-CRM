@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const apiRequest = vi.fn();
-vi.mock('#lib/api-helpers.js', () => ({ apiRequest: (...a) => apiRequest(...a) }));
+vi.mock('#lib/api-helpers.js', () => ({
+  apiRequest: (/** @type {any[]} */ ...a) => apiRequest(...a)
+}));
 
 // Imports nothing from `$app/*`, so the standalone vitest config can load it.
 const { actions, load } = await import('./+page.server.js');
@@ -9,6 +11,8 @@ const { actions, load } = await import('./+page.server.js');
 /**
  * A JWT carrying the claims the API signs: `role` and the admin fact derived
  * from it. Only the payload is ever decoded.
+ *
+ * @param {string} role
  */
 function token(role) {
   const payload = Buffer.from(
@@ -21,7 +25,7 @@ function cookies(role = 'ADMIN') {
   return { get: (/** @type {string} */ name) => (name === 'jwt_access' ? token(role) : undefined) };
 }
 
-/** @param {Record<string, string>} fields */
+/** @param {Record<string, string>} fields @param {string} [role] */
 function event(fields, role) {
   const body = new FormData();
   for (const [key, value] of Object.entries(fields)) body.set(key, value);

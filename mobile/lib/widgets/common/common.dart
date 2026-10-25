@@ -12,4 +12,5 @@ export 'custom_fields_display.dart';
 export 'input_field.dart';
 export 'loading.dart';
 export 'menu_row.dart';
+export 'record_detail_parts.dart';
 export 'round_action_button.dart';

@@ -147,6 +147,7 @@ export async function listReports({ cookies }) {
   // The summary covers every invoice in the org, so its currencies include
   // every currency the revenue and aging reports can mention. The backend
   // orders them by code.
+  /** @type {string[]} */
   const currencies = (dashboard.summary?.by_currency ?? []).map(
     (/** @type {any} */ r) => r.currency
   );

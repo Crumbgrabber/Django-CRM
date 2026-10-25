@@ -235,6 +235,7 @@ void main() {
         'automation.failed',
         'automation.paused',
         'automation.limit',
+        'project.budget',
       ]);
     });
 

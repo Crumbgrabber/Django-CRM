@@ -50,7 +50,9 @@ function toTicket(ticket) {
     firstResponseAt: ticket.first_response_at ?? null,
     lastActivityAt: ticket.last_activity_at,
     createdAt: ticket.created_at,
-    messages: (ticket.messages ?? []).map((message) => toMessage(message, ticket.id))
+    messages: (ticket.messages ?? []).map((/** @type {any} */ message) =>
+      toMessage(message, ticket.id)
+    )
   };
 }
 

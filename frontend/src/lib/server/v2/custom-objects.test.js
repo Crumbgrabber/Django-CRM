@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const apiRequest = vi.fn();
-vi.mock('#lib/api-helpers.js', () => ({ apiRequest: (...a) => apiRequest(...a) }));
+vi.mock('#lib/api-helpers.js', () => ({
+  apiRequest: (/** @type {any[]} */ ...a) => apiRequest(...a)
+}));
 
 const {
   getCustomObjects,
@@ -29,7 +31,7 @@ const {
 const event = /** @type {any} */ ({ cookies: { get: () => 'token' } });
 const ID = '0b9f4c6e-3f0a-4a5b-9a77-1c2d3e4f5a6b';
 const ID2 = '1c9f4c6e-3f0a-4a5b-9a77-1c2d3e4f5a6c';
-const status = (n) => Object.assign(new Error('failed'), { status: n });
+const status = (/** @type {number} */ n) => Object.assign(new Error('failed'), { status: n });
 
 beforeEach(() => {
   apiRequest.mockReset();
@@ -361,6 +363,7 @@ describe('related', () => {
 
 describe('searchLinkTargets', () => {
   const person = { id: 'p1', email: 'a@b.c' };
+  /** @type {Record<string, [string, any, string]>} */
   const fixtures = {
     lead: [
       '/leads/',
@@ -508,6 +511,7 @@ describe('recordWriteError', () => {
 });
 
 describe('recordPage', () => {
+  /** @param {string} id @param {string} file_name @param {boolean} is_image */
   const attachment = (id, file_name, is_image) => ({ id, file_name, is_image, can_delete: true });
   const definition = { key: 'property', label: 'Property', is_active: true, fields: [] };
 
@@ -522,8 +526,11 @@ describe('recordPage', () => {
     );
     const page = await recordPage(event, 'property', ID);
     expect(page.definition).toBe(definition);
-    expect(page.photos.map((a) => a.file_name)).toEqual(['house.jpg']);
-    expect(page.files.map((a) => a.file_name)).toEqual(['plan.svg', 'notes.pdf']);
+    expect(page.photos.map((/** @type {any} */ a) => a.file_name)).toEqual(['house.jpg']);
+    expect(page.files.map((/** @type {any} */ a) => a.file_name)).toEqual([
+      'plan.svg',
+      'notes.pdf'
+    ]);
     expect(page.photos[0].href).toBe(`/api/attachments/${ID}/download`);
     expect(page.files[0].href).toBe(`/api/attachments/${ID2}/download`);
     expect(page.record.id).toBe(ID);

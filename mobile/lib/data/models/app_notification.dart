@@ -23,6 +23,9 @@ class AppNotification {
     this.reason,
     this.ruleNames,
     this.windowStart,
+    this.budgetKind,
+    this.budgetPercent,
+    this.projectName,
   });
 
   final String id;
@@ -50,6 +53,12 @@ class AppNotification {
   final String? reason;
   final List<String>? ruleNames;
   final DateTime? windowStart;
+
+  /// From `data`, for `project.budget`: `hours` or `amount`, 80 or 100, and
+  /// the project's name.
+  final String? budgetKind;
+  final int? budgetPercent;
+  final String? projectName;
 
   bool get isUnread => readAt == null;
   String get displayActorName => verb.startsWith('support.')
@@ -105,7 +114,7 @@ class AppNotification {
       return _record('obj:${custom.group(1)}', custom.group(2)!);
     }
     final record = RegExp(
-      r'^/(leads|contacts|accounts|pipeline|tasks)/([^/?#]+)$',
+      r'^/(leads|contacts|accounts|pipeline|tasks|projects)/([^/?#]+)$',
     ).firstMatch(value);
     if (record == null) return null;
     return _record(_recordKinds[record.group(1)]!, record.group(2)!);
@@ -130,6 +139,7 @@ class AppNotification {
     'accounts': 'account',
     'pipeline': 'deal',
     'tasks': 'task',
+    'projects': 'project',
   };
 
   /// The automation verbs' sentence, the web's `notificationText`, or null
@@ -161,6 +171,18 @@ class AppNotification {
     return null;
   }
 
+  /// The `project.budget` sentence, as the web's `notificationText` writes
+  /// it, or null for any other verb or for `data` of the wrong type.
+  String? get budgetText {
+    if (verb != 'project.budget') return null;
+    final name = projectName, kind = budgetKind, percent = budgetPercent;
+    if (name == null || name.trim().isEmpty) return null;
+    if (percent == null || percent <= 0) return null;
+    if (kind != 'hours' && kind != 'amount') return null;
+    final used = percent >= 100 ? 'all of its' : '$percent% of its';
+    return '$name has used $used $kind budget';
+  }
+
   /// The line under a message naming the rule that sent it.
   String? get automationSource =>
       verb == 'automation.message' && automationText() != null
@@ -185,6 +207,7 @@ class AppNotification {
         data is Map && data[key] is String ? data[key] as String : null;
     final rules = data is Map ? data['rules'] : null;
     final windowStart = text('window_start');
+    final percent = data is Map ? data['percent'] : null;
     return AppNotification(
       id: json['id']?.toString() ?? '',
       verb: json['verb']?.toString() ?? '',
@@ -207,6 +230,11 @@ class AppNotification {
           ? List<String>.unmodifiable(rules)
           : null,
       windowStart: windowStart == null ? null : DateTime.tryParse(windowStart),
+      budgetKind: text('kind'),
+      budgetPercent: percent is num && percent.isFinite
+          ? percent.round()
+          : null,
+      projectName: text('project'),
     );
   }
 
@@ -224,12 +252,15 @@ class AppNotification {
     reason: reason,
     ruleNames: ruleNames,
     windowStart: windowStart,
+    budgetKind: budgetKind,
+    budgetPercent: budgetPercent,
+    projectName: projectName,
   );
 }
 
-/// Verbs the backend dispatches. CRM tickets, platform support and
-/// automation rules are the current producers. Anything else is rendered
-/// plainly rather than given copy for a feature that does not exist.
+/// Verbs the backend dispatches. CRM tickets, platform support, automation
+/// rules and project budgets are the current producers. Anything else is
+/// rendered plainly rather than given copy for a feature that does not exist.
 const List<String> producedVerbs = [
   'case.mentioned',
   'case.commented',
@@ -239,4 +270,5 @@ const List<String> producedVerbs = [
   'automation.failed',
   'automation.paused',
   'automation.limit',
+  'project.budget',
 ];

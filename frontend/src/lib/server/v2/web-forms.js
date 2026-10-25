@@ -35,6 +35,8 @@ import { missingOption, missingOptions } from '#lib/v2/pickers.js';
 import { builtinFor } from '#lib/v2/webform-fields.js';
 import { viewerIsAdmin } from './organization.js';
 
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+
 /** Enough forms that no real org is truncated, small enough to stay one page. */
 const LIST_LIMIT = 100;
 
@@ -50,6 +52,8 @@ const EMPTY_TOTALS = { count: 0, published: 0, submissions_30d: 0, spam_30d: 0 }
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  */
 export async function getWebForms({ cookies }) {
+  // A limit/offset page with `totals`, which the schema describes as a bare list.
+  /** @type {{ count: number, results: Schemas['WebFormList'][], totals: typeof EMPTY_TOTALS }} */
   const resp = await apiRequest(`/webforms/?limit=${LIST_LIMIT}`, {}, { cookies });
   const forms = resp?.results ?? [];
   const totals = resp?.totals ?? EMPTY_TOTALS;
@@ -77,10 +81,11 @@ export async function getWebForms({ cookies }) {
  */
 async function listProfiles(cookies) {
   try {
+    /** @type {Schemas['TeamsAndUsersResponse']} */
     const resp = await apiRequest('/users/get-teams-and-users/', {}, { cookies });
-    return (resp.profiles ?? []).map((/** @type {any} */ p) => ({
+    return (resp.profiles ?? []).map((p) => ({
       id: p.id,
-      name: p.user_details?.email || p.user?.email || 'Unknown'
+      name: p.user_details?.email || 'Unknown'
     }));
   } catch {
     return [];
@@ -102,10 +107,12 @@ async function listProfiles(cookies) {
  */
 async function listCustomFields(cookies) {
   try {
+    // `{ definitions, totals }`, an envelope the schema's bare list does not describe.
+    /** @type {{ definitions?: Schemas['CustomFieldDefinition'][] }} */
     const resp = await apiRequest('/custom-fields/', {}, { cookies });
     return (resp.definitions ?? [])
-      .filter((/** @type {any} */ d) => d.is_active)
-      .map((/** @type {any} */ d) => ({
+      .filter((d) => d.is_active)
+      .map((d) => ({
         id: d.id,
         label: d.label,
         key: d.key,
@@ -119,8 +126,9 @@ async function listCustomFields(cookies) {
 /** @param {import('@sveltejs/kit').Cookies} cookies */
 async function listTags(cookies) {
   try {
+    /** @type {Schemas['TagsListResponse']} */
     const resp = await apiRequest('/tags/', {}, { cookies });
-    return (resp.tags ?? []).map((/** @type {any} */ t) => ({ id: t.id, name: t.name }));
+    return (resp.tags ?? []).map((t) => ({ id: t.id, name: t.name }));
   } catch {
     return [];
   }
@@ -151,7 +159,7 @@ export async function getWebForm({ cookies }, id) {
     listTags(cookies)
   ]);
   const model = builtinFor(form?.target).model;
-  const customFields = definitions.filter((/** @type {any} */ d) => d.model === model);
+  const customFields = definitions.filter((d) => d.model === model);
   // The stored assignee when the picker cannot offer them: the people list is
   // active members only, so a deactivated assignee has no option, and a select
   // with no matching option submits nothing, which the save reads as "nobody".
@@ -343,6 +351,7 @@ export async function unpublishWebForm({ cookies }, id) {
  */
 export async function getSubmissions({ cookies }, id, limit = 25) {
   if (!id) throw new Error('Which form? No form id was given.');
+  /** @type {{ count: number, results: Schemas['WebFormSubmission'][] }} */
   const resp = await apiRequest(`/webforms/${id}/submissions/?limit=${limit}`, {}, { cookies });
   return { submissions: resp?.results ?? [], count: resp?.count ?? 0 };
 }

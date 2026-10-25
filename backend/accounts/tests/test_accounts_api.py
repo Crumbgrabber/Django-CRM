@@ -251,8 +251,8 @@ class TestAccountDetailView:
         body = response.json()
         assert body["error"] is True
         assert body["errors"] == (
-            "This account can't be deleted while it still has invoices, "
-            "estimates or recurring invoices linked to it."
+            "This account can't be deleted while it still has projects, "
+            "invoices, estimates or recurring invoices linked to it."
         )
         assert Account.objects.filter(id=account.id).exists()
 

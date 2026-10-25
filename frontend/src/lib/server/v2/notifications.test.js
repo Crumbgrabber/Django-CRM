@@ -33,7 +33,7 @@ describe('resolvedLink', () => {
     ['/settings', 'an unrelated internal path'],
     ['', 'an empty string'],
     [null, 'null'],
-    [{ toString: () => '/help/1' }, 'a non-string that stringifies']
+    [{ toString: /** @returns {string} */ () => '/help/1' }, 'a non-string that stringifies']
   ])('refuses %s (%s)', (link, _description) => {
     expect(resolvedLink(/** @type {any} */ (link))).toBe('');
   });
@@ -82,6 +82,21 @@ describe('automation notifications', () => {
       ` /leads/${id}`,
       `/leads/${id} `
     ]) {
+      expect(resolvedLink(link)).toBe('');
+    }
+  });
+});
+
+describe('project budget notifications', () => {
+  const id = '4d60686d-bd3d-4e33-b114-ab36f194a6cd';
+
+  it('knows the verb and opens the project', () => {
+    expect(PRODUCED_VERBS).toContain('project.budget');
+    expect(resolvedLink(`/projects/${id}`)).toBe(`/projects/${id}`);
+  });
+
+  it('opens nothing for a project link that is not a plain id', () => {
+    for (const link of ['/projects/1', `/projects/${id}/edit`, `/projects/${id}?bill=1`]) {
       expect(resolvedLink(link)).toBe('');
     }
   });

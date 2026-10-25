@@ -40,6 +40,7 @@
     node.focus();
   }
 
+  /** @type {Record<string, typeof Sun>} */
   const ICONS = { Sun, Columns3, LifeBuoy, Receipt, Target, CircleCheck, Plus };
 
   /** The tab bar and the button follow the org's switched-on modules. */
@@ -49,9 +50,10 @@
   let fab = $derived(fabAction(data.modules));
   let billingNotice = $derived(shellNotice(data, page.url.pathname));
 
-  const isActive = (href, exact) =>
+  const isActive = (/** @type {string} */ href, /** @type {boolean | undefined} */ exact) =>
     exact ? page.url.pathname === href : page.url.pathname.startsWith(href);
 
+  /** @param {KeyboardEvent} e */
   function onkeydown(e) {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault();

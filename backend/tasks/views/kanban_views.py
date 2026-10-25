@@ -154,7 +154,7 @@ class TaskKanbanView(APIView):
         due_date_lte = date_param(params, "due_date__lte")
         if due_date_lte:
             queryset = queryset.filter(due_date__lte=due_date_lte)
-        for related in ("account", "lead", "opportunity", "case"):
+        for related in ("account", "lead", "opportunity", "case", "project"):
             related_id = uuid_param(params, related)
             if related_id:
                 queryset = queryset.filter(**{f"{related}_id": related_id})

@@ -125,6 +125,7 @@
     nextResponseHours = '';
   }
 
+  /** @param {any} p */
   function openEdit(p) {
     editing = p;
     firstResponseAction = p.first_response_action;

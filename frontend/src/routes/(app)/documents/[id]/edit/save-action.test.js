@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const apiRequest = vi.fn();
-vi.mock('#lib/api-helpers.js', () => ({ apiRequest: (...a) => apiRequest(...a) }));
+vi.mock('#lib/api-helpers.js', () => ({
+  apiRequest: (/** @type {any[]} */ ...a) => apiRequest(...a)
+}));
 
 // Imports only `@sveltejs/kit` and `#lib`, so the standalone vitest config can
 // load it (see the note in `vitest.config.js`).
@@ -16,9 +18,13 @@ const { load, actions } = await import('./+page.server.js');
  * failed to load (no checkboxes at all) a PUT would empty the team list.
  */
 
-/** An unsigned JWT carrying the claims `viewerClaims` reads. */
+/**
+ * An unsigned JWT carrying the claims `viewerClaims` reads.
+ *
+ * @param {Record<string, unknown>} claims
+ */
 function token(claims) {
-  const part = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+  const part = (/** @type {object} */ o) => Buffer.from(JSON.stringify(o)).toString('base64url');
   return `${part({ alg: 'none' })}.${part(claims)}.`;
 }
 
@@ -40,7 +46,11 @@ function saveEvent(entries) {
   });
 }
 
-/** Runs the action and returns the redirect it throws on success. */
+/**
+ * Runs the action and returns the redirect it throws on success.
+ *
+ * @param {[string, string | File][]} entries
+ */
 async function save(entries) {
   try {
     return await actions.save(saveEvent(entries));

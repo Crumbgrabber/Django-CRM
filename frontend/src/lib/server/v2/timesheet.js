@@ -1,5 +1,6 @@
 /**
  * Time entries: the wiring behind /v2/timesheet and the ticket's time panel.
+ * A project's time panel is in `projects.js` and builds its bodies here.
  *
  * Server-only. `GET /time-entries/timesheet/` returns the caller's own week
  * grouped into day buckets (every day present, empty or not) with week
@@ -67,38 +68,44 @@ export async function stopTimer({ cookies }, entryId) {
  *  ceiling of its own to catch it. */
 const MAX_ENTRY_MINUTES = 1440;
 
-/** The groupings `/time-entries/report/` accepts. */
-export const REPORT_GROUPINGS = ['agent', 'ticket', 'account'];
+/** The groupings `/time-entries/report/` accepts. `project` only while Projects is on. */
+export const REPORT_GROUPINGS = ['agent', 'ticket', 'project', 'account'];
 
 /**
- * Where the time went over a window: totals by agent, ticket or account.
+ * Where the time went over a window: totals by agent, ticket, project or
+ * account.
  *
  * `group_by` and `billable` are checked against what the API accepts rather
  * than forwarded blind. Both arrive from the query string, so a hand-edited
  * URL would otherwise turn a 400 into a 500 page; an unknown value falls back
- * to the default instead, which is what the filter bar shows anyway.
+ * to the default instead, which is what the filter bar shows anyway. An API
+ * without projects refuses `group_by=project`, so `projectsOn` false drops it
+ * the same way.
  *
  * The window is passed through as given (YYYY-MM-DD, inclusive). Left off, the
  * API answers for the last 30 days and says which days those were, so the page
  * never has to guess a range it did not choose.
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
- * @param {{ start?: string, end?: string, group_by?: string, billable?: string, account?: string, profile?: string }} [filters]
+ * @param {{ start?: string, end?: string, group_by?: string, billable?: string, account?: string, profile?: string, project?: string }} [filters]
+ * @param {{ projectsOn?: boolean }} [options]
  * @returns {Promise<{ report: any }>}
  */
-export async function getTimeReport({ cookies }, filters = {}) {
+export async function getTimeReport({ cookies }, filters = {}, { projectsOn = true } = {}) {
+  const groupings = projectsOn ? REPORT_GROUPINGS : REPORT_GROUPINGS.filter((g) => g !== 'project');
   const qs = new URLSearchParams();
   if (filters.start) qs.set('start', filters.start);
   if (filters.end) qs.set('end', filters.end);
   qs.set(
     'group_by',
-    REPORT_GROUPINGS.includes(filters.group_by ?? '') ? String(filters.group_by) : 'agent'
+    groupings.includes(filters.group_by ?? '') ? String(filters.group_by) : 'agent'
   );
   if (filters.billable === 'true' || filters.billable === 'false') {
     qs.set('billable', filters.billable);
   }
   if (filters.account) qs.set('account', filters.account);
   if (filters.profile) qs.set('profile', filters.profile);
+  if (projectsOn && filters.project) qs.set('project', filters.project);
 
   const report = await apiRequest(`/time-entries/report/?${qs.toString()}`, {}, { cookies });
   return { report };
@@ -172,6 +179,22 @@ export async function startTicketTimer({ cookies }, ticketId) {
 export async function logTicketTime({ cookies }, ticketId, entry) {
   if (!ticketId) throw new Error('Which ticket? No ticket id was given.');
 
+  return await apiRequest(
+    `/cases/${ticketId}/time-entries/`,
+    { method: 'POST', body: loggedEntryBody(entry) },
+    { cookies }
+  );
+}
+
+/**
+ * The body for a stopped entry logged after the fact, on a ticket or a
+ * project: the last `minutes` minutes, ending now (see `logTicketTime`).
+ * Throws a sentence for the form when the input will not do.
+ *
+ * @param {{ minutes: number|string, description: string, billable?: boolean, hourlyRate?: string|number|null, currency?: string|null }} entry
+ * @returns {Record<string, unknown>}
+ */
+export function loggedEntryBody(entry) {
   const minutes = Number(entry.minutes);
   if (!Number.isInteger(minutes) || minutes < 1 || minutes > MAX_ENTRY_MINUTES) {
     throw new Error(`Minutes must be a whole number between 1 and ${MAX_ENTRY_MINUTES}.`);
@@ -198,12 +221,7 @@ export async function logTicketTime({ cookies }, ticketId, entry) {
     body.hourly_rate = rate.toFixed(2);
   }
   if (entry.currency) body.currency = entry.currency;
-
-  return await apiRequest(
-    `/cases/${ticketId}/time-entries/`,
-    { method: 'POST', body },
-    { cookies }
-  );
+  return body;
 }
 
 /**

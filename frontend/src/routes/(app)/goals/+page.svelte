@@ -45,19 +45,29 @@
   let filters = $derived(data.filters ?? { period_type: '', q: '', window: '' });
   let filtered = $derived(Boolean(filters.period_type || filters.q || filters.window));
 
+  /**
+   * @typedef {{
+   *   period_start: string,
+   *   period_end: string,
+   *   progress_percent: number,
+   *   status: string,
+   *   type_weights?: Record<string, number>
+   * }} Goal
+   */
+
   /** How many deal types this goal re-weighs, for the badge on its card. */
-  const weightedTypes = (g) =>
+  const weightedTypes = (/** @type {Goal} */ g) =>
     Object.entries(g.type_weights ?? {}).filter(([, w]) => Number(w) !== 1).length;
 
   /** How far through the period we are, 0-100. */
-  function elapsedPercent(g) {
+  function elapsedPercent(/** @type {Goal} */ g) {
     const start = new Date(g.period_start).getTime();
     const end = new Date(g.period_end).getTime();
     if (!(end > start)) return 100;
     return Math.min(100, Math.max(0, Math.round(((Date.now() - start) / (end - start)) * 100)));
   }
 
-  const isOver = (g) => (daysSince(g.period_end) ?? -1) > 0;
+  const isOver = (/** @type {Goal} */ g) => (daysSince(g.period_end) ?? -1) > 0;
 
   /**
    * SalesGoal.status has no terminal "missed": once period_end passes,
@@ -65,13 +75,13 @@
    * reporting "behind" as though you could still do something about it. A
    * finished period is reported as met or missed instead.
    */
-  const statusLabel = (g) =>
+  const statusLabel = (/** @type {Goal} */ g) =>
     isOver(g) ? (g.progress_percent >= 100 ? 'Target met' : 'Missed') : GOAL_STATUS_LABEL[g.status];
 
-  const statusTone = (g) =>
+  const statusTone = (/** @type {Goal} */ g) =>
     isOver(g) ? (g.progress_percent >= 100 ? 'moss' : 'slate') : GOAL_STATUS_TONE[g.status];
 
-  const barColor = (g) => {
+  const barColor = (/** @type {Goal} */ g) => {
     const tone = statusTone(g);
     return tone === 'moss'
       ? 'var(--v2-moss)'
@@ -87,11 +97,18 @@
    * currency count toward it); deals and activities goals are plain counts.
    * Takes anything with `goal_type` and `currency`, so the leaderboard rows use
    * it too: the board ranks every type together.
+   *
+   * @param {{ goal_type: string, currency?: string | null }} g
+   * @param {number} n
    */
   const value = (g, n) =>
     g.goal_type === 'REVENUE' ? money(n, g.currency || data.org.currency) : count(n);
 
-  /** A per-currency total, or a dash when no revenue goal is active. */
+  /**
+   * A per-currency total, or a dash when no revenue goal is active.
+   *
+   * @param {{ currency: string, amount: number }[]} list
+   */
   const moneyTotal = (list) => moneyEach(list) || '—';
 </script>
 

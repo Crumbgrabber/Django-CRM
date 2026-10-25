@@ -784,6 +784,7 @@ class InvoiceListSerializer(serializers.ModelSerializer):
     account_name = serializers.CharField(source="account.name", read_only=True)
     contact_name = serializers.SerializerMethodField()
     line_items_count = serializers.SerializerMethodField()
+    project = serializers.PrimaryKeyRelatedField(read_only=True)
 
     class Meta:
         model = Invoice
@@ -794,6 +795,7 @@ class InvoiceListSerializer(serializers.ModelSerializer):
             "status",
             "account",
             "account_name",
+            "project",
             "contact",
             "contact_name",
             "client_name",
@@ -827,6 +829,7 @@ class InvoiceSerializer(serializers.ModelSerializer):
     # The name only: mobile reads it, the web reads `contact_name` from lists.
     contact = ContactPickerSerializer(read_only=True)
     opportunity = OpportunityMinimalSerializer(read_only=True)
+    project = serializers.PrimaryKeyRelatedField(read_only=True)
     template = InvoiceTemplateListSerializer(read_only=True)
     line_items = InvoiceLineItemSerializer(many=True, read_only=True)
     payments = PaymentSerializer(many=True, read_only=True)
@@ -848,6 +851,7 @@ class InvoiceSerializer(serializers.ModelSerializer):
             "account",
             "contact",
             "opportunity",
+            "project",
             # Client Details
             "client_name",
             "client_email",

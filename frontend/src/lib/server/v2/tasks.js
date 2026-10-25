@@ -43,6 +43,7 @@ import { apiRequest } from '#lib/api-helpers.js';
 import { fieldsForDetail, fieldsForEdit } from '#lib/server/v2/record-custom-fields.js';
 import { rethrowModuleOff } from '#lib/server/v2/modules.js';
 import { attachmentHref } from '#lib/server/v2/files.js';
+import { taskProject } from '#lib/v2/projects.js';
 
 /** `Task.STATUS_CHOICES`. Note `Task` priority is Low/Medium/High. A Case's is not. */
 export const TASK_STATUSES = ['New', 'In Progress', 'Completed'];
@@ -57,7 +58,7 @@ export const FILTER_FIELDS = [
   'due_date__lte'
 ];
 
-/** The four parent columns, and where each one's record lives in v2. */
+/** The five parent columns, and where each one's record lives in v2. */
 const PARENTS = [
   { field: 'account', kind: 'account', href: (/** @type {string} */ id) => `/accounts/${id}` },
   {
@@ -66,26 +67,28 @@ const PARENTS = [
     href: (/** @type {string} */ id) => `/pipeline/${id}`
   },
   { field: 'case', kind: 'ticket', href: (/** @type {string} */ id) => `/tickets/${id}` },
-  { field: 'lead', kind: 'lead', href: (/** @type {string} */ id) => `/leads/${id}` }
+  { field: 'lead', kind: 'lead', href: (/** @type {string} */ id) => `/leads/${id}` },
+  { field: 'project', kind: 'project', href: (/** @type {string} */ id) => `/projects/${id}` }
 ];
 
 /**
  * The one parent a task has, as a single thing.
  *
  * The model allows exactly one and now enforces it on every path, so the first
- * match is the answer rather than a guess. All four destinations are wired
- * modules, which is the only reason this can be a link at all.
+ * match is the answer rather than a guess. Every destination is a wired
+ * module, which is the only reason this can be a link at all. `project` may
+ * arrive as a bare id, with no name to show.
  *
  * @param {any} row
  */
 function toRelated(row) {
   for (const parent of PARENTS) {
-    const value = row[parent.field];
+    const value = parent.field === 'project' ? taskProject(row.project) : row[parent.field];
     if (value && value.id) {
       return {
         kind: parent.kind,
         id: value.id,
-        name: value.name || '(unnamed)',
+        name: value.name || (parent.kind === 'project' ? 'A project' : '(unnamed)'),
         href: parent.href(value.id)
       };
     }
@@ -113,6 +116,7 @@ function toPerson(profile) {
  * @param {any} row
  */
 function toRow(row) {
+  /** @type {ReturnType<typeof toPerson>[]} */
   const assigned = (row.assigned_to ?? []).map(toPerson);
   return {
     id: row.id,
@@ -155,6 +159,7 @@ export async function listTasks({ cookies }, params) {
   if (!query.has('slim')) query.set('slim', 'true');
 
   const response = await apiRequest(`/tasks/?${query}`, {}, { cookies });
+  /** @type {ReturnType<typeof toRow>[]} */
   const rows = (response.tasks ?? []).map(toRow);
   const totals = response.totals ?? {};
 
@@ -342,6 +347,7 @@ export const EDITABLE_FIELDS = [
   'opportunity',
   'case',
   'lead',
+  'project',
   'assigned_to'
 ];
 

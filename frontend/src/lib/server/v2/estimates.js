@@ -40,6 +40,8 @@
 import { apiRequest } from '#lib/api-helpers.js';
 import { sumByCurrency } from '#lib/v2/format.js';
 
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Statuses still awaiting the client's decision. The only ones with a live validity. */
@@ -152,6 +154,7 @@ export async function listEstimates({ cookies }, params) {
   // so anything past this ceiling would be uncounted. See the module note.
   if (!query.has('limit')) query.set('limit', '1000');
 
+  /** @type {{ results?: any[], count?: number }} */
   const response = await apiRequest(`/invoices/estimates/?${query.toString()}`, {}, { cookies });
   const rows = (response.results ?? []).map(toRow);
   // Bring the one row with an action to the top; the API already sorts the rest
@@ -232,6 +235,7 @@ export async function estimateFromDeal({ cookies }, id) {
   // From the query string, so it is checked before it becomes part of an API
   // path: anything but a UUID prefills nothing.
   if (!UUID_RE.test(id)) return null;
+  /** @type {Schemas['OpportunityDetailResponse']} */
   let response;
   try {
     response = await apiRequest(`/opportunities/${id}/`, {}, { cookies });
@@ -239,6 +243,7 @@ export async function estimateFromDeal({ cookies }, id) {
     if (err?.status === 403 || err?.status === 404) return null;
     throw err;
   }
+  /** @type {Partial<Schemas['Opportunity']>} */
   const deal = response.opportunity_obj ?? {};
   return {
     opportunity_id: deal.id ?? id,
@@ -246,8 +251,8 @@ export async function estimateFromDeal({ cookies }, id) {
     currency: deal.currency || '',
     title: deal.name ? `Estimate for ${deal.name}` : '',
     // The detail GET lists only contacts the caller may open.
-    contact_ids: (response.contacts ?? []).map((/** @type {any} */ c) => c.id),
-    items: (deal.line_items ?? []).map((/** @type {any} */ li) => ({
+    contact_ids: (response.contacts ?? []).map((c) => c.id),
+    items: (deal.line_items ?? []).map((li) => ({
       name: li.name ?? li.product?.name ?? '',
       description: li.description ?? '',
       quantity: num(li.quantity),

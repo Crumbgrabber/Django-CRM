@@ -22,8 +22,8 @@ class TimeReportFilters {
   final DateTime start;
   final DateTime end;
 
-  /// One of agent/ticket/account. The API rejects anything else, so the
-  /// picker's values and this string are the same short list.
+  /// One of agent/ticket/account/project. The API rejects anything else, so
+  /// the picker's values and this string are the same short list.
   final String groupBy;
 
   /// 'true', 'false', or null for everything. Null is not the same as 'false':

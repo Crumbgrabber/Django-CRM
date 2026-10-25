@@ -564,6 +564,25 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
         path: '/tickets/${t.caseId}',
       );
     }
+    if (t.projectId != null) {
+      final projectsOn = ref.watch(moduleOnProvider('projects'));
+      String label = 'Selected project';
+      for (final p
+          in projectsOn
+              ? ref.watch(projectEntityOptionsProvider).value ?? const []
+              : const []) {
+        if (p.id == t.projectId) {
+          label = p.label;
+          break;
+        }
+      }
+      return _RelatedRef(
+        typeLabel: 'Project',
+        icon: LucideIcons.folderKanban,
+        label: label,
+        path: projectsOn ? '/projects/${t.projectId}' : null,
+      );
+    }
     return null;
   }
 

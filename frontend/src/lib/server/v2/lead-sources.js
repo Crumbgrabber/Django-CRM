@@ -28,10 +28,11 @@ const SOURCE_GONE = 'That source does not exist.';
  * @returns {LeadSource[]}
  */
 function shape(resp) {
+  /** @type {any[]} */
   const rows = Array.isArray(resp?.sources) ? resp.sources : [];
   return rows
-    .filter((/** @type {any} */ s) => s && typeof s.key === 'string')
-    .map((/** @type {any} */ s) => ({
+    .filter((s) => s && typeof s.key === 'string')
+    .map((s) => ({
       id: s.id ?? null,
       key: s.key,
       label: typeof s.label === 'string' && s.label ? s.label : s.key,

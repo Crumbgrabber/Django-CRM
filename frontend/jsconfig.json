@@ -3,9 +3,7 @@
   "compilerOptions": {
     "sourceMap": true,
     "strict": true,
-    "noImplicitAny": false,
-    "useUnknownInCatchVariables": false,
-    "strictNullChecks": false
+    "useUnknownInCatchVariables": false
   },
   "include": ["src", "vite.config.js", "test"]
 }

@@ -6,15 +6,16 @@ import 'api_service.dart';
 
 /// The one place the app turns a file on the phone into an attachment.
 ///
-/// Four detail screens carry a Files section and every one of them could
-/// already delete an attachment it had no way to create. The endpoints are the
+/// Five detail screens carry a Files section. Four of them could once delete
+/// an attachment they had no way to create. The endpoints are the
 /// same detail POST that takes a comment, each with its own field name, so the
 /// only thing that varies between them is that name and the URL.
 enum AttachmentTarget {
   task('task_attachment'),
   lead('lead_attachment'),
   deal('opportunity_attachment'),
-  ticket('case_attachment');
+  ticket('case_attachment'),
+  project('project_attachment');
 
   const AttachmentTarget(this.field);
 
@@ -33,6 +34,8 @@ enum AttachmentTarget {
         return '${ApiConfig.opportunities}$recordId/';
       case AttachmentTarget.ticket:
         return '${ApiConfig.tickets}$recordId/';
+      case AttachmentTarget.project:
+        return '${ApiConfig.projects}$recordId/';
     }
   }
 }

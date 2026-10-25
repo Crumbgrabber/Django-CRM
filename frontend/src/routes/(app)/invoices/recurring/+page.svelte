@@ -26,15 +26,16 @@
 
   let totals = $derived(data.totals);
 
-  const frequency = (s) =>
+  const frequency = (/** @type {{ frequency: string, custom_days: number | null }} */ s) =>
     s.frequency === 'CUSTOM'
       ? `Every ${s.custom_days} days`
       : RECURRING_FREQUENCY_LABEL[s.frequency];
 
   /** Next run, or why there isn't one. A paused schedule has no next run. */
-  function nextRun(s) {
+  function nextRun(/** @type {{ is_active: boolean, next_generation_date: string | null }} */ s) {
     if (!s.is_active) return { text: 'Paused', tone: 'muted' };
     const n = daysSince(s.next_generation_date);
+    if (n === null) return { text: shortDate(s.next_generation_date), tone: 'normal' };
     if (n > 0) return { text: `${n}d overdue`, tone: 'late' };
     if (n === 0) return { text: 'Today', tone: 'soon' };
     if (Math.abs(n) <= 7) return { text: `in ${Math.abs(n)}d`, tone: 'soon' };
@@ -42,10 +43,10 @@
   }
 
   /** An end date that has nearly arrived stops the schedule without warning. */
-  const endingSoon = (s) => {
+  const endingSoon = (/** @type {{ is_active: boolean, end_date: string | null }} */ s) => {
     if (!s.end_date || !s.is_active) return false;
     const n = daysSince(s.end_date);
-    return n <= 0 && Math.abs(n) <= 14;
+    return n !== null && n <= 0 && Math.abs(n) <= 14;
   };
 </script>
 

@@ -20,7 +20,7 @@
   /** @type {{ start: number, query: string } | null} */
   let typing = $state(null);
   let active = $state(0);
-  const matches = $derived(typing ? matchPeople(people, typing.query) : []);
+  const matches = $derived.by(() => (typing ? matchPeople(people, typing.query) : []));
   const open = $derived(matches.length > 0);
 
   function detect() {

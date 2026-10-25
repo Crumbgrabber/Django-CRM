@@ -9,7 +9,7 @@
 /// once here rather than at every call site.
 library;
 
-/// One grouped row: an agent, a ticket or an account.
+/// One grouped row: an agent, a ticket, an account or a project.
 class TimeReportRow {
   const TimeReportRow({
     required this.name,
@@ -18,6 +18,7 @@ class TimeReportRow {
     this.billableMinutes = 0,
     this.billableValue = 0,
     this.entryCount = 0,
+    this.billableShare,
   });
 
   /// The id of the thing this row groups, or null where there is none: time
@@ -30,7 +31,16 @@ class TimeReportRow {
   final double billableValue;
   final int entryCount;
 
+  /// Billable over logged time, 0 to 1, on rows grouped by agent. Null on
+  /// every other grouping, with no time, and from an API older than it.
+  final double? billableShare;
+
   bool get isBillableOnly => billableMinutes == totalMinutes;
+
+  int? get billableSharePercent {
+    final share = billableShare;
+    return share == null ? null : (share * 100).round();
+  }
 
   factory TimeReportRow.fromJson(Map<String, dynamic> json) {
     return TimeReportRow(
@@ -40,6 +50,9 @@ class TimeReportRow {
       billableMinutes: json['billable_minutes'] as int? ?? 0,
       billableValue: _money(json['billable_value']),
       entryCount: json['entry_count'] as int? ?? 0,
+      billableShare: json['billable_share'] == null
+          ? null
+          : double.tryParse(json['billable_share'].toString()),
     );
   }
 }

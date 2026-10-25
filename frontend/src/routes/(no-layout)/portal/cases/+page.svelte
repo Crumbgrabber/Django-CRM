@@ -20,8 +20,10 @@
    * overwrite the results of a later query.
    */
   let summary = $state('');
+  /** @type {{ id: string, title: string, snippet: string }[]} */
   let suggestions = $state([]);
   let latestQuery = 0;
+  /** @type {ReturnType<typeof setTimeout> | undefined} */
   let debounce;
 
   function findAnswers() {
@@ -51,6 +53,7 @@
 
   const OPEN_STATUSES = new Set(['New', 'Assigned', 'Pending']);
 
+  /** @param {string | null | undefined} value */
   function formatDate(value) {
     if (!value) return '';
     return new Date(value).toLocaleDateString(undefined, {

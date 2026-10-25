@@ -40,6 +40,7 @@
   let hover = $state(0);
   let submitting = $state(false);
 
+  /** @type {Record<number, string>} */
   const SCALE_ENDS = { 1: 'Not good', 5: 'Great' };
 </script>
 

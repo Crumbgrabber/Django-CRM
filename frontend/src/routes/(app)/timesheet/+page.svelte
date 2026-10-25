@@ -20,12 +20,20 @@
   import Pill from '#lib/v2/components/Pill.svelte';
   import { money, count, shortDate, hoursMinutes as hm } from '#lib/v2/format.js';
   import { todayIn } from '#lib/v2/dates.js';
-  import { isBilled } from '#lib/v2/time-entry.js';
+  import { isBilled, entryParent } from '#lib/v2/time-entry.js';
+  import { asInternalPath } from '#lib/utils/paths.js';
   import { ChevronLeft, ChevronRight, Square, Receipt } from '@lucide/svelte';
 
   /** @type {{ data: any, form: any }} */
   let { data, form } = $props();
 
+  /**
+   * `GET /time-entries/timesheet/`, which has no schema, so its entries stay
+   * untyped API rows.
+   *
+   * @typedef {{ start: string, end: string, running_count: number, profile: { name: string }, days: { date: string, entries: any[] }[] }} Week
+   */
+  /** @type {Week} */
   let week = $derived(data.week);
 
   // Disables every "Stop timer" button while a stop is in flight. Without
@@ -51,7 +59,7 @@
     return () => clearInterval(id);
   });
 
-  const liveMinutes = (e) =>
+  const liveMinutes = (/** @type {any} */ e) =>
     e.is_running ? e.live_duration_minutes + sinceLoad : e.duration_minutes;
 
   const WEEKDAY = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -168,11 +176,14 @@
           <div class="v2-next-text">
             {#each week.days as d (d.date)}
               {#each d.entries.filter((e) => e.is_running) as e (e.id)}
+                {@const on = entryParent(e)}
                 <div class="v2-running-row">
                   <span>
-                    <span class="v2-num">{hm(liveMinutes(e))}</span> on
-                    <a href={resolve(`tickets/${e.case.id}`)} style="color:inherit">{e.case.name}</a
-                    >
+                    <span class="v2-num">{hm(liveMinutes(e))}</span>
+                    {#if on}
+                      on
+                      <a href={resolve(asInternalPath(on.href))} style="color:inherit">{on.name}</a>
+                    {/if}
                   </span>
                   <!-- One form per entry. A single shared button could not say
                        which of several running timers it meant. -->
@@ -204,6 +215,7 @@
           </div>
 
           {#each d.entries as e (e.id)}
+            {@const on = entryParent(e)}
             <div class="v2-entry">
               <div style="display:flex;gap:6px;align-items:baseline">
                 <span class="v2-num" style="font-weight:600;font-size:11.5px">
@@ -236,12 +248,16 @@
                   {/if}
                 {/if}
               </div>
-              <a
-                href={resolve(`tickets/${e.case.id}`)}
-                style="color:inherit;text-decoration:none;display:block;margin-top:3px;white-space:normal;line-height:1.35"
-              >
-                {e.case.name}
-              </a>
+              {#if on}
+                <!-- A ticket or a project; an entry whose project was deleted
+                     has neither and shows no link. -->
+                <a
+                  href={resolve(asInternalPath(on.href))}
+                  style="color:inherit;text-decoration:none;display:block;margin-top:3px;white-space:normal;line-height:1.35"
+                >
+                  {on.name}
+                </a>
+              {/if}
               {#if e.description}
                 <div class="v2-sub" style="font-size:11px;margin-top:3px;white-space:normal">
                   {e.description}
@@ -258,9 +274,9 @@
     </div>
 
     <p class="v2-sub" style="font-size:11.5px;margin-top:14px">
-      Time is logged against a ticket, so every hour here is attached to something a customer can be
-      shown. Rates are saved on each entry when it is logged. Changing your rate does not rewrite
-      what past weeks were worth.
+      Time is logged against a ticket or a project, so every hour here is attached to something a
+      customer can be shown. Rates are saved on each entry when it is logged. Changing your rate
+      does not rewrite what past weeks were worth.
     </p>
   </div>
 </div>

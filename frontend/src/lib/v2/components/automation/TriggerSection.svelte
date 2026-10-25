@@ -27,7 +27,10 @@
   ]);
   let fields = $derived(
     withStored(
-      triggerFields(object).map((f) => ({ value: f.key, label: f.label })),
+      triggerFields(object).map((/** @type {import('#lib/v2/automation.js').Field} */ f) => ({
+        value: f.key,
+        label: f.label
+      })),
       draft.trigger.field
     )
   );

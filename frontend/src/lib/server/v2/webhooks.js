@@ -18,6 +18,8 @@
  */
 import { apiRequest } from '#lib/api-helpers.js';
 
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+
 /** Deliveries per page on an endpoint's log. */
 export const DELIVERY_PAGE = 20;
 
@@ -69,6 +71,9 @@ export async function listWebhooks({ cookies }) {
  * @param {number} offset
  */
 export async function getWebhook({ cookies }, id, offset = 0) {
+  // The delivery log is a plain limit/offset page, which the schema describes
+  // as a bare list.
+  /** @type {[Schemas['WebhookEndpoint'], any, { count: number, results: Schemas['WebhookDelivery'][] }]} */
   const [endpoint, list, deliveries] = await Promise.all([
     apiRequest(`/webhooks/${id}/`, {}, { cookies }),
     apiRequest('/webhooks/', {}, { cookies }),
@@ -97,6 +102,7 @@ export async function createWebhook({ cookies }, values) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
  * @param {Record<string, any>} values
+ * @returns {Promise<Schemas['WebhookEndpoint']>}
  */
 export async function updateWebhook({ cookies }, id, values) {
   return apiRequest(`/webhooks/${id}/`, { method: 'PATCH', body: buildBody(values) }, { cookies });
@@ -107,7 +113,11 @@ export async function deleteWebhook({ cookies }, id) {
   return apiRequest(`/webhooks/${id}/`, { method: 'DELETE' }, { cookies });
 }
 
-/** @param {{ cookies: import('@sveltejs/kit').Cookies }} event @param {string} id */
+/**
+ * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
+ * @param {string} id
+ * @returns {Promise<Schemas['WebhookDelivery']>}
+ */
 export async function testWebhook({ cookies }, id) {
   return apiRequest(`/webhooks/${id}/test/`, { method: 'POST' }, { cookies });
 }
@@ -117,7 +127,11 @@ export async function rotateWebhookSecret({ cookies }, id) {
   return apiRequest(`/webhooks/${id}/rotate-secret/`, { method: 'POST' }, { cookies });
 }
 
-/** @param {{ cookies: import('@sveltejs/kit').Cookies }} event @param {string} deliveryId */
+/**
+ * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
+ * @param {string} deliveryId
+ * @returns {Promise<Schemas['WebhookDelivery']>}
+ */
 export async function redeliverWebhook({ cookies }, deliveryId) {
   return apiRequest(
     `/webhooks/deliveries/${deliveryId}/redeliver/`,

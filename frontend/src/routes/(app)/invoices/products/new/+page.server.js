@@ -16,7 +16,11 @@ export function load(event) {
   return getNewProductOptions(event);
 }
 
-/** A price is required and must be a number ≥ 0 (the model default is 0). */
+/**
+ * A price is required and must be a number ≥ 0 (the model default is 0).
+ *
+ * @param {string} value
+ */
 function priceOk(value) {
   if (value === '') return false;
   const n = Number(value);

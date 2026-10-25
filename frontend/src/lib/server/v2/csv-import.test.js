@@ -2,7 +2,9 @@ import { inspect } from 'node:util';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const apiRequest = vi.fn();
-vi.mock('#lib/api-helpers.js', () => ({ apiRequest: (...a) => apiRequest(...a) }));
+vi.mock('#lib/api-helpers.js', () => ({
+  apiRequest: (/** @type {any[]} */ ...a) => apiRequest(...a)
+}));
 
 const { forwardCsvImport } = await import('#lib/server/v2/csv-import.js');
 /** @type {typeof import('#lib/api-helpers.js')} */

@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const apiRequest = vi.fn();
-vi.mock('#lib/api-helpers.js', () => ({ apiRequest: (...a) => apiRequest(...a) }));
+vi.mock('#lib/api-helpers.js', () => ({
+  apiRequest: (/** @type {any[]} */ ...a) => apiRequest(...a)
+}));
 
 const { listReports } = await import('./reports.js');
 
@@ -13,6 +15,7 @@ const block = (/** @type {any[]} */ rows, /** @type {any} */ plain = {}) => ({
   by_currency: rows
 });
 
+/** @param {{ dashboard: any, revenue: any, aging: any }} bodies */
 function respond({ dashboard, revenue, aging }) {
   apiRequest.mockImplementation(async (/** @type {string} */ url) => {
     if (url.includes('dashboard')) return dashboard;

@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const apiRequest = vi.fn();
-vi.mock('#lib/api-helpers.js', () => ({ apiRequest: (...a) => apiRequest(...a) }));
+vi.mock('#lib/api-helpers.js', () => ({
+  apiRequest: (/** @type {any[]} */ ...a) => apiRequest(...a)
+}));
 
 // Imports only `@sveltejs/kit` and `#lib`, so the standalone vitest config can
 // load it (see the note in `vitest.config.js`).
@@ -25,6 +27,7 @@ function saveEvent(entries) {
   });
 }
 
+/** @param {[string, string][]} entries */
 async function save(entries) {
   try {
     return await actions.save(saveEvent(entries));

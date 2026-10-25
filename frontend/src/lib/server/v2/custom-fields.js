@@ -25,11 +25,14 @@
 import { apiRequest } from '#lib/api-helpers.js';
 import { viewerIsAdmin } from './organization.js';
 
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+
 /**
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @returns {Promise<{ fields: any[], totals: any, can_edit: boolean }>}
  */
 export async function getCustomFields({ cookies }) {
+  /** @type {any} */
   const resp = await apiRequest('/custom-fields/', {}, { cookies });
   return {
     fields: resp.definitions ?? [],
@@ -68,7 +71,10 @@ const UPDATE_FIELDS = CREATE_FIELDS.filter((f) => !FROZEN_AFTER_CREATE.includes(
 
 /** "Very High" to "very-high". Only ever applied to a NEW dropdown option: an
  *  existing option's value is stored on every record that uses it and must
- *  survive a relabel untouched. */
+ *  survive a relabel untouched.
+ *
+ * @param {string} label
+ */
 function slugifyOptionValue(label) {
   return label
     .toLowerCase()
@@ -121,13 +127,22 @@ function buildBody(allowed, values) {
   return body;
 }
 
-/** @param {{ cookies: import('@sveltejs/kit').Cookies }} event */
+/**
+ * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
+ * @param {{ [key: string]: any }} values
+ * @returns {Promise<Schemas['CustomFieldDefinition']>}
+ */
 export async function createCustomField({ cookies }, values) {
   const body = buildBody(CREATE_FIELDS, values);
   return await apiRequest('/custom-fields/', { method: 'POST', body }, { cookies });
 }
 
-/** @param {{ cookies: import('@sveltejs/kit').Cookies }} event */
+/**
+ * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
+ * @param {string} id
+ * @param {{ [key: string]: any }} values
+ * @returns {Promise<Schemas['CustomFieldDefinition']>}
+ */
 export async function updateCustomField({ cookies }, id, values) {
   if (!id) throw new Error('Which field? No field id was given.');
   const body = buildBody(UPDATE_FIELDS, values);
@@ -143,6 +158,8 @@ export async function updateCustomField({ cookies }, id, values) {
  * not do.
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
+ * @param {string} id
+ * @returns {Promise<Schemas['CustomFieldDeleteResponse']>}
  */
 export async function deactivateCustomField({ cookies }, id) {
   if (!id) throw new Error('Which field? No field id was given.');

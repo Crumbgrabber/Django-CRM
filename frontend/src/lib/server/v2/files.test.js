@@ -18,6 +18,10 @@ function cookies(/** @type {Record<string, string>} */ jar) {
   return /** @type {any} */ ({ get: (/** @type {string} */ k) => jar[k] });
 }
 
+/**
+ * @param {number} status
+ * @param {{ body?: string, headers?: Record<string, string> }} [options]
+ */
 function upstream(status, { body = 'bytes', headers = {} } = {}) {
   return new Response(status === 200 ? body : null, { status, headers });
 }

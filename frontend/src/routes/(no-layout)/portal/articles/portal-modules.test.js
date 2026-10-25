@@ -2,6 +2,10 @@ import { describe, it, expect, vi } from 'vitest';
 
 const portal = vi.hoisted(() => {
   class PortalError extends Error {
+    /**
+     * @param {number} status
+     * @param {any} data
+     */
     constructor(status, data) {
       super('portal request failed');
       this.status = status;

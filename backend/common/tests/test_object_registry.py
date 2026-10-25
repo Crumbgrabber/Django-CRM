@@ -26,7 +26,7 @@ from common.tests.object_records import make_record
 from conftest import rls_org
 
 
-def test_the_built_ins_are_the_nine_record_types():
+def test_the_built_ins_are_the_ten_record_types():
     assert [e.key for e in BUILT_IN] == [
         "lead",
         "contact",
@@ -34,6 +34,7 @@ def test_the_built_ins_are_the_nine_record_types():
         "deal",
         "ticket",
         "task",
+        "project",
         "invoice",
         "estimate",
         "recurring_invoice",
@@ -59,7 +60,7 @@ def test_keys_and_targets_are_unique():
 
 def test_capability_flags_match_todays_coverage():
     seven = {"lead", "contact", "account", "deal", "ticket", "task", "invoice"}
-    assert {e.key for e in BUILT_IN if e.attachments} == seven
+    assert {e.key for e in BUILT_IN if e.attachments} == seven | {"project"}
     assert {e.key for e in BUILT_IN if e.activity_feed} == seven
 
 
@@ -174,6 +175,7 @@ def test_labels_match_the_web_app():
         "Invoice": "Invoices",
         "Lead": "Leads",
         "Opportunity": "Deals",
+        "Project": "Projects",
         "RecurringInvoice": "Recurring invoices",
         "Task": "Tasks",
     }
@@ -302,6 +304,7 @@ def test_entry_module_follows_the_model_map():
         "deal": "deals",
         "ticket": "tickets",
         "task": "tasks",
+        "project": "projects",
         "invoice": "invoices",
         "estimate": "invoices",
         "recurring_invoice": "invoices",

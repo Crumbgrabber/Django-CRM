@@ -5,7 +5,7 @@ Kept beside ``time_views.py`` for the same reason ``analytics.py`` sits beside
 without an HTTP layer wrapped around them.
 
 Two shapes come out of here. :func:`build_report` answers "where did the time
-go", one row per agent, ticket or account. :func:`csv_rows` answers "give me
+go", one row per agent, ticket, project or account. :func:`csv_rows` answers "give me
 the entries", one row per :class:`cases.models.TimeEntry`, which is what a
 finance team pastes into a spreadsheet and what an invoice is checked against.
 
@@ -27,17 +27,30 @@ from django.db.models import (
     Sum,
     Value,
 )
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 from rest_framework import status
 
-GROUPINGS = ("agent", "ticket", "account")
+GROUPINGS = ("agent", "ticket", "project", "account")
 
 # The columns each grouping needs out of the row. The first is the key.
 _GROUP_FIELDS = {
     "agent": ("profile_id", "profile__user__name", "profile__user__email"),
     "ticket": ("case_id", "case__name"),
-    "account": ("case__account_id", "case__account__name"),
+    "project": ("project_id", "project__name"),
+    "account": ("account_key", "account_name"),
 }
+
+# An entry's account is its ticket's or its project's.
+_ANNOTATIONS = {
+    "account": {
+        "account_key": Coalesce("case__account_id", "project__account_id"),
+        "account_name": Coalesce("case__account__name", "project__account__name"),
+    },
+}
+
+# Time on no ticket, no project or no account is one named row, not dropped.
+_NONE_NAMES = {"ticket": "No ticket", "project": "No project", "account": "No account"}
 
 _BILLABLE = Q(billable=True) & Q(hourly_rate__isnull=False)
 
@@ -55,6 +68,7 @@ CSV_COLUMNS = (
     "Date",
     "Agent",
     "Ticket",
+    "Project",
     "Account",
     "Description",
     "Minutes",
@@ -104,10 +118,11 @@ def build_report(entries, group_by):
     though it did.
 
     Rows are ordered by time logged, descending, because the question the
-    report answers is which agent, ticket or account took the most of it. A
-    row's ``key`` is null for time on tickets with no account; that bucket is
-    named rather than dropped, since unattributed time is exactly what someone
-    running this report is looking for.
+    report answers is which agent, ticket, project or account took the most of
+    it. A row's ``key`` is null for time with no ticket, project or account;
+    that bucket is named rather than dropped, since unattributed time is
+    exactly what someone running this report is looking for. Rows by agent
+    carry ``billable_share``, billable minutes over all minutes.
     """
     if group_by not in _GROUP_FIELDS:
         raise TimeReportParamError(
@@ -116,7 +131,8 @@ def build_report(entries, group_by):
 
     fields = _GROUP_FIELDS[group_by]
     grouped = (
-        entries.values(*fields)
+        entries.annotate(**_ANNOTATIONS.get(group_by, {}))
+        .values(*fields)
         .annotate(
             total_minutes=Sum("duration_minutes"),
             billable_minutes=Sum("duration_minutes", filter=Q(billable=True)),
@@ -129,16 +145,19 @@ def build_report(entries, group_by):
     rows = []
     for row in grouped:
         key = row[fields[0]]
-        rows.append(
-            {
-                "key": str(key) if key else None,
-                "name": _row_name(group_by, row, fields),
-                "total_minutes": row["total_minutes"] or 0,
-                "billable_minutes": row["billable_minutes"] or 0,
-                "billable_value": money(row["billable_value"]),
-                "entry_count": row["entry_count"],
-            }
-        )
+        out = {
+            "key": str(key) if key else None,
+            "name": _row_name(group_by, row, fields),
+            "total_minutes": row["total_minutes"] or 0,
+            "billable_minutes": row["billable_minutes"] or 0,
+            "billable_value": money(row["billable_value"]),
+            "entry_count": row["entry_count"],
+        }
+        if group_by == "agent":
+            out["billable_share"] = billable_share(
+                out["billable_minutes"], out["total_minutes"]
+            )
+        rows.append(out)
 
     totals = {
         "total_minutes": sum(r["total_minutes"] for r in rows),
@@ -156,15 +175,21 @@ def build_report(entries, group_by):
     return {"rows": rows, "totals": totals, "currencies": currencies}
 
 
+def billable_share(billable_minutes, total_minutes):
+    """Billable over all logged time, 0 to 1 to two places; None with no time."""
+    if not total_minutes:
+        return None
+    share = Decimal(billable_minutes) / Decimal(total_minutes)
+    return float(share.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+
+
 def _row_name(group_by, row, fields):
     if group_by == "agent":
         # `User.name` is never blank (it falls back to the email local-part on
         # first save), but an entry can outlive nothing here, so the email is
         # the backstop rather than an empty cell.
         return row[fields[1]] or row[fields[2]] or "Unknown agent"
-    if group_by == "ticket":
-        return row[fields[1]] or "Deleted ticket"
-    return row[fields[1]] or "No account"
+    return row[fields[1]] or _NONE_NAMES[group_by]
 
 
 def csv_rows(entries, show_invoices=True):
@@ -177,12 +202,13 @@ def csv_rows(entries, show_invoices=True):
     yield list(CSV_COLUMNS)
 
     queryset = entries.select_related(
-        "profile__user", "case", "case__account", "invoice"
+        "profile__user", "case", "case__account", "project__account", "invoice"
     ).order_by("started_at")
 
     for entry in queryset.iterator(chunk_size=200):
         user = entry.profile.user if entry.profile_id else None
-        account = entry.case.account if entry.case_id else None
+        parent = entry.case if entry.case_id else entry.project
+        account = parent.account if parent is not None else None
         value = (
             money(Decimal(entry.duration_minutes) * entry.hourly_rate / Decimal(60))
             if entry.billable and entry.hourly_rate is not None
@@ -192,6 +218,7 @@ def csv_rows(entries, show_invoices=True):
             timezone.localdate(entry.started_at).isoformat(),
             (user.name or user.email) if user else "",
             entry.case.name if entry.case_id else "",
+            entry.project.name if entry.project_id else "",
             account.name if account else "",
             entry.description or "",
             entry.duration_minutes,

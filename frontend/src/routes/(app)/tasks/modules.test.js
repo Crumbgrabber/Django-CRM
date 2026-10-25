@@ -40,6 +40,10 @@ vi.mock('#lib/server/v2/deals.js', () => ({
 vi.mock('#lib/server/v2/leads.js', () => ({
   listLeads: async () => (calls.push('leads'), { results: [] })
 }));
+vi.mock('#lib/server/v2/projects.js', () => ({
+  projectChoices: async () => [],
+  projectChoice: async () => null
+}));
 
 const { actions } = await import('./[id]/edit/+page.server.js');
 const saveEdit = /** @type {any} */ (actions).save;

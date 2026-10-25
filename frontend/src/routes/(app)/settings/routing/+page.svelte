@@ -56,6 +56,7 @@
     conditionRows = [];
   }
 
+  /** @param {any} r */
   function openEdit(r) {
     editing = r;
     strategy = r.strategy;
@@ -68,7 +69,7 @@
     // limitation: a value that itself contains a literal comma cannot be
     // expressed here, since splitting can't tell that comma apart from a
     // separator.
-    conditionRows = r.conditions.map((c) => ({
+    conditionRows = r.conditions.map((/** @type {any} */ c) => ({
       field: c.field,
       op: c.op,
       value: Array.isArray(c.value) ? c.value.join(', ') : String(c.value ?? '')
@@ -95,6 +96,8 @@
    * `CONDITION_FIELD_LABEL` only carries the six fixed ones, so without this
    * the select would have no matching option, would submit nothing, and the
    * row would be dropped or, worse, shift its neighbours.
+   *
+   * @param {string} field
    */
   function unlistedField(field) {
     if (!field || field in CONDITION_FIELD_LABEL) return null;
@@ -113,18 +116,21 @@
    */
   let rules = $derived.by(() => {
     let sealed = false;
-    return data.rules.map((r) => {
+    return data.rules.map((/** @type {any} */ r) => {
       const unreachable = sealed;
       if (r.is_active && r.stop_processing && r.conditions.length === 0) sealed = true;
       return { ...r, unreachable };
     });
   });
 
-  /** The conditions as one clause. No conditions means every ticket. */
+  /**
+   * The conditions as one clause. No conditions means every ticket.
+   * @param {any} r
+   */
   function when(r) {
     if (!r.conditions.length) return 'Any ticket';
     return r.conditions
-      .map((c) => {
+      .map((/** @type {any} */ c) => {
         const field = CONDITION_FIELD_LABEL[c.field] ?? c.field.replace('custom_fields.', '');
         const value = Array.isArray(c.value) ? c.value.join(', ') : c.value;
         return `${field} ${CONDITION_OP_LABEL[c.op]} ${value}`;
@@ -132,11 +138,14 @@
       .join(' and ');
   }
 
-  /** The action as one clause: verb phrase from the strategy, then its object. */
+  /**
+   * The action as one clause: verb phrase from the strategy, then its object.
+   * @param {any} r
+   */
   function then(r) {
     const verb = ROUTING_STRATEGY_LABEL[r.strategy];
     if (r.strategy === 'by_team') return `${verb} ${r.target_team?.name ?? '—'}`;
-    return `${verb} ${r.target_assignees.map((a) => a.name).join(', ') || '—'}`;
+    return `${verb} ${r.target_assignees.map((/** @type {any} */ a) => a.name).join(', ') || '—'}`;
   }
 </script>
 
@@ -256,7 +265,7 @@
                   <option
                     value={p.id}
                     selected={editing !== 'new' &&
-                      editing.target_assignees.some((a) => a.id === p.id)}
+                      editing.target_assignees.some((/** @type {any} */ a) => a.id === p.id)}
                   >
                     {p.name}
                   </option>
@@ -398,7 +407,7 @@
     <div style="display:flex;flex-direction:column;gap:9px">
       {#each rules as r, i (r.id)}
         {@const next = nextInRotation(r)}
-        {@const inactiveTargets = r.target_assignees.filter((a) => !a.is_active)}
+        {@const inactiveTargets = r.target_assignees.filter((/** @type {any} */ a) => !a.is_active)}
         <div class="v2-card v2-rule" style="opacity:{r.is_active && !r.unreachable ? 1 : 0.62}">
           <!-- The handle and the number say the same thing: this position is
                the logic. Dragging is the edit; the number is the reading. -->
@@ -433,7 +442,7 @@
               <div class="v2-rule-flag">
                 <UserX size={14} style="color:var(--v2-clay);flex:none" />
                 <span>
-                  {inactiveTargets.map((a) => a.name).join(', ')}
+                  {inactiveTargets.map((/** @type {any} */ a) => a.name).join(', ')}
                   {inactiveTargets.length === 1 ? 'is' : 'are'} deactivated and still in the rotation,
                   tickets routed there wait for someone who cannot sign in.
                 </span>
@@ -445,7 +454,8 @@
                 <TriangleAlert size={14} style="color:var(--v2-rust);flex:none" />
                 <span>
                   Rule {rules.findIndex(
-                    (x) => x.is_active && x.stop_processing && !x.conditions.length
+                    (/** @type {any} */ x) =>
+                      x.is_active && x.stop_processing && !x.conditions.length
                   ) + 1} above matches every ticket and stops, so this one is never reached. Move it higher,
                   or let that rule fall through.
                 </span>

@@ -63,6 +63,7 @@ export async function listApps(cookies) {
       { quietErrors: true, expectedStatuses: [404] },
       auth(cookies)
     );
+    /** @type {any[]} */
     const rows = Array.isArray(resp?.apps) ? resp.apps : [];
     return { state: 'ok', apps: rows.map(toApp).filter((a) => a.id) };
   } catch (/** @type {any} */ err) {

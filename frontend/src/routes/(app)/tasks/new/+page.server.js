@@ -3,8 +3,10 @@ import { createTask, getTaskFormOptions } from '#lib/server/v2/tasks.js';
 import { listTickets } from '#lib/server/v2/tickets.js';
 import { listDeals } from '#lib/server/v2/deals.js';
 import { listLeads } from '#lib/server/v2/leads.js';
+import { projectChoice, projectChoices } from '#lib/server/v2/projects.js';
 import { getModules } from '#lib/server/v2/modules.js';
 import { isOn } from '#lib/v2/modules.js';
+import { isUuid, projectOptions } from '#lib/v2/projects.js';
 import {
   fieldsForNew,
   readCustomFields,
@@ -17,8 +19,8 @@ const NONE = { results: [] };
 /**
  * The new-task form.
  *
- * A task has one parent (account, deal, ticket or lead), and the form has to
- * offer all four, so this loads four catalogues. The accounts one comes free
+ * A task has one parent (account, deal, ticket, lead or project), and the
+ * form has to offer each, so this loads a catalogue for each. The accounts one comes free
  * with the task list endpoint; the other three are separate calls, run
  * concurrently. A picker that fails keeps its empty list rather than failing
  * the page: a form that can still write a task with no parent is more use
@@ -31,7 +33,7 @@ export async function load(event) {
   const modulesP = getModules(event);
   /** @param {string} key */
   const when = (key) => modulesP.then((m) => isOn(m?.modules ?? null, key));
-  const [options, tickets, deals, leads, customFields] = await Promise.allSettled([
+  const [options, tickets, deals, leads, customFields, projects] = await Promise.allSettled([
     getTaskFormOptions(event),
     when('tickets').then((on) =>
       on ? listTickets(event, new URLSearchParams({ limit: '100' })) : NONE
@@ -45,8 +47,17 @@ export async function load(event) {
     when('leads').then((on) =>
       on ? listLeads(event, new URLSearchParams({ limit: '100' })) : NONE
     ),
-    fieldsForNew(event.cookies, 'Task')
+    fieldsForNew(event.cookies, 'Task'),
+    when('projects').then((on) => (on ? projectChoices(event) : []))
   ]);
+  const projectList = projects.status === 'fulfilled' ? projects.value : [];
+  // `?project=` opens the form attached to that project, from its Tasks tab,
+  // read on its own when it is not among the picker's first 200.
+  const wanted = event.url?.searchParams.get('project') ?? '';
+  const current =
+    projectList.find((p) => p.id === wanted) ??
+    (isUuid(wanted) && (await when('projects')) ? await projectChoice(event, wanted) : null);
+  const prefill = current ? { parent_kind: 'project', project: current.id } : null;
 
   const settled = options.status === 'fulfilled' ? options.value : { owners: [], accounts: [] };
 
@@ -54,7 +65,9 @@ export async function load(event) {
     modules: (await modulesP)?.modules ?? null,
     owners: settled.owners,
     customFields: customFields.status === 'fulfilled' ? customFields.value : [],
+    prefill,
     parents: {
+      project: projectOptions(projectList, current),
       account: settled.accounts ?? [],
       opportunity:
         deals.status === 'fulfilled'
@@ -150,7 +163,11 @@ export const actions = {
 
     // `TaskListView.post` answers `{error: false, message: ...}` and not the
     // row, so there is no id to redirect to. The list is where the new task
-    // is, and it is the page somebody working a queue wants next anyway.
+    // is, and it is the page somebody working a queue wants next anyway; a
+    // task made for a project goes back to that project's tasks.
+    if (kind === 'project' && isUuid(values.project)) {
+      redirect(303, `/projects/${values.project}?tab=tasks`);
+    }
     redirect(303, '/tasks');
   }
 };

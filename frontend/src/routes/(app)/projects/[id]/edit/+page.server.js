@@ -1,0 +1,91 @@
+import { error, fail, redirect } from '@sveltejs/kit';
+import { getProject, getProjectFormOptions, updateProject } from '#lib/server/v2/projects.js';
+import { getModules } from '#lib/server/v2/modules.js';
+import {
+  fieldDefinitions,
+  fieldsForEdit,
+  readCustomFields,
+  saveRefusal
+} from '#lib/server/v2/record-custom-fields.js';
+import { isOn } from '#lib/v2/modules.js';
+import { projectBody, projectValues } from '#lib/v2/projects.js';
+
+/**
+ * The edit form, filled from the record. A PATCH: what the form did not
+ * render is not sent, and `rates`, when sent, replaces the whole list.
+ *
+ * @type {import('./$types').PageServerLoad}
+ */
+export async function load(event) {
+  const modules = (await getModules(event))?.modules ?? null;
+  const [detail, options, definitions] = await Promise.all([
+    getProject(event, event.params.id),
+    getProjectFormOptions(event, { dealsOn: isOn(modules, 'deals') }),
+    fieldDefinitions(event.cookies, 'Project')
+  ]);
+  // Display only; the PATCH asks the API's edit rule again.
+  if (!detail.canEdit) error(403);
+
+  const p = detail.project;
+  return {
+    ...options,
+    project: { id: p.id, name: p.name },
+    values: {
+      name: p.name,
+      account: p.account.id ?? '',
+      deal: p.deal?.id ?? '',
+      status: p.status,
+      billing_type: p.billing_type,
+      currency: p.currency,
+      budget_hours: p.budget_hours ?? '',
+      budget_amount: p.budget_amount ?? '',
+      hourly_rate: p.hourly_rate ?? '',
+      start_date: p.start_date ?? '',
+      due_date: p.due_date ?? '',
+      description: p.description,
+      assigned_to: p.assigned_to.map((/** @type {any} */ x) => x.id),
+      rates: p.rates.map((/** @type {any} */ r) => ({
+        profile: r.profile.id,
+        hourly_rate: r.hourly_rate ?? ''
+      }))
+    },
+    stored: {
+      account: p.account.id ? p.account : null,
+      deal: p.deal,
+      people: [
+        ...new Map(
+          [...p.assigned_to, ...p.rates.map((/** @type {any} */ r) => r.profile)].map((x) => [
+            x.id,
+            x
+          ])
+        ).values()
+      ]
+    },
+    customFields: fieldsForEdit({ custom_field_definitions: definitions }, p.custom_fields)
+  };
+}
+
+/** @type {import('./$types').Actions} */
+export const actions = {
+  async save(event) {
+    const form = await event.request.formData();
+    const values = projectValues(form);
+
+    const custom = await readCustomFields(event.cookies, 'Project', form);
+    if (custom.refusal) return fail(503, { values, ...custom.refusal });
+    if (custom.values) values.custom_fields = custom.values;
+
+    const { body, errors } = projectBody(values);
+    if (errors.length) return fail(400, { values, error: errors.join(' ') });
+
+    try {
+      await updateProject(event, event.params.id, body);
+    } catch (/** @type {any} */ err) {
+      return fail(err?.status === 404 ? 404 : 400, {
+        values,
+        ...saveRefusal(err, custom.definitions, 'Could not save the project.')
+      });
+    }
+    redirect(303, `/projects/${event.params.id}`);
+  }
+};

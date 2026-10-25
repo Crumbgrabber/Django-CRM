@@ -58,6 +58,7 @@
    * on the backend now walks the model registry to keep that list complete;
    * this sums whatever it sends.
    */
+  /** @param {{ usage?: Record<string, number> }} t */
   const used = (t) => Object.values(t.usage ?? {}).reduce((sum, n) => sum + (n || 0), 0);
 
   let tags = $derived(
@@ -79,6 +80,7 @@
    * org's non-Latin tags as one duplicate group, with a merge button, now that
    * the server lets them coexist.
    */
+  /** @param {string} name */
   const normalise = (name) =>
     name
       .toLowerCase()

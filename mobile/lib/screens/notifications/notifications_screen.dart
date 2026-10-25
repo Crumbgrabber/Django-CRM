@@ -154,8 +154,11 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
 
   Widget _row(AppNotification n) {
     final destination = n.destinationPath;
+    // Rows the system raised: a sentence and an icon instead of a person.
     final automation = n.verb.startsWith('automation.')
         ? n.automationText() ?? 'An automation rule sent a notification.'
+        : n.verb == 'project.budget'
+        ? n.budgetText ?? 'A project reached a budget level.'
         : null;
     return InkWell(
       // Tapping opens the ticket and marks it read. With no resolvable ticket
@@ -291,11 +294,14 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   ) {
     final source = n.automationSource;
     return [
-      Text(
-        n.displayActorName,
-        style: AppTypography.body.copyWith(fontWeight: FontWeight.w600),
-      ),
-      const SizedBox(height: 2),
+      // A budget sentence names its project and nobody sent it.
+      if (n.verb != 'project.budget') ...[
+        Text(
+          n.displayActorName,
+          style: AppTypography.body.copyWith(fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 2),
+      ],
       Text(
         text,
         style: AppTypography.body.copyWith(
@@ -392,6 +398,7 @@ class _AutomationIcon extends StatelessWidget {
         'automation.paused' => LucideIcons.circlePause,
         'automation.message' => LucideIcons.zap,
         'automation.failed' || 'automation.limit' => LucideIcons.triangleAlert,
+        'project.budget' => LucideIcons.gauge,
         _ => LucideIcons.bell,
       },
       size: 16,

@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const apiRequest = vi.fn();
-vi.mock('#lib/api-helpers.js', () => ({ apiRequest: (...a) => apiRequest(...a) }));
+vi.mock('#lib/api-helpers.js', () => ({
+  apiRequest: (/** @type {any[]} */ ...a) => apiRequest(...a)
+}));
 
 const { getLeadBoard, moveLead, UNSTAGED } = await import('#lib/server/v2/lead-board.js');
 const event = /** @type {any} */ ({ cookies: { get: () => 'token' } });
@@ -70,7 +72,7 @@ describe('getLeadBoard', () => {
   it('never forwards an id the API did not list, falling back to the first pipeline', async () => {
     apiRequest.mockResolvedValueOnce(PIPELINES).mockResolvedValueOnce(KANBAN);
     const board = await getLeadBoard(event, '../../admin&pipeline_id=x');
-    expect(board.pipeline.id).toBe('p-default');
+    expect(board.pipeline?.id).toBe('p-default');
     expect(apiRequest.mock.calls[1][0]).toBe('/leads/kanban/?pipeline_id=p-default');
   });
 

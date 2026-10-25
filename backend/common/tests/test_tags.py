@@ -197,6 +197,7 @@ class TestTagsUsageAndTotals:
             "web_forms": 0,
             "lead_intakes": 0,
             "macros": 0,
+            "projects": 0,
         }
 
     def test_unused_tag_reports_zero_usage(self, admin_client, org_a):
@@ -214,6 +215,7 @@ class TestTagsUsageAndTotals:
             "web_forms": 0,
             "lead_intakes": 0,
             "macros": 0,
+            "projects": 0,
         }
 
     @pytest.mark.parametrize("kind", ["contacts", "tasks", "api_settings", "solutions"])

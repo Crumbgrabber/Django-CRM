@@ -34,7 +34,20 @@ describe('module logic', () => {
     expect(isOn([row('leads', { available: false })], 'leads')).toBe(false);
     expect(isOn(null, 'leads')).toBe(true);
     expect(isOn([row('deals')], 'leads')).toBe(true);
-    expect(MODULE_KEYS).toHaveLength(9);
+    expect(MODULE_KEYS).toHaveLength(10);
+  });
+
+  it('reads Projects as off on an API whose list does not carry it', () => {
+    expect(isOn([row('deals')], 'projects')).toBe(false);
+    expect(isOn([row('projects')], 'projects')).toBe(true);
+    expect(isOn([row('projects', { available: false })], 'projects')).toBe(false);
+    // An unreadable list changes nothing, for Projects as for the rest.
+    expect(isOn(null, 'projects')).toBe(true);
+    expect(refusalFor('/(app)/projects/[id]/edit', [row('deals')])).toEqual({
+      key: 'projects',
+      label: 'Projects'
+    });
+    expect(refusalFor('/(app)/projects', [row('projects')])).toBeNull();
   });
 
   it('maps each module route and leaves core routes alone', () => {
@@ -47,6 +60,7 @@ describe('module logic', () => {
       ['/(app)/settings/deal-pipelines', { all: ['deals'] }],
       ['/(app)/goals', { all: ['goals'] }],
       ['/(app)/tasks', { all: ['tasks'] }],
+      ['/(app)/projects/[id]', { all: ['projects'] }],
       ['/(app)/tickets/[id]', { all: ['tickets'] }],
       ['/(app)/settings/routing', { all: ['tickets'] }],
       ['/(app)/settings/macros', { all: ['tickets'] }],
@@ -113,7 +127,8 @@ describe('module logic', () => {
   });
 
   it('says what Today is clear of, from what is on', () => {
-    const off = (...keys) => MODULE_KEYS.map((k) => row(k, { available: !keys.includes(k) }));
+    const off = (/** @type {string[]} */ ...keys) =>
+      MODULE_KEYS.map((k) => row(k, { available: !keys.includes(k) }));
     expect(todayClearText(null)).toBe('No overdue tickets, invoices, quiet deals or tasks.');
     expect(todayClearText(off('tickets'))).toBe('No overdue invoices, quiet deals or tasks.');
     expect(todayClearText(off('tickets', 'invoices', 'leads'))).toBe(
@@ -141,7 +156,8 @@ describe('module logic', () => {
       ['deals', 'deals'],
       ['tickets', 'tickets']
     ];
-    const off = (...keys) => MODULE_KEYS.map((k) => row(k, { available: !keys.includes(k) }));
+    const off = (/** @type {string[]} */ ...keys) =>
+      MODULE_KEYS.map((k) => row(k, { available: !keys.includes(k) }));
     expect(wordsOn(null, words)).toBe('accounts, leads, deals and tickets');
     expect(wordsOn(off('tickets'), words)).toBe('accounts, leads and deals');
     expect(wordsOn(off('leads', 'deals'), words, 'or')).toBe('accounts or tickets');

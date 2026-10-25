@@ -45,7 +45,10 @@ const WEEKDAYS = [
   ['Sunday', 'sunday']
 ];
 
-/** "09:00:00" → "09:00"; null/"" stays null (a closed day). */
+/**
+ * "09:00:00" → "09:00"; null/"" stays null (a closed day).
+ * @param {string | null | undefined} value
+ */
 function toHm(value) {
   return value ? value.slice(0, 5) : null;
 }
@@ -67,7 +70,7 @@ export async function getBusinessHours({ cookies }) {
         open: toHm(cal[`${key}_open`]),
         close: toHm(cal[`${key}_close`])
       })),
-      holidays: (cal.holidays ?? []).map((h) => ({
+      holidays: (cal.holidays ?? []).map((/** @type {any} */ h) => ({
         id: h.id,
         name: h.name,
         date: h.date

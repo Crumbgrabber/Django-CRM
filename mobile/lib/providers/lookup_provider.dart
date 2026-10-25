@@ -252,6 +252,16 @@ final ticketsLookupProvider =
       ),
     );
 
+final projectsLookupProvider =
+    AsyncNotifierProvider<_EntityLookupNotifier, List<EntityLookup>>(
+      () => _EntityLookupNotifier(
+        url: ApiConfig.projects,
+        paths: const ['projects'],
+        parse: (json) => EntityLookup.fromJson(json, labelKeys: const ['name']),
+        what: 'projects',
+      ),
+    );
+
 /// Convenience wrappers. Return the resolved list (or empty during
 /// load/error). Forms that don't care about loading state watch these.
 /// Picker options, resolved. Named for what they are rather than for the
@@ -277,7 +287,7 @@ final teamsProvider = Provider<List<TeamLookup>>((ref) {
   return ref.watch(teamsLookupProvider).value ?? const [];
 });
 
-/// The four kinds a task can be attached to, in one shape.
+/// The five kinds a task can be attached to, in one shape.
 ///
 /// These keep the `AsyncValue` rather than flattening to a list like the
 /// wrappers above, because the picker that reads them has to tell "still
@@ -307,6 +317,10 @@ final opportunityEntityOptionsProvider =
 
 final ticketEntityOptionsProvider = Provider<AsyncValue<List<EntityLookup>>>(
   (ref) => ref.watch(ticketsLookupProvider),
+);
+
+final projectEntityOptionsProvider = Provider<AsyncValue<List<EntityLookup>>>(
+  (ref) => ref.watch(projectsLookupProvider),
 );
 
 /// Custom field definitions, keyed by target_model (Case, Lead, ...).

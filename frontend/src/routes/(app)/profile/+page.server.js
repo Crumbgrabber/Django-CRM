@@ -3,6 +3,8 @@ import { apiRequest } from '#lib/api-helpers.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
 import { getProfile } from '#lib/server/v2/profile.js';
 
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** @type {import('./$types').PageServerLoad} */
@@ -60,7 +62,7 @@ export const actions = {
       ? { org_id: orgId, refresh: outgoingRefresh }
       : { org_id: orgId };
 
-    /** @type {any} */
+    /** @type {Schemas['OrgSwitchResponse']} */
     let result;
     try {
       result = await apiRequest(

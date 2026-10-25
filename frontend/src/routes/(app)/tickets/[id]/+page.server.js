@@ -43,6 +43,9 @@ import {
   cancelApproval
 } from '#lib/server/v2/approvals.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { invoiceFromTimeEntries } from '#lib/server/v2/invoices.js';
+import { unbilledEntries } from '#lib/v2/time-entry.js';
+import { billGrouping } from '#lib/v2/projects.js';
 import { loadRelated, relatedActions } from '#lib/server/v2/related-records.js';
 import { openDescendants, subtreeTruncated, cascadedCount, closeResultMessage } from './close.js';
 import { treeRows, subtreeIds, parentCandidates, linkRefusal } from './tree.js';
@@ -151,7 +154,8 @@ export async function load({ cookies, params, locals, url }) {
   const articlePicker = {
     q: articleQuery,
     // Null when the search failed; the card then says so.
-    candidates: candidates?.filter((c) => !linkedIds.has(c.id)) ?? null
+    candidates:
+      candidates?.filter((/** @type {{ id: string }} */ c) => !linkedIds.has(c.id)) ?? null
   };
 
   const link = { open: false, q: '', candidates: /** @type {any[]} */ ([]), error: '' };
@@ -467,9 +471,9 @@ export const actions = {
    * Start the clock on this ticket.
    *
    * One timer per person, org-wide: the API answers 409 when there is already
-   * one running and names the ticket it is on. That id is passed back so the
-   * panel can link to it, because the fix for "you already have a timer
-   * running" is on that other ticket, not this one.
+   * one running and names the ticket or project it is on. That id is passed
+   * back so the panel can link to it, because the fix for "you already have a
+   * timer running" is over there, not here.
    */
   startTimer: async ({ cookies, params }) => {
     try {
@@ -477,7 +481,8 @@ export const actions = {
     } catch (/** @type {any} */ err) {
       return fail(err?.status === 409 ? 409 : 400, {
         timeError: readableError(err, 'Could not start the timer.'),
-        runningTicketId: err?.body?.running_case_id ?? null
+        runningTicketId: err?.body?.running_case_id ?? null,
+        runningProjectId: err?.body?.running_project_id ?? null
       });
     }
 
@@ -561,6 +566,35 @@ export const actions = {
     return { timeDeleted: true };
   },
 
+  /**
+   * Bill this ticket's time: every stopped, billable, unbilled entry on it,
+   * read again here rather than taken from the form, onto one Draft invoice
+   * for the ticket's account. Admins only, by the API.
+   */
+  billTime: async ({ cookies, params, request }) => {
+    const form = await request.formData();
+    /** @type {{ invoice_id?: string }} */
+    let made;
+    try {
+      const { ids } = unbilledEntries(await listTicketTime({ cookies }, params.id));
+      if (!ids.length) {
+        return fail(400, { timeError: 'Nothing on this ticket is ready to bill.' });
+      }
+      made = await invoiceFromTimeEntries(
+        { cookies },
+        {
+          account_id: form.get('account_id')?.toString() ?? '',
+          entry_ids: ids,
+          group_by: billGrouping(form.get('group_by')?.toString())
+        }
+      );
+    } catch (/** @type {any} */ err) {
+      const code = err?.status >= 400 && err?.status < 500 ? err.status : 400;
+      return fail(code, { timeError: readableError(err, 'Could not bill this time.') });
+    }
+    redirect(303, made?.invoice_id ? `/invoices/${made.invoice_id}` : '/invoices');
+  },
+
   /** Start watching. Anyone who may open the ticket may; the API decides. */
   watch: async ({ cookies, params }) => {
     try {
@@ -623,7 +657,10 @@ export const actions = {
     const macroId = form.get('macro_id')?.toString() ?? '';
     if (!macroId) return fail(400, { macroError: 'Pick a saved reply first.' });
     const usable = await listUsableMacros({ cookies }).catch(() => null);
-    if (usable?.find((m) => m.id === macroId)?.has_body === false) {
+    if (
+      usable?.find((/** @type {{ id: string, has_body: boolean }} */ m) => m.id === macroId)
+        ?.has_body === false
+    ) {
       return applyNow(cookies, macroId, params.id);
     }
     try {

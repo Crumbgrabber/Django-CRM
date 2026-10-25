@@ -46,12 +46,14 @@ export async function load({ cookies, locals }) {
     let orgs = [];
 
     if (response.data.organizations && Array.isArray(response.data.organizations)) {
-      orgs = response.data.organizations.map((org) => ({
-        id: org.id,
-        name: org.name,
-        logo: org.logo || null,
-        role: org.role || 'USER'
-      }));
+      orgs = response.data.organizations.map(
+        (/** @type {{ id: string, name: string, logo?: string | null, role?: string }} */ org) => ({
+          id: org.id,
+          name: org.name,
+          logo: org.logo || null,
+          role: org.role || 'USER'
+        })
+      );
     }
 
     return { orgs };

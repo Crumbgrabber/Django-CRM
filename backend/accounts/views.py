@@ -662,15 +662,16 @@ class AccountDetailView(APIView):
         try:
             self.object.delete()
         except ProtectedError:
-            # All three of Invoice, Estimate and RecurringInvoice point here with
-            # on_delete=PROTECT, so all three must be named. An account blocked
+            # Project, Invoice, Estimate and RecurringInvoice point here with
+            # on_delete=PROTECT, so all four must be named. An account blocked
             # only by a recurring invoice used to be told to go and look at two
             # lists that were already empty.
             return Response(
                 {
                     "error": True,
                     "errors": "This account can't be deleted while it still has "
-                    "invoices, estimates or recurring invoices linked to it.",
+                    "projects, invoices, estimates or recurring invoices linked "
+                    "to it.",
                 },
                 status=status.HTTP_409_CONFLICT,
             )

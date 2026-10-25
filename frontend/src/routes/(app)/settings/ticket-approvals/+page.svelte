@@ -57,6 +57,7 @@
   // vocabulary this form offers (ADMIN/MANAGER). MANAGER is not a real
   // `Profile.role` value (see the module docstring), so it has no entry in
   // that map and would render as `undefined`. Labelled here instead.
+  /** @param {string} role */
   function approverRoleLabel(role) {
     return role === 'MANAGER' ? 'Manager' : (ROLE_LABEL[role] ?? role);
   }
@@ -70,6 +71,7 @@
     editing = 'new';
   }
 
+  /** @param {any} r */
   function openEdit(r) {
     editing = r;
   }
@@ -172,7 +174,8 @@
               {#each data.people as p (p.id)}
                 <option
                   value={p.id}
-                  selected={editing !== 'new' && editing.approvers.some((a) => a.id === p.id)}
+                  selected={editing !== 'new' &&
+                    editing.approvers.some((/** @type {any} */ a) => a.id === p.id)}
                 >
                   {p.name}
                 </option>

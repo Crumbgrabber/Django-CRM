@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const apiRequest = vi.fn();
-vi.mock('#lib/api-helpers.js', () => ({ apiRequest: (...a) => apiRequest(...a) }));
+vi.mock('#lib/api-helpers.js', () => ({
+  apiRequest: (/** @type {any[]} */ ...a) => apiRequest(...a)
+}));
 
 const {
   stopTimer,
@@ -171,6 +173,17 @@ describe('the time report', () => {
     await getTimeReport(event, { group_by: 'planet' });
 
     expect(sentParams().group_by).toBe('agent');
+  });
+
+  it('groups by project and filters to one, only while Projects is on', async () => {
+    await getTimeReport(event, { group_by: 'project', project: 'pr1' });
+    expect(sentParams()).toMatchObject({ group_by: 'project', project: 'pr1' });
+
+    // An API without projects answers 400 to both, so neither is sent.
+    apiRequest.mockClear();
+    await getTimeReport(event, { group_by: 'project', project: 'pr1' }, { projectsOn: false });
+    expect(sentParams().group_by).toBe('agent');
+    expect('project' in sentParams()).toBe(false);
   });
 
   it('sends the billable filter only when it is one of the two the API takes', async () => {

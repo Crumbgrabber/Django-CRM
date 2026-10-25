@@ -104,7 +104,7 @@
   });
 
   let valid = $derived(Object.keys(errors).length === 0);
-  const show = (field) => (touched[field] || submitted) && errors[field];
+  const show = (/** @type {string} */ field) => (touched[field] || submitted) && errors[field];
 
   /**
    * On success the action redirects to the new deal, so there is no success

@@ -39,7 +39,11 @@ async function ignoringRedirect(run) {
   }
 }
 
-/** @param {string} url @param {Record<string, string>} headers */
+/**
+ * @param {string} url
+ * @param {Record<string, string>} headers
+ * @param {ReturnType<typeof jar>} cookies
+ */
 function loadLogin(url, headers, cookies) {
   return ignoringRedirect(() =>
     login.load(
@@ -53,6 +57,7 @@ function loadLogin(url, headers, cookies) {
   );
 }
 
+/** @param {ReturnType<typeof jar>} cookies */
 function createOrg(cookies) {
   const body = new FormData();
   body.set('org_name', 'Acme');

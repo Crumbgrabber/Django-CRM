@@ -45,7 +45,8 @@
   /** Whole days from today to the due date. Negative means it has passed. */
   let daysToDue = $derived.by(() => {
     if (!inv.due_date) return null;
-    const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const startOfDay = (/** @type {Date} */ d) =>
+      new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
     return Math.round((startOfDay(new Date(inv.due_date)) - startOfDay(new Date())) / 86400000);
   });
 

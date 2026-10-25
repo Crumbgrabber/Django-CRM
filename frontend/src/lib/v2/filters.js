@@ -40,6 +40,7 @@ import {
   industryLabel,
   invoiceStatusLabel
 } from './enums.js';
+import { PROJECT_STATUSES, PROJECT_STATUS_LABEL } from './projects.js';
 
 /** @typedef {{ key: string, label: string, params: Record<string, string> }} Preset */
 /** @typedef {{ key: string, label: string, type: string, options?: string[], labelFor?: (v: string) => string, gteKey?: string, lteKey?: string, multi?: boolean }} Field */
@@ -247,6 +248,25 @@ export const FILTERS = {
     // `?shared_to=<uuid>` throws `JSONDecodeError` and answers 500. Status is
     // the only filter this endpoint actually honours.
     fields: [{ key: 'status', label: 'Status', type: 'select', options: DOCUMENT_STATUSES }]
+  },
+
+  projects: {
+    presets: [
+      { key: 'all', label: 'All projects, newest first', params: {} },
+      { key: 'active', label: 'Active', params: { status: 'active' } },
+      { key: 'mine', label: 'Mine', params: { assigned_to: '@me' } }
+    ],
+    fields: [
+      {
+        key: 'status',
+        label: 'Status',
+        type: 'select',
+        options: PROJECT_STATUSES,
+        labelFor: (v) => PROJECT_STATUS_LABEL[v] ?? v
+      },
+      { key: 'account', label: 'Account', type: 'account' },
+      { key: 'assigned_to', label: 'Person', type: 'person' }
+    ]
   },
 
   recurring: {

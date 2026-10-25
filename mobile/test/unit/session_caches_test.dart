@@ -28,6 +28,7 @@ import 'package:bottle_crm/providers/leads_provider.dart';
 import 'package:bottle_crm/providers/lookup_provider.dart';
 import 'package:bottle_crm/providers/notifications_provider.dart';
 import 'package:bottle_crm/providers/profile_provider.dart';
+import 'package:bottle_crm/providers/projects_provider.dart';
 import 'package:bottle_crm/providers/settings_provider.dart';
 import 'package:bottle_crm/providers/solutions_provider.dart';
 import 'package:bottle_crm/providers/support_provider.dart';
@@ -96,9 +97,11 @@ final Map<String, ProviderListenable<Object?>> _sessionScoped = {
   'leadsLookupProvider': leadsLookupProvider,
   'opportunitiesLookupProvider': opportunitiesLookupProvider,
   'ticketsLookupProvider': ticketsLookupProvider,
+  'projectsLookupProvider': projectsLookupProvider,
   'customFieldDefinitionsProvider': customFieldDefinitionsProvider('Lead'),
   'notificationsProvider': notificationsProvider,
   'profileProvider': profileProvider,
+  'projectsProvider': projectsProvider,
   'customFieldsProvider': customFieldsProvider,
   'macrosProvider': macrosProvider,
   'activeMacrosProvider': activeMacrosProvider,

@@ -30,7 +30,7 @@
   import { enhance } from '$app/forms';
   import { UserPlus, KeyRound } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {{ data: import('./$types').PageData, form: any }} */
   let { data, form } = $props();
 
   let inviting = $state(false);

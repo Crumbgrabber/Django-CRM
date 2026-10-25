@@ -10,6 +10,7 @@ from contacts.models import Contact
 from invoices.models import Estimate, Invoice, RecurringInvoice
 from leads.models import Lead
 from opportunity.models import Opportunity
+from projects.models import Project
 from tasks.models import Task
 
 
@@ -39,6 +40,11 @@ _BUILDERS = {
     "ticket": lambda org: Case.objects.create(name="Rec", status="New", org=org),
     "task": lambda org: Task.objects.create(
         title="Rec", status="New", priority="Low", org=org
+    ),
+    "project": lambda org: Project.objects.create(
+        name="Rec",
+        account=Account.objects.create(name=f"Rec {uuid.uuid4().hex[:8]}", org=org),
+        org=org,
     ),
     "invoice": lambda org: Invoice.objects.create(invoice_title="Rec", org=org),
     "estimate": lambda org: Estimate.objects.create(title="Rec", org=org),

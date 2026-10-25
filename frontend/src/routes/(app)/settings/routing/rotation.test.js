@@ -8,6 +8,7 @@ import { nextInRotation, rotationPool } from './rotation.js';
  * The same rule lives in `mobile/lib/data/models/routing_rule.dart`, tested in
  * `mobile/test/unit/routing_rules_test.dart`.
  */
+/** @param {string} id @param {string} name */
 const person = (id, name, is_active = true) => ({ id, name, is_active });
 
 const rule = (overrides = {}) => ({

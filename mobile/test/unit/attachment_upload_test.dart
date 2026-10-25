@@ -76,6 +76,7 @@ void main() {
       // names are the product's; these two are the server's.
       expect(AttachmentTarget.deal.field, 'opportunity_attachment');
       expect(AttachmentTarget.ticket.field, 'case_attachment');
+      expect(AttachmentTarget.project.field, 'project_attachment');
     });
 
     test('each URL ends at the record detail, with a trailing slash', () {

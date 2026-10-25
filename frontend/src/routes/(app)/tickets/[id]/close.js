@@ -46,6 +46,7 @@ export const RESTRICTED_NAME = RESTRICTED_TICKET_NAME;
  *
  * @param {any} root
  * @param {string} id
+ * @returns {any}
  */
 export function findNode(root, id) {
   if (!root || !id) return null;

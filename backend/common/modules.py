@@ -1,4 +1,4 @@
-"""The module catalogue: nine parts of the CRM an org admin can switch off.
+"""The module catalogue: ten parts of the CRM an org admin can switch off.
 
 State lives in three ``Org`` fields (``modules_off``, ``module_order``,
 ``modules_on_at``). Everything here reads them defensively: unknown or
@@ -77,7 +77,7 @@ MODULES = (
         stops=(
             "{label} leave every menu and Today, SLA escalation stops, CSAT survey "
             "links stop opening, and customers stop seeing their tickets in the "
-            "portal. Timesheet switches off too."
+            "portal."
         ),
     ),
     Module(
@@ -96,6 +96,19 @@ MODULES = (
         group="serve",
         covers="Documents and their downloads.",
         stops="{label} leave every menu, and their downloads stop opening.",
+    ),
+    Module(
+        key="projects",
+        label="Projects",
+        group="serve",
+        covers=(
+            "Projects, their people, rates and budgets, tasks and time on them, "
+            "and billing a project's time."
+        ),
+        stops=(
+            "{label} leave every menu, time can no longer be logged on them, and "
+            "budget notifications stop."
+        ),
     ),
     Module(
         key="invoices",
@@ -117,11 +130,10 @@ MODULES = (
         key="timesheet",
         label="Timesheet",
         group="bill",
-        needs="tickets",
         covers="Time entries, the timesheet and the time report.",
         stops=(
-            "Time entries leave every menu and ticket, and running timers are no "
-            "longer stopped automatically."
+            "Time entries leave every menu, ticket and project, and running timers "
+            "are no longer stopped automatically."
         ),
     ),
 )
@@ -172,6 +184,8 @@ MODEL_MODULES: dict[str, str] = {
     "macros.Macro": "tickets",
     **{f"invoices.{n}": "invoices" for n in _INVOICES},
     "common.Document": "documents",
+    "projects.Project": "projects",
+    "projects.ProjectRate": "projects",
 }
 
 
@@ -294,7 +308,9 @@ NAMESPACE_MODULES: dict[str, Requires] = {
     "api_cases": Requires(("tickets",)),
     "api_business_hours": Requires(("tickets",)),
     "api_macros": Requires(("tickets",)),
-    "api_time_entries": Requires(("tickets", "timesheet")),
+    # Time sits on tickets or projects, so the entry routes need either.
+    "api_time_entries": Requires(("timesheet",), any_of=("tickets", "projects")),
+    "api_projects": Requires(("projects",)),
     "api_invoices": Requires(("invoices",)),
     "public_help": Requires(("knowledge_base",)),
     "public_invoices": Requires(("invoices",)),
@@ -325,7 +341,14 @@ ROUTE_MODULES: dict[str, Requires] = {
     "api/cases/inbound/": Requires(any_of=("tickets", "leads")),
     "api/invoices/products/": Requires(any_of=("invoices", "deals")),
     "api/invoices/from-opportunity/": Requires(("invoices", "deals")),
-    "api/invoices/from-time-entries/": Requires(("invoices", "tickets", "timesheet")),
+    # The view also needs Tickets to bill an account, Projects to bill a project.
+    "api/invoices/from-time-entries/": Requires(
+        ("invoices", "timesheet"), any_of=("tickets", "projects")
+    ),
+    "api/projects/<uid:pk>/time-entries/": Requires(("projects", "timesheet")),
+    "api/projects/<uid:pk>/unbilled/": Requires(("projects", "invoices", "timesheet")),
+    "api/projects/<uid:pk>/invoice-amount/": Requires(("projects", "invoices")),
+    "api/projects/from-deal/": Requires(("projects", "deals")),
     "api/leads/sources/": CORE,
     "api/documents/": Requires(("documents",)),
     "api/profile/calendar-feed/": Requires(("tasks",)),

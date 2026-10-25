@@ -120,6 +120,49 @@ void main() {
     });
   });
 
+  group('the billable share per agent', () {
+    test('reads the share as a fraction and shows it as a percent', () {
+      final row = TimeReportRow.fromJson({
+        'key': 'p1',
+        'name': 'Ada',
+        'total_minutes': 600,
+        'billable_minutes': 375,
+        'billable_share': 0.63,
+      });
+      expect(row.billableShare, 0.63);
+      expect(row.billableSharePercent, 63);
+      expect(row.billableMinutes, 375);
+    });
+
+    test('a row with no time, another grouping or an older API has none', () {
+      for (final json in [
+        {'name': 'Ada', 'billable_share': null},
+        {'name': 'Northwind'},
+      ]) {
+        final row = TimeReportRow.fromJson(json);
+        expect(row.billableShare, isNull);
+        expect(row.billableSharePercent, isNull);
+      }
+    });
+
+    test('a share sent as a string still parses', () {
+      final row = TimeReportRow.fromJson({
+        'name': 'Ada',
+        'billable_share': '1',
+      });
+      expect(row.billableSharePercent, 100);
+    });
+  });
+
+  test('the report can be asked for by project', () {
+    final url = ApiConfig.timeReport(
+      start: '2026-10-01',
+      end: '2026-10-31',
+      groupBy: 'project',
+    );
+    expect(Uri.parse(url).queryParameters['group_by'], 'project');
+  });
+
   group('what the screen asks for', () {
     test('the default window is the last 30 days, inclusive', () {
       final filters = TimeReportFilters.recent();

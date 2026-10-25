@@ -24,6 +24,7 @@ from accounts.models import Account
 from common.custom_fields import validate_payload as validate_custom_fields_payload
 from common.lookups import get_on_visible_record_or_404
 from common.models import Attachments, Comment, CustomFieldDefinition
+from common.modules import module_is_available, module_off_response
 from common.money import currency_block, group_by_currency
 from common.permissions import HasOrgContext, is_org_admin
 from common.serializer import (
@@ -32,7 +33,13 @@ from common.serializer import (
     CustomFieldDefinitionSerializer,
 )
 from common.utils import create_attachment
-from common.validators import date_param, payload_id_list, uuid_param, validate_uuid
+from common.validators import (
+    date_param,
+    payload_id_list,
+    uuid_param,
+    validate_date,
+    validate_uuid,
+)
 from contacts.access import visible_contacts_qs
 from invoices.models import (
     UNPAID_STATUSES,
@@ -2634,7 +2641,12 @@ class InvoiceFromTimeEntriesView(APIView):
     """``POST /api/invoices/from-time-entries/``, turn billable time entries
     into a draft invoice (Tier 3 time-tracking).
 
-    Body: ``{"account_id": "<uuid>", "entry_ids": ["<uuid>", ...]}``.
+    Body: ``{"account_id": "<uuid>", "entry_ids": ["<uuid>", ...]}`` to bill
+    ticket time, or ``{"project_id": "<uuid>"}`` to bill a project, with
+    optional ``entry_ids`` and ``up_to`` (a date, today by default); without
+    ``entry_ids`` that is every stopped, billable, unbilled entry on the
+    project started on or before ``up_to``. ``group_by`` is ``entry`` (the
+    default), ``person``, ``task`` or ``single``.
 
     Org admins and Django superusers only; anyone else gets a 403 before the
     body is read. Billing time is a finance action over the whole org's
@@ -2642,10 +2654,10 @@ class InvoiceFromTimeEntriesView(APIView):
     (``cases.time_views._visible_entry_qs``), so a member could otherwise
     bill a colleague's time and then read it back as the invoice's creator.
 
-    Every entry must be on a ticket whose account is ``account_id``. An entry
-    on a ticket with no account, or with another account, is a 400 and
-    nothing is written. The account and the entries are looked up inside the
-    caller's org, so another org's ids answer 404.
+    Every entry must be on a ticket whose account is ``account_id``, or on
+    the project. An entry elsewhere is a 400 and nothing is written. The
+    account, project and entries are looked up inside the caller's org, so
+    another org's ids answer 404.
     """
 
     permission_classes = (IsAuthenticated, HasOrgContext)
@@ -2653,10 +2665,13 @@ class InvoiceFromTimeEntriesView(APIView):
     def post(self, request, *args, **kwargs):
         from cases.models import TimeEntry
         from cases.services.billing import (
+            GROUPINGS,
             TimeEntryInvoicingError,
             attach_entries_to_invoice,
             build_invoice_lines_from_entries,
         )
+        from projects.burn import unbilled_entries
+        from projects.models import Project
 
         if not is_org_admin(request.profile):
             return Response(
@@ -2669,38 +2684,75 @@ class InvoiceFromTimeEntriesView(APIView):
 
         org = request.profile.org
         account_id = request.data.get("account_id")
-        if not account_id:
+        project_id = request.data.get("project_id")
+        if bool(account_id) == bool(project_id):
             return Response(
-                {"error": True, "message": "account_id is required."},
+                {"error": True, "message": "Send either account_id or project_id."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        validate_uuid(account_id, "account_id")
+        group_by = request.data.get("group_by") or "entry"
+        if group_by not in GROUPINGS:
+            return Response(
+                {
+                    "error": True,
+                    "message": f"group_by must be one of {', '.join(GROUPINGS)}.",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        validate_uuid(
+            account_id or project_id, "account_id" if account_id else "project_id"
+        )
         # Deduplicated as UUIDs, not strings, so the same id sent twice (or
         # once upper-case, once lower) is one entry rather than a false 404.
         entry_ids = {
             uuid.UUID(str(i))
             for i in payload_id_list(request.data.get("entry_ids"), "entry_ids")
         }
-        if not entry_ids:
-            return Response(
-                {"error": True, "message": "entry_ids must be a non-empty list."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
 
-        account = Account.objects.filter(id=account_id, org=org).first()
-        if account is None:
-            return Response(
-                {"error": True, "message": "Account not found."},
-                status=status.HTTP_404_NOT_FOUND,
+        project = None
+        if project_id:
+            if not module_is_available(org, "projects"):
+                return module_off_response(org, "projects")
+            up_to = (
+                validate_date(request.data["up_to"], "up_to")
+                if request.data.get("up_to")
+                else timezone.localdate()
             )
+            project = Project.objects.filter(id=project_id, org=org).first()
+            if project is None:
+                return Response(
+                    {"error": True, "message": "Project not found."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+            account = project.account
+        else:
+            if not module_is_available(org, "tickets"):
+                return module_off_response(org, "tickets")
+            if not entry_ids:
+                return Response(
+                    {"error": True, "message": "entry_ids must be a non-empty list."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            account = Account.objects.filter(id=account_id, org=org).first()
+            if account is None:
+                return Response(
+                    {"error": True, "message": "Account not found."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
 
         with transaction.atomic():
+            # `of=("self",)`: `case` and `project` are nullable joins, and
+            # Postgres refuses FOR UPDATE on the nullable side of one.
+            if project is not None and not entry_ids:
+                locked = unbilled_entries(project, up_to)
+            else:
+                locked = TimeEntry.objects.filter(id__in=entry_ids, org=org)
             entries = list(
-                TimeEntry.objects.select_for_update()
-                .select_related("case")
-                .filter(id__in=entry_ids, org=org)
+                locked.select_for_update(of=("self",)).select_related(
+                    "case", "project", "task", "profile__user"
+                )
             )
-            if len(entries) != len(entry_ids):
+            if entry_ids and len(entries) != len(entry_ids):
                 return Response(
                     {
                         "error": True,
@@ -2708,20 +2760,37 @@ class InvoiceFromTimeEntriesView(APIView):
                     },
                     status=status.HTTP_404_NOT_FOUND,
                 )
+            if not entries:
+                return Response(
+                    {
+                        "error": True,
+                        "message": "This project has no unbilled time to bill.",
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
             for entry in entries:
-                if entry.case.account_id != account.id:
-                    return Response(
-                        {
-                            "error": True,
-                            "message": f"Time entry {entry.id} is not on a "
-                            "ticket for this account.",
-                        },
-                        status=status.HTTP_400_BAD_REQUEST,
+                if project is not None and entry.project_id != project.id:
+                    message = f"Time entry {entry.id} is not on this project."
+                elif project is None and (
+                    entry.case_id is None or entry.case.account_id != account.id
+                ):
+                    message = (
+                        f"Time entry {entry.id} is not on a ticket for this account."
                     )
+                else:
+                    continue
+                return Response(
+                    {"error": True, "message": message},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
             try:
-                currency, lines = build_invoice_lines_from_entries(entries)
+                currency, lines = build_invoice_lines_from_entries(
+                    entries,
+                    group_by,
+                    single_label=project.name if project else "Time",
+                )
             except TimeEntryInvoicingError as exc:
                 return Response(
                     {"error": True, "message": str(exc)},
@@ -2730,14 +2799,20 @@ class InvoiceFromTimeEntriesView(APIView):
 
             primary_contact = _first_visible_contact(account.contacts, request.profile)
 
+            title = (
+                f"{project.name}, time to {up_to:%Y-%m-%d}"
+                if project
+                else f"Time entries, {timezone.localdate():%Y-%m-%d}"
+            )
             # Invoice.save() generates invoice_number, public_token, due_date,
             # and recalculates totals. We just hand it the high-level fields.
             invoice = Invoice.objects.create(
-                invoice_title=f"Time entries, {timezone.localdate():%Y-%m-%d}",
+                invoice_title=title[:100],
                 account=account,
                 contact=primary_contact,
                 currency=currency,
                 status="Draft",
+                project=project,
                 org=org,
             )
             for line in lines:
@@ -2756,6 +2831,7 @@ class InvoiceFromTimeEntriesView(APIView):
                 "currency": currency,
                 "line_count": len(lines),
                 "entry_ids": [str(e.id) for e in entries],
+                "project_id": str(project.id) if project else None,
             },
             status=status.HTTP_201_CREATED,
         )

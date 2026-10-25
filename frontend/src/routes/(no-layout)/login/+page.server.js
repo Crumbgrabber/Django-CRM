@@ -42,7 +42,7 @@ function getCookieOptions(maxAge) {
   };
 }
 
-/** @type {import('@sveltejs/kit').ServerLoad} */
+/** @type {import('./$types').PageServerLoad} */
 export async function load({ url, cookies, getClientAddress, request }) {
   const code = url.searchParams.get('code');
   const returnedState = url.searchParams.get('state');
@@ -83,6 +83,7 @@ export async function load({ url, cookies, getClientAddress, request }) {
  * @param {string|null} returnedState - State parameter returned from Google
  * @param {import('@sveltejs/kit').Cookies} cookies - SvelteKit cookies
  * @param {{ getClientAddress: () => string, request: Request }} visitor - Who the API's audit row records
+ * @returns {Promise<never>} Always redirects, to `/org` or back to `/login` with an error
  */
 async function handleOAuthCallback(code, returnedState, cookies, visitor) {
   // Retrieve and immediately clear OAuth cookies (one-time use)
@@ -163,7 +164,7 @@ async function handleOAuthCallback(code, returnedState, cookies, visitor) {
 /**
  * Generate Google OAuth URL with PKCE parameters
  * @param {import('@sveltejs/kit').Cookies} cookies - SvelteKit cookies
- * @returns {Promise<object>} Object containing the Google OAuth URL
+ * @returns {Promise<{ google_url: string }>} Object containing the Google OAuth URL
  */
 async function generateOAuthUrl(cookies) {
   // Generate PKCE parameters
@@ -184,7 +185,7 @@ async function generateOAuthUrl(cookies) {
   const redirect_uri = env.GOOGLE_LOGIN_DOMAIN + '/login';
 
   const params = new URLSearchParams({
-    client_id: env.GOOGLE_CLIENT_ID,
+    client_id: env.GOOGLE_CLIENT_ID ?? '',
     redirect_uri,
     response_type: 'code',
     scope: GOOGLE_SCOPES,

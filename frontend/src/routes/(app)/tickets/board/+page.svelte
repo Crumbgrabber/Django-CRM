@@ -180,8 +180,10 @@
         <div
           class="v2-lane-body tb-lane-body"
           use:dndzone={{ items: lane.rows, flipDurationMs: FLIP_MS, dragDisabled: busy }}
-          onconsider={(e) => onConsider(lane, e)}
-          onfinalize={(e) => onFinalize(lane, e)}
+          onconsider={(/** @type {CustomEvent<import('svelte-dnd-action').DndEvent>} */ e) =>
+            onConsider(lane, e)}
+          onfinalize={(/** @type {CustomEvent<import('svelte-dnd-action').DndEvent>} */ e) =>
+            onFinalize(lane, e)}
           onmousedowncapture={holdLockedCard}
           ontouchstartcapture={holdLockedCard}
           onkeydowncapture={holdLockedCard}

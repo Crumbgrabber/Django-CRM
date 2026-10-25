@@ -1,6 +1,7 @@
 <script>
   /**
-   * Where the time went: totals by agent, ticket or account over a window.
+   * Where the time went: totals by agent, ticket, project or account over a
+   * window, with each agent's billable share.
    *
    * The timesheet answers "what did I do this week". This answers the two
    * questions asked of that data afterwards, which are somebody else's: how
@@ -12,9 +13,11 @@
    * of it.
    */
   import { resolve } from '$app/paths';
+  import { asInternalPath } from '#lib/utils/paths.js';
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
   import StatCard from '#lib/v2/components/StatCard.svelte';
   import { money, count, shortDate, hoursMinutes as hm } from '#lib/v2/format.js';
+  import { billableSharePercent } from '#lib/v2/time-entry.js';
   import { Download } from '@lucide/svelte';
 
   /** @type {{ data: any }} */
@@ -26,11 +29,26 @@
   const GROUPS = [
     { value: 'agent', label: 'Agent' },
     { value: 'ticket', label: 'Ticket' },
+    { value: 'project', label: 'Project' },
     { value: 'account', label: 'Account' }
   ];
+  let groups = $derived(GROUPS.filter((g) => g.value !== 'project' || data.projectsOn));
 
   /** What each row's name means, said once above the table rather than per row. */
-  const GROUP_NOUN = { agent: 'Agent', ticket: 'Ticket', account: 'Account' };
+  const GROUP_NOUN = /** @type {Record<string, string>} */ ({
+    agent: 'Agent',
+    ticket: 'Ticket',
+    project: 'Project',
+    account: 'Account'
+  });
+
+  /** Where a row's name links, or null for a bucket with no record (`key` null). */
+  const ROW_HREF = /** @type {Record<string, string>} */ ({
+    ticket: 'tickets',
+    project: 'projects',
+    account: 'accounts'
+  });
+  let byAgent = $derived(report.group_by === 'agent');
 
   let billableShare = $derived(
     report.totals.total_minutes
@@ -54,6 +72,7 @@
     if (filters.billable === 'true' || filters.billable === 'false') {
       qs.set('billable', filters.billable);
     }
+    if (filters.project) qs.set('project', filters.project);
     return qs.toString();
   });
 
@@ -68,9 +87,9 @@
     <a href={resolve('timesheet')}>Timesheet</a>
   {/snippet}
   {#snippet sub()}
-    {shortDate(report.start)} - {shortDate(report.end)} · by {GROUP_NOUN[
-      report.group_by
-    ].toLowerCase()}
+    {shortDate(report.start)} to {shortDate(report.end)} · by {(
+      GROUP_NOUN[report.group_by] ?? report.group_by
+    ).toLowerCase()}{filters.project ? ' · one project' : ''}
   {/snippet}
   {#snippet actions()}
     <!-- An anchor, not a fetch: the browser's own download, and the proxy
@@ -87,6 +106,9 @@
 
 <div class="v2-pad" style="padding-top:16px;flex:none">
   <form method="GET" class="filters">
+    {#if filters.project}
+      <input type="hidden" name="project" value={filters.project} />
+    {/if}
     <div class="v2-field">
       <label for="r-start">From</label>
       <input id="r-start" class="v2-input" type="date" name="start" value={report.start} />
@@ -98,7 +120,7 @@
     <div class="v2-field">
       <label for="r-group">Group by</label>
       <select id="r-group" class="v2-input" name="group_by" value={report.group_by}>
-        {#each GROUPS as group (group.value)}
+        {#each groups as group (group.value)}
           <option value={group.value}>{group.label}</option>
         {/each}
       </select>
@@ -113,6 +135,13 @@
     </div>
     <button class="v2-btn v2-btn-primary filters-go">Apply</button>
   </form>
+  {#if filters.project}
+    <p class="v2-sub" style="font-size:12px;margin:8px 0 0">
+      One project's time only.
+      <a href={resolve(`projects/${filters.project}`)}>Open the project</a> ·
+      <a href={resolve('timesheet/report')}>Show all time</a>
+    </p>
+  {/if}
 
   <div class="v2-stats" style="margin-top:14px">
     <StatCard label="Logged" value={hm(report.totals.total_minutes)} tone="ink" />
@@ -145,9 +174,10 @@
         <table class="v2-table">
           <thead>
             <tr>
-              <th>{GROUP_NOUN[report.group_by]}</th>
+              <th>{GROUP_NOUN[report.group_by] ?? ''}</th>
               <th class="v2-r">Entries</th>
               <th class="v2-r">Billable</th>
+              {#if byAgent}<th class="v2-r">Billable share</th>{/if}
               <th class="v2-r">Value</th>
               <th class="v2-r">Logged</th>
             </tr>
@@ -156,10 +186,11 @@
             {#each report.rows as row (row.key ?? row.name)}
               <tr>
                 <td data-m="title">
-                  {#if report.group_by === 'ticket' && row.key}
-                    <a href={resolve(`tickets/${row.key}`)} class="v2-table-primary">{row.name}</a>
-                  {:else if report.group_by === 'account' && row.key}
-                    <a href={resolve(`accounts/${row.key}`)} class="v2-table-primary">{row.name}</a>
+                  {#if ROW_HREF[report.group_by] && row.key}
+                    <a
+                      href={resolve(asInternalPath(`/${ROW_HREF[report.group_by]}/${row.key}`))}
+                      class="v2-table-primary">{row.name}</a
+                    >
                   {:else}
                     {row.name}
                   {/if}
@@ -168,6 +199,12 @@
                 <td class="v2-num v2-r" data-m="meta" data-l="billable">
                   {hm(row.billable_minutes)}
                 </td>
+                {#if byAgent}
+                  {@const share = billableSharePercent(row)}
+                  <td class="v2-num v2-r" data-m="meta" data-l="share">
+                    {share === null ? 'No time' : `${share}%`}
+                  </td>
+                {/if}
                 <td class="v2-num v2-r" data-m="meta" data-l="worth">
                   {money(row.billable_value, currency)}
                 </td>

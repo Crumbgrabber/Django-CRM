@@ -1205,9 +1205,13 @@ class TimeEntrySerializer(serializers.ModelSerializer):
 
     profile = ProfileSerializer(read_only=True)
     invoiced = serializers.SerializerMethodField()
+    project_name = serializers.SerializerMethodField()
 
     def get_invoiced(self, obj) -> bool:
         return obj.invoice_id is not None
+
+    def get_project_name(self, obj) -> str | None:
+        return obj.project.name if obj.project_id else None
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -1222,6 +1226,9 @@ class TimeEntrySerializer(serializers.ModelSerializer):
         fields = (
             "id",
             "case",
+            "project",
+            "project_name",
+            "task",
             "profile",
             "started_at",
             "ended_at",
@@ -1238,6 +1245,9 @@ class TimeEntrySerializer(serializers.ModelSerializer):
         )
         read_only_fields = (
             "id",
+            "case",
+            "project",
+            "task",
             "duration_minutes",
             "auto_stopped",
             "invoice",
@@ -1247,12 +1257,17 @@ class TimeEntrySerializer(serializers.ModelSerializer):
 
 
 class TimeEntryCreateSerializer(serializers.ModelSerializer):
-    """Manual time entry creation (POST /api/cases/<pk>/time-entries/).
+    """Manual time entry creation, on a ticket
+    (``POST /api/cases/<pk>/time-entries/``) or a project
+    (``POST /api/projects/<pk>/time-entries/``).
 
-    `case`, `profile`, and `org` are injected by the view and not accepted
-    from the client. Validation rejects negative durations and negative
-    hourly rates so the DB CheckConstraint is a backstop, not the first
-    line of defense.
+    `case`, `project`, `task`, `profile`, and `org` are set by the view, never
+    taken from this serializer. On a project the view also replaces `currency`
+    with the project's, and a non-admin's `hourly_rate` with the project's
+    rate rule (`cases.time_views.create_entry`).
+
+    Validation rejects negative durations and negative hourly rates so the DB
+    CheckConstraint is a backstop, not the first line of defense.
     """
 
     class Meta:

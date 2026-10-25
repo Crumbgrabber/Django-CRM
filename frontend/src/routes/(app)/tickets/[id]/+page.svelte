@@ -49,7 +49,9 @@
   import RelatedRecords from '#lib/v2/components/RelatedRecords.svelte';
   import { relatedView } from '#lib/v2/custom-objects.js';
   import { isOn } from '#lib/v2/modules.js';
-  import { isBilled } from '#lib/v2/time-entry.js';
+  import { isBilled, unbilledEntries } from '#lib/v2/time-entry.js';
+  import { BILL_GROUPINGS } from '#lib/v2/projects.js';
+  import { isOrgAdmin } from '#lib/admin.js';
 
   /** @type {{ data: any, form: any }} */
   let { data, form } = $props();
@@ -156,8 +158,13 @@
     return m?.chips?.length ? m : null;
   }
   let composerMacro = $state(untrack(() => macroWithActions(form?.macroId)));
+  /** @type {string[]} */
   let kept = $state(
-    untrack(() => (macroWithActions(form?.macroId)?.chips ?? []).map((c) => c.key))
+    untrack(() =>
+      (macroWithActions(form?.macroId)?.chips ?? []).map(
+        (/** @type {{ key: string }} */ c) => c.key
+      )
+    )
   );
   let keptChips = $derived(
     (composerMacro?.chips ?? []).filter((/** @type {any} */ c) => kept.includes(c.key))
@@ -321,6 +328,14 @@
 
   let timeBusy = $state(false);
 
+  /* Bill time: admins, while Invoices is on, on a ticket with an account.
+     The action works out the entries again from the API; these say only
+     whether to offer it and what it would take. */
+  let toBill = $derived(unbilledEntries(entries));
+  let billOffered = $derived(
+    isOrgAdmin(data) && isOn(data.modules, 'invoices') && Boolean(ticket.account?.id)
+  );
+
   /**
    * The entry whose row is asking "delete?", if any.
    *
@@ -392,6 +407,9 @@
    * for the warning band ("aging_status yellow" is exactly what clay is for),
    * and ordinary text for on track. Breached wins, because the two are
    * exclusive server-side and a tie would mean a bug worth seeing as red.
+   *
+   * @param {boolean} breached
+   * @param {boolean} atRisk
    */
   function slaColor(breached, atRisk) {
     if (breached) return 'color:var(--v2-rust)';
@@ -1150,12 +1168,54 @@
                   </form>
                 </details>
               {/if}
+
+              {#if billOffered && toBill.ids.length}
+                <details class="time-log">
+                  <summary class="v2-btn">Bill time</summary>
+                  <form
+                    method="POST"
+                    action="?/billTime"
+                    use:enhance={timeSubmit}
+                    class="time-log-form"
+                  >
+                    <input type="hidden" name="account_id" value={ticket.account.id} />
+                    <p class="time-wide time-bill-text">
+                      <b class="v2-num">{toBill.ids.length}</b>
+                      billable {toBill.ids.length === 1 ? 'entry' : 'entries'},
+                      <b class="v2-num">{hm(toBill.minutes)}</b>, not yet billed, onto a draft
+                      invoice for {ticket.account.name}.
+                    </p>
+                    {#if toBill.currencies.length > 1}
+                      <p class="v2-error time-wide">
+                        These entries are in {toBill.currencies.join(' and ')}. An invoice takes one
+                        currency, so change the entries to one before billing them.
+                      </p>
+                    {:else}
+                      <div class="v2-field time-wide">
+                        <label for="time-group">Invoice lines</label>
+                        <select id="time-group" class="v2-input" name="group_by" value="entry">
+                          {#each BILL_GROUPINGS.filter((g) => g.value !== 'task') as g (g.value)}
+                            <option value={g.value}>{g.label}</option>
+                          {/each}
+                        </select>
+                      </div>
+                      <div class="time-wide time-log-foot">
+                        <button class="v2-btn v2-btn-primary" disabled={timeBusy}>
+                          Create draft invoice
+                        </button>
+                      </div>
+                    {/if}
+                  </form>
+                </details>
+              {/if}
             </div>
 
             {#if form?.timeError}
               <p class="v2-error time-error">
                 <span>{form.timeError}</span>
-                {#if form.runningTicketId}
+                {#if form.runningProjectId}
+                  <a href={resolve(`projects/${form.runningProjectId}`)}>Open that project</a>
+                {:else if form.runningTicketId}
                   <a href={resolve(`tickets/${form.runningTicketId}`)}>Open that ticket</a>
                 {/if}
               </p>
@@ -2202,6 +2262,10 @@
   }
   .time-log-form .v2-hint {
     margin: 0;
+  }
+  .time-bill-text {
+    margin: 0;
+    font-size: 12.5px;
   }
   .time-error {
     margin: 12px 0 0;

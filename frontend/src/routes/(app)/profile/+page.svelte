@@ -24,7 +24,7 @@
   import { isOn, labelOf } from '#lib/v2/modules.js';
   import { asInternalPath } from '#lib/utils/paths.js';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {{ data: import('./$types').PageData, form: any }} */
   let { data, form } = $props();
 
   let p = $derived(data.profile);

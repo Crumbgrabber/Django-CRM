@@ -37,7 +37,8 @@
   /** null when there is no expiry date; negative once it has passed. */
   let daysToExpiry = $derived.by(() => {
     if (!est.expiry_date) return null;
-    const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const startOfDay = (/** @type {Date} */ d) =>
+      new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
     return Math.round((startOfDay(new Date(est.expiry_date)) - startOfDay(new Date())) / 86400000);
   });
 
@@ -59,8 +60,12 @@
     [addr.line, addr.city, addr.state, addr.postcode, addr.country].filter(Boolean)
   );
 
-  /** Shared enhance handler: reload on completion, close the confirm step only
-      when the server accepted the submission. */
+  /**
+   * Shared enhance handler: reload on completion, close the confirm step only
+   * when the server accepted the submission.
+   *
+   * @type {import('./$types').SubmitFunction}
+   */
   function respond() {
     submitting = true;
     return async ({ result, update }) => {

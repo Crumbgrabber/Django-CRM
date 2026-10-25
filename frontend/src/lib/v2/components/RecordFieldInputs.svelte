@@ -13,7 +13,7 @@
   /**
    * @type {{
    *   fields: any[],
-   *   linkFields?: any[],
+   *   linkFields?: { key: string, label: string, target: string, many: boolean, records: { id: string, name: string }[], hidden: number, readOnly: boolean }[],
    *   people?: { id: string, name: string }[],
    *   assignees?: { id: string, name: string }[],
    *   edit?: boolean,

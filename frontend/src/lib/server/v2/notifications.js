@@ -30,7 +30,8 @@ export const PRODUCED_VERBS = [
   'automation.message',
   'automation.failed',
   'automation.paused',
-  'automation.limit'
+  'automation.limit',
+  'project.budget'
 ];
 
 /**
@@ -52,11 +53,11 @@ export function resolvedLink(link) {
   return automationLink(link);
 }
 
-/** Record and settings links the automation engine writes; every id a UUID. */
+/** Record and settings links the automation engine and project budgets write; every id a UUID. */
 function automationLink(/** @type {string} */ link) {
   if (link === '/settings/automation') return link;
   const rec = link.match(
-    /^\/(leads|contacts|accounts|pipeline|tasks|settings\/automation)\/([^/?#]+)$/
+    /^\/(leads|contacts|accounts|pipeline|tasks|projects|settings\/automation)\/([^/?#]+)$/
   );
   if (rec) return UUID.test(rec[2]) ? link : '';
   const obj = link.match(/^\/objects\/([^/?#]+)\/([^/?#]+)$/);
@@ -81,6 +82,8 @@ const FEED_LIMIT = 50;
  */
 export async function getNotifications({ cookies }) {
   const resp = await apiRequest(`/notifications/?limit=${FEED_LIMIT}`, {}, { cookies });
+  // The feed has no schema, so its rows stay untyped API data.
+  /** @type {any[]} */
   const results = (resp.results || []).map(toRow);
   return {
     results,

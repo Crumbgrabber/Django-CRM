@@ -88,6 +88,7 @@
     addressMode = data.generated_domain ? 'generate' : 'own';
   }
 
+  /** @param {any} m */
   function openEdit(m) {
     editing = m;
     creates = m.creates;

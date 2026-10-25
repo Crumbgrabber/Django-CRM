@@ -25,6 +25,7 @@ from common.links import frontend_url
 from common.models import Activity, Comment, Org, Profile
 from common.modules import module_is_available, module_on_since
 from common.tasks import clear_rls_context, set_rls_context
+from projects.burn import check_budget_alerts
 
 logger = logging.getLogger(__name__)
 
@@ -722,7 +723,8 @@ TIME_ENTRY_AUTO_STOP_HOURS = 12
 def auto_stop_stale_timers(threshold_hours=TIME_ENTRY_AUTO_STOP_HOURS):
     """Stop running TimeEntry rows whose started_at is older than
     ``threshold_hours``. Sets ``auto_stopped=True`` and recomputes
-    ``duration_minutes`` via the model save() path. Skips an org with Timesheet
+    ``duration_minutes`` via the model save() path, then runs the budget check
+    for each project whose timer it stopped. Skips an org with Timesheet
     off, and leaves running a timer that went stale while it was off.
 
     Returns the number of timers stopped. Walks every org through the
@@ -749,11 +751,16 @@ def auto_stop_stale_timers(threshold_hours=TIME_ENTRY_AUTO_STOP_HOURS):
                     stale = stale.filter(
                         started_at__gte=since - timedelta(hours=threshold_hours)
                     )
-                for entry in list(stale):
+                projects = {}
+                for entry in list(stale.select_related("project")):
                     entry.ended_at = now
                     entry.auto_stopped = True
                     entry.save()
                     stopped += 1
+                    if entry.project is not None:
+                        projects[entry.project_id] = entry.project
+                for project in projects.values():
+                    check_budget_alerts(project)
             except Exception:  # pragma: no cover
                 logger.exception("auto_stop_stale_timers failed for org=%s", org.id)
     finally:

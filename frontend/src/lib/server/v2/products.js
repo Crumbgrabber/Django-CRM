@@ -104,6 +104,7 @@ function computeTotals(items) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  */
 export async function listProducts({ cookies }) {
+  /** @type {{ results?: any[] }} */
   const resp = await apiRequest('/invoices/products/?limit=1000', {}, { cookies });
   const results = (resp?.results ?? [])
     .map(toProduct)

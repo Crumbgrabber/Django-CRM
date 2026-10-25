@@ -55,10 +55,14 @@
     optionRows = [];
   }
 
+  /** @param {any} f */
   function openEdit(f) {
     editing = f;
     fieldType = f.field_type;
-    optionRows = (f.options ?? []).map((o) => ({ value: o.value, label: o.label }));
+    optionRows = (f.options ?? []).map((/** @type {any} */ o) => ({
+      value: o.value,
+      label: o.label
+    }));
   }
 
   let totals = $derived(data.totals);
@@ -77,7 +81,9 @@
     }));
   });
 
-  let gaps = $derived(data.fields.filter((f) => f.is_required && f.records_missing_value > 0));
+  let gaps = $derived(
+    data.fields.filter((/** @type {any} */ f) => f.is_required && f.records_missing_value > 0)
+  );
 </script>
 
 <PageHeader title="Custom fields">
@@ -291,7 +297,7 @@
           <p class="v2-sub" style="font-size:12px;margin:4px 0 0;line-height:1.5">
             {gaps
               .map(
-                (f) =>
+                (/** @type {any} */ f) =>
                   `${f.label} is missing on ${f.records_missing_value} ${(TARGET_MODEL_LABEL[f.target_model] ?? f.target_model).toLowerCase()}`
               )
               .join('; ')}. Marking a field required binds new writes only, nothing goes back and
@@ -322,7 +328,7 @@
                   </div>
                   <span class="v2-sub" style="font-size:11.5px">
                     {FIELD_TYPE_LABEL[f.field_type]}{#if f.options}
-                      · {f.options.map((o) => o.label).join(', ')}
+                      · {f.options.map((/** @type {any} */ o) => o.label).join(', ')}
                     {/if}
                     {#if f.is_required && f.records_missing_value > 0}
                       · <span style="color:var(--v2-clay)">

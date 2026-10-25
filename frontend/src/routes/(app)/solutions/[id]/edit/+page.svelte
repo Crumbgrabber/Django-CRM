@@ -31,6 +31,7 @@
   // `includes` costs nothing, and Svelte's reactivity has no special case to
   // fall foul of. Seeded from the failed save first so a rejected submit comes
   // back with the same chips lit, then from the article's own tags.
+  /** @type {string[]} */
   let picked = $state(untrack(() => (form?.values?.tags ?? data.form.tags ?? []).map(String)));
   let saving = $state(false);
 
@@ -39,7 +40,9 @@
   let tagsOriginal = $derived(
     (data.form.tags ?? [])
       .map(String)
-      .filter((id) => data.tags.some((/** @type {any} */ t) => String(t.id) === id))
+      .filter((/** @type {string} */ id) =>
+        data.tags.some((/** @type {any} */ t) => String(t.id) === id)
+      )
   );
 
   /** @param {string} id */

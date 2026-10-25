@@ -1,5 +1,7 @@
 /** Formatting helpers for v2. Every number rendered goes through one of these. */
 
+/** @typedef {string | Date | null | undefined} IsoInput */
+
 /** @param {number|string|null|undefined} n */
 export function money(n, currency = 'USD') {
   const v = Number(n ?? 0);
@@ -69,6 +71,8 @@ export function initials(name) {
  * chart bucket the API labelled Friday sits under the wrong label. Appending a
  * time is what makes it parse as local midnight instead. Anything that carries
  * a time of day is a real instant and is left exactly as it was.
+ *
+ * @param {IsoInput} value
  */
 function parseIso(value) {
   if (!value) return null;
@@ -83,6 +87,8 @@ function parseIso(value) {
  * ISO date → "8 Aug", or "8 Aug 2023" when it is not this year, otherwise a
  * deal closed three years ago reads as if it closed last week.
  * Returns an em dash for null so table cells never collapse.
+ *
+ * @param {IsoInput} iso
  */
 export function shortDate(iso, now = new Date()) {
   const d = parseIso(iso);
@@ -95,7 +101,11 @@ export function shortDate(iso, now = new Date()) {
   }).format(d);
 }
 
-/** ISO date → "8 August 2026". */
+/**
+ * ISO date → "8 August 2026".
+ *
+ * @param {IsoInput} iso
+ */
 export function longDate(iso) {
   const d = parseIso(iso);
   if (!d) return '—';
@@ -106,14 +116,22 @@ export function longDate(iso) {
   }).format(d);
 }
 
-/** Whole days between an ISO date and today. Negative = in the future. */
+/**
+ * Whole days between an ISO date and today. Negative = in the future.
+ *
+ * @param {IsoInput} iso
+ */
 export function daysSince(iso, now = new Date()) {
   const d = parseIso(iso);
   if (!d) return null;
   return Math.floor((now.getTime() - d.getTime()) / 86400000);
 }
 
-/** "12 days ago" / "today" / "in 4 days", for a person, not a machine. */
+/**
+ * "12 days ago" / "today" / "in 4 days", for a person, not a machine.
+ *
+ * @param {IsoInput} iso
+ */
 export function relativeDays(iso, now = new Date()) {
   const n = daysSince(iso, now);
   if (n === null) return '—';
@@ -132,6 +150,8 @@ export function relativeDays(iso, now = new Date()) {
  * you do. A feed is the opposite: a mention from five minutes ago and one from
  * twenty hours ago are different events, and collapsing both to "today" is how
  * you end up re-reading the whole list to find what is new.
+ *
+ * @param {IsoInput} iso
  */
 export function relativeTime(iso, now = new Date()) {
   const d = parseIso(iso);
@@ -162,7 +182,11 @@ export function hoursMinutes(mins) {
   return h ? `${h}h ${m % 60}m` : `${m}m`;
 }
 
-/** Compact age for a table cell: "12d", "3h". */
+/**
+ * Compact age for a table cell: "12d", "3h".
+ *
+ * @param {IsoInput} iso
+ */
 export function shortAge(iso, now = new Date()) {
   const d = parseIso(iso);
   if (!d) return '—';

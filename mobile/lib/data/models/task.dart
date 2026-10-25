@@ -104,6 +104,7 @@ class Task {
   final String? opportunityId;
   final String? caseId;
   final String? leadId;
+  final String? projectId;
   final List<String> tags;
   // Resolved team names attached to the task (TaskSerializer returns nested
   // Team objects, but only the display name is used in the UI today).
@@ -131,6 +132,7 @@ class Task {
     this.opportunityId,
     this.caseId,
     this.leadId,
+    this.projectId,
     this.tags = const [],
     this.teamNames = const [],
     this.customFields = const {},
@@ -247,6 +249,7 @@ class Task {
     final opportunityId = extractId(json['opportunity']);
     final caseId = extractId(json['case']);
     final leadId = extractId(json['lead']);
+    final projectId = extractId(json['project']);
 
     RelatedEntity? relatedEntity;
     if (json['account'] is Map<String, dynamic>) {
@@ -319,6 +322,7 @@ class Task {
       opportunityId: opportunityId,
       caseId: caseId,
       leadId: leadId,
+      projectId: projectId,
       tags: parsedTags,
       teamNames: parsedTeamNames,
       customFields: parsedCustomFields,
@@ -359,6 +363,7 @@ class Task {
     String? opportunityId,
     String? caseId,
     String? leadId,
+    String? projectId,
     List<String>? tags,
     List<String>? teamNames,
     Map<String, dynamic>? customFields,
@@ -381,6 +386,7 @@ class Task {
       opportunityId: opportunityId ?? this.opportunityId,
       caseId: caseId ?? this.caseId,
       leadId: leadId ?? this.leadId,
+      projectId: projectId ?? this.projectId,
       tags: tags ?? this.tags,
       teamNames: teamNames ?? this.teamNames,
       customFields: customFields ?? this.customFields,

@@ -50,6 +50,8 @@ import { viewerIsAdmin } from './organization.js';
 import { myProfileId } from './leads.js';
 import { getOrgPeopleAndTeams } from './org-people.js';
 
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+
 /** What a macro may set a ticket to: every status but Duplicate, which only a
  *  merge sets. The API refuses it too (`MACRO_STATUS_CHOICES`). */
 export const MACRO_STATUSES = CASE_STATUSES.filter((s) => s !== 'Duplicate');
@@ -132,12 +134,18 @@ export function applySummary(resp) {
   return [head, ...skipped.map((s) => s.reason)].join(' ');
 }
 
-/** Active tags in this org, for the macro tag picker. Empty on failure; the
- *  picker still offers the tags each macro already carries. */
+/**
+ * Active tags in this org, for the macro tag picker. Empty on failure; the
+ * picker still offers the tags each macro already carries.
+ *
+ * @param {import('@sveltejs/kit').Cookies} cookies
+ * @returns {Promise<{ id: string, name: string }[]>}
+ */
 async function listActiveTags(cookies) {
   try {
+    /** @type {Schemas['TagsListResponse']} */
     const resp = await apiRequest('/tags/', {}, { cookies });
-    return (resp.tags ?? []).map((/** @type {any} */ t) => ({ id: t.id, name: t.name }));
+    return (resp.tags ?? []).map((t) => ({ id: t.id, name: t.name }));
   } catch {
     return [];
   }
@@ -154,7 +162,7 @@ export async function getMacros({ cookies }) {
     listActiveTags(cookies)
   ]);
   const activePeople = people.people.map((p) => ({ id: p.id, name: p.name }));
-  const results = (resp.results ?? []).map((m) => ({
+  const results = (resp.results ?? []).map((/** @type {any} */ m) => ({
     ...m,
     owner: m.owner ? { id: m.owner, name: m.owner_name || m.owner } : null,
     chips: macroActionChips(m),
@@ -238,7 +246,10 @@ function buildBody(values) {
   return body;
 }
 
-/** @param {{ cookies: import('@sveltejs/kit').Cookies }} event */
+/**
+ * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
+ * @param {{ [key: string]: unknown }} values
+ */
 export async function createMacro({ cookies }, values) {
   const body = buildBody(values);
   return await apiRequest('/macros/', { method: 'POST', body }, { cookies });
@@ -251,6 +262,8 @@ export async function createMacro({ cookies }, values) {
  * submits every field anyway, should be using regardless.
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
+ * @param {string} id
+ * @param {{ [key: string]: unknown }} values
  */
 export async function updateMacro({ cookies }, id, values) {
   if (!id) throw new Error('Which macro? No macro id was given.');
@@ -265,6 +278,7 @@ export async function updateMacro({ cookies }, id, values) {
  * own scope server-side, not by anything sent here.
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
+ * @param {string} id
  */
 export async function deleteMacro({ cookies }, id) {
   if (!id) throw new Error('Which macro? No macro id was given.');
@@ -284,6 +298,7 @@ export async function deleteMacro({ cookies }, id) {
  * owner-only-for-personal rule as any other write to this row.
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
+ * @param {string} id
  */
 export async function activateMacro({ cookies }, id) {
   if (!id) throw new Error('Which macro? No macro id was given.');

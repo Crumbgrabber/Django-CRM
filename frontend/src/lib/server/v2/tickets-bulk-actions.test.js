@@ -8,7 +8,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const apiRequest = vi.fn();
-vi.mock('#lib/api-helpers.js', () => ({ apiRequest: (...a) => apiRequest(...a) }));
+vi.mock('#lib/api-helpers.js', () => ({
+  apiRequest: (/** @type {any[]} */ ...a) => apiRequest(...a)
+}));
 
 const { actions } = await import('../../../routes/(app)/tickets/+page.server.js');
 
@@ -39,18 +41,24 @@ const UPDATE = /** @type {[string, string][]} */ ([
 ]);
 const DELETE = /** @type {[string, string][]} */ ([['ids', 'a']]);
 
+/** @type {['bulkUpdate' | 'bulkDelete', [string, string][]][]} */
+const REFUSABLE = [
+  ['bulkUpdate', UPDATE],
+  ['bulkDelete', DELETE]
+];
+
 describe('ticket bulk actions', () => {
   beforeEach(() => apiRequest.mockReset());
 
-  it.each([
-    ['bulkUpdate', UPDATE],
-    ['bulkDelete', DELETE]
-  ])('%s returns the API sentence when the batch is refused', async (name, entries) => {
-    apiRequest.mockRejectedValueOnce(refused());
-    const result = /** @type {any} */ (await actions[name](actionEvent(entries)));
-    expect(result.status).toBe(400);
-    expect(result.data.message).toBe(REFUSAL);
-  });
+  it.each(REFUSABLE)(
+    '%s returns the API sentence when the batch is refused',
+    async (name, entries) => {
+      apiRequest.mockRejectedValueOnce(refused());
+      const result = /** @type {any} */ (await actions[name](actionEvent(entries)));
+      expect(result.status).toBe(400);
+      expect(result.data.message).toBe(REFUSAL);
+    }
+  );
 
   it('a batch that runs still returns its summary', async () => {
     apiRequest.mockResolvedValueOnce({ results: [{ id: 'a', status: 'updated' }] });

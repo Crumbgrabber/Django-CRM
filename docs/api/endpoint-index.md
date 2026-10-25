@@ -254,6 +254,13 @@ Interactive versions of the same schema are served by a running backend at
 | `/api/profile/calendar-feed/` | DELETE, GET, POST |
 | `/api/profile/tokens/` | GET, POST |
 | `/api/profile/tokens/{id}/` | DELETE |
+| `/api/projects/` | GET, POST |
+| `/api/projects/from-deal/{deal_id}/` | GET |
+| `/api/projects/{id}/` | DELETE, GET, PATCH, POST |
+| `/api/projects/{id}/invoice-amount/` | POST |
+| `/api/projects/{id}/time-entries/` | GET, POST |
+| `/api/projects/{id}/time-entries/start/` | POST |
+| `/api/projects/{id}/unbilled/` | GET |
 | `/api/public/calendar/{token}.ics` | GET |
 | `/api/public/csat/{token}/` | GET, POST |
 | `/api/public/estimate/{token}/` | GET |

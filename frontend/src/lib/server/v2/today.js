@@ -19,6 +19,8 @@
  */
 import { apiRequest } from '#lib/api-helpers.js';
 
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+
 /**
  * Null hides the lead card: an API older than response tracking has no
  * `unanswered_leads`.
@@ -41,8 +43,10 @@ function unansweredBlock(block) {
  * @returns {Promise<{ queue: any[], summary: any, later: any[], unanswered: { count: number, oldest_since: string | null } | null }>}
  */
 export async function getToday({ cookies }) {
+  /** @type {Schemas['ApiTodayResponse']} */
   const resp = await apiRequest('/dashboard/today/', {}, { cookies });
   const queue = resp.queue ?? [];
+  /** @type {Partial<Schemas['ApiTodaySummary']>} */
   const summary = resp.summary ?? {};
   return {
     queue,

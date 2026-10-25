@@ -10,7 +10,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { RESTRICTED_TICKET_NAME } from '#lib/v2/enums.js';
 
 const apiRequest = vi.fn();
-vi.mock('#lib/api-helpers.js', () => ({ apiRequest: (...a) => apiRequest(...a) }));
+vi.mock('#lib/api-helpers.js', () => ({
+  apiRequest: (/** @type {any[]} */ ...a) => apiRequest(...a)
+}));
 
 const { getTicket, listTickets } = await import('./tickets.js');
 
@@ -19,7 +21,10 @@ const event = /** @type {any} */ ({ cookies: { get: () => 'token' } });
 const HIDDEN = { id: 'p-hidden', name: null, status: null, restricted: true };
 const READABLE = { id: 'p-open', name: 'Outage umbrella', status: 'Pending', restricted: false };
 
-/** @param {any} parent_summary */
+/**
+ * @param {string} id
+ * @param {any} parent_summary
+ */
 function row(id, parent_summary) {
   return { id, name: `Ticket ${id}`, status: 'New', priority: 'Low', parent_summary };
 }

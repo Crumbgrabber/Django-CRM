@@ -106,8 +106,8 @@
     const params = {};
     for (const field of descriptor.fields) {
       if (field.type === 'date-range' || field.type === 'number-range') {
-        params[field.gteKey] = null;
-        params[field.lteKey] = null;
+        if (field.gteKey) params[field.gteKey] = null;
+        if (field.lteKey) params[field.lteKey] = null;
       } else params[field.key] = null;
     }
     for (const other of descriptor.presets) {

@@ -17,6 +17,8 @@ import { apiRequest } from '#lib/api-helpers.js';
 import { listPipelines } from './deals.js';
 import { viewerIsAdmin } from './organization.js';
 
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+
 /**
  * Every pipeline, and the one whose stages are on screen. An absent or
  * unknown `pipelineId` falls back to the default pipeline, so a stale link
@@ -40,7 +42,7 @@ export async function getDealPipelines({ cookies }, pipelineId = null) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {{ name: string }} values
- * @returns {Promise<any>} the created pipeline
+ * @returns {Promise<Schemas['DealPipeline']>} the created pipeline
  */
 export async function createPipeline({ cookies }, { name }) {
   return await apiRequest(
@@ -54,6 +56,7 @@ export async function createPipeline({ cookies }, { name }) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
  * @param {{ name: string }} values
+ * @returns {Promise<Schemas['DealPipeline']>}
  */
 export async function renamePipeline({ cookies }, id, { name }) {
   return await apiRequest(
@@ -95,6 +98,7 @@ function stageBody({ label, kind, expectedDays, warningDays }) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} pipelineId
  * @param {{ label: string, kind: string, expectedDays: string, warningDays: string }} values
+ * @returns {Promise<Schemas['DealPipeline']>} the pipeline, with the new stage
  */
 export async function createStage({ cookies }, pipelineId, values) {
   return await apiRequest(
@@ -111,6 +115,7 @@ export async function createStage({ cookies }, pipelineId, values) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
  * @param {{ label: string, kind: string, expectedDays: string, warningDays: string }} values
+ * @returns {Promise<Schemas['DealPipeline']>} the stage's pipeline
  */
 export async function updateStage({ cookies }, id, values) {
   return await apiRequest(
@@ -144,8 +149,9 @@ export async function deleteStage({ cookies }, id) {
  * @returns {Promise<boolean>} false when the stage is not in the pipeline or is already at that end
  */
 export async function moveStage({ cookies }, pipelineId, stageId, direction) {
+  /** @type {Schemas['DealPipeline']} */
   const detail = await apiRequest(`/opportunities/pipelines/${pipelineId}/`, {}, { cookies });
-  const ids = (detail.stages ?? []).map((/** @type {any} */ s) => String(s.id));
+  const ids = (detail.stages ?? []).map((s) => String(s.id));
   const from = ids.indexOf(stageId);
   const to = direction === 'up' ? from - 1 : from + 1;
   if (from === -1 || to < 0 || to >= ids.length) return false;

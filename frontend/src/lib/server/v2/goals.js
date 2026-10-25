@@ -98,7 +98,11 @@ export const EDITABLE_FIELDS = [
  */
 const LEADERBOARD_PERIOD = 'MONTHLY';
 
-/** A person's display name from a nested ProfileSerializer row. */
+/**
+ * A person's display name from a nested ProfileSerializer row.
+ *
+ * @param {any} detail
+ */
 function personName(detail) {
   const d = detail?.user_details ?? {};
   return d.name || d.email || 'Unnamed';
@@ -148,6 +152,8 @@ function toGoal(g) {
  * endpoint now sends `User.name` (falling back to the email itself when a user
  * has none) and no longer sends `email` at all, so there is nothing left to
  * fall back to here.
+ *
+ * @param {any} r
  */
 function toLeaderRow(r) {
   return {
@@ -176,8 +182,15 @@ function localDate(d) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-/** Active first, then most-urgent status, then furthest along, the mock order. */
+/** @type {Record<string, number>} */
 const STATUS_RANK = { behind: 0, at_risk: 1, on_track: 2, completed: 3 };
+
+/**
+ * Active first, then most-urgent status, then furthest along, the mock order.
+ *
+ * @param {ReturnType<typeof toGoal>} a
+ * @param {ReturnType<typeof toGoal>} b
+ */
 function byUrgency(a, b) {
   return (
     Number(b.is_active) - Number(a.is_active) ||
@@ -207,7 +220,8 @@ function computeTotals(goals) {
   // is the whole point of counting it.
   const today = localDate(new Date());
   const active = goals.filter((g) => g.is_active);
-  const behindPace = (g) => g.status === 'behind' && g.period_end >= today;
+  const behindPace = (/** @type {ReturnType<typeof toGoal>} */ g) =>
+    g.status === 'behind' && g.period_end >= today;
   const revenue = active.filter((g) => g.goal_type === 'REVENUE');
   const currencies = [...new Set(revenue.map((g) => g.currency))].sort();
   const perCurrency = (/** @type {'target_value' | 'progress_value'} */ field) =>
@@ -324,6 +338,7 @@ export async function getCurrentGoals({ cookies }, limit = 3) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  */
 export async function getGoalHistory({ cookies }) {
+  /** @type {{ history?: any[] }} */
   const resp = await apiRequest('/opportunities/goals/history/', {}, { cookies });
   return {
     history: (resp?.history ?? []).map((period) => ({

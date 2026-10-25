@@ -12,10 +12,11 @@
   let submitting = $state(false);
   let ticket = $derived(data.ticket);
 
+  /** @type {Record<string, import('#lib/v2/enums.js').Tone>} */
   const STATUS_TONE = {
     open: 'rust',
     in_progress: 'clay',
-    waiting_on_customer: 'sky',
+    waiting_on_customer: 'slate',
     resolved: 'moss',
     closed: 'slate'
   };

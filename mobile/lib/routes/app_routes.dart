@@ -223,6 +223,18 @@ class AppRoutes {
   static String invoiceTemplateEditFor(String id) =>
       '/invoices/templates/$id/edit';
 
+  /// Projects. Matches the web app's `/projects`. `new` is declared before
+  /// `:id` in the router. `?deal=<id>` on `new` fills the form from that deal.
+  static const String projects = '/projects';
+  static const String projectNew = '/projects/new';
+  static const String projectDetail = '/projects/:id';
+  static const String projectEdit = '/projects/:id/edit';
+
+  static String projectFor(String id) => '/projects/$id';
+  static String projectEditFor(String id) => '/projects/$id/edit';
+  static String projectFromDeal(String dealId) =>
+      '$projectNew?deal=${Uri.encodeQueryComponent(dealId)}';
+
   // Knowledge base
   static const String solutions = '/solutions';
   static const String solutionNew = '/solutions/new';

@@ -11,7 +11,11 @@ import {
 
 const NOW = new Date('2026-08-08T12:00:00Z');
 
-/** Days before NOW, as the ISO string the API sends. */
+/**
+ * Days before NOW, as the ISO string the API sends.
+ *
+ * @param {number} days
+ */
 function ago(days) {
   return new Date(NOW.getTime() - days * 86400000).toISOString();
 }
@@ -119,13 +123,13 @@ describe('scopeSummary', () => {
 describe('expiryFromChoice', () => {
   it('turns each offered choice into a future instant', () => {
     for (const choice of EXPIRY_CHOICES.filter((c) => c.days)) {
-      const iso = expiryFromChoice(choice.value, NOW);
+      const iso = expiryFromChoice(choice.value, NOW) ?? '';
       expect(new Date(iso).getTime()).toBeGreaterThan(NOW.getTime());
     }
   });
 
   it('counts the days the label promises', () => {
-    const iso = expiryFromChoice('30', NOW);
+    const iso = expiryFromChoice('30', NOW) ?? '';
     expect(Math.round((new Date(iso).getTime() - NOW.getTime()) / 86400000)).toBe(30);
   });
 

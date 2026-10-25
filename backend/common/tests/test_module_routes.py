@@ -99,7 +99,11 @@ ROUTE_CASES = [
     ("api/cases/inbound/email/", (CU, "api_cases"), Requires(any_of=("tickets", "leads"))),
     ("api/invoices/products/<uuid:pk>/", (CU, "api_invoices"), Requires(any_of=("invoices", "deals"))),
     ("api/invoices/from-opportunity/<uuid:opportunity_id>/", (CU, "api_invoices"), Requires(("invoices", "deals"))),
-    ("api/invoices/from-time-entries/", (CU, "api_invoices"), Requires(("invoices", "tickets", "timesheet"))),
+    ("api/invoices/from-time-entries/", (CU, "api_invoices"), Requires(("invoices", "timesheet"), any_of=("tickets", "projects"))),
+    ("api/projects/<uid:pk>/time-entries/start/", (CU, "api_projects"), Requires(("projects", "timesheet"))),
+    ("api/projects/<uid:pk>/unbilled/", (CU, "api_projects"), Requires(("projects", "invoices", "timesheet"))),
+    ("api/projects/<uid:pk>/invoice-amount/", (CU, "api_projects"), Requires(("projects", "invoices"))),
+    ("api/projects/from-deal/<uid:deal_id>/", (CU, "api_projects"), Requires(("projects", "deals"))),
     ("api/documents/<uid:pk>/download/", (CU, "api_common"), Requires(("documents",))),
     ("api/profile/calendar-feed/", (CU, "api_common"), Requires(("tasks",))),
     ("api/public/calendar/<str:token>.ics", (CU, "api_common"), Requires(("tasks",))),
@@ -117,7 +121,8 @@ ROUTE_CASES = [
     ("api/cases/<uid:pk>/", (CU, "api_cases"), Requires(("tickets",))),
     ("api/business-hours/calendar/", (CU, "api_business_hours"), Requires(("tickets",))),
     ("api/macros/", (CU, "api_macros"), Requires(("tickets",))),
-    ("api/time-entries/timesheet/", (CU, "api_time_entries"), Requires(("tickets", "timesheet"))),
+    ("api/time-entries/timesheet/", (CU, "api_time_entries"), Requires(("timesheet",), any_of=("tickets", "projects"))),
+    ("api/projects/<uid:pk>/", (CU, "api_projects"), Requires(("projects",))),
     ("api/invoices/<uuid:pk>/", (CU, "api_invoices"), Requires(("invoices",))),
     ("api/public/help/<str:slug>/", ("public_help",), Requires(("knowledge_base",))),
     ("api/public/estimate/<str:token>/accept/", ("public_invoices",), Requires(("invoices",))),
@@ -274,7 +279,7 @@ def test_a_need_names_the_module_that_is_off(admin_client, org_a, ticket):
     cases = (
         ("deals", "/api/opportunities/goals/", "deals"),
         ("goals", "/api/opportunities/goals/", "goals"),
-        ("tickets", "/api/time-entries/timesheet/", "tickets"),
+        ("timesheet", "/api/time-entries/timesheet/", "timesheet"),
         ("knowledge_base", suggestions, "knowledge_base"),
     )
     for off, url, named in cases:
@@ -285,6 +290,17 @@ def test_a_need_names_the_module_that_is_off(admin_client, org_a, ticket):
         assert response.status_code == 404, url
         assert response.json() == module_off_body(org_a, named)
     assert admin_client.get(f"/api/cases/{ticket.id}/").status_code == 200
+
+
+def test_time_routes_need_tickets_or_projects(admin_client, org_a):
+    url = "/api/time-entries/timesheet/"
+    for off in ("tickets", "projects"):
+        set_modules_off(org_a, off)
+        assert admin_client.get(url).status_code == 200, off
+    set_modules_off(org_a, "tickets", "projects")
+    response = admin_client.get(url)
+    assert response.status_code == 404
+    assert response.json() == module_off_body(org_a, "tickets")
 
 
 def test_products_stay_while_deals_or_invoices_is_on(admin_client, org_a):

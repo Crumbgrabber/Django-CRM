@@ -6,6 +6,7 @@ const defaultModuleLabels = {
   'tickets': 'Tickets',
   'knowledge_base': 'Knowledge base',
   'documents': 'Documents',
+  'projects': 'Projects',
   'invoices': 'Invoices',
   'timesheet': 'Timesheet',
 };

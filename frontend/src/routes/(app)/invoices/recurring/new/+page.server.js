@@ -9,6 +9,8 @@ import {
   saveRefusal
 } from '#lib/server/v2/record-custom-fields.js';
 
+/** @typedef {{ id: string, name: string, email: string, account: { id: string, name: string } | null }} ContactRow */
+
 /**
  * Same three pickers as the one-off invoice builder: account and contact are
  * both required by the serializer, which also cross-checks that the contact
@@ -28,7 +30,7 @@ export async function load({ cookies }) {
 
   return {
     accounts: accounts.results.map((a) => ({ id: a.id, name: a.name || 'Unnamed account' })),
-    contacts: contacts.results.map((c) => ({
+    contacts: contacts.results.map((/** @type {ContactRow} */ c) => ({
       id: c.id,
       name: c.name || c.email || 'Unnamed contact',
       account_id: c.account?.id ?? null,

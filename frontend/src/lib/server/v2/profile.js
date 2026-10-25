@@ -19,6 +19,21 @@
  */
 import { apiRequest } from '#lib/api-helpers.js';
 
+/** @typedef {import('#lib/api-schema.js').components['schemas']['ProfileRoleEnum']} Role */
+/**
+ * @typedef {{
+ *   id: string,
+ *   user_details: { first_name: string, last_name: string, email: string },
+ *   role: Role,
+ *   phone: string,
+ *   teams: string[],
+ *   joined_at: string | null,
+ *   last_login: string | null,
+ *   orgs: { id: string, name: string, role: Role, is_current: boolean }[],
+ *   active_token_count: number
+ * }} OwnProfile
+ */
+
 /** Split a single display name into first/last for the page's header.
  *  The backend stores one `name` on User; the page shows "First Last". */
 function splitName(/** @type {string} */ name, /** @type {string} */ email) {
@@ -43,7 +58,7 @@ function isActiveToken(/** @type {any} */ t) {
  * The current user's account, shaped for the page.
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
- * @returns {Promise<{ profile: any, org: { name: string } }>}
+ * @returns {Promise<{ profile: OwnProfile, org: { name: string } }>}
  */
 export async function getProfile({ cookies }) {
   const currentOrgId = cookies.get('org') || '';
@@ -58,9 +73,10 @@ export async function getProfile({ cookies }) {
   const ud = u.user_details || {};
   const name = splitName(ud.name, ud.email);
 
+  /** @type {any[]} */
   const memberships = orgResp.profile_org_list || [];
   const orgs = memberships
-    .map((/** @type {any} */ m) => ({
+    .map((m) => ({
       id: m.org?.id ?? '',
       name: m.org?.name ?? '',
       role: m.role,

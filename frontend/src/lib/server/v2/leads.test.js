@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const apiRequest = vi.fn();
-vi.mock('#lib/api-helpers.js', () => ({ apiRequest: (...a) => apiRequest(...a) }));
+vi.mock('#lib/api-helpers.js', () => ({
+  apiRequest: (/** @type {any[]} */ ...a) => apiRequest(...a)
+}));
 
 const leadsModule = await import('#lib/server/v2/leads.js');
 const { createLead, convertLead, updateLead, getLeadForEdit } = leadsModule;
@@ -26,7 +28,7 @@ describe('createLead', () => {
     expect(endpoint).toBe('/leads/');
     expect(options.method).toBe('POST');
     expect(options.body.first_name).toBe('Ada');
-    expect(result.id).toBe('abc');
+    expect(result).toMatchObject({ id: 'abc' });
   });
 
   it('sends an empty field as null rather than an empty string', async () => {

@@ -6,10 +6,12 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/theme/theme.dart';
 import '../../data/models/time_report.dart';
+import '../../providers/org_modules_provider.dart';
 import '../../providers/time_report_provider.dart';
 import '../../services/org_date.dart';
 
-/// Where the time went: totals by agent, ticket or account over a window.
+/// Where the time went: totals by agent, ticket, account or project over a
+/// window.
 ///
 /// The timesheet screen is one person's week. This is every window and every
 /// grouping of the same entries, and it is what someone opens when the
@@ -25,6 +27,7 @@ class TimeReportScreen extends ConsumerWidget {
     ('agent', 'Agent'),
     ('ticket', 'Ticket'),
     ('account', 'Account'),
+    ('project', 'Project'),
   ];
 
   static const _billableFilters = [
@@ -129,16 +132,18 @@ class _FilterBar extends ConsumerWidget {
             child: Row(
               children: [
                 for (final (value, label) in TimeReportScreen._groups)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: ChoiceChip(
-                      label: Text(label),
-                      selected: filters.groupBy == value,
-                      onSelected: (_) => ref
-                          .read(timeReportFiltersProvider.notifier)
-                          .setGroupBy(value),
+                  if (value != 'project' ||
+                      ref.watch(moduleOnProvider('projects')))
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: ChoiceChip(
+                        label: Text(label),
+                        selected: filters.groupBy == value,
+                        onSelected: (_) => ref
+                            .read(timeReportFiltersProvider.notifier)
+                            .setGroupBy(value),
+                      ),
                     ),
-                  ),
                 Container(
                   width: 1,
                   height: 24,
@@ -277,8 +282,8 @@ class _Body extends StatelessWidget {
     );
   }
 
-  /// One grouped row. Tappable through to the ticket or the account it names;
-  /// an agent row and the unattributed bucket have nowhere to go.
+  /// One grouped row. Tappable through to the ticket, account or project it
+  /// names; an agent row and the unattributed bucket have nowhere to go.
   Widget _row(BuildContext context, TimeReportRow row) {
     final destination = _destination(row);
 
@@ -318,6 +323,10 @@ class _Body extends StatelessWidget {
                   _stat('${row.entryCount}', 'entries'),
                   if (row.billableMinutes > 0)
                     _stat(_hm(row.billableMinutes), 'billable'),
+                  // Grouped by agent: billable over logged, the utilisation
+                  // figure. Absent from an older API and on other groupings.
+                  if (row.billableSharePercent != null)
+                    _stat('${row.billableSharePercent}%', 'billable share'),
                   if (row.billableValue > 0 && !report.isMixedCurrency)
                     _stat(
                       NumberFormat.simpleCurrency(
@@ -340,6 +349,7 @@ class _Body extends StatelessWidget {
     if (row.key == null) return null;
     if (report.groupBy == 'ticket') return '/tickets/${row.key}';
     if (report.groupBy == 'account') return '/accounts/${row.key}';
+    if (report.groupBy == 'project') return '/projects/${row.key}';
     return null;
   }
 }

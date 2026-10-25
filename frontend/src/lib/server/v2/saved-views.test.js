@@ -6,7 +6,9 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 vi.mock('$app/env/public', () => ({ PUBLIC_DJANGO_API_URL: 'http://api.test' }));
 const apiRequest = vi.fn();
-vi.mock('#lib/api-helpers.js', () => ({ apiRequest: (...a) => apiRequest(...a) }));
+vi.mock('#lib/api-helpers.js', () => ({
+  apiRequest: (/** @type {any[]} */ ...a) => apiRequest(...a)
+}));
 
 const { SAVED_VIEW_KEYS, loadSavedViews, savedViewActions, savedViewSpec } =
   await import('./saved-views.js');
@@ -17,7 +19,11 @@ const UUID = '11111111-2222-3333-4444-555555555555';
 const VIEW = '99999999-8888-7777-6666-555555555555';
 const cookies = /** @type {any} */ ({ get: () => 'token' });
 
-/** The filter-bar page each API list is drawn on. */
+/**
+ * The filter-bar page each API list is drawn on.
+ *
+ * @type {Record<string, string>}
+ */
 const PAGE = {
   leads: 'leads',
   contacts: 'contacts',
@@ -42,8 +48,8 @@ function sample(/** @type {string} */ module, /** @type {string} */ key) {
   const field = FILTERS[PAGE[module]].fields.find(
     (/** @type {any} */ f) => f.key === key || f.gteKey === key || f.lteKey === key
   );
-  if (field?.type === 'select') return field.options[0];
-  if (['person', 'tag', 'account'].includes(field?.type)) return UUID;
+  if (field?.type === 'select' && field.options) return field.options[0];
+  if (field && ['person', 'tag', 'account'].includes(field.type)) return UUID;
   if (field?.type === 'stage') return 'QUALIFIED';
   if (field?.type === 'date-range') return '2026-01-02';
   if (field?.type === 'number-range') return '10';

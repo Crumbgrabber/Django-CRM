@@ -27,7 +27,7 @@
   let isAdmin = $derived(isOrgAdmin(page.data));
   let tabs = $derived(visibleTabs(set, { isAdmin, modules: page.data.modules ?? null }));
 
-  const isActive = (href, exact) =>
+  const isActive = (/** @type {string} */ href, /** @type {boolean | undefined} */ exact) =>
     exact ? page.url.pathname === href : page.url.pathname.startsWith(href);
 </script>
 

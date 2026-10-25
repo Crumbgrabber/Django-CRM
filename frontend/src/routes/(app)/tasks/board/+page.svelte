@@ -38,7 +38,11 @@
 
   const FLIP_MS = 160;
 
-  /** Join the flat `columns` + `tasks` into draggable lanes. */
+  /**
+   * Join the flat `columns` + `tasks` into draggable lanes.
+   *
+   * @returns {any[]}
+   */
   function buildLanes(/** @type {any} */ d) {
     return d.columns.map((/** @type {any} */ c) => ({
       ...c,
@@ -292,8 +296,10 @@
         <div
           class="v2-lane-body"
           use:dndzone={{ items: lane.cards, flipDurationMs: FLIP_MS }}
-          onconsider={(e) => onConsider(lane, e)}
-          onfinalize={(e) => onFinalize(lane, e)}
+          onconsider={(/** @type {CustomEvent<import('svelte-dnd-action').DndEvent>} */ e) =>
+            onConsider(lane, e)}
+          onfinalize={(/** @type {CustomEvent<import('svelte-dnd-action').DndEvent>} */ e) =>
+            onFinalize(lane, e)}
         >
           {#each lane.cards as t (t.id)}
             {@const overdue = isOverdue(t)}

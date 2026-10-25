@@ -28,6 +28,7 @@ export const HOMES = ['lead', 'contact', 'account', 'opportunity', 'case'];
 const PERSON_ORIGINS = ['manual', 'phone_tap'];
 const FUTURE_SLACK_MS = 5 * 60 * 1000;
 
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
 /** @typedef {{ cookies: import('@sveltejs/kit').Cookies }} Event */
 /** @typedef {ReturnType<typeof toInteraction>} Interaction */
 
@@ -79,6 +80,7 @@ export async function listInteractions({ cookies }, home, id, { limit = 50 } = {
       { quietErrors: true, expectedStatuses: [404] },
       { cookies }
     );
+    /** @type {any[]} */
     const rows = Array.isArray(resp?.interactions) ? resp.interactions : [];
     const interactions = rows.map(toInteraction).filter((i) => i.id);
     const count = Number.isFinite(resp?.count) ? resp.count : interactions.length;
@@ -192,6 +194,7 @@ export function interactionBody(home, id, values, { timeZone = 'UTC', now = new 
 /**
  * @param {Event} event
  * @param {Record<string, any>} body from `interactionBody`
+ * @returns {Promise<Schemas['Interaction']>}
  */
 export async function logInteraction({ cookies }, body) {
   return await apiRequest('/interactions/', { method: 'POST', body }, { cookies });

@@ -27,10 +27,15 @@ import { error } from '@sveltejs/kit';
 import { apiRequest } from '#lib/api-helpers.js';
 import { fieldsForDetail, fieldsForEdit } from '#lib/server/v2/record-custom-fields.js';
 import { rethrowModuleOff } from '#lib/server/v2/modules.js';
+import { attachmentHref } from '#lib/server/v2/files.js';
 import { sumByCurrency } from '#lib/v2/format.js';
 import { canMoveCard } from '#lib/v2/board-drag.js';
 
-/** DRF decimals are strings. `null` stays `null`. It means "not priced". */
+/**
+ * DRF decimals are strings. `null` stays `null`. It means "not priced".
+ *
+ * @param {unknown} value
+ */
 function num(value) {
   if (value === null || value === undefined || value === '') return null;
   const parsed = Number(value);
@@ -130,6 +135,7 @@ export async function listDeals({ cookies }, params) {
   if (!query.has('limit')) query.set('limit', '25');
 
   const response = await apiRequest(`/opportunities/?${query}`, {}, { cookies });
+  /** @type {ReturnType<typeof toRow>[]} */
   const rows = (response.opportunities ?? []).map(toRow);
   rows.sort((a, b) => b.amount - a.amount);
 
@@ -339,10 +345,41 @@ export async function getDeal({ cookies }, id) {
       department: contact.department ?? ''
     })),
     customFields: fieldsForDetail(response, raw.custom_fields),
+    // Newest first, through the download proxy. Comments are in `activity`.
+    files: (response.attachments ?? []).map((/** @type {any} */ a) => ({
+      id: String(a.id),
+      name: a.file_name || 'Attachment',
+      at: a.created_at ?? null,
+      href: attachmentHref(a.id)
+    })),
     // The API's delete rule for this caller (an admin or the deal's creator),
     // so Delete is offered only when it would work.
     canDelete: Boolean(response.can_delete)
   };
+}
+
+/**
+ * A comment, a file, or both, on a deal. Anyone who may open the deal may
+ * add one; the API attributes it to the caller. The file field is
+ * `opportunity_attachment`, and it may come without a comment.
+ *
+ * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
+ * @param {string} id
+ * @param {string} comment
+ * @param {File | null} [file]
+ */
+export async function addDealNote({ cookies }, id, comment, file = null) {
+  if (file) {
+    const form = new FormData();
+    if (comment) form.set('comment', comment);
+    form.set('opportunity_attachment', file);
+    return await apiRequest(`/opportunities/${id}/`, { method: 'POST', body: form }, { cookies });
+  }
+  return await apiRequest(
+    `/opportunities/${id}/`,
+    { method: 'POST', body: { comment } },
+    { cookies }
+  );
 }
 
 /**

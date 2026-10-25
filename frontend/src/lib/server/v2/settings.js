@@ -178,7 +178,7 @@ export async function getSettingsHub(event, modules = null) {
     // Admin-only oversight: null for a member (endpoint 403'd), so the hub
     // shows the destination without a value it is not allowed to compute.
     tokenTotals: tokens.forbidden ? null : tokens.totals,
-    peopleTotals: team.forbidden ? null : team.totals,
+    peopleTotals: team.forbidden === true ? null : team.totals,
     routingTotals: routing ? routing.totals : null,
     escalationTotals: escalation ? escalationRollup(escalation.policies) : null,
     mailboxTotals: mailbox

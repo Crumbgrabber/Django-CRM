@@ -7,7 +7,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('$app/env/public', () => ({ PUBLIC_DJANGO_API_URL: 'http://api.test' }));
 const apiRequest = vi.fn();
-vi.mock('#lib/api-helpers.js', () => ({ apiRequest: (...a) => apiRequest(...a) }));
+vi.mock('#lib/api-helpers.js', () => ({
+  apiRequest: (/** @type {any[]} */ ...a) => apiRequest(...a)
+}));
 
 const { statementQuery, previousMonth, getStatement, forwardStatementPdf } =
   await import('./statements.js');
@@ -101,7 +103,7 @@ describe('getStatement', () => {
     expect(apiRequest.mock.calls[0][0]).toBe(`/invoices/statements/${ACCOUNT}/?${OCTOBER}`);
     expect(result.can_view).toBe(true);
     expect(result.error).toBeNull();
-    const usd = result.statement.currencies[0];
+    const usd = result.statement?.currencies[0];
     expect(usd).toMatchObject({
       currency: 'USD',
       opening_balance: 60,

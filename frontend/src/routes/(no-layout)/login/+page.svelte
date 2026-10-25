@@ -8,6 +8,7 @@
   import imgLogo from '#lib/assets/images/logo.png';
   import { Mail, Check } from '@lucide/svelte';
 
+  /** @type {{ data?: { google_url?: string | null } }} */
   let { data = {} } = $props();
 
   let isLoading = $state(false);
@@ -20,6 +21,7 @@
     isLoading = true;
   }
 
+  /** @type {import('$app/forms').SubmitFunction<Record<string, unknown>, { error?: string }>} */
   function handleMagicLink() {
     isSendingLink = true;
     magicLinkError = '';
