@@ -26,6 +26,7 @@ import { viewerIsAdmin } from './organization.js';
  * @returns {Promise<{ rules: any[], totals: any, can_edit: boolean }>}
  */
 export async function getApprovalRules({ cookies }) {
+  /** @type {{ rules?: any[], totals?: any }} */
   const { rules, totals } = await apiRequest('/cases/approval-rules/', {}, { cookies });
   return {
     rules: (rules ?? []).map((r) => ({
@@ -33,7 +34,7 @@ export async function getApprovalRules({ cookies }) {
       name: r.name,
       is_active: r.is_active,
       approver_role: r.approver_role,
-      approvers: (r.approvers ?? []).filter((a) => a && a.id),
+      approvers: (r.approvers ?? []).filter((/** @type {any} */ a) => a && a.id),
       match_priority: r.match_priority,
       match_case_type: r.match_case_type,
       match_team: r.match_team ?? null,
@@ -97,7 +98,10 @@ function buildBody(allowed, values) {
   return body;
 }
 
-/** @param {{ cookies: import('@sveltejs/kit').Cookies }} event */
+/**
+ * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
+ * @param {{ [key: string]: unknown }} values
+ */
 export async function createApprovalRule({ cookies }, values) {
   const body = buildBody(CREATE_FIELDS, values);
   if (!body.name) throw new Error('A rule needs a name.');
@@ -105,7 +109,11 @@ export async function createApprovalRule({ cookies }, values) {
   return await apiRequest('/cases/approval-rules/', { method: 'POST', body }, { cookies });
 }
 
-/** @param {{ cookies: import('@sveltejs/kit').Cookies }} event */
+/**
+ * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
+ * @param {string} id
+ * @param {{ [key: string]: unknown }} values
+ */
 export async function updateApprovalRule({ cookies }, id, values) {
   if (!id) throw new Error('Which rule? No rule id was given.');
   const body = buildBody(UPDATE_FIELDS, values);
@@ -146,6 +154,7 @@ export async function updateApprovalRule({ cookies }, id, values) {
  * rather than asserting what it hoped for.
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
+ * @param {string} id
  * @returns {Promise<{ turned_off: boolean }>} `turned_off` is true when the
  *   rule had history and was disabled rather than destroyed.
  */

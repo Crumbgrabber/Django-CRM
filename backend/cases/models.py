@@ -1050,7 +1050,11 @@ class RoutingRuleState(BaseModel):
 
 
 class TimeEntry(BaseModel):
-    """One agent's logged time on a case (Tier 3 time-tracking).
+    """One agent's logged time on a ticket or a project (Tier 3 time-tracking).
+
+    Every write sets exactly one of ``case`` and ``project``; the database
+    refuses both. Deleting a project keeps its entries with ``project``
+    cleared, so an entry may end up with neither (see docs/features/projects.md).
 
     Per `docs/cases/COORDINATION_DECISIONS.md` D2 we inherit BaseModel and
     declare our own org FK; RLS is enforced via the migration policy. The
@@ -1062,7 +1066,25 @@ class TimeEntry(BaseModel):
 
     org = models.ForeignKey(Org, on_delete=models.CASCADE, related_name="time_entries")
     case = models.ForeignKey(
-        Case, on_delete=models.CASCADE, related_name="time_entries"
+        Case,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="time_entries",
+    )
+    project = models.ForeignKey(
+        "projects.Project",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="time_entries",
+    )
+    task = models.ForeignKey(
+        "tasks.Task",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="time_entries",
     )
     profile = models.ForeignKey(
         Profile, on_delete=models.PROTECT, related_name="time_entries"
@@ -1109,9 +1131,14 @@ class TimeEntry(BaseModel):
         indexes = [
             models.Index(fields=["org", "profile", "started_at"]),
             models.Index(fields=["case", "started_at"]),
+            models.Index(fields=["project", "started_at"]),
             models.Index(fields=["billable", "invoice"]),
         ]
         constraints = [
+            models.CheckConstraint(
+                condition=models.Q(case__isnull=True) | models.Q(project__isnull=True),
+                name="time_entry_one_parent",
+            ),
             models.CheckConstraint(
                 condition=(
                     models.Q(ended_at__isnull=True)
@@ -1128,8 +1155,8 @@ class TimeEntry(BaseModel):
 
     def __str__(self):
         return (
-            f"TimeEntry(case={self.case_id}, profile={self.profile_id}, "
-            f"{self.duration_minutes}m)"
+            f"TimeEntry(case={self.case_id}, project={self.project_id}, "
+            f"profile={self.profile_id}, {self.duration_minutes}m)"
         )
 
     @property
@@ -1149,6 +1176,8 @@ class TimeEntry(BaseModel):
             self.duration_minutes = 0
         if not self.org_id and self.case_id:
             self.org_id = self.case.org_id
+        if not self.org_id and self.project_id:
+            self.org_id = self.project.org_id
         super().save(*args, **kwargs)
 
 

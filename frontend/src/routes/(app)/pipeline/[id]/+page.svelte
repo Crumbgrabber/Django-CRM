@@ -9,6 +9,8 @@
   import Avatar from '#lib/v2/components/Avatar.svelte';
   import CustomFieldsCard from '#lib/v2/components/CustomFieldsCard.svelte';
   import RelatedRecords from '#lib/v2/components/RelatedRecords.svelte';
+  import CommentComposer from '#lib/v2/components/CommentComposer.svelte';
+  import FileList from '#lib/v2/components/FileList.svelte';
   import { relatedView } from '#lib/v2/custom-objects.js';
   import { isOn } from '#lib/v2/modules.js';
   import { money, longDate } from '#lib/v2/format.js';
@@ -44,8 +46,19 @@
    * between the lines and `deal.amount`. That difference cannot exist:
    * `recalculate_amount()` sets amount to the sum of the line totals.
    */
-  let subtotal = $derived(lineItems.reduce((a, li) => a + li.subtotal, 0));
-  let discount = $derived(lineItems.reduce((a, li) => a + li.discount_amount, 0));
+  let subtotal = $derived(
+    lineItems.reduce(
+      (/** @type {number} */ a, /** @type {{ subtotal: number }} */ li) => a + li.subtotal,
+      0
+    )
+  );
+  let discount = $derived(
+    lineItems.reduce(
+      (/** @type {number} */ a, /** @type {{ discount_amount: number }} */ li) =>
+        a + li.discount_amount,
+      0
+    )
+  );
 </script>
 
 <PageHeader title={deal.name} record>
@@ -63,6 +76,11 @@
       <a class="v2-btn" href="{resolve('invoices/estimates/new')}?opportunity={deal.id}"
         >Create estimate</a
       >
+    {/if}
+    {#if deal.stage_kind === 'won' && isOn(data.modules, 'projects')}
+      <!-- Opens the new-project form filled from this deal; nothing is
+           created until that form is saved. -->
+      <a class="v2-btn" href="{resolve('projects/new')}?deal={deal.id}">Start a project</a>
     {/if}
     {#if deal.stage_kind === 'won' && isOn(data.modules, 'invoices')}
       <form
@@ -160,6 +178,7 @@
             />
           </div>
         {/if}
+        <CommentComposer error={form?.noteError} />
         {#if data.interactions.failed}
           <p class="deal-error" style="margin-bottom:12px">
             Calls and messages could not be loaded, so they are missing below.
@@ -221,6 +240,12 @@
             </div>
           </div>
         {/if}
+
+        <div class="v2-label" style="margin:22px 0 10px">Files</div>
+        <FileList
+          files={data.files}
+          empty="No files on this deal yet. Attach one with a comment above."
+        />
 
         <RelatedRecords {related} error={form?.related?.error} />
       </div>

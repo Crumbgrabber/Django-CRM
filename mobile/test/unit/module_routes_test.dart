@@ -110,6 +110,9 @@ void main() {
     expect(keys('/accounts/:id/statement'), ['invoices']);
     expect(keys('/accounts/42/statement'), ['invoices']);
     expect(keys('/documents/new'), ['documents']);
+    expect(keys('/projects'), ['projects']);
+    expect(keys('/projects/new'), ['projects']);
+    expect(keys('/projects/:id/edit'), ['projects']);
     expect(needFor('/accounts/:id'), isNull);
     expect(needFor('/accounts'), isNull);
     expect(needFor('/accounts/:id/edit'), isNull);

@@ -88,6 +88,7 @@ const EMPTY = { pipelines: [], pipeline: null, lanes: [] };
  */
 export async function getLeadBoard({ cookies }, pipelineId = null) {
   const listed = await apiRequest('/leads/pipelines/', {}, { cookies });
+  /** @type {{ id: string, name: string }[]} */
   const pipelines = (listed.pipelines ?? []).map((/** @type {any} */ p) => ({
     id: p.id,
     name: p.name

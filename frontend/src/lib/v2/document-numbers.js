@@ -16,7 +16,11 @@ export const NUMBER_DATE_PARTS = [
   { value: 'DAY', label: 'Full date, count restarts each day' }
 ];
 
-/** How many digits of `YYYYMMDD` each date part keeps. */
+/**
+ * How many digits of `YYYYMMDD` each date part keeps.
+ *
+ * @type {Record<string, number>}
+ */
 const DATE_DIGITS = { NONE: 0, YEAR: 4, MONTH: 6, DAY: 8 };
 
 /**

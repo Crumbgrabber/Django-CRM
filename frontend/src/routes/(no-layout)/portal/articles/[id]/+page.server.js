@@ -17,7 +17,12 @@ import {
   loginPath
 } from '#lib/server/portal.js';
 
-/** Send an expired or missing session back to the right org's sign-in page. */
+/**
+ * Send an expired or missing session back to the right org's sign-in page.
+ *
+ * @param {import('@sveltejs/kit').Cookies} cookies
+ * @returns {never}
+ */
 function toLogin(cookies) {
   const org = cookies.get(ORG_COOKIE);
   clearSession(cookies);

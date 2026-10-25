@@ -6,7 +6,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // against the real module's declared signature, which has no
 // `mockReset`/`mockResolvedValue`, and fails `svelte-check`.
 const apiRequest = vi.fn();
-vi.mock('#lib/api-helpers.js', () => ({ apiRequest: (...a) => apiRequest(...a) }));
+vi.mock('#lib/api-helpers.js', () => ({
+  apiRequest: (/** @type {any[]} */ ...a) => apiRequest(...a)
+}));
 
 const { getOrgPeopleAndTeams, resolveMe } = await import('./org-people.js');
 

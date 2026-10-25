@@ -31,6 +31,8 @@
 import { isOrgAdmin } from '#lib/admin.js';
 import { apiRequest } from '#lib/api-helpers.js';
 
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+
 /**
  * The fields the edit form may submit. An allow-list, so a hand-crafted POST
  * cannot smuggle in a field the page never offered, and so `org`, `api_key`,
@@ -182,15 +184,19 @@ export async function getOrgTerminology({ cookies }) {
  * @returns {Promise<{ name: string, label: string }[]>}
  */
 export async function listTimezones(cookies) {
+  /** @type {Schemas['TimezoneListResponse']} */
   const response = await apiRequest('/org/timezones/', {}, { cookies });
   const zones = response?.timezones ?? [{ name: 'UTC', offset_minutes: 0 }];
-  return zones.map((/** @type {any} */ zone) => ({
+  return zones.map((zone) => ({
     name: zone.name,
     label: `${String(zone.name).replace(/_/g, ' ')} (${formatOffset(zone.offset_minutes)})`
   }));
 }
 
-/** Minutes east of UTC as "UTC+05:30" / "UTC-04:00" / "UTC". */
+/**
+ * Minutes east of UTC as "UTC+05:30" / "UTC-04:00" / "UTC".
+ * @param {number} minutes
+ */
 function formatOffset(minutes) {
   const total = Number(minutes) || 0;
   if (total === 0) return 'UTC';

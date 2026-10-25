@@ -25,6 +25,7 @@ import {
  *
  * @param {import('@sveltejs/kit').Cookies} cookies
  * @param {URL} [url]
+ * @returns {never}
  */
 function toLogin(cookies, url) {
   const org = cookies.get(ORG_COOKIE) || url?.searchParams.get('org');

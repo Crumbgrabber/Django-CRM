@@ -3,6 +3,8 @@ import { getTask, getTaskFormOptions, updateTask } from '#lib/server/v2/tasks.js
 import { listTickets } from '#lib/server/v2/tickets.js';
 import { listDeals } from '#lib/server/v2/deals.js';
 import { listLeads } from '#lib/server/v2/leads.js';
+import { projectChoices } from '#lib/server/v2/projects.js';
+import { projectOptions } from '#lib/v2/projects.js';
 import { getModules } from '#lib/server/v2/modules.js';
 import { isOn } from '#lib/v2/modules.js';
 import { readCustomFields, saveRefusal } from '#lib/server/v2/record-custom-fields.js';
@@ -20,7 +22,7 @@ export async function load(event) {
     getTask(event, event.params.id),
     modulesP
   ]);
-  const [options, tickets, deals, leads] = await Promise.allSettled([
+  const [options, tickets, deals, leads, projects] = await Promise.allSettled([
     getTaskFormOptions(event),
     when('tickets').then((on) =>
       on ? listTickets(event, new URLSearchParams({ limit: '100' })) : NONE
@@ -33,7 +35,8 @@ export async function load(event) {
     ),
     when('leads').then((on) =>
       on ? listLeads(event, new URLSearchParams({ limit: '100' })) : NONE
-    )
+    ),
+    when('projects').then((on) => (on ? projectChoices(event) : []))
   ]);
   const settled = options.status === 'fulfilled' ? options.value : { owners: [], accounts: [] };
 
@@ -43,6 +46,11 @@ export async function load(event) {
     customFields: customFieldInputs,
     owners: settled.owners,
     parents: {
+      // The task's own project stays an option when it is past the first 200.
+      project: projectOptions(
+        projects.status === 'fulfilled' ? projects.value : [],
+        task.related?.kind === 'project' ? { id: task.related.id, name: task.related.name } : null
+      ),
       account: settled.accounts ?? [],
       opportunity:
         deals.status === 'fulfilled'
@@ -70,11 +78,15 @@ export async function load(event) {
       priority: task.priority,
       due_date: task.due_date ?? '',
       description: task.description,
-      // `related.kind` is the v2 word; the API columns are the other four.
+      // `related.kind` is the v2 word; the API columns are the others.
       parent_kind: task.related
-        ? { account: 'account', deal: 'opportunity', ticket: 'case', lead: 'lead' }[
-            task.related.kind
-          ]
+        ? {
+            account: 'account',
+            deal: 'opportunity',
+            ticket: 'case',
+            lead: 'lead',
+            project: 'project'
+          }[task.related.kind]
         : '',
       parent_id: task.related?.id ?? ''
     }

@@ -1,4 +1,12 @@
 <script>
+  import { enhance } from '$app/forms';
+  import { page } from '$app/state';
+  import { resolve } from '$app/paths';
+  import { Bookmark, ChevronDown, Pencil } from '@lucide/svelte';
+  import { asInternalPath } from '#lib/utils/paths.js';
+  import ConfirmAction from '#lib/v2/components/ConfirmAction.svelte';
+  import { droppedValues, isShowing, viewHref } from '#lib/v2/saved-views.js';
+
   /**
    * Saved views (G29): save the list's current filters under a name, open one
    * with a tap, rename or delete it. One menu, the same on all six lists that
@@ -14,14 +22,6 @@
    *   url: URL
    * }}
    */
-  import { enhance } from '$app/forms';
-  import { page } from '$app/state';
-  import { resolve } from '$app/paths';
-  import { Bookmark, ChevronDown, Pencil } from '@lucide/svelte';
-  import { asInternalPath } from '#lib/utils/paths.js';
-  import ConfirmAction from '#lib/v2/components/ConfirmAction.svelte';
-  import { droppedValues, isShowing, viewHref } from '#lib/v2/saved-views.js';
-
   let { saved, url } = $props();
 
   /** @type {string | null} */

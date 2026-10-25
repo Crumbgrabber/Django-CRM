@@ -18,6 +18,8 @@ import { apiRequest } from '#lib/api-helpers.js';
 import { viewerIsAdmin } from './organization.js';
 import { REOPEN_TO_STATUSES } from '#lib/v2/enums.js';
 
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+
 /**
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @returns {Promise<{ policy: any, can_edit: boolean }>}
@@ -48,7 +50,7 @@ const EDITABLE_FIELDS = ['is_enabled', 'reopen_window_days', 'reopen_to_status',
  * @param {{ [key: string]: any }} values callers may pass extra keys (a
  *   computed metric read back off the page, a hostile `org`); the allow-list
  *   loop below is what stops them reaching the API.
- * @returns {Promise<any>} the updated policy, the four fields only.
+ * @returns {Promise<Schemas['ReopenPolicy']>} the updated policy, the four fields only.
  */
 export async function updateReopenPolicy({ cookies }, values) {
   const days = Number(values.reopen_window_days);

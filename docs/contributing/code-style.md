@@ -75,6 +75,29 @@ error. So in practice: fix ESLint errors and type errors before opening a PR, bu
 if Prettier differences are flagged as a warning rather than a hard failure. Run `pnpm run format`
 yourself rather than relying on CI to catch it.
 
+### Types
+
+The frontend is JavaScript with JSDoc, and `pnpm check` type-checks it with TypeScript in strict
+mode, `strictNullChecks` and `noImplicitAny` included. Give every parameter a type, and write `any`
+out (`/** @type {any} */`) where a value really is untyped, so it can be found and tightened later.
+
+API response types are generated from the backend's OpenAPI schema into
+`frontend/src/lib/api-schema.d.ts`. Annotate the value `apiRequest` returns, since `apiRequest`
+itself returns `any`:
+
+```js
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+
+/** @type {Schemas['TaskListResponse']} */
+const response = await apiRequest(`/tasks/?${query}`, {}, { cookies });
+```
+
+After changing a serializer, a view's `@extend_schema` or an endpoint, regenerate from `frontend/`
+with `pnpm api:types` (it runs drf-spectacular in `backend/`, then `openapi-typescript`) and commit
+the new `api-schema.d.ts` with your change. About half the endpoints declare no response body, and
+some list views declare a single record where they return an envelope. Check the view before you
+trust a generated type, and leave the call `any` where the schema is wrong.
+
 ## Flutter
 
 ```bash

@@ -14,6 +14,7 @@
   import { Plus, Trash2 } from '@lucide/svelte';
   import { cleanMapping } from '#lib/v2/lead-intakes.js';
 
+  /** @type {{ rows: { from: string, to: string }[], targets: { value: string, label: string }[], disabled?: boolean }} */
   let { rows, targets, disabled = false } = $props();
 
   let next = 0;

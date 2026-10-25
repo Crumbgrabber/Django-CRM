@@ -17,6 +17,8 @@ String? linkedRecordRoute(String target, String id) {
       return AppRoutes.ticketDetail.replaceFirst(':id', id);
     case 'task':
       return AppRoutes.taskDetail.replaceFirst(':id', id);
+    case 'project':
+      return AppRoutes.projectFor(id);
   }
   if (target.startsWith('obj:')) {
     final key = target.substring(4);

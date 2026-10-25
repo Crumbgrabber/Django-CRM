@@ -24,17 +24,21 @@ Entry-scoped (registered at the project root under ``/api/time-entries/``):
 * ``PUT    /api/time-entries/<pk>/``: owner or admin
 * ``DELETE /api/time-entries/<pk>/``: owner or admin
 * ``GET    /api/time-entries/timesheet/``: week view, grouped by day
-* ``GET    /api/time-entries/report/``: totals by agent, ticket or account
+* ``GET    /api/time-entries/report/``: totals by agent, ticket, project or account
 * ``GET    /api/time-entries/report/export/``: the same window as ``text/csv``
+
+Projects log time through ``projects/views.py``, which calls `create_entry`
+and `start_timer` here with a project in place of a ticket.
 """
 
 from collections import OrderedDict
 from datetime import datetime, timedelta
 
 from django.db import IntegrityError, transaction
-from django.db.models import Sum
+from django.db.models import Q, Sum
 from django.utils import timezone
 from rest_framework import status
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -54,6 +58,8 @@ from common.modules import module_is_available
 from common.permissions import HasOrgContext, is_org_admin
 from common.renderers import CSV_RENDERERS
 from common.validators import uuid_param
+from projects.burn import check_budget_alerts
+from projects.entries import billable_on, rate_for, task_on_project
 
 # How far back a report reaches when it is asked for without a window. Long
 # enough to cover "what did we do this month", short enough that a stray click
@@ -66,7 +72,7 @@ def _visible_entry_qs(profile):
     qs = TimeEntry.objects.filter(org=profile.org)
     if not is_org_admin(profile):
         qs = qs.filter(profile=profile)
-    return qs.select_related("profile", "profile__user", "case")
+    return qs.select_related("profile", "profile__user", "case", "project")
 
 
 def _parse_date(value):
@@ -87,7 +93,8 @@ def _report_entries(request):
     """Return ``(entries, start, end)`` for a report request.
 
     Only stopped entries, inside the window, narrowed by the optional
-    ``profile``, ``account`` and ``billable`` filters. Visibility is
+    ``profile``, ``account``, ``project`` and ``billable`` filters. An entry's
+    account is its ticket's or its project's. Visibility is
     `_visible_entry_qs`'s: an agent reports on their own time, an admin on the
     org's, and asking for somebody else's without being an admin is a 403
     rather than an empty report, because a silent empty answer reads as "that
@@ -109,7 +116,13 @@ def _report_entries(request):
 
     account = uuid_param(request.query_params, "account")
     if account:
-        entries = entries.filter(case__account_id=account)
+        entries = entries.filter(
+            Q(case__account_id=account) | Q(project__account_id=account)
+        )
+
+    project = uuid_param(request.query_params, "project")
+    if project:
+        entries = entries.filter(project_id=project)
 
     billable = request.query_params.get("billable")
     if billable is not None:
@@ -135,6 +148,104 @@ def _report_entries(request):
     return entries, start, end
 
 
+def _project_fields(request, project):
+    """What an entry on ``project`` takes beyond the body: its task (checked
+    against the project) and the project's currency."""
+    if project is None:
+        return {}
+    return {
+        "task": task_on_project(project, request.data, request.profile),
+        "currency": project.currency,
+    }
+
+
+def _billable(data):
+    """``billable`` on a timer start: a JSON boolean or ``"true"``/``"false"``,
+    ``None`` when absent. Anything else is a 400, rather than a truthy string
+    such as ``"false"`` starting a billable timer."""
+    value = data.get("billable") if hasattr(data, "get") else None
+    if value is None or isinstance(value, bool):
+        return value
+    if isinstance(value, str) and value.lower() in ("true", "false"):
+        return value.lower() == "true"
+    raise ValidationError({"billable": ["Send true or false."]})
+
+
+def create_entry(request, *, case=None, project=None):
+    """``POST .../time-entries/`` on a ticket or a project the caller may work."""
+    serializer = TimeEntryCreateSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    data = {**serializer.validated_data, **_project_fields(request, project)}
+    if project is not None and not is_org_admin(request.profile):
+        # On a project the rate is the project's rule unless an admin types one.
+        data.pop("hourly_rate", None)
+    if project is not None and data.get("hourly_rate") is None:
+        data["hourly_rate"] = rate_for(project, request.profile)
+    if project is not None:
+        data["billable"] = billable_on(project, data.get("billable"))
+    try:
+        entry = TimeEntry.objects.create(
+            org=request.profile.org,
+            case=case,
+            project=project,
+            profile=request.profile,
+            **data,
+        )
+    except IntegrityError as exc:
+        # Most likely the partial unique on (profile) for active timers,
+        # or the end-after-start CheckConstraint as a defense-in-depth.
+        return Response(
+            {"detail": str(exc).splitlines()[0][:200]},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if project is not None:
+        check_budget_alerts(project)
+    return Response(TimeEntrySerializer(entry).data, status=status.HTTP_201_CREATED)
+
+
+def start_timer(request, *, case=None, project=None):
+    """``POST .../time-entries/start/``; call inside a transaction."""
+    extra = _project_fields(request, project)
+    billable = _billable(request.data)
+    if project is not None:
+        billable = billable_on(project, billable)
+    # Reject if this profile already has a running timer (anywhere). The
+    # one_active_timer_per_profile partial unique would also catch this
+    # at INSERT time, but a 409 naming the running entry is friendlier
+    # than a 400 from IntegrityError.
+    running = (
+        TimeEntry.objects.select_for_update()
+        .filter(profile=request.profile, ended_at__isnull=True)
+        .first()
+    )
+    if running is not None:
+        return Response(
+            {
+                "detail": "You already have a running timer.",
+                "running_entry_id": str(running.id),
+                "running_case_id": str(running.case_id) if running.case_id else None,
+                "running_project_id": (
+                    str(running.project_id) if running.project_id else None
+                ),
+            },
+            status=status.HTTP_409_CONFLICT,
+        )
+
+    if project is not None:
+        extra["hourly_rate"] = rate_for(project, request.profile)
+    entry = TimeEntry.objects.create(
+        org=request.profile.org,
+        case=case,
+        project=project,
+        profile=request.profile,
+        started_at=timezone.now(),
+        description=(request.data.get("description") or "").strip(),
+        billable=bool(billable),
+        **extra,
+    )
+    return Response(TimeEntrySerializer(entry).data, status=status.HTTP_201_CREATED)
+
+
 class TimeEntryListCreateView(APIView):
     permission_classes = (IsAuthenticated, HasOrgContext)
 
@@ -148,23 +259,7 @@ class TimeEntryListCreateView(APIView):
     def post(self, request, pk):
         case = get_case_or_404(request.profile, pk)
         assert_case_write_access(request.profile, case)
-        serializer = TimeEntryCreateSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        try:
-            entry = TimeEntry.objects.create(
-                org=request.profile.org,
-                case=case,
-                profile=request.profile,
-                **serializer.validated_data,
-            )
-        except IntegrityError as exc:
-            # Most likely the partial unique on (profile) for active timers,
-            # or the end-after-start CheckConstraint as a defense-in-depth.
-            return Response(
-                {"detail": str(exc).splitlines()[0][:200]},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        return Response(TimeEntrySerializer(entry).data, status=status.HTTP_201_CREATED)
+        return create_entry(request, case=case)
 
 
 class TimeEntryStartView(APIView):
@@ -174,35 +269,7 @@ class TimeEntryStartView(APIView):
     def post(self, request, pk):
         case = get_case_or_404(request.profile, pk)
         assert_case_write_access(request.profile, case)
-
-        # Reject if this profile already has a running timer (anywhere). The
-        # one_active_timer_per_profile partial unique would also catch this
-        # at INSERT time, but a 409 with the offending case id is friendlier
-        # than a 400 from IntegrityError.
-        running = (
-            TimeEntry.objects.select_for_update()
-            .filter(profile=request.profile, ended_at__isnull=True)
-            .first()
-        )
-        if running is not None:
-            return Response(
-                {
-                    "detail": "You already have a running timer.",
-                    "running_entry_id": str(running.id),
-                    "running_case_id": str(running.case_id),
-                },
-                status=status.HTTP_409_CONFLICT,
-            )
-
-        entry = TimeEntry.objects.create(
-            org=request.profile.org,
-            case=case,
-            profile=request.profile,
-            started_at=timezone.now(),
-            description=(request.data.get("description") or "").strip(),
-            billable=bool(request.data.get("billable", False)),
-        )
-        return Response(TimeEntrySerializer(entry).data, status=status.HTTP_201_CREATED)
+        return start_timer(request, case=case)
 
 
 class TimeSummaryView(APIView):
@@ -280,10 +347,30 @@ class TimeEntryDetailView(APIView):
             )
         serializer = TimeEntryUpdateSerializer(entry, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
+        changes = dict(serializer.validated_data)
+        if "task" in request.data:
+            if entry.project is None:
+                if request.data.get("task") not in (None, ""):
+                    return Response(
+                        {"task": ["Only time on a project can name a task."]},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+            else:
+                changes["task"] = task_on_project(
+                    entry.project, request.data, request.profile
+                )
+        if entry.project is not None:
+            changes.pop("currency", None)
+            if not is_org_admin(request.profile):
+                changes.pop("hourly_rate", None)
+            if entry.project.billing_type == "non_billable":
+                changes["billable"] = False
         # Apply allowed fields explicitly so we never overwrite invoice/profile/case.
-        for field, value in serializer.validated_data.items():
+        for field, value in changes.items():
             setattr(entry, field, value)
         entry.save()
+        if entry.project is not None:
+            check_budget_alerts(entry.project)
         return Response(TimeEntrySerializer(entry).data)
 
     @transaction.atomic
@@ -331,6 +418,8 @@ class TimeEntryStopView(APIView):
             )
         entry.ended_at = timezone.now()
         entry.save()
+        if entry.project is not None:
+            check_budget_alerts(entry.project)
         return Response(TimeEntrySerializer(entry).data)
 
 
@@ -400,7 +489,7 @@ class TimesheetView(APIView):
                 started_at__date__gte=start,
                 started_at__date__lte=end,
             )
-            .select_related("case", "profile", "profile__user", "invoice")
+            .select_related("case", "project", "profile", "profile__user", "invoice")
             .order_by("started_at")
         )
         days = OrderedDict()
@@ -429,7 +518,11 @@ class TimesheetView(APIView):
             # entry to its invoice, so expand these two FKs from the bare ids
             # the serializer emits. Both are select_related above, so this adds
             # no per-row queries.
-            data["case"] = {"id": str(entry.case_id), "name": entry.case.name}
+            data["case"] = (
+                {"id": str(entry.case_id), "name": entry.case.name}
+                if entry.case_id
+                else None
+            )
             data["invoice"] = (
                 {
                     "id": str(entry.invoice_id),
@@ -495,8 +588,8 @@ class TimeReportView(APIView):
     """``GET /api/time-entries/report/``: where the time went.
 
     ``?start=&end=`` (YYYY-MM-DD, inclusive, defaulting to the last 30 days),
-    ``?group_by=agent|ticket|account``, and the optional ``profile``,
-    ``account`` and ``billable`` filters. One row per group with the minutes,
+    ``?group_by=agent|ticket|project|account``, and the optional ``profile``,
+    ``account``, ``project`` and ``billable`` filters. One row per group with the minutes,
     the billable split, the value at each entry's own rate, and how many
     entries went into it.
 

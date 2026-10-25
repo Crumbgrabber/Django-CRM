@@ -3,7 +3,9 @@
  *
  * Browser-safe: no server or framework imports. "On" has one definition,
  * `isOn`: a missing list or a missing row reads as on, so an older API that
- * does not serve the list changes nothing. The server refuses an off module
+ * does not serve the list changes nothing. A module in `NEEDS_ROW` is newer
+ * than the list itself, so a list without its row comes from an API that
+ * has no such module, and it reads as off. The server refuses an off module
  * regardless; this only decides what to show.
  */
 
@@ -29,6 +31,7 @@ export const MODULE_KEYS = [
   'leads',
   'goals',
   'tasks',
+  'projects',
   'tickets',
   'knowledge_base',
   'documents',
@@ -42,6 +45,7 @@ export const DEFAULT_LABELS = {
   leads: 'Leads',
   goals: 'Goals',
   tasks: 'Tasks',
+  projects: 'Projects',
   tickets: 'Tickets',
   knowledge_base: 'Knowledge base',
   documents: 'Documents',
@@ -63,10 +67,14 @@ export const TARGET_MODULES = /** @type {Record<string, string>} */ ({
   Opportunity: 'deals',
   Case: 'tickets',
   Task: 'tasks',
+  Project: 'projects',
   Invoice: 'invoices',
   Estimate: 'invoices',
   RecurringInvoice: 'invoices'
 });
+
+/** Modules an API serves only if it lists them. */
+const NEEDS_ROW = ['projects'];
 
 /**
  * @param {ModuleRow[] | null | undefined} modules
@@ -76,7 +84,7 @@ export const TARGET_MODULES = /** @type {Record<string, string>} */ ({
 export function isOn(modules, key) {
   if (!Array.isArray(modules)) return true;
   const row = modules.find((m) => m.key === key);
-  return row ? row.available !== false : true;
+  return row ? row.available !== false : !NEEDS_ROW.includes(key);
 }
 
 /**
@@ -119,6 +127,7 @@ const ROUTES = {
   '/settings/deal-pipelines': { all: ['deals'] },
   '/goals': { all: ['goals'] },
   '/tasks': { all: ['tasks'] },
+  '/projects': { all: ['projects'] },
   '/profile/calendar-feed': { all: ['tasks'] },
   '/tickets': { all: ['tickets'] },
   '/settings/routing': { all: ['tickets'] },

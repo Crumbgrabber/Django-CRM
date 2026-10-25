@@ -417,7 +417,11 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen>
           ],
           if (ref.watch(moduleOnProvider('timesheet'))) ...[
             const SizedBox(height: 16),
-            TicketTimePanel(ticketId: c.id, canLogTime: _canWrite),
+            TicketTimePanel(
+              ticketId: c.id,
+              canLogTime: _canWrite,
+              accountId: c.accountId,
+            ),
           ],
           const SizedBox(height: 16),
           if (ref.watch(moduleOnProvider('knowledge_base')))

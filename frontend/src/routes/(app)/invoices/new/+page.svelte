@@ -67,6 +67,7 @@
       CURRENCIES.some((c) => c.value === data.org?.currency) ? data.org.currency : 'USD'
     )
   );
+  /** @type {Record<string, number>} */
   const TERM_DAYS = { DUE_ON_RECEIPT: 0, NET_15: 15, NET_30: 30, NET_45: 45, NET_60: 60 };
 
   let accountId = $state('');

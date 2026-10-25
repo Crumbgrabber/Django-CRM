@@ -23,12 +23,13 @@
     { key: 'account', label: 'An account' },
     { key: 'opportunity', label: 'A deal', module: 'deals' },
     { key: 'case', label: 'A ticket', module: 'tickets' },
-    { key: 'lead', label: 'A lead', module: 'leads' }
+    { key: 'lead', label: 'A lead', module: 'leads' },
+    { key: 'project', label: 'A project', module: 'projects' }
   ];
   let kinds = $derived(KINDS.filter((k) => !k.module || isOn(data.modules, k.module)));
 
-  let values = $derived(form?.values ?? {});
-  let kind = $state(untrack(() => form?.values?.parent_kind ?? ''));
+  let values = $derived(form?.values ?? data.prefill ?? {});
+  let kind = $state(untrack(() => form?.values?.parent_kind ?? data.prefill?.parent_kind ?? ''));
   let options = $derived(kind ? (data.parents[kind] ?? []) : []);
 </script>
 

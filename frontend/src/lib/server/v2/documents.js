@@ -55,6 +55,8 @@ import * as env from '$app/env/public';
 import { documentHref } from './files.js';
 import { getOrgPeopleAndTeams } from './org-people.js';
 
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+
 const API_BASE_URL = `${env.PUBLIC_DJANGO_API_URL}/api`;
 
 /** The two document states the backend accepts (Document.DOCUMENT_STATUS_CHOICE). */
@@ -94,7 +96,11 @@ function viewerClaims(cookies) {
   }
 }
 
-/** A person's display name from a nested ProfileSerializer row. */
+/**
+ * A person's display name from a nested ProfileSerializer row.
+ *
+ * @param {any} profile
+ */
 function personName(profile) {
   const d = profile?.user_details ?? {};
   return d.name || d.email || 'Unnamed';
@@ -137,10 +143,12 @@ function toDoc(d, viewer) {
     file_kind: fileKind(d.document_file),
     size_bytes: typeof d.size_bytes === 'number' ? d.size_bytes : null,
     status: d.status,
+    /** @type {{ id: string, name: string }[]} */
     shared_to: (d.shared_to ?? []).map((/** @type {any} */ p) => ({
       id: p.id,
       name: personName(p)
     })),
+    /** @type {{ id: string, name: string, member_count: number }[]} */
     teams: (d.teams ?? []).map((/** @type {any} */ t) => ({
       id: t.id,
       name: t.name,
@@ -189,10 +197,16 @@ export async function listDocuments({ cookies }, params) {
   const viewer = viewerClaims(cookies);
   const query = new URLSearchParams(params ?? undefined);
   if (!query.has('limit')) query.set('limit', '1000');
+  /** @type {Schemas['DocumentListResponse']} */
   const resp = await apiRequest(`/documents/?${query}`, {}, { cookies });
 
-  const active = resp?.documents_active?.documents_active ?? [];
-  const inactive = resp?.documents_inactive?.documents_inactive ?? [];
+  // The schema types each envelope as a bare dict; its list is DocumentSerializer rows.
+  const active = /** @type {Schemas['Document'][]} */ (
+    resp?.documents_active?.documents_active ?? []
+  );
+  const inactive = /** @type {Schemas['Document'][]} */ (
+    resp?.documents_inactive?.documents_inactive ?? []
+  );
   const results = [...active, ...inactive]
     .map((d) => toDoc(d, viewer))
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -229,6 +243,7 @@ export async function getUploadOptions({ cookies }) {
  */
 export async function getDocumentForEdit({ cookies }, id) {
   const viewer = viewerClaims(cookies);
+  /** @type {Schemas['DocumentDetailResponse']} */
   const raw = await apiRequest(`/documents/${id}/`, {}, { cookies });
   const doc = toDoc(raw.doc_obj, viewer);
 
@@ -348,6 +363,7 @@ async function sendMultipart(cookies, path, method, values) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
  * @param {{ title: string, status: string, shared_to?: string[], teams?: string[], file?: File | null }} values
+ * @returns {Promise<Schemas['DocumentUpdateResponse'] | Schemas['DocumentPatchResponse']>}
  */
 export function updateDocument({ cookies }, id, values) {
   const shares =
@@ -372,6 +388,7 @@ export function updateDocument({ cookies }, id, values) {
  * `DELETE /api/documents/<id>/`. Gated by `_may_delete` (creator or admin).
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
+ * @returns {Promise<Schemas['DocumentDeleteResponse']>}
  */
 export function deleteDocument({ cookies }, id) {
   return apiRequest(`/documents/${id}/`, { method: 'DELETE' }, { cookies });

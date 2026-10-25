@@ -47,17 +47,19 @@
    */
   const SETTLED = ['Paid', 'Cancelled'];
 
-  function ageLabel(inv) {
+  /** @typedef {{ status: string, due_date: string | null }} Dated */
+
+  function ageLabel(/** @type {Dated} */ inv) {
     if (SETTLED.includes(inv.status)) return '—';
-    if (!inv.due_date) return '—';
     const n = daysSince(inv.due_date);
+    if (n === null) return '—';
     if (n > 0) return `${n}d late`;
     if (n === 0) return 'due today';
     return `${Math.abs(n)}d left`;
   }
 
-  const isLate = (inv) =>
-    !SETTLED.includes(inv.status) && inv.due_date && daysSince(inv.due_date) > 0;
+  const isLate = (/** @type {Dated} */ inv) =>
+    !SETTLED.includes(inv.status) && inv.due_date && (daysSince(inv.due_date) ?? 0) > 0;
 </script>
 
 <PageHeader title="Invoices">

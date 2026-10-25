@@ -3,7 +3,7 @@
    * A stat tile. The value is tabular mono so a changing figure never
    * reflows the tile it sits in.
    *
-   * @type {{ label: string, value: string, tone?: 'ink'|'slate'|'clay'|'rust'|'moss', detail?: string }}
+   * @type {{ label: string, value: string, tone?: 'ink'|'slate'|'clay'|'rust'|'moss', detail?: string | null }}
    */
   let { label, value, tone = 'ink', detail = null } = $props();
 

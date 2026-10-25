@@ -20,6 +20,8 @@
  *   moss  → won, paid, completed
  */
 
+/** @typedef {'ink'|'slate'|'clay'|'rust'|'moss'} Tone */
+
 /**
  * Deal stages are configured per org and per pipeline (`DealStage`), so there
  * is no stage list here: pages read the stages from the API. What a stage
@@ -28,6 +30,7 @@
  */
 export const CLOSED_KINDS = ['won', 'lost'];
 
+/** @type {Record<string, string>} */
 export const OPPORTUNITY_TYPE_LABEL = {
   NEW_BUSINESS: 'New Business',
   EXISTING_BUSINESS: 'Existing Business',
@@ -37,9 +40,12 @@ export const OPPORTUNITY_TYPE_LABEL = {
 };
 
 /** Opportunity.aging_status. The API returns these three strings verbatim. */
+/** @type {Record<string, Tone>} */
 export const AGING_TONE = { green: 'slate', yellow: 'clay', red: 'rust' };
+/** @type {Record<string, string>} */
 export const AGING_LABEL = { green: 'On pace', yellow: 'Past expected', red: 'Stalled' };
 
+/** @type {Record<string, Tone>} */
 export const LEAD_STATUS_TONE = {
   assigned: 'slate',
   'in process': 'ink',
@@ -58,6 +64,7 @@ export const LEAD_STATUS_TONE = {
  */
 export const LEAD_STATUSES = ['assigned', 'in process', 'converted', 'recycled', 'closed'];
 
+/** @type {Record<string, string>} */
 export const LEAD_STATUS_LABEL = {
   assigned: 'Assigned',
   'in process': 'In process',
@@ -120,10 +127,13 @@ export const INDUSTRIES = [
 ];
 
 /** "FOOD & BEVERAGE" → "Food & beverage". The value sent to the API is unchanged. */
-export const industryLabel = (v) => (!v ? '' : v.charAt(0) + v.slice(1).toLowerCase());
+export const industryLabel = (/** @type {string | null | undefined} */ v) =>
+  !v ? '' : v.charAt(0) + v.slice(1).toLowerCase();
 
+/** @type {Record<string, Tone>} */
 export const PRIORITY_TONE = { Urgent: 'rust', High: 'clay', Normal: 'slate', Low: 'slate' };
 
+/** @type {Record<string, Tone>} */
 export const CASE_STATUS_TONE = {
   New: 'ink',
   Assigned: 'ink',
@@ -142,6 +152,7 @@ export const CASE_STATUS_TONE = {
  */
 export const RESTRICTED_TICKET_NAME = 'A ticket you cannot open';
 
+/** @type {Record<string, Tone>} */
 export const INVOICE_STATUS_TONE = {
   Draft: 'slate',
   Sent: 'ink',
@@ -154,7 +165,8 @@ export const INVOICE_STATUS_TONE = {
 };
 
 /** INVOICE_STATUS uses an underscore on the wire; never show it to a person. */
-export const invoiceStatusLabel = (s) => String(s ?? '').replace(/_/g, ' ');
+export const invoiceStatusLabel = (/** @type {string | null | undefined} */ s) =>
+  String(s ?? '').replace(/_/g, ' ');
 
 /**
  * tasks.Task.STATUS_CHOICES / PRIORITY_CHOICES.
@@ -165,9 +177,11 @@ export const invoiceStatusLabel = (s) => String(s ?? '').replace(/_/g, ' ');
  * a mismatch is a missing key you can see, not a silently unstyled pill.
  */
 export const TASK_STATUS = ['New', 'In Progress', 'Completed'];
+/** @type {Record<string, Tone>} */
 export const TASK_STATUS_TONE = { New: 'slate', 'In Progress': 'ink', Completed: 'moss' };
 
 export const TASK_PRIORITY = ['Low', 'Medium', 'High'];
+/** @type {Record<string, Tone>} */
 export const TASK_PRIORITY_TONE = { Low: 'slate', Medium: 'slate', High: 'clay' };
 
 /**
@@ -178,7 +192,9 @@ export const TASK_PRIORITY_TONE = { Low: 'slate', Medium: 'slate', High: 'clay' 
  * customers could not see looked live. Both are surfaced here.
  */
 export const SOLUTION_STATUS = ['draft', 'reviewed', 'approved'];
+/** @type {Record<string, string>} */
 export const SOLUTION_STATUS_LABEL = { draft: 'Draft', reviewed: 'Reviewed', approved: 'Approved' };
+/** @type {Record<string, Tone>} */
 export const SOLUTION_STATUS_TONE = { draft: 'slate', reviewed: 'clay', approved: 'moss' };
 
 /**
@@ -188,6 +204,7 @@ export const SOLUTION_STATUS_TONE = { draft: 'slate', reviewed: 'clay', approved
  * what they mean rather than repeating the wire value: "behind" alone does not
  * tell you behind on what. They are pace judgements, not percentages.
  */
+/** @type {Record<string, string>} */
 export const GOAL_TYPE_LABEL = {
   REVENUE: 'Revenue',
   DEALS_CLOSED: 'Deals closed',
@@ -195,6 +212,7 @@ export const GOAL_TYPE_LABEL = {
 };
 
 /** Opportunity types, for the per-goal weighting on a revenue or deals goal. */
+/** @type {Record<string, string>} */
 export const DEAL_TYPE_LABEL = {
   NEW_BUSINESS: 'New business',
   EXISTING_BUSINESS: 'Existing business',
@@ -203,6 +221,7 @@ export const DEAL_TYPE_LABEL = {
   CROSS_SELL: 'Cross-sell'
 };
 
+/** @type {Record<string, string>} */
 export const PERIOD_TYPE_LABEL = {
   MONTHLY: 'Monthly',
   QUARTERLY: 'Quarterly',
@@ -210,6 +229,7 @@ export const PERIOD_TYPE_LABEL = {
   CUSTOM: 'Custom'
 };
 
+/** @type {Record<string, string>} */
 export const GOAL_STATUS_LABEL = {
   completed: 'Target met',
   on_track: 'On pace',
@@ -217,6 +237,7 @@ export const GOAL_STATUS_LABEL = {
   behind: 'Behind pace'
 };
 
+/** @type {Record<string, Tone>} */
 export const GOAL_STATUS_TONE = {
   completed: 'moss',
   on_track: 'slate',
@@ -225,6 +246,7 @@ export const GOAL_STATUS_TONE = {
 };
 
 /** cases.approvals: APPROVAL_STATE_CHOICES. */
+/** @type {Record<string, string>} */
 export const APPROVAL_STATE_LABEL = {
   pending: 'Waiting',
   approved: 'Approved',
@@ -232,6 +254,7 @@ export const APPROVAL_STATE_LABEL = {
   cancelled: 'Withdrawn'
 };
 
+/** @type {Record<string, Tone>} */
 export const APPROVAL_STATE_TONE = {
   pending: 'clay',
   approved: 'moss',
@@ -248,6 +271,7 @@ export const APPROVAL_STATE_TONE = {
  * into an invoice yet is a separate fact, and the list shows it separately.
  * A green pill on money nobody has billed is exactly the wrong reassurance.
  */
+/** @type {Record<string, Tone>} */
 export const ESTIMATE_STATUS_TONE = {
   Draft: 'slate',
   Sent: 'ink',
@@ -258,6 +282,7 @@ export const ESTIMATE_STATUS_TONE = {
 };
 
 /** invoices.RECURRING_FREQUENCIES; CUSTOM carries its interval in custom_days. */
+/** @type {Record<string, string>} */
 export const RECURRING_FREQUENCY_LABEL = {
   WEEKLY: 'Weekly',
   BIWEEKLY: 'Every 2 weeks',
@@ -268,6 +293,7 @@ export const RECURRING_FREQUENCY_LABEL = {
   CUSTOM: 'Custom'
 };
 
+/** @type {Record<string, string>} */
 export const PAYMENT_TERMS_LABEL = {
   DUE_ON_RECEIPT: 'Due on receipt',
   NET_15: 'Net 15',
@@ -282,7 +308,9 @@ export const PAYMENT_TERMS_LABEL = {
  * Role is server-derived from the profile; nothing the browser sends decides
  * it. This map exists to label a value the API gave us, never to offer one.
  */
+/** @type {Record<string, string>} */
 export const ROLE_LABEL = { ADMIN: 'Admin', USER: 'Member' };
+/** @type {Record<string, Tone>} */
 export const ROLE_TONE = { ADMIN: 'clay', USER: 'slate' };
 
 /* ── ticket handling configuration ──────────────────────────────────────── */
@@ -293,6 +321,7 @@ export const ROLE_TONE = { ADMIN: 'clay', USER: 'slate' };
  * sentence the rule performs, because they sit next to the target list that
  * completes them.
  */
+/** @type {Record<string, string>} */
 export const ROUTING_STRATEGY_LABEL = {
   direct: 'Always to',
   round_robin: 'Round-robin between',
@@ -303,6 +332,7 @@ export const ROUTING_STRATEGY_LABEL = {
 /** Standalone names for the strategy select. `ROUTING_STRATEGY_LABEL` above
  *  is a sentence fragment that runs into the target names on the rule card,
  *  so it cannot double as an option label. */
+/** @type {Record<string, string>} */
 export const ROUTING_STRATEGY_NAME = {
   direct: 'Direct',
   round_robin: 'Round robin',
@@ -311,6 +341,7 @@ export const ROUTING_STRATEGY_NAME = {
 };
 
 /** Fields a routing condition can test, in the words the rest of the app uses. */
+/** @type {Record<string, string>} */
 export const CONDITION_FIELD_LABEL = {
   priority: 'Priority',
   case_type: 'Type',
@@ -320,6 +351,7 @@ export const CONDITION_FIELD_LABEL = {
   mailbox_id: 'Mailbox'
 };
 
+/** @type {Record<string, string>} */
 export const CONDITION_OP_LABEL = {
   eq: 'is',
   in: 'is one of',
@@ -328,6 +360,7 @@ export const CONDITION_OP_LABEL = {
 };
 
 /** cases.EscalationPolicy.ACTION_CHOICES. */
+/** @type {Record<string, string>} */
 export const ESCALATION_ACTION_LABEL = {
   notify: 'Notify',
   reassign: 'Reassign to',
@@ -345,6 +378,7 @@ export const ESCALATION_PRIORITIES = ['Urgent', 'High', 'Normal', 'Low'];
  *  set a target of its own, so the settings form shows these as the placeholder
  *  behind an empty input rather than leaving "blank" looking like "no SLA at
  *  all". */
+/** @type {Record<string, { first_response: number, resolution: number, next_response: number }>} */
 export const DEFAULT_SLA_HOURS = {
   Urgent: { first_response: 1, resolution: 4, next_response: 1 },
   High: { first_response: 4, resolution: 24, next_response: 4 },
@@ -353,6 +387,7 @@ export const DEFAULT_SLA_HOURS = {
 };
 
 /** cases.InboundMailbox.PROVIDER_CHOICES, only SES ships today. */
+/** @type {Record<string, string>} */
 export const MAILBOX_PROVIDER_LABEL = {
   ses: 'Amazon SES',
   mailgun: 'Mailgun',
@@ -363,6 +398,7 @@ export const MAILBOX_PROVIDER_LABEL = {
 /* ── vocabulary ─────────────────────────────────────────────────────────── */
 
 /** common.CustomFieldDefinition.FIELD_TYPE_CHOICES. */
+/** @type {Record<string, string>} */
 export const FIELD_TYPE_LABEL = {
   text: 'Text',
   textarea: 'Long text',
@@ -383,6 +419,7 @@ export const FIELD_TYPE_LABEL = {
 export const REOPEN_TO_STATUSES = ['New', 'Assigned', 'Pending'];
 
 /** Plural forms for the target model, for reading in a heading. */
+/** @type {Record<string, string>} */
 export const TARGET_MODEL_LABEL = {
   Account: 'Accounts',
   Case: 'Tickets',
@@ -391,10 +428,12 @@ export const TARGET_MODEL_LABEL = {
   Invoice: 'Invoices',
   Lead: 'Leads',
   Opportunity: 'Deals',
+  Project: 'Projects',
   RecurringInvoice: 'Recurring invoices',
   Task: 'Tasks'
 };
 
+/** @type {Record<string, string>} */
 export const MACRO_SCOPE_LABEL = { org: 'Everyone', personal: 'Just you' };
 
 /* ── board ──────────────────────────────────────────────────────────────── */
@@ -404,12 +443,14 @@ export const MACRO_SCOPE_LABEL = { org: 'Everyone', personal: 'Just you' };
  * TASK_PRIORITY (Low/Medium/High) and PRIORITY_TONE (Urgent/High/Normal/Low).
  * Three enums for one word across three models; keep them apart.
  */
+/** @type {Record<string, string>} */
 export const BOARD_PRIORITY_LABEL = {
   low: 'Low',
   medium: 'Medium',
   high: 'High',
   urgent: 'Urgent'
 };
+/** @type {Record<string, Tone>} */
 export const BOARD_PRIORITY_TONE = {
   low: 'slate',
   medium: 'slate',
@@ -418,6 +459,7 @@ export const BOARD_PRIORITY_TONE = {
 };
 
 /** tasks.BoardMember.ROLE_CHOICES, board-local, unrelated to Profile.role. */
+/** @type {Record<string, string>} */
 export const BOARD_ROLE_LABEL = { owner: 'Owner', admin: 'Admin', member: 'Member' };
 
 /**

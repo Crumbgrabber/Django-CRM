@@ -275,8 +275,8 @@ def test_an_invoiced_account_names_the_off_module(org_a, deleter, model, extra, 
     assert response.json() == {
         "error": True,
         "errors": (
-            "This account can't be deleted while it still has invoices, "
-            "estimates or recurring invoices linked to it."
+            "This account can't be deleted while it still has projects, "
+            "invoices, estimates or recurring invoices linked to it."
         ),
     }
     assert Account.objects.filter(id=account.id).exists()
@@ -413,22 +413,19 @@ def test_a_person_with_off_module_records_is_kept(
     send_email.delay.assert_not_called()
 
 
-def test_a_person_with_time_entries_names_tickets_while_tickets_is_off(
+def test_a_person_with_time_entries_is_not_hidden_by_tickets_alone(
     admin_client, regular_user, user_profile, org_a, send_email
 ):
-    """The timesheet is unavailable because Tickets is off, so Tickets is what
-    the admin has to switch on."""
+    """Timesheet needs no other module since projects, so with Tickets off the
+    time is still in sight and the delete gets the ordinary refusal."""
     _entry(_ticket(org_a), user_profile)
     set_modules_off(org_a, "tickets")
 
     response = admin_client.delete(_person_url(regular_user))
 
     assert response.status_code == 409
-    assert response.json()["errors"] == (
-        "This person has 1 time entry. Tickets is switched off, so switch it on "
-        "to review it before deleting."
-    )
-    assert response.json()["module"] == "tickets"
+    assert "module" not in response.json()
+    assert response.json()["errors"].startswith("This user can't be deleted")
     send_email.delay.assert_not_called()
 
 
@@ -587,7 +584,7 @@ def _delete_url(target, org, admin_user, admin_profile, regular_user, user_profi
 
 @pytest.mark.parametrize(
     ("target", "sqlite", "postgresql"),
-    [("account", 64, 64), ("ticket", 23, 23), ("person", 62, 68)],
+    [("account", 66, 66), ("ticket", 23, 23), ("person", 64, 70)],
 )
 def test_with_every_module_on_the_guard_adds_no_query(
     admin_client,

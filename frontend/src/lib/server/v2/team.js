@@ -38,6 +38,35 @@
  */
 import { apiRequest } from '#lib/api-helpers.js';
 
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+
+/**
+ * @typedef {{
+ *   id: string,
+ *   user_id: string,
+ *   name: string,
+ *   email: string,
+ *   role: Schemas['ProfileRoleEnum'],
+ *   is_active: boolean,
+ *   teams: string[],
+ *   last_login: string | null,
+ *   active_token_count: number,
+ *   is_you: boolean
+ * }} Member
+ */
+
+/**
+ * @typedef {{
+ *   forbidden: false,
+ *   active: Member[],
+ *   inactive: Member[],
+ *   teams: { id: string, name: string, description: string, member_count: number }[],
+ *   roles: string[],
+ *   totals: { count: number, admins: number, never_signed_in: number, deactivated: number, tokens_on_deactivated: number },
+ *   last_admin_id: string | null
+ * }} TeamPage
+ */
+
 /**
  * Profile.role is ADMIN | USER, the only two the backend recognises. There is
  * no MANAGER despite ApprovalRule offering it; a picker offering a value the
@@ -79,6 +108,7 @@ function viewerUserId(cookies) {
  * @param {any} p
  * @param {Record<string, string[]>} teamsByProfile
  * @param {string | null} viewerId
+ * @returns {Member}
  */
 function toMember(p, teamsByProfile, viewerId) {
   const details = p.user_details ?? {};
@@ -105,9 +135,13 @@ function toMember(p, teamsByProfile, viewerId) {
  * page can render, not a crash.
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
+ * @returns {Promise<{ forbidden: true } | TeamPage>}
  */
 export async function listTeam({ cookies }) {
-  let usersResp, teamsResp;
+  /** @type {Schemas['UsersListResponse']} */
+  let usersResp;
+  /** @type {Schemas['TeamsListResponse']} */
+  let teamsResp;
   try {
     [usersResp, teamsResp] = await Promise.all([
       apiRequest('/users/', {}, { cookies }),
@@ -130,14 +164,13 @@ export async function listTeam({ cookies }) {
     }
   }
 
-  const active = (usersResp?.active_users?.active_users ?? []).map((/** @type {any} */ p) =>
-    toMember(p, teamsByProfile, viewerId)
-  );
-  const inactive = (usersResp?.inactive_users?.inactive_users ?? []).map((/** @type {any} */ p) =>
-    toMember(p, teamsByProfile, viewerId)
-  );
+  // The schema leaves both blocks as bare dicts; their rows are ProfileSerializer rows.
+  const activeRows = /** @type {any[]} */ (usersResp?.active_users?.active_users ?? []);
+  const inactiveRows = /** @type {any[]} */ (usersResp?.inactive_users?.inactive_users ?? []);
+  const active = activeRows.map((p) => toMember(p, teamsByProfile, viewerId));
+  const inactive = inactiveRows.map((p) => toMember(p, teamsByProfile, viewerId));
 
-  const teams = teamRows.map((/** @type {any} */ t) => ({
+  const teams = teamRows.map((t) => ({
     id: t.id,
     name: t.name,
     description: t.description || '',
@@ -176,6 +209,7 @@ export async function listTeam({ cookies }) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {{ email: string, role: string }} body
+ * @returns {Promise<Schemas['UserCreateResponse']>}
  */
 export function inviteUser({ cookies }, body) {
   return apiRequest('/users/', { method: 'POST', body }, { cookies });
@@ -189,6 +223,7 @@ export function inviteUser({ cookies }, body) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} userId  the User id, not the profile id
  * @param {string} role
+ * @returns {Promise<Schemas['UserPatchResponse']>}
  */
 export function setRole({ cookies }, userId, role) {
   return apiRequest(`/user/${userId}/`, { method: 'PATCH', body: { role } }, { cookies });
@@ -201,6 +236,7 @@ export function setRole({ cookies }, userId, role) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} userId
  * @param {'Active' | 'Inactive'} status
+ * @returns {Promise<Schemas['UserStatusResponse']>}
  */
 export function setStatus({ cookies }, userId, status) {
   return apiRequest(`/user/${userId}/status/`, { method: 'POST', body: { status } }, { cookies });

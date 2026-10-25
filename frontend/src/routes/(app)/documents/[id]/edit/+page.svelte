@@ -65,7 +65,7 @@
   });
 
   let valid = $derived(Object.keys(errors).length === 0);
-  const show = (field) => (touched[field] || submitted) && errors[field];
+  const show = (/** @type {string} */ field) => (touched[field] || submitted) && errors[field];
 
   let reach = $derived(sharedTo.size + sharedTeams.size);
 
@@ -75,11 +75,15 @@
   // rejected submit's echo, so a retry still compares against the record.
   let originalShares = $derived.by(() => {
     const active = new Set((data.people ?? []).map((/** @type {any} */ p) => String(p.id)));
-    return (data.document?.shared_to ?? []).map(String).filter((id) => active.has(id));
+    return (data.document?.shared_to ?? [])
+      .map(String)
+      .filter((/** @type {string} */ id) => active.has(id));
   });
   let originalTeams = $derived.by(() => {
     const known = new Set((data.teams ?? []).map((/** @type {any} */ t) => String(t.id)));
-    return (data.document?.teams ?? []).map(String).filter((id) => known.has(id));
+    return (data.document?.teams ?? [])
+      .map(String)
+      .filter((/** @type {string} */ id) => known.has(id));
   });
   // Shares with no checkbox (people deactivated since, as the picker lists
   // active people only) are posted back as both `shared_to` and

@@ -12,7 +12,9 @@ import { isRedirect } from '@sveltejs/kit';
 import { RESTRICTED_TICKET_NAME } from '#lib/v2/enums.js';
 
 const apiRequest = vi.fn();
-vi.mock('#lib/api-helpers.js', () => ({ apiRequest: (...a) => apiRequest(...a) }));
+vi.mock('#lib/api-helpers.js', () => ({
+  apiRequest: (/** @type {any[]} */ ...a) => apiRequest(...a)
+}));
 
 const { getTicket, getMergeTargets, mergeTicket, unmergeTicket } = await import('./tickets.js');
 const { actions } = await import('../../../routes/(app)/tickets/[id]/+page.server.js');

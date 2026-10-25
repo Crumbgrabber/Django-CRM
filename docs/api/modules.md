@@ -23,18 +23,19 @@ comes back when the module is switched on.
 | `tickets` | Tickets | Tickets, approvals, ticket analytics, routing, escalation, the reopen policy, business hours, saved replies, inbound email, CSAT and portal tickets. | |
 | `knowledge_base` | Knowledge base | Articles, the public help center and portal articles. | |
 | `documents` | Documents | Documents and their downloads. | |
+| `projects` | Projects | Projects, their people, rates and budgets, tasks and time on them, and billing a project's time. | |
 | `invoices` | Invoices | Invoices, estimates, recurring invoices, invoice templates, invoice reports, account statements, and public invoice and estimate links. | |
-| `timesheet` | Timesheet | Time entries, the timesheet and the time report. | `tickets` |
+| `timesheet` | Timesheet | Time entries, the timesheet and the time report. | |
 
 The groups, in the order they are served, are `sell` (deals, leads, goals), `serve` (tasks,
-tickets, knowledge base, documents) and `bill` (invoices, timesheet). Within a group the modules
+tickets, knowledge base, documents, projects) and `bill` (invoices, timesheet). Within a group the modules
 follow the org's saved order.
 
 A label follows the org's terminology: an org that calls deals "Opportunities" sees that name for
 `deals`, and likewise for `leads` and `invoices`. Every module message uses the org's label.
 
-**Needs.** A module that needs another is available only while that one is. Goals needs Pipeline
-and Timesheet needs Tickets. Switching the needed module off makes the dependent one unavailable
+**Needs.** A module that needs another is available only while that one is. Goals needs Pipeline.
+Switching the needed module off makes the dependent one unavailable
 without changing its own setting, so switching the needed one back on restores it.
 
 ## Read the setting
@@ -69,7 +70,7 @@ without changing its own setting, so switching the needed one back on restores i
 }
 ```
 
-The response has all nine rows (two are shown). `enabled` is the module's own setting;
+The response has all ten rows (two are shown). `enabled` is the module's own setting;
 `available` is `enabled` and its need available. `stops` is the confirmation text an admin reads
 before switching the module off, already carrying the org's label. `can_edit` is true for admins
 and false for members.
@@ -82,7 +83,7 @@ session with no organization.
 `PUT /api/org/modules/`, admins only. Both fields are required, and the body replaces the setting:
 
 ```json
-{"off": ["tickets", "timesheet"], "order": ["deals", "leads", "goals", "tasks", "tickets", "knowledge_base", "documents", "invoices", "timesheet"]}
+{"off": ["tickets", "timesheet"], "order": ["deals", "leads", "goals", "tasks", "tickets", "knowledge_base", "documents", "projects", "invoices", "timesheet"]}
 ```
 
 `off` lists the modules to switch off; every module not named is on. `order` lists module keys in
@@ -115,8 +116,7 @@ carries the problems under `off` and `order`:
 say `and N more`. The form and mailbox checks apply only to a module the change makes
 unavailable, so an admin can still reorder while a module is already off. Forms for leads and
 active lead addresses count against Leads, and forms for tickets and active ticket mailboxes count
-against Tickets; because Timesheet needs Tickets, switching Tickets off is refused for the same
-reasons.
+against Tickets.
 
 A body that is not valid JSON answers DRF's own `400`, `{"detail": "JSON parse error ..."}`.
 
@@ -139,13 +139,17 @@ organization API key is read-only, so a write with it is refused as it always wa
 
 The inbound mailbox routes (`/api/cases/mailboxes/`) belong to Tickets or Leads and stay
 reachable while either is on, since a mailbox makes tickets or leads. Some routes need more than
-one module. The time entry routes need Tickets and Timesheet; invoice
-creation from a deal needs Invoices and Pipeline; invoice creation from time entries needs
-Invoices, Tickets and Timesheet. Products belong to Pipeline or Invoices and stay reachable while
+one module. Time on a ticket needs Tickets and Timesheet, time on a project needs Projects and
+Timesheet, and the routes under `/api/time-entries/` need Timesheet and either Tickets or
+Projects. Invoice creation from a deal needs Invoices and Pipeline. Invoice creation from time
+entries needs Invoices, Timesheet and either Tickets or Projects, and then Tickets to bill an
+account's ticket time or Projects to bill a project. A project's unbilled preview needs Projects,
+Invoices and Timesheet, invoicing an amount needs Projects and Invoices, and a draft project from
+a deal needs Projects and Pipeline. Products belong to Pipeline or Invoices and stay reachable while
 either is on. `GET /api/org/help-center/` is the Knowledge base's settings route and answers the
 same `404` for every method while it is off.
 
-Anything outside the nine modules (accounts, contacts, web forms, webhooks, automation, search,
+Anything outside the ten modules (accounts, contacts, web forms, webhooks, automation, search,
 the dashboard and the rest of `/api/org/`) is always reachable. `/api/interactions/` is core too,
 but a request naming a lead, deal or ticket answers that module's `404` while it is off, and
 interactions homed on such a record are left out of every list (see
@@ -193,6 +197,8 @@ Responses keep their keys when they embed records of an off module; the embedded
 lists are `[]`, counts are `0`, and single links and summaries are `null`. Specific cases:
 
 - A time entry keeps a read-only `invoiced` boolean while Invoices is off; its `invoice` is `null`.
+- A task's `project` is `null` while Projects is off, and a project's `deal` is `null` while
+  Pipeline is off. A project's `invoices` list is `[]` while Invoices is off.
 - A deal's `next_activity` is `null` while Tasks is off.
 - A product's `used_on` is `0` while Invoices is off.
 - Task webhook payloads still carry the bare ids of a task's deal, ticket or lead.
@@ -261,9 +267,9 @@ not delete the record still gets `403`. What can block a delete:
 
 | Deleting | Reaches |
 | --- | --- |
-| An account | Its tickets, deals, invoices, estimates and recurring invoices |
+| An account | Its tickets, deals, invoices, estimates, recurring invoices and projects |
 | A ticket | Its time entries |
-| A person (a user's profile in the org) | Their time entries, approvals, watched tickets, saved replies, boards and board memberships |
+| A person (a user's profile in the org) | Their time entries, approvals, watched tickets, saved replies, boards, board memberships and project rates |
 
 Unlinking is unchanged: removing a contact from a ticket, or a deal from an invoice, behaves as it
 always did. The Django admin site is for operators and is not guarded by modules; deleting a user

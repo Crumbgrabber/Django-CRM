@@ -10,7 +10,7 @@
    * button, which on the fixture pages goes nowhere. Fine while a page is a
    * sandbox, not fine once the record it names is real and one click away.
    *
-   * @type {{ label?: string, text: string, action?: string, href?: string|null, secondary?: string, tone?: 'ember'|'rust' }}
+   * @type {{ label?: string, text: string, action?: string|null, href?: string|null, secondary?: string|null, tone?: 'ember'|'rust' }}
    */
   let {
     label = 'Next action',

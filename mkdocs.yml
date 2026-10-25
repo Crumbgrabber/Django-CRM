@@ -59,6 +59,7 @@ nav:
       - Demo data and packs: getting-started/demo-data.md
       - Modules: getting-started/modules.md
       - Industry apps: features/industry-apps.md
+      - Projects: features/projects.md
   - Self-hosting:
       - Requirements: self-hosting/requirements.md
       - Docker: self-hosting/docker.md

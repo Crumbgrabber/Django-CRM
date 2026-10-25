@@ -17,6 +17,13 @@
  */
 import { apiRequest } from '#lib/api-helpers.js';
 
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+/**
+ * `GET /boards/` answers the pagination envelope, though the schema says a bare list.
+ *
+ * @typedef {{ count: number, next: string | null, previous: string | null, results: Schemas['BoardList'][] }} BoardPage
+ */
+
 /** A board card's assignee → `{ id, name }`. ProfileSerializer nests the
  *  display name under `user_details`; fall back to the email, then a label. */
 function assignee(/** @type {any} */ p) {
@@ -49,15 +56,16 @@ const EMPTY = { board: null, boards: [], columns: [], tasks: [] };
  * @param {{ cookies: import('@sveltejs/kit').Cookies, boardId?: string | null }} event
  */
 export async function getBoard({ cookies, boardId = null }) {
+  /** @type {BoardPage} */
   const listResp = await apiRequest('/boards/?archived=false', {}, { cookies });
   const results = listResp.results || [];
   if (results.length === 0) return { ...EMPTY };
 
-  const active =
-    (boardId && results.find((/** @type {any} */ b) => b.id === boardId)) || results[0];
+  const active = (boardId && results.find((b) => b.id === boardId)) || results[0];
+  /** @type {Schemas['BoardColumn'][]} */
   const cols = await apiRequest(`/boards/${active.id}/columns/`, {}, { cookies });
 
-  const sorted = [...cols].sort((a, b) => a.order - b.order);
+  const sorted = [...cols].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const columns = sorted.map((c) => ({
     id: c.id,
     name: c.name,
@@ -74,7 +82,7 @@ export async function getBoard({ cookies, boardId = null }) {
 
   return {
     board: { id: active.id, name: active.name, description: active.description || '' },
-    boards: results.map((/** @type {any} */ b) => ({
+    boards: results.map((b) => ({
       id: b.id,
       name: b.name,
       is_archived: b.is_archived,
@@ -100,6 +108,7 @@ export async function getBoard({ cookies, boardId = null }) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} boardId
  * @param {{ name: string, color?: string, order?: number }} column
+ * @returns {Promise<Schemas['BoardColumn']>}
  */
 export async function createColumn({ cookies }, boardId, { name, color, order }) {
   /** @type {Record<string, any>} */
@@ -123,6 +132,7 @@ export async function createColumn({ cookies }, boardId, { name, color, order })
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {{ name: string, description?: string }} board
+ * @returns {Promise<Schemas['Board']>}
  */
 export async function createBoard({ cookies }, { name, description }) {
   /** @type {Record<string, any>} */
@@ -140,6 +150,7 @@ export async function createBoard({ cookies }, { name, description }) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} columnId
  * @param {{ title: string, description?: string, priority?: string }} card
+ * @returns {Promise<Schemas['BoardTask']>}
  */
 export async function createCard({ cookies }, columnId, { title, description, priority }) {
   /** @type {Record<string, any>} */
@@ -157,6 +168,7 @@ export async function createCard({ cookies }, columnId, { title, description, pr
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id card id
  * @param {{ column: string, order: number }} move
+ * @returns {Promise<Schemas['BoardTask']>}
  */
 export async function moveBoardTask({ cookies }, id, { column, order }) {
   return apiRequest(

@@ -34,8 +34,10 @@
     paletteActions(modules).map((a) => ({ ...a, icon: ACTION_ICONS[a.icon] }))
   );
 
+  /** @type {Record<string, typeof Plus>} */
   const ACTION_ICONS = { Plus, Columns3, Receipt };
 
+  /** @type {Record<string, typeof Plus>} */
   const ICON = {
     Deals: Columns3,
     Accounts: Building2,
@@ -55,14 +57,15 @@
 
   let rows = $derived(query.trim() ? hits : actions);
 
+  /** @typedef {{ kind: string, rows: any[] }} Group */
   /** Grouped for display, but `rows` stays flat so ↑/↓ crosses group borders. */
   let groups = $derived(
-    rows.reduce((acc, r) => {
+    rows.reduce((/** @type {Group[]} */ acc, r) => {
       const g = acc.find((x) => x.kind === r.kind);
       if (g) g.rows.push(r);
       else acc.push({ kind: r.kind, rows: [r] });
       return acc;
-    }, /** @type {{kind: string, rows: any[]}[]} */ ([]))
+    }, /** @type {Group[]} */ ([]))
   );
 
   // Re-runs whenever the query changes. `seq` drops out-of-order responses,
@@ -96,6 +99,7 @@
     if (open) input?.focus();
   });
 
+  /** @param {KeyboardEvent} e */
   function onkeydown(e) {
     if (e.key === 'Escape') {
       e.preventDefault();
@@ -112,6 +116,7 @@
     }
   }
 
+  /** @param {{ href: string } | undefined} row */
   function choose(row) {
     if (!row) return;
     onclose();

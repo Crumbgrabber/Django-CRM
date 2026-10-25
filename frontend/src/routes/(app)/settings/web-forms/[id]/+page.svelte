@@ -407,7 +407,7 @@
                       id="tgt-{field.key}"
                       class="v2-input wf-narrow"
                       disabled={!canManage}
-                      value={/** @type {any} */ (field)[builtin.key]}
+                      value={isTicket ? field.ticket_field : field.lead_field}
                       onchange={(e) => pickBuiltinField(i, e.currentTarget.value)}
                     >
                       <option value="">Choose one…</option>

@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const apiRequest = vi.fn();
-vi.mock('#lib/api-helpers.js', () => ({ apiRequest: (...a) => apiRequest(...a) }));
+vi.mock('#lib/api-helpers.js', () => ({
+  apiRequest: (/** @type {any[]} */ ...a) => apiRequest(...a)
+}));
 
-const { listDeals, listBoard, getDealFormOptions, createDeal, updateDeal } =
+const { listDeals, listBoard, getDealFormOptions, createDeal, updateDeal, getDeal, addDealNote } =
   await import('#lib/server/v2/deals.js');
 
 const event = /** @type {any} */ ({ cookies: { get: () => 'token' } });
@@ -227,5 +229,57 @@ describe('lead source', () => {
 
     await updateDeal(event, 'd1', { lead_source: '' });
     expect(apiRequest.mock.calls[1][1].body).toEqual({ lead_source: '' });
+  });
+});
+
+describe('files and comments on a deal', () => {
+  beforeEach(() => {
+    apiRequest.mockReset();
+  });
+
+  it('lists the files through the download proxy, never a storage path', async () => {
+    apiRequest.mockImplementation(async (/** @type {string} */ path) => {
+      if (path.startsWith('/opportunities/pipelines/')) return { pipelines: [] };
+      return {
+        opportunity_obj: {
+          id: 'd1',
+          name: 'Acme',
+          created_at: '2026-10-01T00:00:00Z',
+          line_items: []
+        },
+        comments: [],
+        attachments: [
+          {
+            id: 'f1',
+            file_name: 'sow.pdf',
+            created_at: '2026-10-02T00:00:00Z',
+            file_path: 'https://bucket/sow.pdf'
+          }
+        ]
+      };
+    });
+    const { files } = await getDeal(event, 'd1');
+    expect(files).toEqual([
+      {
+        id: 'f1',
+        name: 'sow.pdf',
+        at: '2026-10-02T00:00:00Z',
+        href: '/api/attachments/f1/download'
+      }
+    ]);
+  });
+
+  it('posts a comment as JSON and a file as the opportunity attachment', async () => {
+    apiRequest.mockResolvedValue({});
+    await addDealNote(event, 'd1', 'Signed');
+    expect(apiRequest.mock.calls[0].slice(0, 2)).toEqual([
+      '/opportunities/d1/',
+      { method: 'POST', body: { comment: 'Signed' } }
+    ]);
+
+    await addDealNote(event, 'd1', 'With the SOW', new File(['x'], 'sow.pdf'));
+    const body = apiRequest.mock.calls[1][1].body;
+    expect(body.get('opportunity_attachment')).toBeInstanceOf(File);
+    expect(body.get('comment')).toBe('With the SOW');
   });
 });

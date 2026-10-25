@@ -21,12 +21,30 @@ import { apiRequest } from '#lib/api-helpers.js';
 import { viewerIsAdmin } from './organization.js';
 import { CONDITION_FIELD_LABEL, CONDITION_OP_LABEL, ROUTING_STRATEGY_NAME } from '#lib/v2/enums.js';
 
-/** Profile → the `{ id, name, is_active }` the rule card reads. */
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+
+/**
+ * The profile fields a rule's assignees are read for.
+ * @typedef {{ id: string, is_active?: boolean, user_details?: { name?: string | null } }} ProfileRef
+ */
+
+/**
+ * What a create or edit may carry; `buildBody` keeps only the allowed keys.
+ * @typedef {{ [key: string]: unknown, conditions?: { field?: unknown, op?: unknown, value?: unknown }[], strategy?: string, target_assignee_ids?: (string | null | undefined)[] }} RuleValues
+ */
+
+/**
+ * Profile → the `{ id, name, is_active }` the rule card reads.
+ * @param {ProfileRef} p
+ */
 function shapeAssignee(p) {
   return { id: p.id, name: p.user_details?.name ?? null, is_active: p.is_active };
 }
 
-/** Team → `{ id, name }`, or null. */
+/**
+ * Team → `{ id, name }`, or null.
+ * @param {{ id: string, name: string } | null | undefined} team
+ */
 function shapeTeam(team) {
   if (!team) return null;
   return { id: team.id, name: team.name };
@@ -37,6 +55,8 @@ function shapeTeam(team) {
  * @returns {Promise<{ rules: any[], totals: any, can_edit: boolean }>}
  */
 export async function getRoutingRules({ cookies }) {
+  // `{ rules, totals }`, an envelope the schema's bare list does not describe.
+  /** @type {{ rules?: any[], totals?: any }} */
   const { rules, totals } = await apiRequest('/cases/routing-rules/', {}, { cookies });
   return {
     rules: (rules ?? []).map((r) => ({
@@ -154,6 +174,8 @@ export function readConditionRows(form) {
  * pointing at why. A comma-separated string is split and trimmed; a value
  * that already arrives as an array (a condition this editor did not
  * originate) is kept as one, each entry trimmed the same way.
+ *
+ * @param {{ field?: unknown, op?: unknown, value?: unknown }[] | null | undefined} rows
  */
 function cleanConditions(rows) {
   return (rows ?? [])
@@ -238,7 +260,11 @@ function buildBody(allowed, values) {
   return body;
 }
 
-/** @param {{ cookies: import('@sveltejs/kit').Cookies }} event */
+/**
+ * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
+ * @param {RuleValues} values
+ * @returns {Promise<Schemas['RoutingRule']>}
+ */
 export async function createRoutingRule({ cookies }, values) {
   const body = buildBody(CREATE_FIELDS, values);
   if (!body.name) throw new Error('A rule needs a name.');
@@ -254,7 +280,12 @@ export async function createRoutingRule({ cookies }, values) {
  *  a change to that map which no longer splits the same way fails there. */
 const PEOPLE_STRATEGIES = Object.keys(ROUTING_STRATEGY_NAME).filter((s) => s !== 'by_team');
 
-/** @param {{ cookies: import('@sveltejs/kit').Cookies }} event */
+/**
+ * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
+ * @param {string} id
+ * @param {RuleValues} values
+ * @returns {Promise<Schemas['RoutingRule']>}
+ */
 export async function updateRoutingRule({ cookies }, id, values) {
   if (!id) throw new Error('Which rule? No rule id was given.');
   const body = buildBody(UPDATE_FIELDS, values);
@@ -294,6 +325,8 @@ export async function updateRoutingRule({ cookies }, id, values) {
  * the control that calls it has to say so.
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
+ * @param {string} id
+ * @returns {Promise<Schemas['RoutingRuleDeleteResponse']>}
  */
 export async function deleteRoutingRule({ cookies }, id) {
   if (!id) throw new Error('Which rule? No rule id was given.');

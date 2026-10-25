@@ -71,6 +71,7 @@
    * it is, so we stop drawing one and say how far over it went instead.
    *
    * @param {any} t
+   * @returns {{ state: 'met' | 'none' | 'breached' | 'running', label: string, tone: keyof typeof TONE_VAR, pct?: number }}
    */
   function responsePressure(t) {
     if (t.first_response_at) {

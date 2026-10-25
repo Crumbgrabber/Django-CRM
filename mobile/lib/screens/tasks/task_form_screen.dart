@@ -12,13 +12,14 @@ import '../../widgets/forms/unsaved_changes.dart';
 import '../../widgets/forms/custom_fields_form.dart';
 import '../../widgets/forms/multi_select_sheet.dart';
 
-/// One of the four parent entities a task can be linked to. The backend's
+/// One of the five parent entities a task can be linked to. The backend's
 /// `Task.clean()` invariant enforces at most one is set.
 enum _RelatedKind {
   account('account', 'Account', LucideIcons.building2),
   lead('lead', 'Lead', LucideIcons.user),
   opportunity('opportunity', 'Opportunity', LucideIcons.trendingUp),
-  ticket('case', 'Ticket', LucideIcons.lifeBuoy);
+  ticket('case', 'Ticket', LucideIcons.lifeBuoy),
+  project('project', 'Project', LucideIcons.folderKanban);
 
   final String apiValue;
   final String label;
@@ -30,6 +31,7 @@ enum _RelatedKind {
     lead => 'leads',
     opportunity => 'deals',
     ticket => 'tickets',
+    project => 'projects',
     account => null,
   };
 }
@@ -43,11 +45,15 @@ class TaskFormScreen extends ConsumerStatefulWidget {
   /// Ignored in edit mode, where the task's own due date wins.
   final DateTime? initialDueDate;
 
+  /// The project a new task starts linked to, from a project's Tasks tab.
+  final String? initialProjectId;
+
   const TaskFormScreen({
     super.key,
     this.taskId,
     this.initialTask,
     this.initialDueDate,
+    this.initialProjectId,
   });
 
   bool get isEditMode => taskId != null;
@@ -81,6 +87,10 @@ class _TaskFormScreenState extends ConsumerState<TaskFormScreen> {
       _fetchTask();
     } else {
       _dueDate = widget.initialDueDate;
+      if (widget.initialProjectId != null) {
+        _relatedKind = _RelatedKind.project;
+        _relatedId = widget.initialProjectId;
+      }
     }
     if (!widget.isEditMode || widget.initialTask != null) {
       _baseline = _snapshot();
@@ -137,6 +147,9 @@ class _TaskFormScreenState extends ConsumerState<TaskFormScreen> {
     } else if (task.caseId != null) {
       _relatedKind = _RelatedKind.ticket;
       _relatedId = task.caseId;
+    } else if (task.projectId != null) {
+      _relatedKind = _RelatedKind.project;
+      _relatedId = task.projectId;
     }
   }
 
@@ -157,6 +170,8 @@ class _TaskFormScreenState extends ConsumerState<TaskFormScreen> {
         return opportunityEntityOptionsProvider;
       case _RelatedKind.ticket:
         return ticketEntityOptionsProvider;
+      case _RelatedKind.project:
+        return projectEntityOptionsProvider;
     }
   }
 
@@ -781,41 +796,44 @@ class _TaskFormScreenState extends ConsumerState<TaskFormScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              margin: const EdgeInsets.only(top: 12),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.gray300,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text('Link to…', style: AppTypography.h3),
-            ),
-            for (final k in kinds)
-              InkWell(
-                onTap: () => Navigator.pop(ctx, k),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(k.icon, size: 20, color: AppColors.textSecondary),
-                      const SizedBox(width: 14),
-                      Text(k.label, style: AppTypography.body),
-                    ],
-                  ),
+        // Scrolls: five kinds overflow a short sheet at a large text size.
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.gray300,
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
-            const SizedBox(height: 16),
-          ],
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text('Link to…', style: AppTypography.h3),
+              ),
+              for (final k in kinds)
+                InkWell(
+                  onTap: () => Navigator.pop(ctx, k),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(k.icon, size: 20, color: AppColors.textSecondary),
+                        const SizedBox(width: 14),
+                        Text(k.label, style: AppTypography.body),
+                      ],
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 16),
+            ],
+          ),
         ),
       ),
     );

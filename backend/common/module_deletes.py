@@ -41,6 +41,7 @@ DELETE_GUARDS: dict[str, tuple[Guard, ...]] = {
             "recurring invoice",
             "recurring invoices",
         ),
+        Guard("projects.Project", "account", "project", "projects"),
     ),
     "cases.Case": (Guard("cases.TimeEntry", "case", "time entry", "time entries"),),
     "common.Profile": (
@@ -51,6 +52,7 @@ DELETE_GUARDS: dict[str, tuple[Guard, ...]] = {
         Guard("macros.Macro", "owner", "saved reply", "saved replies"),
         Guard("tasks.Board", "owner", "board", "boards"),
         Guard("tasks.BoardMember", "profile", "board membership", "board memberships"),
+        Guard("projects.ProjectRate", "profile", "project rate", "project rates"),
     ),
 }
 

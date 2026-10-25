@@ -50,6 +50,8 @@ import { rethrowModuleOff } from '#lib/server/v2/modules.js';
 import { attachmentHref } from '#lib/server/v2/files.js';
 import { RESTRICTED_TICKET_NAME } from '#lib/v2/enums.js';
 
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+
 /** Statuses where somebody still owes the customer something. Mirrors `cases.views.OPEN_STATUSES`. */
 export const OPEN_STATUSES = ['New', 'Assigned', 'Pending'];
 
@@ -184,7 +186,9 @@ export async function listTickets({ cookies }, params) {
   query.set('slim', 'true');
 
   const response = await apiRequest(`/cases/?${query}`, {}, { cookies });
-  const rows = (response.cases ?? []).map(toRow);
+  /** @type {any[]} */
+  const cases = response.cases ?? [];
+  const rows = cases.map(toRow);
 
   return {
     results: rows,
@@ -276,6 +280,7 @@ export async function getTicket({ cookies }, id) {
   if (ticket.account) {
     const query = new URLSearchParams({ limit: '6', slim: 'true', account: ticket.account.id });
     for (const status of OPEN_STATUSES) query.append('status', status);
+    /** @type {Schemas['CaseListResponse']} */
     const siblings = await apiRequest(`/cases/?${query}`, {}, { cookies });
     alsoOpen = (siblings.cases ?? [])
       .filter((/** @type {any} */ row) => row.id !== ticket.id)
@@ -428,6 +433,7 @@ export async function setTicketArticle({ cookies }, id, articleId, link) {
  */
 export async function getMergeTargets({ cookies }, id, search) {
   const query = new URLSearchParams({ search });
+  /** @type {Schemas['CaseMergeTargetsResponse']} */
   const response = await apiRequest(`/cases/${id}/merge-targets/?${query}`, {}, { cookies });
   return (response.results ?? []).map((/** @type {any} */ row) => ({
     id: row.id,
@@ -446,6 +452,7 @@ export async function getMergeTargets({ cookies }, id, search) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
  * @param {string} intoId
+ * @returns {Promise<Schemas['CaseMergeResponse']>}
  */
 export async function mergeTicket({ cookies }, id, intoId) {
   return await apiRequest(
@@ -461,6 +468,7 @@ export async function mergeTicket({ cookies }, id, intoId) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} sourceId
+ * @returns {Promise<Schemas['CaseUnmergeResponse']>}
  */
 export async function unmergeTicket({ cookies }, sourceId) {
   return await apiRequest(`/cases/${sourceId}/unmerge/`, { method: 'POST', body: {} }, { cookies });
@@ -638,6 +646,7 @@ function toBody(values) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
  * @param {Record<string, any>} values
+ * @returns {Promise<Schemas['CasePatchResponse']>}
  */
 export async function updateTicket({ cookies }, id, values) {
   return await apiRequest(`/cases/${id}/`, { method: 'PATCH', body: toBody(values) }, { cookies });
@@ -717,6 +726,7 @@ export async function closeTicketWithChildren({ cookies }, id, { cascade, resolu
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {Record<string, any>} values
+ * @returns {Promise<Schemas['CaseCreateResponse']>}
  */
 export async function createTicket({ cookies }, values) {
   return await apiRequest('/cases/', { method: 'POST', body: toBody(values) }, { cookies });
@@ -738,6 +748,7 @@ export async function createTicket({ cookies }, values) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
  * @param {{ body: string, internal?: boolean, file?: File|null }} reply
+ * @returns {Promise<Schemas['CaseCommentAttachmentResponse']>}
  */
 export async function replyToTicket({ cookies }, id, reply) {
   if (reply.file) {
@@ -788,6 +799,7 @@ export async function bulkDeleteTickets({ cookies }, ids) {
  * @param {Array<{status: string, [key: string]: any}>} results
  */
 export function summarizeBulk(results) {
+  /** @type {Record<string, number>} */
   const out = {
     updated: 0,
     deleted: 0,

@@ -93,6 +93,9 @@ import 'package:bottle_crm/screens/goals/goal_form_screen.dart';
 import 'package:bottle_crm/screens/goals/goal_history_screen.dart';
 import 'package:bottle_crm/screens/goals/goals_screen.dart';
 import 'package:bottle_crm/screens/timesheet/timesheet_screen.dart';
+import 'package:bottle_crm/screens/projects/project_detail_screen.dart';
+import 'package:bottle_crm/screens/projects/project_form_screen.dart';
+import 'package:bottle_crm/screens/projects/projects_list_screen.dart';
 import 'package:bottle_crm/data/models/custom_object.dart';
 import 'package:bottle_crm/data/models/models.dart' show Lead;
 import 'package:bottle_crm/providers/custom_objects_provider.dart';
@@ -4986,6 +4989,223 @@ void main() {
         );
         expect(tester.takeException(), isNull);
         expect(find.text('waiting 1 d 2 h'), findsWidgets);
+      });
+    }
+  });
+
+  group('projects at 390px', () {
+    const pid = '11111111-1111-4111-8111-111111111111';
+    String path(String url) => Uri.parse(url).path;
+    const longName =
+        'Harbour Road flat rebuild, with the sea-view terrace, the parking '
+        'garage and the second-floor extension';
+    const longAccount = 'Northwind Traders International Holdings Limited';
+    final project = <String, dynamic>{
+      'id': pid,
+      'name': longName,
+      'account': {'id': 'a1', 'name': longAccount},
+      'deal': {'id': 'd1', 'name': 'Harbour Road flat with parking'},
+      'status': 'on_hold',
+      'billing_type': 'fixed_fee',
+      'currency': 'EUR',
+      'budget_hours': '1250.50',
+      'budget_amount': '1250000.00',
+      'hourly_rate': '185.00',
+      'start_date': '2026-10-01',
+      'due_date': '2027-03-31',
+      'assigned_to': [
+        {
+          'id': 'pr1',
+          'user_details': {
+            'name': 'Alexandra Featherstonehaugh-Montgomery',
+            'email': 'alexandra.featherstonehaugh@harbour-homes.example.com',
+          },
+        },
+      ],
+      'tags': [
+        {'id': 't1', 'name': 'Priority client with a very long tag name'},
+      ],
+      'burn': {
+        'logged_hours': '1312.75',
+        'billable_hours': '1200.00',
+        'billable_value': '1198765.43',
+        'unbilled_value': '998765.43',
+        'invoiced_amount': '200000.00',
+        'hours_percent': 105,
+        'amount_percent': 96,
+      },
+      'created_at': '2026-10-01T09:00:00Z',
+      'updated_at': '2026-10-01T09:00:00Z',
+      'description': 'A long description of the whole engagement. ' * 4,
+      'custom_fields': {},
+      'rates': [
+        {
+          'profile': {
+            'id': 'pr1',
+            'user_details': {'name': 'Alexandra Featherstonehaugh-Montgomery'},
+          },
+          'hourly_rate': '210.00',
+        },
+      ],
+      'comments': [
+        {
+          'id': 'c1',
+          'comment': 'The client asked for the terrace drawings again. ' * 3,
+          'commented_on': '2026-10-21T09:00:00Z',
+          'commented_by': {
+            'id': 'pr1',
+            'user_details': {
+              'email': 'alexandra.featherstonehaugh@harbour-homes.example.com',
+            },
+          },
+        },
+      ],
+      'attachments': [
+        {
+          'id': 'f1',
+          'file_name':
+              'harbour-road-terrace-and-garage-drawings-revision-14-final.pdf',
+          'file_path': 'files/drawings.pdf',
+          'created_at': '2026-10-21T09:00:00Z',
+        },
+      ],
+      'invoices': [
+        {
+          'id': 'i1',
+          'invoice_number': 'INV-2026-10-0001',
+          'status': 'Partially_Paid',
+          'total_amount': '200000.00',
+          'currency': 'EUR',
+          'issue_date': '2026-10-20',
+        },
+      ],
+      'can_edit': true,
+      'can_delete': true,
+      'can_bill': true,
+    };
+
+    setUp(() {
+      final routes = <String, http.Response Function(http.Request)>{
+        'GET ${path(ApiConfig.projects)}': (_) => http.Response(
+          jsonEncode({
+            'projects': [project, project],
+            'count': 2,
+          }),
+          200,
+        ),
+        'GET ${path(ApiConfig.project(pid))}': (_) =>
+            http.Response(jsonEncode(project), 200),
+        'GET ${path(ApiConfig.projectTimeEntries(pid))}': (_) => http.Response(
+          jsonEncode([
+            {
+              'id': 'e1',
+              'case': null,
+              'project': pid,
+              'project_name': longName,
+              'task': null,
+              'profile': {
+                'id': 'pr1',
+                'user_details': {
+                  'email':
+                      'alexandra.featherstonehaugh@harbour-homes.example.com',
+                },
+              },
+              'started_at': '2026-10-21T09:00:00Z',
+              'ended_at': '2026-10-21T17:45:00Z',
+              'duration_minutes': 525,
+              'billable': true,
+              'description':
+                  'Site visit, measured the terrace and the garage, and '
+                  'redrew the second-floor extension',
+              'invoice': {'id': 'i1', 'invoice_number': 'INV-2026-10-0001'},
+            },
+          ]),
+          200,
+        ),
+        'GET ${path(ApiConfig.tasks)}': (_) =>
+            http.Response(jsonEncode({'tasks': []}), 200),
+      };
+      ApiService().setClientForTesting(
+        MockClient(
+          (r) async =>
+              routes['${r.method} ${r.url.path}']?.call(r) ??
+              http.Response('{}', 404),
+        ),
+      );
+    });
+
+    tearDown(() => ApiService().setClientForTesting(http.Client()));
+
+    Widget app(Widget screen) => ProviderScope(
+      key: UniqueKey(),
+      child: routed(screen, theme: AppTheme.light),
+    );
+
+    for (final scale in [1.0, 1.5]) {
+      final at = 'text $scale';
+
+      testWidgets('the list with long names, $at', (tester) async {
+        await pump(tester, app(const ProjectsListScreen()), textScale: scale);
+        expect(tester.takeException(), isNull);
+        expect(find.text(longName), findsNWidgets(2));
+        _expectTappablesThumbSized(tester);
+        await scrollToEnd(tester);
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('the detail with long names, every tab, $at', (tester) async {
+        await pump(
+          tester,
+          app(const ProjectDetailScreen(projectId: pid)),
+          textScale: scale,
+        );
+        expect(tester.takeException(), isNull);
+        // Below a long name at a large text size, so scrolled to.
+        for (
+          var i = 0;
+          i < 4 && find.text('Bill time').evaluate().isEmpty;
+          i++
+        ) {
+          await tester.drag(find.byType(ListView).first, const Offset(0, -300));
+          await tester.pumpAndSettle();
+        }
+        expect(find.text('Bill time'), findsOneWidget);
+        expect(find.text('Invoice an amount'), findsOneWidget);
+        _expectTappablesThumbSized(tester);
+        await scrollToEnd(tester);
+        expect(tester.takeException(), isNull);
+        for (final tab in [
+          'Tasks',
+          'Time',
+          'Invoices',
+          'Files (1)',
+          'Comments (1)',
+        ]) {
+          final finder = find.widgetWithText(Tab, tab);
+          await tester.ensureVisible(finder);
+          await tester.pumpAndSettle();
+          await tester.tap(finder);
+          await tester.pumpAndSettle();
+          expect(tester.takeException(), isNull, reason: tab);
+        }
+      });
+
+      testWidgets('the edit form with long names and a rate, $at', (
+        tester,
+      ) async {
+        await pump(
+          tester,
+          app(const ProjectFormScreen(projectId: pid)),
+          textScale: scale,
+        );
+        expect(tester.takeException(), isNull);
+        expect(find.text(longName), findsOneWidget);
+        for (var i = 0; i < 10; i++) {
+          await tester.drag(find.byType(ListView).first, const Offset(0, -400));
+          await tester.pumpAndSettle();
+          expect(tester.takeException(), isNull);
+        }
+        expect(find.text('Save project'), findsOneWidget);
       });
     }
   });

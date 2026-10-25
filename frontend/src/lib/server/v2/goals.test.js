@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const apiRequest = vi.fn();
-vi.mock('#lib/api-helpers.js', () => ({ apiRequest: (...a) => apiRequest(...a) }));
+vi.mock('#lib/api-helpers.js', () => ({
+  apiRequest: (/** @type {any[]} */ ...a) => apiRequest(...a)
+}));
 vi.mock('./org-people.js', () => ({
   getOrgPeopleAndTeams: async () => ({ people: [], teams: [] })
 }));
@@ -43,6 +45,7 @@ function goal(over = {}) {
   };
 }
 
+/** @param {{ goals?: any[], leaderboard?: any[] }} payload */
 function respond({ goals = [], leaderboard = [] }) {
   apiRequest.mockImplementation(async (url) =>
     url.includes('leaderboard') ? { leaderboard } : { goals }
@@ -317,7 +320,7 @@ describe('activity goals and deal type weights', () => {
     // EDITABLE_FIELDS is the list both form actions copy out of the FormData.
     expect(EDITABLE_FIELDS).toContain('currency');
     expect(apiRequest.mock.calls[0][1].body.currency).toBe('CHF');
-    expect(editing.currency).toBe('CHF');
+    expect(editing?.currency).toBe('CHF');
   });
 
   it('carries the stored weights through to the list', async () => {

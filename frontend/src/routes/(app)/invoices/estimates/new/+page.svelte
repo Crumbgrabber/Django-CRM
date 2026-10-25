@@ -41,7 +41,9 @@
   import { numberPattern } from '#lib/v2/document-numbers.js';
   import { isOn } from '#lib/v2/modules.js';
 
-  /** @type {{ data: any, form: any }} */
+  /** @typedef {{ id: string, name: string, account_id: string | null }} AccountBound */
+
+  /** @type {{ data: { accounts: { id: string, name: string }[], contacts: (AccountBound & { account_name: string })[], deals: AccountBound[], [key: string]: any }, form: any }} */
   let { data, form } = $props();
 
   const CURRENCIES = CURRENCY_CODES.filter((c) => c.value);

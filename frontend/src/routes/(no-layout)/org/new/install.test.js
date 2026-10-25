@@ -5,7 +5,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const apiRequest = vi.fn();
-vi.mock('#lib/api-helpers.js', () => ({ apiRequest: (...a) => apiRequest(...a) }));
+vi.mock('#lib/api-helpers.js', () => ({
+  apiRequest: (/** @type {any[]} */ ...a) => apiRequest(...a)
+}));
 vi.mock('axios', () => ({ default: { post: vi.fn(), get: vi.fn() } }));
 
 const axios = (await import('axios')).default;

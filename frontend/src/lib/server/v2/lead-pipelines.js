@@ -15,6 +15,8 @@
 import { apiRequest } from '#lib/api-helpers.js';
 import { viewerIsAdmin } from './organization.js';
 
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+
 /**
  * The page: every active pipeline, and the stages of the selected one. An
  * absent or unknown `pipelineId` falls back to the first listed, so a stale
@@ -24,8 +26,10 @@ import { viewerIsAdmin } from './organization.js';
  * @param {string | null} [pipelineId]
  */
 export async function getLeadPipelines({ cookies }, pipelineId = null) {
+  // `{ pipelines }`, an envelope the schema's bare list does not describe.
+  /** @type {{ pipelines?: Schemas['LeadPipelineList'][] }} */
   const listed = await apiRequest('/leads/pipelines/', {}, { cookies });
-  const pipelines = (listed.pipelines ?? []).map((/** @type {any} */ p) => ({
+  const pipelines = (listed.pipelines ?? []).map((p) => ({
     id: p.id,
     name: p.name,
     stageCount: p.stage_count ?? 0,
@@ -36,10 +40,11 @@ export async function getLeadPipelines({ cookies }, pipelineId = null) {
   if (pipelines.length === 0) return { pipelines, pipeline: null, can_edit };
 
   const chosen = pipelines.find((p) => p.id === pipelineId) ?? pipelines[0];
+  /** @type {Schemas['LeadPipeline']} */
   const detail = await apiRequest(`/leads/pipelines/${chosen.id}/`, {}, { cookies });
   const stages = [...(detail.stages ?? [])]
-    .sort((a, b) => a.order - b.order)
-    .map((/** @type {any} */ s) => ({
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    .map((s) => ({
       id: s.id,
       name: s.name,
       stageType: s.stage_type,
@@ -64,7 +69,7 @@ export async function getLeadPipelines({ cookies }, pipelineId = null) {
 /**
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {{ name: string }} values
- * @returns {Promise<any>} the created pipeline, stages seeded
+ * @returns {Promise<Schemas['LeadPipeline']>} the created pipeline, stages seeded
  */
 export async function createPipeline({ cookies }, { name }) {
   return await apiRequest(
@@ -78,6 +83,7 @@ export async function createPipeline({ cookies }, { name }) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
  * @param {{ name: string }} values
+ * @returns {Promise<Schemas['LeadPipeline']>}
  */
 export async function renamePipeline({ cookies }, id, { name }) {
   return await apiRequest(
@@ -120,6 +126,7 @@ function stageBody({ name, stageType, mapsToStatus, winProbability }) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} pipelineId
  * @param {{ name: string, stageType: string, mapsToStatus: string, winProbability: string }} values
+ * @returns {Promise<Schemas['LeadStage']>}
  */
 export async function createStage({ cookies }, pipelineId, values) {
   return await apiRequest(
@@ -133,6 +140,7 @@ export async function createStage({ cookies }, pipelineId, values) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
  * @param {{ name: string, stageType: string, mapsToStatus: string, winProbability: string }} values
+ * @returns {Promise<Schemas['LeadStage']>}
  */
 export async function updateStage({ cookies }, id, values) {
   return await apiRequest(
@@ -165,10 +173,11 @@ export async function deleteStage({ cookies }, id) {
  * @returns {Promise<boolean>} false when the stage is not in the pipeline or is already at that end
  */
 export async function moveStage({ cookies }, pipelineId, stageId, direction) {
+  /** @type {Schemas['LeadPipeline']} */
   const detail = await apiRequest(`/leads/pipelines/${pipelineId}/`, {}, { cookies });
   const ids = [...(detail.stages ?? [])]
-    .sort((a, b) => a.order - b.order)
-    .map((/** @type {any} */ s) => String(s.id));
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    .map((s) => String(s.id));
   const from = ids.indexOf(stageId);
   const to = direction === 'up' ? from - 1 : from + 1;
   if (from === -1 || to < 0 || to >= ids.length) return false;

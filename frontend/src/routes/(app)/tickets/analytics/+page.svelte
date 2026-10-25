@@ -34,12 +34,21 @@
   let totals = $derived(data.totals);
   // Floor at 1 so an empty or all-zero window scales cleanly to flat bars
   // rather than dividing by a zero (or -Infinity) peak.
-  let peak = $derived(Math.max(1, ...data.volume.map((d) => Math.max(d.opened, d.closed))));
+  let peak = $derived(
+    Math.max(
+      1,
+      ...data.volume.map((/** @type {{ opened: number, closed: number }} */ d) =>
+        Math.max(d.opened, d.closed)
+      )
+    )
+  );
 
   /**
    * Minutes → "41m" / "2h 20m" / "1d 3h" / "1d". A number of minutes is not a
    * duration, and neither is "1d 0h". A zero remainder is dropped rather than
    * printed, at every scale.
+   *
+   * @param {number | null | undefined} mins
    */
   function duration(mins) {
     if (mins == null) return '—';
@@ -54,11 +63,11 @@
   // Attainment among *decided* cases (met vs missed). A priority with no
   // decided cases yet (all in-flight, or none at all) has no percentage to
   // report, so it returns null and the row shows "—" rather than "NaN%".
-  const attainment = (r) => {
+  const attainment = (/** @type {{ met: number, missed: number }} */ r) => {
     const decided = r.met + r.missed;
     return decided ? Math.round((r.met / decided) * 100) : null;
   };
-  const barColor = (pct) =>
+  const barColor = (/** @type {number | null} */ pct) =>
     pct == null
       ? 'var(--v2-line)'
       : pct >= 95
@@ -71,11 +80,13 @@
   let net = $derived(totals.opened - totals.closed);
 
   /** The next-response endpoint reports hours; `duration` reads whole minutes. */
-  const minutesOf = (hours) => (hours == null ? null : Math.round(hours * 60));
+  const minutesOf = (/** @type {number | null | undefined} */ hours) =>
+    hours == null ? null : Math.round(hours * 60);
 
   // Best first, so the bars read down from the answer most tickets hope for.
   const RATINGS = [5, 4, 3, 2, 1];
-  const ratingShare = (n) => (data.csat.count ? Math.round((n / data.csat.count) * 100) : 0);
+  const ratingShare = (/** @type {number} */ n) =>
+    data.csat.count ? Math.round((n / data.csat.count) * 100) : 0;
 </script>
 
 <PageHeader title="Service analytics">
@@ -208,7 +219,12 @@
           </p>
           {#each data.byType as t (t.case_type)}
             {@const share = Math.round(
-              (t.count / data.byType.reduce((a, x) => a + x.count, 0)) * 100
+              (t.count /
+                data.byType.reduce(
+                  (/** @type {number} */ a, /** @type {{ count: number }} */ x) => a + x.count,
+                  0
+                )) *
+                100
             )}
             <div style="margin-bottom:13px">
               <div style="display:flex;align-items:baseline;font-size:12.5px;margin-bottom:5px">
@@ -221,10 +237,12 @@
             </div>
           {/each}
 
-          {#if isOn(data.modules, 'knowledge_base') && data.byType.find((t) => t.case_type === 'Question')}
+          {#if isOn(data.modules, 'knowledge_base') && data.byType.find((/** @type {{ case_type: string }} */ t) => t.case_type === 'Question')}
             <p class="v2-sub" style="font-size:11.5px;margin:16px 0 0">
               <a href={resolve('solutions')} style="color:inherit">
-                {data.byType.find((t) => t.case_type === 'Question').count} questions in this window
+                {data.byType.find(
+                  (/** @type {{ case_type: string }} */ t) => t.case_type === 'Question'
+                ).count} questions in this window
               </a>. The ones that repeat belong in the knowledge base.
             </p>
           {/if}

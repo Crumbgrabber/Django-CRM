@@ -1,13 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const apiRequest = vi.fn();
-vi.mock('#lib/api-helpers.js', () => ({ apiRequest: (...a) => apiRequest(...a) }));
+vi.mock('#lib/api-helpers.js', () => ({
+  apiRequest: (/** @type {any[]} */ ...a) => apiRequest(...a)
+}));
 
 const { getContact, getContactForEdit } = await import('#lib/server/v2/contacts.js');
 
 const event = /** @type {any} */ ({ cookies: { get: () => 'token' } });
 
-/** Ten deal rows, as the API caps the list, plus the server's open summary. */
+/**
+ * Ten deal rows, as the API caps the list, plus the server's open summary.
+ *
+ * @param {any} openDeals
+ */
 function detail(openDeals) {
   return {
     contact_obj: { id: 'c1', first_name: 'Ada', last_name: 'Lovelace', assigned_to: [], teams: [] },

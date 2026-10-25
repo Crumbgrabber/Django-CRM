@@ -593,9 +593,11 @@ class ApiConfig {
   static String timesheet({required String start, required String end}) =>
       '$apiBaseUrl/time-entries/timesheet/?start=$start&end=$end';
 
-  /// Where the time went over a window: totals by agent, ticket or account.
+  /// Where the time went over a window: totals by agent, ticket, account or
+  /// project.
   ///
-  /// `groupBy` is one of agent/ticket/account and `billable`, when given, is
+  /// `groupBy` is one of agent/ticket/account/project and `billable`, when
+  /// given, is
   /// the string 'true' or 'false'; the API rejects anything else rather than
   /// guessing, so the caller passes what the picker chose and nothing else.
   ///
@@ -705,6 +707,37 @@ class ApiConfig {
   /// deal the caller may not open; 400 for one not won or with no lines.
   static String invoiceFromDeal(String dealId) =>
       '$apiBaseUrl/invoices/from-opportunity/$dealId/';
+
+  /// Drafts an invoice from billable time. Admins only. Takes `account_id`
+  /// and `entry_ids`, or `project_id` with optional `entry_ids` and `up_to`,
+  /// and `group_by` (entry, person, task or single).
+  static String get invoiceFromTimeEntries =>
+      '$apiBaseUrl/invoices/from-time-entries/';
+
+  /// Projects. The list takes `status`, `account`, `assigned_to`, `search`,
+  /// `limit` and `offset`. The detail takes GET, PATCH, DELETE and POST (a
+  /// comment or an attachment, as on a deal).
+  static String get projects => '$apiBaseUrl/projects/';
+
+  static String project(String id) => '$projects${_checked(_uuid, id, 'id')}/';
+
+  /// A draft for the new-project form from a deal. Nothing is saved.
+  static String projectFromDeal(String dealId) =>
+      '${projects}from-deal/${_checked(_uuid, dealId, 'dealId')}/';
+
+  /// Time on a project: GET lists, POST logs a finished entry.
+  static String projectTimeEntries(String id) => '${project(id)}time-entries/';
+
+  static String projectTimerStart(String id) =>
+      '${project(id)}time-entries/start/';
+
+  /// What Bill time would take on or before [upTo] (`YYYY-MM-DD`). Admins only.
+  static String projectUnbilled(String id, String upTo) =>
+      '${project(id)}unbilled/?up_to=${Uri.encodeQueryComponent(upTo)}';
+
+  /// A one-line Draft invoice for an amount or a share of a fixed fee.
+  static String projectInvoiceAmount(String id) =>
+      '${project(id)}invoice-amount/';
 
   /// Estimates (quotes). Takes `search`, `status` and `account`.
   static String get estimates => '$apiBaseUrl/invoices/estimates/';

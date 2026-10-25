@@ -1,4 +1,5 @@
-/// Time-tracking entry on a ticket. Ended-null = currently running.
+/// Time-tracking entry on a ticket or a project. Ended-null = currently
+/// running.
 ///
 /// Mirrors `cases.serializer.TimeEntrySerializer`, which two endpoints emit in
 /// two shapes. On a ticket's own list `case` and `invoice` are bare ids; on
@@ -7,12 +8,24 @@
 /// reads either, so `caseId` is an id in both and never the string
 /// `"{id: ..., name: ...}"`, which is what `.toString()` on the object form
 /// used to produce.
+///
+/// At most one of `case` and `project` is set. Both are null on an entry
+/// whose project was deleted: it keeps existing with no parent, and every
+/// screen shows it without a link.
 class TimeEntry {
   final String id;
+
+  /// Empty when the entry is not on a ticket.
   final String caseId;
 
   /// Present only where the server expands the ticket (the timesheet).
   final String? caseName;
+
+  final String? projectId;
+  final String? projectName;
+
+  /// A task on the entry's project, or null.
+  final String? taskId;
   final String profileId;
   final String? profileName;
   final DateTime startedAt;
@@ -46,6 +59,9 @@ class TimeEntry {
     required this.id,
     required this.caseId,
     this.caseName,
+    this.projectId,
+    this.projectName,
+    this.taskId,
     required this.profileId,
     this.profileName,
     required this.startedAt,
@@ -64,6 +80,24 @@ class TimeEntry {
   bool get isRunning => endedAt == null;
 
   bool get isBilled => invoiced || invoiceId != null;
+
+  bool get isOnTicket => caseId.isNotEmpty;
+
+  bool get isOnProject => (projectId ?? '').isNotEmpty;
+
+  /// What the entry was logged against, or null for an entry with neither.
+  String? get sourceName {
+    if (isOnProject) return projectName ?? 'a project';
+    if (isOnTicket) return caseName ?? 'a ticket';
+    return null;
+  }
+
+  /// Where the entry's parent opens, or null for an entry with neither.
+  String? get sourcePath {
+    if (isOnProject) return '/projects/$projectId';
+    if (isOnTicket) return '/tickets/$caseId';
+    return null;
+  }
 
   /// Live duration, including currently-running timers.
   Duration get liveDuration {
@@ -92,6 +126,13 @@ class TimeEntry {
     }
     final caseValue = json['case'];
     final invoice = json['invoice'];
+    final project = json['project'];
+    final task = json['task'];
+    String? idOf(Object? v) {
+      final id = v is Map ? v['id']?.toString() : v?.toString();
+      return id == null || id.isEmpty ? null : id;
+    }
+
     return TimeEntry(
       id: json['id']?.toString() ?? '',
       caseId: caseValue is Map<String, dynamic>
@@ -100,6 +141,11 @@ class TimeEntry {
       caseName: caseValue is Map<String, dynamic>
           ? caseValue['name'] as String?
           : null,
+      projectId: idOf(project),
+      projectName:
+          json['project_name'] as String? ??
+          (project is Map ? project['name'] as String? : null),
+      taskId: idOf(task),
       profileId: profile is Map<String, dynamic>
           ? profile['id']?.toString() ?? ''
           : json['profile']?.toString() ?? '',

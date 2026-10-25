@@ -47,8 +47,17 @@
   let d = $derived(v.dashboard);
   let aging = $derived(v.aging);
 
-  let peak = $derived(Math.max(...v.revenue.flatMap((r) => [r.invoiced, r.paid])));
-  let agingPeak = $derived(Math.max(...aging.buckets.map((b) => b.amount)));
+  let peak = $derived(
+    Math.max(
+      ...v.revenue.flatMap((/** @type {{ invoiced: number, paid: number }} */ r) => [
+        r.invoiced,
+        r.paid
+      ])
+    )
+  );
+  let agingPeak = $derived(
+    Math.max(...aging.buckets.map((/** @type {{ amount: number }} */ b) => b.amount))
+  );
 
   /** "2026-07" → "Jul". The year only appears where it changes. */
   const MONTH = [
@@ -65,7 +74,7 @@
     'Nov',
     'Dec'
   ];
-  const monthLabel = (period) => MONTH[Number(period.slice(5, 7)) - 1];
+  const monthLabel = (/** @type {string} */ period) => MONTH[Number(period.slice(5, 7)) - 1];
 
   let collected = $derived(
     d.total_invoiced ? Math.round((d.total_paid / d.total_invoiced) * 100) : 0

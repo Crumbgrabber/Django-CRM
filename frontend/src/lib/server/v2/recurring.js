@@ -47,7 +47,11 @@ function daysUntil(/** @type {string | null} */ iso) {
   return Math.round((startOfDay(then) - startOfDay(new Date())) / 86_400_000);
 }
 
-/** Times a fixed cadence generates per year; CUSTOM is derived from custom_days. */
+/**
+ * Times a fixed cadence generates per year; CUSTOM is derived from custom_days.
+ *
+ * @type {Record<string, number>}
+ */
 const YEARLY_OCCURRENCES = {
   WEEKLY: 52,
   BIWEEKLY: 26,

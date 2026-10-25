@@ -42,7 +42,7 @@ export function roleClears(rule) {
 
 /** The named approvers' emails, blanks dropped. @param {any} rule */
 function namedApprovers(rule) {
-  return (rule?.approvers ?? []).map((a) => a?.email).filter(Boolean);
+  return (rule?.approvers ?? []).map((/** @type {any} */ a) => a?.email).filter(Boolean);
 }
 
 /**
@@ -118,7 +118,7 @@ export function ruleSignature(rule) {
  * Inactive rules are neither reported nor counted as shadowers. One gates
  * nothing, so it cannot be beaten, and it cannot beat anything either.
  *
- * @param {any[]} rules
+ * @param {any[] | undefined} rules
  * @returns {Set<string>}
  */
 export function shadowedRuleIds(rules) {

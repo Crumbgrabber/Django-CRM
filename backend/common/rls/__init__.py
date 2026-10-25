@@ -134,6 +134,9 @@ ORG_SCOPED_TABLES = [
     "csat_survey",
     # Time tracking (Tier 3 time-tracking).
     "time_entry",
+    # Projects and per-person rates, stamped by projects/0002.
+    "project",
+    "project_rate",
     # Approval workflows (Tier 3 approvals).
     "approval_rule",
     "approval",

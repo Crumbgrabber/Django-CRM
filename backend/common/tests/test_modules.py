@@ -32,6 +32,7 @@ ALL = [
     "tickets",
     "knowledge_base",
     "documents",
+    "projects",
     "invoices",
     "timesheet",
 ]
@@ -52,11 +53,15 @@ def test_a_module_needs_its_parent(org_a):
     set_modules_off(org_a, "deals")
     assert "goals" in enabled_modules(org_a)
     assert "goals" not in available_modules(org_a)
-    set_modules_off(org_a, "tickets")
-    assert "timesheet" in enabled_modules(org_a)
-    assert "timesheet" not in available_modules(org_a)
     set_modules_off(org_a, "goals")
     assert "deals" in available_modules(org_a)
+
+
+def test_timesheet_and_projects_need_nothing(org_a):
+    set_modules_off(org_a, "tickets", "projects")
+    assert "timesheet" in available_modules(org_a)
+    set_modules_off(org_a, "timesheet")
+    assert "projects" in available_modules(org_a)
 
 
 def test_unknown_or_malformed_stored_keys_are_ignored(org_a):
@@ -98,6 +103,7 @@ def test_org_order_applies_within_groups(org_a):
         "tickets",
         "knowledge_base",
         "documents",
+        "projects",
         "timesheet",
         "invoices",
     ]
@@ -142,6 +148,7 @@ def test_every_model_of_a_module_app_is_placed():
         "business_hours",
         "macros",
         "invoices",
+        "projects",
     ):
         for model in apps.get_app_config(app).get_models():
             label = model._meta.label

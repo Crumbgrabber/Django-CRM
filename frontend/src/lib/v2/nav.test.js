@@ -33,13 +33,22 @@ const ALL = [
   'timesheet'
 ];
 /** @param {any[]} groups @param {string} label */
-const hrefs = (groups, label) => groups.find((g) => g.label === label)?.items.map((i) => i.href);
+const hrefs = (groups, label) =>
+  groups.find((g) => g.label === label)?.items.map((/** @type {any} */ i) => i.href);
 
 describe('sidebarGroups', () => {
   it('drops the items of off modules and keeps core ones', () => {
     const g = sidebarGroups(rows(ALL, ['tickets']), { isAdmin: false });
     expect(hrefs(g, 'Serve')).not.toContain('/tickets');
     expect(hrefs(g, 'Sell')).toEqual(expect.arrayContaining(['/', '/accounts', '/contacts']));
+  });
+
+  it('shows Projects only where the API lists it and it is on', () => {
+    expect(hrefs(sidebarGroups(rows(ALL), {}), 'Serve')).not.toContain('/projects');
+    expect(hrefs(sidebarGroups(rows([...ALL, 'projects']), {}), 'Serve')).toContain('/projects');
+    expect(
+      hrefs(sidebarGroups(rows([...ALL, 'projects'], ['projects']), {}), 'Serve')
+    ).not.toContain('/projects');
   });
 
   it('drops a group left empty', () => {

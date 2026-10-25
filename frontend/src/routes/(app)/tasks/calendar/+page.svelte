@@ -19,6 +19,7 @@
   /** @type {{ data: any }} */
   let { data } = $props();
 
+  /** @type {Record<string, string>} */
   const TONE_VAR = {
     ink: 'var(--v2-ink)',
     slate: 'var(--v2-slate)',

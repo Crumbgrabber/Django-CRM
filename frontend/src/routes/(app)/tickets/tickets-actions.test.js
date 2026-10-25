@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { parseBulkForm } from '#lib/server/v2/bulk-form.js';
 
+/** @param {[string, string][]} entries */
 function fd(entries) {
   const f = new FormData();
   for (const [k, v] of entries) f.append(k, v);

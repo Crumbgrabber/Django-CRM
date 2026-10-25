@@ -173,8 +173,8 @@ describe('getInvoiceTemplateForEdit', () => {
   it('returns the raw markup, which is the whole point of the route', async () => {
     const data = await getInvoiceTemplateForEdit(eventWithRole('ADMIN'), 't1');
     expect(data.can_edit).toBe(true);
-    expect(data.template.template_html).toBe(SAVED.template_html);
-    expect(data.template.template_css).toBe(SAVED.template_css);
+    expect(data.template?.template_html).toBe(SAVED.template_html);
+    expect(data.template?.template_css).toBe(SAVED.template_css);
   });
 
   it('refuses a non-admin without fetching anything', async () => {
@@ -198,7 +198,9 @@ describe('getInvoiceTemplateForEdit', () => {
   });
 
   it('carries every field the form has an input for', async () => {
-    const { template } = await getInvoiceTemplateForEdit(eventWithRole('ADMIN'), 't1');
+    const data = await getInvoiceTemplateForEdit(eventWithRole('ADMIN'), 't1');
+    /** @type {Record<string, unknown>} */
+    const template = data.template ?? {};
     for (const key of UPDATE_FIELDS) {
       expect(template[key]).toBeDefined();
     }

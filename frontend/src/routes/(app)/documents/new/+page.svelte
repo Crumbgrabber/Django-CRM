@@ -49,7 +49,7 @@
   });
 
   let valid = $derived(Object.keys(errors).length === 0);
-  const show = (field) => (touched[field] || submitted) && errors[field];
+  const show = (/** @type {string} */ field) => (touched[field] || submitted) && errors[field];
 
   let reach = $derived(sharedTo.size + sharedTeams.size);
 

@@ -10,6 +10,8 @@ import {
 } from '#lib/server/v2/record-custom-fields.js';
 import { getNumbering } from '#lib/server/v2/organization.js';
 
+/** @typedef {{ id: string, name: string, email: string, account: { id: string, name: string } | null }} ContactRow */
+
 /**
  * The builder needs three pickers: account (required), contact (required, the
  * create serializer enforces it and cross-validates it against the account),
@@ -31,7 +33,7 @@ export async function load({ cookies }) {
 
   return {
     accounts: accounts.results.map((a) => ({ id: a.id, name: a.name || 'Unnamed account' })),
-    contacts: contacts.results.map((c) => ({
+    contacts: contacts.results.map((/** @type {ContactRow} */ c) => ({
       id: c.id,
       name: c.name || c.email || 'Unnamed contact',
       account_id: c.account?.id ?? null,

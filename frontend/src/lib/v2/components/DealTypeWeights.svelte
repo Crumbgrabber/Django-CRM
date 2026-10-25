@@ -30,7 +30,7 @@
   let open = $state(untrack(() => Object.keys(weights ?? {}).length > 0));
 
   /** Current value for one type, as the string an input binds to. */
-  const valueFor = (type) => {
+  const valueFor = (/** @type {string} */ type) => {
     const w = weights?.[type];
     return w === undefined || w === null ? '' : String(w);
   };

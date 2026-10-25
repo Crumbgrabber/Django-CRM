@@ -42,6 +42,8 @@ import { error } from '@sveltejs/kit';
 import { apiRequest } from '#lib/api-helpers.js';
 import { rethrowModuleOff } from '#lib/server/v2/modules.js';
 
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+
 /** `Solution.STATUS_CHOICES`, in workflow order. */
 export const SOLUTION_STATUSES = ['draft', 'reviewed', 'approved'];
 
@@ -96,9 +98,10 @@ export async function listArticles({ cookies }, params) {
   const query = new URLSearchParams(params ?? undefined);
   if (!query.has('limit')) query.set('limit', '50');
 
+  /** @type {Schemas['SolutionListResponse']} */
   const response = await apiRequest(`/cases/solutions/?${query}`, {}, { cookies });
   const rows = (response.results ?? []).map(toRow);
-  const totals = response.totals ?? {};
+  const totals = /** @type {Record<string, number | undefined>} */ (response.totals ?? {});
 
   return {
     results: rows,
@@ -128,7 +131,7 @@ export async function listArticles({ cookies }, params) {
  * @param {string} id
  */
 export async function getArticle({ cookies }, id) {
-  /** @type {any} */
+  /** @type {Schemas['SolutionDetail']} */
   let response;
   try {
     response = await apiRequest(`/cases/solutions/${id}/`, {}, { cookies });
@@ -206,6 +209,7 @@ function toBody(values) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
  * @param {Record<string, any>} values
+ * @returns {Promise<Schemas['Solution']>}
  */
 export async function updateArticle({ cookies }, id, values) {
   return await apiRequest(
@@ -223,6 +227,7 @@ export async function updateArticle({ cookies }, id, values) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {Record<string, any>} values
+ * @returns {Promise<Schemas['Solution']>}
  */
 export async function createArticle({ cookies }, values) {
   return await apiRequest(

@@ -92,6 +92,7 @@ API_RESOURCES = frozenset(
         # token on any path outside `/api/portal/`.
         "portal",
         "profile",
+        "projects",
         "public",
         # A profile's own saved list filters (G29).
         "saved-views",

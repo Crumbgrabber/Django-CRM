@@ -58,7 +58,7 @@ export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
 
 /**
  * @param {string} target Registry key: `lead`, `deal`, `obj:<key>`, ...
- * @param {string} id
+ * @param {string | null | undefined} id
  * @returns {string | null}
  */
 export function recordHref(target, id) {

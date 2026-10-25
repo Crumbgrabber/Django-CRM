@@ -214,8 +214,10 @@
             flipDurationMs: FLIP_MS,
             dragDisabled: busy || stages.length === 0
           }}
-          onconsider={(e) => onConsider(lane, e)}
-          onfinalize={(e) => onFinalize(lane, e)}
+          onconsider={(/** @type {CustomEvent<import('svelte-dnd-action').DndEvent>} */ e) =>
+            onConsider(lane, e)}
+          onfinalize={(/** @type {CustomEvent<import('svelte-dnd-action').DndEvent>} */ e) =>
+            onFinalize(lane, e)}
           onmousedowncapture={holdLockedCard}
           ontouchstartcapture={holdLockedCard}
           onkeydowncapture={holdLockedCard}

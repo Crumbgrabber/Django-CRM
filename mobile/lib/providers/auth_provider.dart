@@ -24,6 +24,7 @@ import 'leads_provider.dart';
 import 'lookup_provider.dart';
 import 'notifications_provider.dart';
 import 'profile_provider.dart';
+import 'projects_provider.dart';
 import 'settings_provider.dart';
 import 'solutions_provider.dart';
 import 'support_provider.dart';
@@ -352,6 +353,7 @@ class AuthNotifier extends Notifier<AuthState> {
     ref.invalidate(goalProvider);
     ref.invalidate(timesheetProvider);
     ref.invalidate(timeReportProvider);
+    ref.invalidate(projectsProvider);
     ref.invalidate(analyticsProvider);
     ref.invalidate(notificationsProvider);
     ref.invalidate(supportTicketsProvider);
@@ -368,6 +370,7 @@ class AuthNotifier extends Notifier<AuthState> {
     ref.invalidate(leadsLookupProvider);
     ref.invalidate(opportunitiesLookupProvider);
     ref.invalidate(ticketsLookupProvider);
+    ref.invalidate(projectsLookupProvider);
     ref.invalidate(customFieldDefinitionsProvider);
     // Org settings.
     ref.invalidate(orgSettingsProvider);

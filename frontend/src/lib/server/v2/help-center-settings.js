@@ -9,8 +9,15 @@
 import { apiRequest } from '#lib/api-helpers.js';
 
 /**
+ * Both verbs answer this. The schema's `HelpCenterSettings` has no `can_edit`
+ * (the view adds it) and calls `public_url` a string where it is null until a
+ * slug is set.
+ * @typedef {{ help_center_enabled: boolean, help_center_slug: string | null, public_url: string | null, can_edit: boolean }} HelpCenterState
+ */
+
+/**
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
- * @returns {Promise<{ help_center_enabled: boolean, help_center_slug: string | null, public_url: string | null, can_edit: boolean }>}
+ * @returns {Promise<HelpCenterState>}
  */
 export async function getHelpCenterSettings({ cookies }) {
   return apiRequest('/org/help-center/', {}, { cookies });
@@ -27,6 +34,7 @@ export async function getHelpCenterSettings({ cookies }) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {{ enabled: boolean, slug: string }} values
+ * @returns {Promise<HelpCenterState>}
  */
 export async function updateHelpCenterSettings({ cookies }, { enabled, slug }) {
   return apiRequest(

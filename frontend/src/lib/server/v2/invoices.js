@@ -275,7 +275,12 @@ export async function updateInvoiceFields({ cookies }, id, customFields) {
  * the API, not this layer, decides who may act and refuses the rest.
  */
 
-/** Draft -> Sent (and mails the client). 400 on a Paid/Cancelled invoice. */
+/**
+ * Draft -> Sent (and mails the client). 400 on a Paid/Cancelled invoice.
+ *
+ * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
+ * @param {string} id
+ */
 export async function sendInvoice({ cookies }, id) {
   return apiRequest(`/invoices/${id}/send/`, { method: 'POST', body: {} }, { cookies });
 }
@@ -297,12 +302,22 @@ export async function markInvoicePaid({ cookies }, id, payment = {}) {
   return apiRequest(`/invoices/${id}/mark-paid/`, { method: 'POST', body }, { cookies });
 }
 
-/** Cancel it. 400 if already Cancelled, or if Paid (settled money stays). */
+/**
+ * Cancel it. 400 if already Cancelled, or if Paid (settled money stays).
+ *
+ * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
+ * @param {string} id
+ */
 export async function cancelInvoice({ cookies }, id) {
   return apiRequest(`/invoices/${id}/cancel/`, { method: 'POST', body: {} }, { cookies });
 }
 
-/** Copy to a fresh Draft; returns the new invoice so the caller can open it. */
+/**
+ * Copy to a fresh Draft; returns the new invoice so the caller can open it.
+ *
+ * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
+ * @param {string} id
+ */
 export async function duplicateInvoice({ cookies }, id) {
   return apiRequest(`/invoices/${id}/duplicate/`, { method: 'POST', body: {} }, { cookies });
 }
@@ -339,4 +354,18 @@ export async function invoiceFromDeal({ cookies }, dealId) {
     { cookies }
   );
   return response.invoice ?? response;
+}
+
+/**
+ * Bill time: a Draft invoice from billable time entries, admins only (the
+ * API answers anyone else 403). The body is `{ account_id, entry_ids }` for
+ * a ticket's entries or `{ project_id, up_to }` for a project's, each with an
+ * optional `group_by`. Answers `{ invoice_id, invoice_number, ... }`.
+ *
+ * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
+ * @param {Record<string, any>} body
+ * @returns {Promise<{ invoice_id?: string, invoice_number?: string }>}
+ */
+export async function invoiceFromTimeEntries({ cookies }, body) {
+  return await apiRequest('/invoices/from-time-entries/', { method: 'POST', body }, { cookies });
 }

@@ -63,9 +63,10 @@
   });
 
   let valid = $derived(Object.keys(errors).length === 0);
-  const show = (field) => (touched[field] || submitted) && errors[field];
+  const show = (/** @type {string} */ field) => (touched[field] || submitted) && errors[field];
 
-  const unit = (n) => (form.goal_type === 'REVENUE' ? money(n, form.currency) : count(n));
+  const unit = (/** @type {number} */ n) =>
+    form.goal_type === 'REVENUE' ? money(n, form.currency) : count(n);
 
   // The empty "Select Currency" placeholder is dropped: a goal always has one.
   const currencyOptions = CURRENCY_CODES.filter((c) => c.value);

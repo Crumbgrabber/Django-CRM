@@ -103,6 +103,7 @@ EXPECTED_RELATIONS = {
         "invoices.Estimate.account",
         "invoices.RecurringInvoice.account",
         "orders.Order.account",
+        "projects.Project.account",
     },
 }
 

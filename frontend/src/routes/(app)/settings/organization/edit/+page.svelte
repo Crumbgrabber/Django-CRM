@@ -105,7 +105,9 @@
     if (form.website && !/^https?:\/\/.+\..+/.test(form.website))
       e.website = 'Include the full address, starting with http:// or https://.';
     if (!invoicesOn) return e;
-    for (const field of ['invoice_number_prefix', 'estimate_number_prefix']) {
+    /** @type {('invoice_number_prefix' | 'estimate_number_prefix')[]} */
+    const prefixFields = ['invoice_number_prefix', 'estimate_number_prefix'];
+    for (const field of prefixFields) {
       if (!NUMBER_PREFIX_PATTERN.test(form[field].trim()))
         e[field] = 'Use letters, numbers, hyphens and underscores only.';
     }

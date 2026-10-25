@@ -13,6 +13,8 @@ import { getNumbering } from '#lib/server/v2/organization.js';
 import { getModules } from '#lib/server/v2/modules.js';
 import { isOn } from '#lib/v2/modules.js';
 
+/** @typedef {{ id: string, name: string, email: string, account: { id: string, name: string } | null }} ContactRow */
+
 /**
  * The estimate builder's pickers, the same list layers the invoice builder
  * reads, plus the deals for the optional deal link. Every list is what the API
@@ -53,7 +55,7 @@ export async function load({ cookies, locals, url }) {
   return {
     modules: (await modulesP)?.modules ?? null,
     accounts: accounts.results.map((a) => ({ id: a.id, name: a.name || 'Unnamed account' })),
-    contacts: contacts.results.map((c) => ({
+    contacts: contacts.results.map((/** @type {ContactRow} */ c) => ({
       id: c.id,
       name: c.name || c.email || 'Unnamed contact',
       account_id: c.account?.id ?? null,
@@ -62,7 +64,13 @@ export async function load({ cookies, locals, url }) {
     products: products.results
       .filter((p) => p.is_active)
       .map((p) => ({ id: p.id, name: p.name, sku: p.sku, price: p.price })),
-    deals: deals.results.map((d) => ({ id: d.id, name: d.name, account_id: d.account.id })),
+    deals: deals.results.map(
+      (/** @type {{ id: string, name: string, account: { id: string | null } }} */ d) => ({
+        id: d.id,
+        name: d.name,
+        account_id: d.account.id
+      })
+    ),
     prefill,
     numbering,
     customFields

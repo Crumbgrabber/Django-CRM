@@ -94,8 +94,8 @@
   });
 
   let stale = $derived(step === 'match' && mappingPayload(columns) !== previewed);
-  let canImport = $derived(
-    !!preview && !stale && !loading && !committing && preview.summary.valid > 0
+  let canImport = $derived.by(
+    () => !!preview && !stale && !loading && !committing && preview.summary.valid > 0
   );
   // A column with no value in any row cannot import anything. Exports such as
   // Outlook's carry dozens of them, so they wait behind a toggle.

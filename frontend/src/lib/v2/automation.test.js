@@ -53,6 +53,12 @@ import {
   replacePerson
 } from '#lib/v2/automation.js';
 
+/**
+ * @param {string} key
+ * @param {string} label
+ * @param {string} type
+ * @param {Record<string, any>} [extra]
+ */
 const f = (key, label, type, extra = {}) => ({
   key,
   label,
@@ -61,6 +67,10 @@ const f = (key, label, type, extra = {}) => ({
   settable: true,
   ...extra
 });
+/**
+ * @param {string} value
+ * @param {string} label
+ */
 const choice = (value, label, group = '', settable = true) => ({ value, label, group, settable });
 
 const deal = {
@@ -137,13 +147,15 @@ describe('lookups', () => {
     expect(objectOf(catalogue, 'deal')).toBe(deal);
     expect(objectOf(catalogue, 'nope')).toBeNull();
     expect(objectOf(null, 'deal')).toBeNull();
-    expect(fieldOf(deal, 'amount').label).toBe('Amount');
+    expect(fieldOf(deal, 'amount')?.label).toBe('Amount');
     expect(fieldOf(deal, 'x')).toBeNull();
     expect(fieldOf(null, 'x')).toBeNull();
   });
 
   it('lists every field but people as a trigger field', () => {
-    expect(triggerFields(deal).map((x) => x.key)).not.toContain('assigned_to');
+    expect(
+      triggerFields(deal).map((/** @type {import('./automation.js').Field} */ x) => x.key)
+    ).not.toContain('assigned_to');
     expect(triggerFields(deal)).toHaveLength(deal.fields.length - 1);
   });
 });
@@ -313,7 +325,7 @@ describe('withStored', () => {
 });
 
 describe('triggerSentence', () => {
-  const rule = (trigger) => ({ object_key: 'deal', trigger });
+  const rule = (/** @type {Record<string, any>} */ trigger) => ({ object_key: 'deal', trigger });
 
   it('says the trigger in words', () => {
     expect(triggerSentence(rule({ event: 'created' }), catalogue)).toBe('Created');
@@ -553,6 +565,10 @@ describe('hubValue', () => {
   });
 
   it('words the active count, the failing count and the warning', () => {
+    /**
+     * @param {number} active
+     * @param {number} failing
+     */
     const at = (active, failing, attention = false) => hubValue({ active, failing, attention });
     expect(at(0, 0).value).toBe('No active rules');
     expect(at(1, 0).value).toBe('1 active rule');
@@ -565,7 +581,7 @@ describe('hubValue', () => {
 });
 
 describe('keptValue', () => {
-  const field = (key) => fieldOf(deal, key);
+  const field = (/** @type {string} */ key) => fieldOf(deal, key);
 
   it('keeps the value while the new operator reads the same kind', () => {
     expect(keptValue(field('amount'), 'gt', 'lt', 5)).toBe(5);
@@ -640,6 +656,10 @@ describe('switchObject', () => {
   });
 
   it('resets a task for the parent where the new object has none', () => {
+    /**
+     * @param {string} assign_to
+     * @param {string | null} [person]
+     */
     const task = (assign_to, person = null) => ({
       type: 'create_task',
       title: 'x',
@@ -968,6 +988,7 @@ describe('lost values read plainly', () => {
 
 describe('clear or unset', () => {
   it('a null from an input is not chosen, never a clear', () => {
+    /** @type {Record<string, any>} */
     const a = { type: 'set_field', field: 'stage' };
     setActionValue(a, null);
     expect(a.value).toBeUndefined();
@@ -1062,6 +1083,24 @@ describe('notificationText', () => {
     );
     expect(limit?.text).toContain('14:00');
     expect(limit?.source).toBeNull();
+  });
+
+  it('writes the project budget sentence, and null for its data of the wrong shape', () => {
+    expect(
+      notificationText(
+        { verb: 'project.budget', data: { kind: 'hours', percent: 80, project: 'Rebuild' } },
+        'UTC'
+      )
+    ).toEqual({ text: 'Rebuild has used 80% of its hours budget', source: null });
+    expect(
+      notificationText(
+        { verb: 'project.budget', data: { kind: 'amount', percent: 100, project: 'Rebuild' } },
+        'UTC'
+      )
+    ).toEqual({ text: 'Rebuild has used all of its amount budget', source: null });
+    expect(
+      notificationText({ verb: 'project.budget', data: { kind: 'hours', percent: 80 } }, 'UTC')
+    ).toBeNull();
   });
 
   it('answers null for other verbs and for data of the wrong type', () => {

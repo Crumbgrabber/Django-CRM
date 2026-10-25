@@ -18,6 +18,7 @@ from common.serializer import (
     UserSerializer,
 )
 from contacts.serializer import ContactLinkSerializer
+from projects.access import visible_projects_qs
 from tasks.access import has_task_access, visible_tasks_qs
 from tasks.models import (
     Board,
@@ -265,6 +266,15 @@ class _MinimalCaseField(_ModuleLinkField):
     module = "tickets"
 
 
+class _ProjectIdField(serializers.RelatedField):
+    """The project's id, as the task contract has it; null while Projects is off."""
+
+    def to_representation(self, value):
+        if not module_is_available(org_of(value), "projects"):
+            return None
+        return str(value.pk)
+
+
 class _MinimalLeadField(_ModuleLinkField):
     module = "leads"
 
@@ -285,6 +295,7 @@ class TaskListSerializer(serializers.ModelSerializer):
     opportunity = _MinimalOpportunityField(read_only=True)
     case = _MinimalCaseField(read_only=True)
     lead = _MinimalLeadField(read_only=True)
+    project = _ProjectIdField(read_only=True)
 
     class Meta:
         model = Task
@@ -298,6 +309,7 @@ class TaskListSerializer(serializers.ModelSerializer):
             "opportunity",
             "case",
             "lead",
+            "project",
             "assigned_to",
             "tags",
             "created_at",
@@ -317,6 +329,7 @@ class TaskSerializer(serializers.ModelSerializer):
     opportunity = _MinimalOpportunityField(read_only=True)
     case = _MinimalCaseField(read_only=True)
     lead = _MinimalLeadField(read_only=True)
+    project = _ProjectIdField(read_only=True)
 
     class Meta:
         model = Task
@@ -331,6 +344,7 @@ class TaskSerializer(serializers.ModelSerializer):
             "opportunity",
             "case",
             "lead",
+            "project",
             "created_by",
             "created_at",
             "contacts",
@@ -343,7 +357,7 @@ class TaskSerializer(serializers.ModelSerializer):
         )
 
 
-PARENT_FIELDS = ("account", "opportunity", "case", "lead")
+PARENT_FIELDS = ("account", "opportunity", "case", "lead", "project")
 
 
 class TaskCreateSerializer(serializers.ModelSerializer):
@@ -361,6 +375,16 @@ class TaskCreateSerializer(serializers.ModelSerializer):
         # a server-derived fact; narrowing the queryset is what makes it one.
         for name in PARENT_FIELDS:
             self.fields[name].queryset = self.fields[name].queryset.filter(org=self.org)
+        self.profile = request_obj.profile
+
+    def validate_project(self, project):
+        """A project the caller may open; another reads as an unknown id. The
+        task's own project is kept whoever saves."""
+        if project is None or project.pk == getattr(self.instance, "project_id", None):
+            return project
+        if not visible_projects_qs(self.profile).filter(pk=project.pk).exists():
+            raise serializers.ValidationError("No such project.")
+        return project
 
     def validate(self, attrs):
         """A task links to at most one parent entity.
@@ -405,7 +429,7 @@ class TaskCreateSerializer(serializers.ModelSerializer):
                 {
                     "account": (
                         "A task can only be linked to one parent entity "
-                        f"(Account, Opportunity, Case, or Lead). "
+                        f"(Account, Opportunity, Case, Lead, or Project). "
                         f"Currently set: {', '.join(set_parents)}"
                     )
                 }
@@ -425,6 +449,7 @@ class TaskCreateSerializer(serializers.ModelSerializer):
             "opportunity",
             "case",
             "lead",
+            "project",
             "created_by",
             "created_at",
         )
@@ -459,6 +484,7 @@ class TaskCreateSwaggerSerializer(serializers.ModelSerializer):
             "opportunity",
             "case",
             "lead",
+            "project",
             "contacts",
             "teams",
             "assigned_to",

@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const apiRequest = vi.fn();
-vi.mock('#lib/api-helpers.js', () => ({ apiRequest: (...a) => apiRequest(...a) }));
+vi.mock('#lib/api-helpers.js', () => ({
+  apiRequest: (/** @type {any[]} */ ...a) => apiRequest(...a)
+}));
 
 const {
   getCatalogue,
@@ -23,6 +25,7 @@ const {
 
 const event = /** @type {any} */ ({ cookies: { get: () => 'token' } });
 const ID = '11111111-2222-3333-4444-555555555555';
+/** @param {number} s @param {any} [body] */
 const status = (s, body) => Object.assign(new Error('x'), { status: s, body });
 
 beforeEach(() => apiRequest.mockReset());

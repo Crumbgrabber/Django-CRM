@@ -13,6 +13,7 @@
   /** @type {{ data: any }} */
   let { data } = $props();
 
+  /** @type {Record<string, string>} */
   const TONE_VAR = {
     rust: 'var(--v2-rust)',
     clay: 'var(--v2-clay)',
@@ -23,6 +24,10 @@
   let { queue, summary, later, goals } = $derived(data);
 
   /** Revenue goals are money in the goal's own currency; the others are counts. */
+  /**
+   * @param {{ goal_type: string, currency?: string | null }} g
+   * @param {number | string} n
+   */
   const goalValue = (g, n) =>
     g.goal_type === 'REVENUE' ? money(n, g.currency || data.org.currency) : count(n);
 
@@ -31,7 +36,7 @@
    * strip agrees with the goals page rather than calling a goal green in week
    * two of a quarter for being 40% of the way there.
    */
-  const goalColor = (g) =>
+  const goalColor = (/** @type {{ status: string }} */ g) =>
     g.status === 'completed'
       ? 'var(--v2-moss)'
       : g.status === 'behind'

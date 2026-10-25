@@ -48,7 +48,8 @@
     LifeBuoy,
     Zap,
     TriangleAlert,
-    CirclePause
+    CirclePause,
+    Gauge
   } from '@lucide/svelte';
 
   /** @type {{ data: any }} */
@@ -59,12 +60,15 @@
   /* Local copy: marking read is a real state change in this page's terms even
      though nothing is persisted yet. It is not derived from `data`, or every
      revalidation would resurrect what you just cleared. */
-  let rows = $state(untrack(() => data.results.map((n) => ({ ...n }))));
+  // Feed rows have no schema (see `getNotifications`), so they stay untyped.
+  /** @type {any[]} */
+  let rows = $state(untrack(() => data.results.map((/** @type {any} */ n) => ({ ...n }))));
   let filter = $state(/** @type {'unread' | 'all'} */ ('unread'));
 
   let unread = $derived(rows.filter((n) => n.read_at === null));
   let visible = $derived(filter === 'unread' ? unread : rows);
 
+  /** @type {Record<string, typeof Bell>} */
   const ICON = {
     'case.mentioned': AtSign,
     'case.commented': MessageSquare,
@@ -73,13 +77,16 @@
     'automation.message': Zap,
     'automation.failed': TriangleAlert,
     'automation.limit': TriangleAlert,
-    'automation.paused': CirclePause
+    'automation.paused': CirclePause,
+    'project.budget': Gauge
   };
 
   /**
    * "mentioned you" / "commented" for the verbs that exist; a readable
    * fallback for the ones that do not. `case.sla_breached` becomes
    * "sla breached" and not `case.sla_breached`.
+   *
+   * @param {any} n
    */
   function verbPhrase(n) {
     if (n.verb === 'case.mentioned') return 'mentioned you on';
@@ -89,14 +96,17 @@
     return `${n.verb.replace(/^[^.]+\./, '').replace(/_/g, ' ')}, `;
   }
 
+  /** @param {any} n */
   function isAutomation(n) {
     return n.verb?.startsWith('automation.');
   }
 
+  /** @param {any} n */
   function isTicketVerb(n) {
     return n.verb?.startsWith('case.') || n.verb?.startsWith('support.');
   }
 
+  /** @param {any} n */
   function isSupportNotification(n) {
     return n.verb?.startsWith('support.');
   }
@@ -203,7 +213,7 @@
                 {:else}
                   <b class="system">The system</b>
                 {/if}
-                {#if isAutomation(n)}
+                {#if isAutomation(n) || auto}
                   {#if n.resolved_link}
                     <a
                       class="auto-text"
@@ -216,7 +226,7 @@
                 {:else}
                   {verbPhrase(n)}
                 {/if}
-                {#if isAutomation(n)}
+                {#if isAutomation(n) || auto}
                   <!-- the sentence above carries the link -->
                 {:else if n.entity_name}
                   {#if n.resolved_link}

@@ -18,6 +18,7 @@ const UNREADABLE = 'Could not read the rule.';
 export const RUN_PAGE = 20;
 
 /** @typedef {{ cookies: import('@sveltejs/kit').Cookies }} Event */
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
 
 /** @param {Event} event */
 export async function getCatalogue({ cookies }) {
@@ -52,6 +53,7 @@ export async function listRules({ cookies }) {
 /**
  * @param {Event} event
  * @param {string} id
+ * @returns {Promise<Schemas['Rule']>}
  */
 export async function getRule({ cookies }, id) {
   checkId(id);
@@ -70,6 +72,7 @@ export async function getRule({ cookies }, id) {
 /**
  * @param {Event} event
  * @param {Record<string, any>} body
+ * @returns {Promise<Schemas['Rule']>}
  */
 export async function createRule({ cookies }, body) {
   return await apiRequest('/automation/rules/', { method: 'POST', body }, { cookies });
@@ -79,6 +82,7 @@ export async function createRule({ cookies }, body) {
  * @param {Event} event
  * @param {string} id
  * @param {Record<string, any>} body
+ * @returns {Promise<Schemas['Rule']>}
  */
 export async function updateRule({ cookies }, id, body) {
   checkId(id);

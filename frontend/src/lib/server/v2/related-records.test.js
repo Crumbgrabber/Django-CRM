@@ -1,13 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const apiRequest = vi.fn();
-vi.mock('#lib/api-helpers.js', () => ({ apiRequest: (...a) => apiRequest(...a) }));
+vi.mock('#lib/api-helpers.js', () => ({
+  apiRequest: (/** @type {any[]} */ ...a) => apiRequest(...a)
+}));
 
 const { loadRelated, relatedActions } = await import('#lib/server/v2/related-records.js');
 
 const event = /** @type {any} */ ({ cookies: { get: () => 'token' } });
 const ID = '0b9f4c6e-3f0a-4a5b-9a77-1c2d3e4f5a6b';
 const REC = '1c9f4c6e-3f0a-4a5b-9a77-1c2d3e4f5a6c';
+/**
+ * @param {number} n
+ * @param {any} [body]
+ */
 const status = (n, body) => Object.assign(new Error('failed'), { status: n, body });
 
 /** @param {Record<string, string>} values */

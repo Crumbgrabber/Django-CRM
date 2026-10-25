@@ -33,9 +33,20 @@
  */
 import { apiRequest } from '#lib/api-helpers.js';
 
-/** A profile as the pickers label it. */
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+
+/**
+ * `user_details` is a SerializerMethodField, so the schema types it as a bare dict.
+ * @typedef {{ name?: string, email?: string }} UserDetails
+ */
+
+/**
+ * A profile as the pickers label it.
+ *
+ * @param {Schemas['Profile']} profile
+ */
 function personName(profile) {
-  const d = profile?.user_details ?? {};
+  const d = /** @type {UserDetails} */ (profile?.user_details ?? {});
   return d.name || d.email || 'Unnamed';
 }
 
@@ -45,14 +56,15 @@ function personName(profile) {
  */
 export async function getOrgPeopleAndTeams(cookies) {
   try {
+    /** @type {Schemas['TeamsAndUsersResponse']} */
     const resp = await apiRequest('/users/get-teams-and-users/', {}, { cookies });
     return {
-      people: (resp?.profiles ?? []).map((/** @type {any} */ p) => ({
+      people: (resp?.profiles ?? []).map((p) => ({
         id: p.id,
         name: personName(p),
-        email: p.user_details?.email ?? ''
+        email: /** @type {UserDetails} */ (p.user_details)?.email ?? ''
       })),
-      teams: (resp?.teams ?? []).map((/** @type {any} */ t) => ({ id: t.id, name: t.name })),
+      teams: (resp?.teams ?? []).map((t) => ({ id: t.id, name: t.name })),
       options_failed: false
     };
   } catch {

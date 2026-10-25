@@ -150,6 +150,18 @@ BUILT_IN = (
         automation="automation.adapters.tasks.TaskAdapter",
     ),
     ObjectEntry(
+        "project",
+        "projects.Project",
+        "Project",
+        "projects.access.visible_projects_qs",
+        attachments=True,
+        activity_feed=False,
+        label="Project",
+        label_plural="Projects",
+        links=False,
+        edit_rule=None,
+    ),
+    ObjectEntry(
         "invoice",
         "invoices.Invoice",
         "Invoice",

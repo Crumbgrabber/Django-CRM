@@ -30,7 +30,12 @@
 import { apiRequest } from '#lib/api-helpers.js';
 import { viewerIsAdmin } from './organization.js';
 
-/** Profile → the `{ id, name }` the card reads, or null. */
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+
+/**
+ * Profile → the `{ id, name }` the card reads, or null.
+ * @param {{ id: string, user_details?: { name?: string | null } } | null | undefined} p
+ */
 function shapeAssignee(p) {
   if (!p) return null;
   return { id: p.id, name: p.user_details?.name ?? null };
@@ -52,6 +57,9 @@ function isGenerated(m, domain) {
  * @returns {Promise<{ mailboxes: any[], totals: any, can_edit: boolean, generated_domain: string | null, can_create_leads: boolean, daily_limit: number | null }>}
  */
 export async function getMailboxes({ cookies }) {
+  // `{ mailboxes, totals, generated_domain, daily_limit }`, an envelope the
+  // schema's bare list does not describe.
+  /** @type {{ mailboxes?: any[], totals?: any, generated_domain?: unknown, daily_limit?: unknown }} */
   const resp = await apiRequest('/cases/mailboxes/', {}, { cookies });
   const { mailboxes, totals } = resp;
   const domain = typeof resp?.generated_domain === 'string' ? resp.generated_domain : null;
@@ -98,7 +106,7 @@ export async function getMailboxes({ cookies }) {
     // one has neither, and the form then offers tickets only.
     can_create_leads:
       Object.hasOwn(resp ?? {}, 'generated_domain') ||
-      (mailboxes ?? []).some((/** @type {any} */ m) => Object.hasOwn(m, 'creates')),
+      (mailboxes ?? []).some((m) => Object.hasOwn(m, 'creates')),
     // A display hint: POST/PUT/DELETE on `/cases/mailboxes/` each start with
     // `_is_admin(request.profile)` server-side and 403 regardless of what this
     // says. This only decides whether the page offers the controls. GET itself
@@ -213,14 +221,23 @@ export function webhookSecretEdit(submitted) {
   return next || undefined;
 }
 
-/** @param {{ cookies: import('@sveltejs/kit').Cookies }} event */
+/**
+ * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
+ * @param {{ [key: string]: unknown }} values
+ * @returns {Promise<Schemas['InboundMailbox']>}
+ */
 export async function createMailbox({ cookies }, values) {
   const body = buildBody(CREATE_FIELDS, values);
   if (!body.address && !body.generate_address) throw new Error('A mailbox needs an address.');
   return await apiRequest('/cases/mailboxes/', { method: 'POST', body }, { cookies });
 }
 
-/** @param {{ cookies: import('@sveltejs/kit').Cookies }} event */
+/**
+ * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
+ * @param {string} id
+ * @param {{ [key: string]: unknown }} values
+ * @returns {Promise<Schemas['InboundMailbox']>}
+ */
 export async function updateMailbox({ cookies }, id, values) {
   if (!id) throw new Error('Which mailbox? No mailbox id was given.');
   const body = buildBody(UPDATE_FIELDS, values);
@@ -235,6 +252,8 @@ export async function updateMailbox({ cookies }, id, values) {
  * flight from AWS is refused the moment this runs.
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
+ * @param {string} id
+ * @returns {Promise<Schemas['MailboxDeleteResponse']>}
  */
 export async function deleteMailbox({ cookies }, id) {
   if (!id) throw new Error('Which mailbox? No mailbox id was given.');

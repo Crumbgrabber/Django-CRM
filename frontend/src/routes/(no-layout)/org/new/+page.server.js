@@ -188,7 +188,9 @@ export const actions = {
           // this instead of the real `cookies` object means the org-scoped
           // token is used for exactly this one outgoing request and never
           // reaches `cookies.set()`, so nothing is queued onto the response.
-          const bearerOnly = { get: (name) => (name === 'jwt_access' ? access_token : undefined) };
+          const bearerOnly = {
+            get: (/** @type {string} */ name) => (name === 'jwt_access' ? access_token : undefined)
+          };
           await installAtSignup(bearerOnly, vertical);
         } catch (packErr) {
           // An install failing must never fail org creation: the org

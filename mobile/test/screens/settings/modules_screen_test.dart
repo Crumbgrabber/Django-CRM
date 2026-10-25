@@ -179,6 +179,7 @@ void main() {
       'tickets',
       'knowledge_base',
       'documents',
+      'projects',
       'invoices',
       'timesheet',
     ]);

@@ -22,7 +22,7 @@ URL = "/api/org/modules/"
 ROW_KEYS = {"key", "label", "group", "covers", "stops", "enabled", "available", "needs"}
 DEFAULT_ORDER = [
     "deals", "leads", "goals", "tasks", "tickets", "knowledge_base", "documents",
-    "invoices", "timesheet",
+    "projects", "invoices", "timesheet",
 ]  # fmt: skip
 
 
@@ -48,7 +48,7 @@ class TestRead:
         assert [r["key"] for r in body["modules"]] == DEFAULT_ORDER
         assert all(set(r) == ROW_KEYS for r in body["modules"])
         assert [r["group"] for r in body["modules"]] == (
-            ["sell"] * 3 + ["serve"] * 4 + ["bill"] * 2
+            ["sell"] * 3 + ["serve"] * 5 + ["bill"] * 2
         )
         assert body["can_edit"] is False
         assert admin_client.get(URL).json()["can_edit"] is True
@@ -134,8 +134,7 @@ class TestSwitching:
         assert response.json() == admin_client.get(URL).json()
         by_key = rows(response)
         assert by_key["tickets"]["enabled"] is False
-        assert by_key["timesheet"]["enabled"] is True
-        assert by_key["timesheet"]["available"] is False
+        assert by_key["timesheet"]["available"] is True
         org_a.refresh_from_db()
         assert org_a.modules_off == ["tickets"]
         assert org_a.modules_on_at == {}
@@ -143,7 +142,7 @@ class TestSwitching:
         by_key = rows(put(admin_client, []))
         assert by_key["tickets"]["available"] and by_key["timesheet"]["available"]
         org_a.refresh_from_db()
-        assert set(org_a.modules_on_at) == {"tickets", "timesheet"}
+        assert set(org_a.modules_on_at) == {"tickets"}
         stamps = dict(org_a.modules_on_at)
 
         assert put(admin_client, []).status_code == 200
@@ -204,17 +203,14 @@ class TestSwitching:
                 not sent,
             )
 
-    def test_timesheet_needs_tickets_the_same_way(self, admin_client, org_a):
-        needs = {"off": ["Timesheet needs Tickets. Switch Tickets on first."]}
+    def test_timesheet_and_projects_need_nothing(self, admin_client, org_a):
         set_modules_off(org_a, "timesheet")
-        response = put(admin_client, ["tickets"])
-        assert response.status_code == 400 and response.json() == needs
-        set_modules_off(org_a, "timesheet", "tickets")
-        assert put(admin_client, ["tickets"]).json() == needs
-        assert put(admin_client, ["timesheet"]).status_code == 200
-        assert put(admin_client, []).status_code == 200
-        assert put(admin_client, ["tickets"]).status_code == 200
-        assert rows(admin_client.get(URL))["timesheet"]["available"] is False
+        response = put(admin_client, ["tickets", "projects"])
+        assert response.status_code == 200
+        by_key = rows(response)
+        assert by_key["timesheet"]["needs"] is None
+        assert by_key["projects"]["needs"] is None
+        assert by_key["timesheet"]["available"] is True
 
     def test_the_order_is_saved_and_returned_within_groups(self, admin_client, org_a):
         order = [
@@ -230,7 +226,7 @@ class TestSwitching:
         assert response.status_code == 200
         assert [r["key"] for r in response.json()["modules"]] == [
             "goals", "leads", "deals",
-            "documents", "tasks", "tickets", "knowledge_base",
+            "documents", "tasks", "tickets", "knowledge_base", "projects",
             "timesheet", "invoices",
         ]  # fmt: skip
         org_a.refresh_from_db()

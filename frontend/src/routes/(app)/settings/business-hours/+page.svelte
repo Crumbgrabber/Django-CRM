@@ -53,7 +53,7 @@
   );
 
   function openHoursEdit() {
-    hourRows = calendar.days.map((d) => ({
+    hourRows = calendar.days.map((/** @type {any} */ d) => ({
       day: d.day,
       key: d.day.toLowerCase(),
       open: d.open ?? '09:00',

@@ -44,10 +44,16 @@ import { apiRequest } from '#lib/api-helpers.js';
 import { fieldsForDetail, fieldsForEdit } from '#lib/server/v2/record-custom-fields.js';
 import { attachmentHref } from '#lib/server/v2/files.js';
 
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+
 /** See the note on FILTER_FIELDS in tickets.js. */
 export const FILTER_FIELDS = ['assigned_to', 'tags', 'city'];
 
-/** DRF decimals arrive as strings. `null` stays `null`. It means "not recorded". */
+/**
+ * DRF decimals arrive as strings. `null` stays `null`. It means "not recorded".
+ *
+ * @param {unknown} value
+ */
 function num(value) {
   if (value === null || value === undefined || value === '') return null;
   const parsed = Number(value);
@@ -301,6 +307,7 @@ function buildContactActivity(response) {
  * @param {string} id
  * @param {string} comment
  * @param {File|null} [file]
+ * @returns {Promise<Schemas['ContactCommentAttachmentResponse']>}
  */
 export async function addContactNote({ cookies }, id, comment, file = null) {
   if (file) {
@@ -492,6 +499,7 @@ function toBody(values) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
  * @param {Record<string, any>} values
+ * @returns {Promise<Schemas['ContactPatchResponse']>}
  */
 export async function updateContact({ cookies }, id, values) {
   return await apiRequest(
@@ -508,6 +516,7 @@ export async function updateContact({ cookies }, id, values) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
+ * @returns {Promise<Schemas['ContactDetailDeleteResponse']>}
  */
 export async function deleteContact({ cookies }, id) {
   return await apiRequest(`/contacts/${id}/`, { method: 'DELETE' }, { cookies });

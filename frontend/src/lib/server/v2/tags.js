@@ -34,11 +34,14 @@
 import { apiRequest } from '#lib/api-helpers.js';
 import { viewerIsAdmin } from './organization.js';
 
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+
 /**
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @returns {Promise<{ tags: any[], totals: any, can_edit: boolean }>}
  */
 export async function getTags({ cookies }) {
+  /** @type {Schemas['TagsListResponse']} */
   const resp = await apiRequest('/tags/?include_archived=true', {}, { cookies });
   return {
     tags: resp.tags ?? [],
@@ -82,6 +85,7 @@ export async function createTag({ cookies }, values) {
   const name = (values.name ?? '').trim();
   if (!name) throw new Error('A tag needs a name.');
 
+  /** @type {Schemas['TagCreateResponse']} */
   const resp = await apiRequest('/tags/', { method: 'POST', body: { name } }, { cookies });
   return resp.tag ?? resp;
 }
@@ -107,7 +111,7 @@ export async function createTag({ cookies }, values) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
- * @returns {Promise<any>}
+ * @returns {Promise<Schemas['TagArchiveResponse']>}
  */
 export async function archiveTag({ cookies }, id) {
   if (!id) throw new Error('A tag id is required to turn a tag off.');
@@ -121,7 +125,7 @@ export async function archiveTag({ cookies }, id) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
- * @returns {Promise<any>}
+ * @returns {Promise<Schemas['TagRestoreResponse']>}
  */
 export async function restoreTag({ cookies }, id) {
   if (!id) throw new Error('A tag id is required to turn a tag back on.');
@@ -151,6 +155,7 @@ export async function restoreTag({ cookies }, id) {
  */
 export async function mergeTags({ cookies }, id, into) {
   if (!id || !into) throw new Error('Two tags are required to merge.');
+  /** @type {Schemas['TagMergeResponse']} */
   const resp = await apiRequest(
     `/tags/${id}/merge/`,
     { method: 'POST', body: { into } },

@@ -196,11 +196,17 @@ class LabelPill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            label,
-            style: AppTypography.caption.copyWith(
-              color: pillColor,
-              fontWeight: FontWeight.w500,
+          // Flexible: a tag wider than the row ellipsizes instead of
+          // overflowing it.
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.caption.copyWith(
+                color: pillColor,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
           if (onRemove != null) ...[

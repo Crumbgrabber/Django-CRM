@@ -14,13 +14,15 @@ const _groups = {
   'tickets': 'serve',
   'knowledge_base': 'serve',
   'documents': 'serve',
+  'projects': 'serve',
   'invoices': 'bill',
   'timesheet': 'bill',
 };
 
-const _needs = {'goals': 'deals', 'timesheet': 'tickets'};
+// Timesheet needs nothing since projects: time hangs off tickets or projects.
+const _needs = {'goals': 'deals'};
 
-/// The nine modules in default order. [off] lists the keys whose own switch is
+/// The ten modules in default order. [off] lists the keys whose own switch is
 /// off; a module whose need is off is unavailable even when its switch is on.
 OrgModulesAnswer modulesAnswer({
   List<String> off = const [],

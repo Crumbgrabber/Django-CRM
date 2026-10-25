@@ -13,6 +13,7 @@
 
   let { data } = $props();
 
+  /** @param {string | null | undefined} value */
   function formatDate(value) {
     if (!value) return '';
     return new Date(value).toLocaleDateString(undefined, {

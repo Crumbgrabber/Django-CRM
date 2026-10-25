@@ -95,6 +95,9 @@ import '../screens/tickets/ticket_board_screen.dart';
 import '../screens/timesheet/time_report_screen.dart';
 import '../screens/timesheet/timesheet_screen.dart';
 import '../screens/notifications/notifications_screen.dart';
+import '../screens/projects/project_detail_screen.dart';
+import '../screens/projects/project_form_screen.dart';
+import '../screens/projects/projects_list_screen.dart';
 import '../screens/documents/documents_list_screen.dart';
 import '../screens/documents/document_form_screen.dart';
 import '../screens/goals/goals_screen.dart';
@@ -373,6 +376,47 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: 'notifications',
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const NotificationsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.projects,
+        name: 'projects',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => ModuleGate(
+          path: AppRoutes.projects,
+          child: const ProjectsListScreen(),
+        ),
+      ),
+      // Literal `new` before `:id`, or "new" is read as a project id.
+      GoRoute(
+        path: AppRoutes.projectNew,
+        name: 'projectNew',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => ModuleGate(
+          path: AppRoutes.projectNew,
+          child: ProjectFormScreen(
+            fromDealId: state.uri.queryParameters['deal'],
+          ),
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.projectDetail,
+        name: 'projectDetail',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => ModuleGate(
+          path: AppRoutes.projectDetail,
+          child: ProjectDetailScreen(
+            projectId: state.pathParameters['id'] ?? '',
+          ),
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.projectEdit,
+        name: 'projectEdit',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => ModuleGate(
+          path: AppRoutes.projectEdit,
+          child: ProjectFormScreen(projectId: state.pathParameters['id']),
+        ),
       ),
       GoRoute(
         path: AppRoutes.documents,
@@ -1155,6 +1199,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                         initialDueDate: DateTime.tryParse(
                           state.uri.queryParameters['due'] ?? '',
                         ),
+                        // `?project=<id>` from a project's Tasks tab.
+                        initialProjectId: state.uri.queryParameters['project'],
                       ),
                     ),
                   ),

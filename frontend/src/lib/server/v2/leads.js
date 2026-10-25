@@ -29,6 +29,8 @@ import { attachmentHref } from '#lib/server/v2/files.js';
 import { recordDuplicates } from '#lib/server/v2/duplicates.js';
 import { fieldsForDetail, fieldsForEdit } from '#lib/server/v2/record-custom-fields.js';
 
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+
 /** See the note on FILTER_FIELDS in tickets.js. */
 export const FILTER_FIELDS = ['assigned_to', 'status', 'source', 'tags'];
 
@@ -109,6 +111,7 @@ export async function listLeads({ cookies }, params) {
   if (!query.has('limit')) query.set('limit', '25');
 
   const response = await apiRequest(`/leads/?${query}`, {}, { cookies });
+  /** @type {any[]} */
   const raw = response.open_leads?.open_leads ?? [];
   const rows = raw.map(toRow);
 
@@ -156,6 +159,7 @@ export function responseDays(raw) {
  * @param {number} days
  */
 export async function getResponseTimes({ cookies }, days) {
+  /** @type {Schemas['LeadResponseTimesResponse']} */
   let resp;
   try {
     resp = await apiRequest(
@@ -172,7 +176,7 @@ export async function getResponseTimes({ cookies }, days) {
   const int = (n) => (Number.isFinite(n) ? n : 0);
   return {
     since: typeof resp?.since === 'string' ? resp.since : null,
-    rows: (Array.isArray(resp?.rows) ? resp.rows : []).map((/** @type {any} */ r) => ({
+    rows: (Array.isArray(resp?.rows) ? resp.rows : []).map((r) => ({
       profile: typeof r?.profile === 'string' ? r.profile : '',
       name: typeof r?.name === 'string' && r.name ? r.name : 'Unknown',
       answered: int(r?.answered),
@@ -239,6 +243,7 @@ export async function getLead({ cookies }, id) {
  * @param {string} id
  * @param {string} comment
  * @param {File|null} [file]
+ * @returns {Promise<Schemas['LeadCommentAttachmentResponse']>}
  */
 export async function addLeadNote({ cookies }, id, comment, file = null) {
   if (file) {
@@ -337,6 +342,7 @@ function emptyAs(field, value) {
  */
 async function listOwners(cookies) {
   try {
+    /** @type {Schemas['TeamsAndUsersResponse']} */
     const response = await apiRequest('/users/get-teams-and-users/', {}, { cookies });
     return (response.profiles ?? []).map((/** @type {any} */ p) => ({
       id: p.id,
@@ -429,6 +435,7 @@ async function takenEmails(cookies, excludeId) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
  * @param {Record<string, any>} values
+ * @returns {Promise<Schemas['LeadPatchResponse']>}
  */
 export async function updateLead({ cookies }, id, values) {
   /** @type {Record<string, any>} */
@@ -494,6 +501,7 @@ async function fetchDetail(cookies, id) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
+ * @returns {Promise<Schemas['LeadDeleteResponse']>}
  */
 export async function deleteLead({ cookies }, id) {
   return await apiRequest(`/leads/${id}/`, { method: 'DELETE' }, { cookies });
@@ -514,12 +522,13 @@ export async function deleteLead({ cookies }, id) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {Record<string, any>} values
- * @returns {Promise<any>} the `LeadListView.post` response body. Confirmed against the
- *   running backend: on success this is `{ error: false, message: "Lead Created Successfully" }`,
- *   with no `id` field. Unlike `createDeal`'s response, which does carry one
- *   (`OpportunityListView.post` adds it deliberately), a caller here cannot read `.id` off the
- *   result to open the record it just created. `+page.server.js` accounts for this and falls
- *   back to the list rather than assuming an id that is not there.
+ * @returns {Promise<Schemas['LeadCreateResponse']>} the `LeadListView.post` response body.
+ *   Confirmed against the running backend: on success this is
+ *   `{ error: false, message: "Lead Created Successfully" }`, with no `id` field. Unlike
+ *   `createDeal`'s response, which does carry one (`OpportunityListView.post` adds it
+ *   deliberately), a caller here cannot read `.id` off the result to open the record it just
+ *   created. `+page.server.js` accounts for this and falls back to the list rather than
+ *   assuming an id that is not there.
  */
 export async function createLead({ cookies }, values) {
   /** @type {Record<string, any>} */
@@ -558,6 +567,7 @@ export async function createLead({ cookies }, values) {
 // naming, not a description of what it returns.
 export async function myProfileId(cookies) {
   try {
+    /** @type {Schemas['ProfileViewResponse']} */
     const response = await apiRequest('/profile/', {}, { cookies });
     return response.user_obj?.id ?? '';
   } catch {
@@ -580,7 +590,7 @@ export async function myProfileId(cookies) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
- * @returns {Promise<Record<string, any>>} the raw API response, which carries
+ * @returns {Promise<Schemas['LeadPatchResponse']>} the raw API response, which carries
  *   `account_id`, and `contact_id` / `opportunity_id` that may each be null.
  */
 export async function convertLead({ cookies }, id) {

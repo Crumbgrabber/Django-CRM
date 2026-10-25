@@ -12,6 +12,8 @@ import {
  * Each page's module exports the allow-list its list function forwards. As
  * descriptors are added by later tasks this map grows with them, and the loop
  * below covers whatever is present.
+ *
+ * @type {Record<string, () => Promise<{ FILTER_FIELDS?: string[] }>>}
  */
 const MODULES = {
   tickets: () => import('#lib/server/v2/tickets.js'),
@@ -24,7 +26,8 @@ const MODULES = {
   estimates: () => import('#lib/server/v2/estimates.js'),
   solutions: () => import('#lib/server/v2/solutions.js'),
   documents: () => import('#lib/server/v2/documents.js'),
-  recurring: () => import('#lib/server/v2/recurring.js')
+  recurring: () => import('#lib/server/v2/recurring.js'),
+  projects: () => import('#lib/server/v2/projects.js')
 };
 
 describe('every descriptor agrees with its module allow-list', () => {
@@ -90,6 +93,7 @@ describe('leads: only statuses the list endpoint can actually show', () => {
   // "this page cannot show them".
   it('offers neither "converted" nor "closed" as a status option', () => {
     const statusField = FILTERS.leads.fields.find((f) => f.key === 'status');
+    if (!statusField) throw new Error('leads has no Status field');
     expect(statusField.options).not.toContain('converted');
     expect(statusField.options).not.toContain('closed');
   });
@@ -123,11 +127,13 @@ describe('documents: archived rows stay out of the default view', () => {
   // `documents/+page.server.js` reads. Same shape as contacts' `inactive`.
   it('makes "active" the empty-params default', () => {
     const active = FILTERS.documents.presets.find((p) => p.key === 'active');
+    if (!active) throw new Error('documents has no "active" preset');
     expect(Object.keys(active.params)).toEqual([]);
   });
 
   it('makes seeing archived rows an explicit opt-in', () => {
     const all = FILTERS.documents.presets.find((p) => p.key === 'all');
+    if (!all) throw new Error('documents has no "all" preset');
     expect(all.params).toEqual({ archived: '1' });
   });
 
@@ -303,6 +309,7 @@ describe('number-range chips (pipeline "Value")', () => {
       new URL('http://x/pipeline?amount__gte=5000&amount__lte=10000&stage=PROSPECTING')
     );
     const valueChip = chips.find((c) => c.key === 'amount');
+    if (!valueChip) throw new Error('no chip for the value range');
     expect(valueChip.href).toBe('/pipeline?stage=PROSPECTING');
   });
 });

@@ -30,19 +30,21 @@
   /** Only an estimate that can still be accepted has a meaningful validity. */
   const LIVE = ['Sent', 'Viewed'];
 
-  function validity(e) {
-    if (!e.valid_until) return null;
+  function validity(/** @type {{ status: string, valid_until: string | null }} */ e) {
     if (!LIVE.includes(e.status)) return null;
     const n = daysSince(e.valid_until);
+    if (n === null) return null;
     if (n > 0) return { text: `expired ${n}d ago`, urgent: true };
     if (n === 0) return { text: 'expires today', urgent: true };
     return { text: `${Math.abs(n)}d left`, urgent: Math.abs(n) <= 7 };
   }
 
-  const needsBilling = (e) => e.status === 'Accepted' && !e.converted_invoice;
+  const needsBilling = (/** @type {{ status: string, converted_invoice: unknown }} */ e) =>
+    e.status === 'Accepted' && !e.converted_invoice;
 
   /** `EstimateSendView`: not settled, and not past its validity date. */
-  const canSend = (e) => ['Draft', 'Sent', 'Viewed'].includes(e.status) && !e.is_expired;
+  const canSend = (/** @type {{ status: string, is_expired: boolean }} */ e) =>
+    ['Draft', 'Sent', 'Viewed'].includes(e.status) && !e.is_expired;
 
   /* Per currency, never added across: there are no exchange rates. */
   const perCurrency = (/** @type {any[]} */ list) => moneyEach(list) || money(0, data.org.currency);

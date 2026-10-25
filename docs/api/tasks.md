@@ -24,7 +24,7 @@ does not know how to render that exception. Unless the specific view code path c
 model-level rule violation on a `Task` reaches the client as an unhandled **`500`**, not a clean `400`.
 
 The one rule `Task.clean()` currently enforces is "at most one parent entity". A task may link to
-at most one of `account`, `opportunity`, `case`, `lead` (`tasks/models.py:384-400`). The main
+at most one of `account`, `opportunity`, `case`, `lead`, `project` (`tasks/models.py`). The main
 create/update surface guards against this twice: `TaskCreateSerializer.validate()`
 (`tasks/serializer.py:331-365`) re-implements the same rule and returns a clean `400` with the field
 named, *and* `TaskListView.post` / `TaskDetailView.put` / `TaskDetailView.patch` additionally wrap
@@ -83,8 +83,9 @@ Filters, read directly from `request.query_params`
 `assigned_to` (repeatable id list), `tags` (id list), `search` (matches `title`, contains, not a
 combined search across other fields the way [Leads](leads.md#list-leads) or
 [Contacts](contacts.md#list-contacts) define one), `due_date__gte`/`due_date__lte`,
-`created_at__gte`/`created_at__lte`, `account`, `opportunity`, `case`, `lead` (each an exact parent-id
-match), and `cf_<key>` (custom field equals).
+`created_at__gte`/`created_at__lte`, `account`, `opportunity`, `case`, `lead`, `project` (each an
+exact parent-id match), and `cf_<key>` (custom field equals). The Kanban board takes the same
+parent filters.
 
 ## Create a task
 
@@ -94,7 +95,12 @@ match), and `cf_<key>` (custom field equals).
 validation failure returns `400` with `{"error": true, "errors": {...}}`, including the "at most one
 parent" rule and the model's own `full_clean()` backstop, both described [above](#tasksave-calls-full_clean).
 
-`account`, `opportunity`, `case` and `lead` are each scoped to the caller's org in
+A task's `project` is its project's id (or `null`) on read and write, in the list rows and the
+detail alike, and `null` while Projects is off. The project must be one the caller may open
+([Projects](../features/projects.md#who-sees-what)); any other answers `400` `{"project": ["No such
+project."]}`.
+
+`account`, `opportunity`, `case`, `lead` and `project` are each scoped to the caller's org in
 `TaskCreateSerializer.__init__` (`tasks/serializer.py:328-329`), the comment there notes a plain
 `ModelSerializer` would otherwise build each as a `PrimaryKeyRelatedField` over *every* row in the
 table, and that a task in one org was proven to accept another org's account, with the list endpoint

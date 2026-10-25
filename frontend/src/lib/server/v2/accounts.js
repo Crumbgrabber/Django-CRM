@@ -49,7 +49,11 @@ import { error } from '@sveltejs/kit';
 import { apiRequest } from '#lib/api-helpers.js';
 import { fieldsForDetail, fieldsForEdit } from '#lib/server/v2/record-custom-fields.js';
 
-/** DRF decimals are strings. `null` stays `null`. It means "not recorded". */
+/**
+ * DRF decimals are strings. `null` stays `null`. It means "not recorded".
+ *
+ * @param {unknown} value
+ */
 function num(value) {
   if (value === null || value === undefined || value === '') return null;
   const parsed = Number(value);
@@ -203,6 +207,7 @@ export async function listAccounts({ cookies }, params) {
 
   const response = await apiRequest(`/accounts/?${query}`, {}, { cookies });
   const active = response.active_accounts ?? {};
+  /** @type {ReturnType<typeof toRow>[]} */
   const rows = (active.open_accounts ?? []).map(toRow);
   // Largest won first within a currency, as amounts only compare there; the
   // API orders `by_currency` by code, so an account is placed by its first.

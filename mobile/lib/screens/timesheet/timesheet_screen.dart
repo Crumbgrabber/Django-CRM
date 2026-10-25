@@ -312,9 +312,9 @@ class _TimesheetScreenState extends ConsumerState<TimesheetScreen> {
           ),
           const SizedBox(height: 6),
           GestureDetector(
-            onTap: () => _openTicket(entry),
+            onTap: entry.sourcePath == null ? null : () => _openTicket(entry),
             child: Text(
-              entry.caseName ?? 'a ticket',
+              entry.sourceName ?? 'No ticket or project',
               style: AppTypography.body.copyWith(fontWeight: FontWeight.w500),
             ),
           ),
@@ -408,7 +408,7 @@ class _TimesheetScreenState extends ConsumerState<TimesheetScreen> {
 
   Widget _entryRow(TimeEntry entry) {
     return InkWell(
-      onTap: () => _openTicket(entry),
+      onTap: entry.sourcePath == null ? null : () => _openTicket(entry),
       child: Container(
         constraints: const BoxConstraints(minHeight: 44),
         padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
@@ -448,7 +448,7 @@ class _TimesheetScreenState extends ConsumerState<TimesheetScreen> {
             ),
             const SizedBox(height: 3),
             Text(
-              entry.caseName ?? 'a ticket',
+              entry.sourceName ?? 'No ticket or project',
               style: AppTypography.body,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -489,9 +489,11 @@ class _TimesheetScreenState extends ConsumerState<TimesheetScreen> {
 
   void _thisWeek() => ref.read(timesheetRangeProvider.notifier).thisWeek();
 
+  /// The entry's ticket or project. An entry whose project was deleted has
+  /// neither, and opens nothing.
   void _openTicket(TimeEntry entry) {
-    if (entry.caseId.isEmpty) return;
-    context.push('/tickets/${entry.caseId}');
+    final path = entry.sourcePath;
+    if (path != null) context.push(path);
   }
 
   Future<void> _stop(TimeEntry entry) async {

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const searchLinkTargets = vi.fn();
 vi.mock('#lib/server/v2/custom-objects.js', () => ({
-  searchLinkTargets: (...a) => searchLinkTargets(...a)
+  searchLinkTargets: (/** @type {any[]} */ ...a) => searchLinkTargets(...a)
 }));
 
 const { GET } = await import('./+server.js');

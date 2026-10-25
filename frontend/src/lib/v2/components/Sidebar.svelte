@@ -23,6 +23,7 @@
     Search,
     Smartphone,
     Boxes,
+    Briefcase,
     LogOut
   } from '@lucide/svelte';
   import { sidebarGroups } from '#lib/v2/nav.js';
@@ -69,6 +70,7 @@
     onsearch = () => {}
   } = $props();
 
+  /** @type {Record<string, typeof Sun>} */
   const ICONS = {
     Sun,
     Columns3,
@@ -84,7 +86,8 @@
     UserCog,
     FileText,
     SlidersHorizontal,
-    Boxes
+    Boxes,
+    Briefcase
   };
 
   // The groups come from `sidebarGroups`: admin-only items dropped for
@@ -103,7 +106,7 @@
       )
   );
 
-  const isActive = (href, exact) =>
+  const isActive = (/** @type {string} */ href, /** @type {boolean | undefined} */ exact) =>
     exact ? page.url.pathname === href : page.url.pathname.startsWith(href);
 </script>
 

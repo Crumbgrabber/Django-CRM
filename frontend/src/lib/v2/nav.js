@@ -11,7 +11,11 @@ import { t } from '#lib/terminology.js';
  * @typedef {import('#lib/v2/modules.js').ModuleRow} ModuleRow
  */
 
-/** Sidebar item for each module, with the group it sits in. */
+/**
+ * Sidebar item for each module, with the group it sits in.
+ *
+ * @type {Record<string, { group: string, item: NavItem & { termKey?: string } }>}
+ */
 const MODULE_ITEMS = {
   deals: {
     group: 'Sell',
@@ -32,6 +36,7 @@ const MODULE_ITEMS = {
     group: 'Serve',
     item: { href: '/tasks', label: 'Tasks', icon: 'CircleCheck', count: 'tasks' }
   },
+  projects: { group: 'Serve', item: { href: '/projects', label: 'Projects', icon: 'Briefcase' } },
   tickets: {
     group: 'Serve',
     item: { href: '/tickets', label: 'Tickets', icon: 'LifeBuoy', count: 'tickets' }

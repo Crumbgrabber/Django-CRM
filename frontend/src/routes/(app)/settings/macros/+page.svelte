@@ -56,6 +56,7 @@
     scope = 'personal';
   }
 
+  /** @param {any} m */
   function openEdit(m) {
     editing = m;
     scope = m.scope;
@@ -69,6 +70,8 @@
    * an authorization one: the backend enforces the same split independently
    * (403 on someone else's org macro, 404 on someone else's personal one)
    * and would refuse the write even if this returned true by mistake.
+   *
+   * @param {any} m
    */
   function canWrite(m) {
     return m.scope === 'org' ? data.can_create_org : m.owner?.id === data.my_profile_id;
@@ -86,6 +89,8 @@
    * not by matching against a list kept here. The supported set lives in
    * `macros/render.py` precisely so clients cannot drift from it. A copy in
    * this file would eventually mark a working macro as broken.
+   *
+   * @param {{ body: string, unknown_placeholders: string[] }} macro
    */
   function segments(macro) {
     const re = /%[a-zA-Z_][a-zA-Z0-9_]*%/g;
@@ -297,7 +302,7 @@
   </div>
 </div>
 
-{#snippet macro(m)}
+{#snippet macro(/** @type {any} */ m)}
   <div class="v2-card" style="padding:14px 16px;opacity:{m.is_active ? 1 : 0.62}">
     <div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap">
       <b style="font-size:13.5px">{m.title}</b>

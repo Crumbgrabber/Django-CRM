@@ -369,6 +369,13 @@ class Invoice(AssignableMixin, BaseModel):
         related_name="invoices",
         help_text="The sales opportunity this invoice relates to (optional)",
     )
+    project = models.ForeignKey(
+        "projects.Project",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="invoices",
+    )
 
     # Client Details (denormalized for PDF generation and history)
     client_name = models.CharField(_("Client Name"), max_length=255, default="")
@@ -566,6 +573,12 @@ class Invoice(AssignableMixin, BaseModel):
                 self.amount_due = self.total_amount - self.amount_paid
 
             super().save(*args, **kwargs)
+
+            # Every path to Cancelled saves through here, so this is where a
+            # cancelled invoice's time becomes billable again. Not once money
+            # was taken against it: that time was paid for.
+            if self.status == "Cancelled" and not self.payments.exists():
+                self.time_entries.update(invoice=None)
 
             # Keep the unscoped token→org lookup in step with the token we just
             # minted, so the anonymous portal view can resolve the org under RLS.

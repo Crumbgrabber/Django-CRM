@@ -33,8 +33,8 @@
 /**
  * The stored targets the options list cannot offer.
  *
- * @param {{ id: string }[]} options what the picker can currently show
- * @param {any[]} stored what the record actually points at
+ * @param {{ id: string }[] | null | undefined} options what the picker can currently show
+ * @param {any[] | null | undefined} stored what the record actually points at
  * @returns {any[]} the entries of `stored` with no matching option, in order
  */
 export function missingOptions(options, stored) {
@@ -45,7 +45,7 @@ export function missingOptions(options, stored) {
 /**
  * The single stored target an options list cannot offer, or null.
  *
- * @param {{ id: string }[]} options
+ * @param {{ id: string }[] | null | undefined} options
  * @param {any} stored a single target object, or null when nothing is set
  * @returns {any} the target when it is unrepresentable, null otherwise
  */

@@ -21,7 +21,11 @@ export async function load(event) {
   }
 }
 
-/** A price is required and must be a number ≥ 0. */
+/**
+ * A price is required and must be a number ≥ 0.
+ *
+ * @param {string} value
+ */
 function priceOk(value) {
   if (value === '') return false;
   const n = Number(value);

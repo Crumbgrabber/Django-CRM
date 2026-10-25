@@ -11,8 +11,9 @@ filtering and response-shape rules assumed rather than repeated here, and [Error
 
 This page covers invoices, estimates, line items, account statements and the public portal, the
 endpoints this documentation task scopes. Payments, products, templates, recurring invoices, dashboards/reports, and
-invoice-from-opportunity/from-time-entries are also part of this module (`api_urls.py`) but are out of
-scope for this page.
+invoice-from-opportunity are also part of this module (`api_urls.py`) but are out of scope for this
+page. Billing time, from a ticket's account or from a project, is on
+[Projects](../features/projects.md#bill-the-time).
 
 ## One access rule for invoices, estimates and recurring invoices
 
@@ -117,7 +118,13 @@ Three lifecycle actions, each `get_invoice_or_error`-gated and each a `POST` wit
   or one exceeding the outstanding balance is still rejected (`400`).
 - `POST /api/invoices/{id}/cancel/` (`InvoiceCancelView.post`, `:563-599`) refuses an already-`Cancelled`
   invoice and refuses a `Paid` one (`400` either way). Cancelling is for money that will never be
-  collected, not for reversing a completed payment.
+  collected, not for reversing a completed payment. **Cancelling frees the invoice's time
+  entries**, so the time can be billed again, unless a payment was recorded on the invoice.
+  This happens in `Invoice.save()`, so every path that sets Cancelled (this endpoint, the
+  Django admin, a script) frees them.
+
+An invoice read (`InvoiceSerializer` and the list rows) carries `project`, the id of the project
+it was made from, or `null`. It is set only by the project billing endpoints and is not writable.
 
 `POST /api/invoices/{id}/duplicate/` (`InvoiceDuplicateView.post`, `:484-560`) copies the invoice's
 client/billing/discount/tax/template fields and every line item into a new `Draft` invoice with a fresh

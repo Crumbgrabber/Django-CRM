@@ -29,7 +29,9 @@
   let { data, form } = $props();
 
   let totals = $derived(data.totals);
-  let pending = $derived(data.approvals.filter((a) => a.state === 'pending'));
+  let pending = $derived(
+    data.approvals.filter((/** @type {{ state: string }} */ a) => a.state === 'pending')
+  );
 
   /**
    * The first row you can actually act on. Only that one gets the ember
@@ -38,8 +40,12 @@
    * colour stops meaning "start here". The rest are ordinary buttons and work
    * exactly the same.
    */
-  let firstActionable = $derived(pending.find((a) => a.can_act)?.id ?? null);
-  let decided = $derived(data.approvals.filter((a) => a.state !== 'pending'));
+  let firstActionable = $derived(
+    pending.find((/** @type {{ can_act: boolean }} */ a) => a.can_act)?.id ?? null
+  );
+  let decided = $derived(
+    data.approvals.filter((/** @type {{ state: string }} */ a) => a.state !== 'pending')
+  );
   let rules = $derived(data.rules);
 
   /** The one row whose reject-reason box is open (a rejection needs a reason). */
@@ -49,6 +55,8 @@
    * Why a non-actionable row is blocked, in the words of the rule that says so.
    * Only called for rows that are neither yours nor actionable. An own request
    * gets its own banner, so this never has to explain that case.
+   *
+   * @param {{ rule: { approvers: string[], approver_role: string } }} a
    */
   function blockedReason(a) {
     if (a.rule.approvers.length)
@@ -269,7 +277,7 @@
     <!-- MANAGER is a valid approver_role on the model but not a valid
          Profile.role, so a rule set to MANAGER currently matches nobody. Said
          here rather than left for someone to discover via a stuck queue. -->
-    {#if rules.some((r) => r.is_active && r.approver_role === 'MANAGER' && !r.approvers.length)}
+    {#if rules.some((/** @type {{ is_active: boolean, approver_role: string, approvers: string[] }} */ r) => r.is_active && r.approver_role === 'MANAGER' && !r.approvers.length)}
       <p class="v2-sub" style="font-size:12px;margin-top:12px">
         One active rule is cleared by managers, but this org has only admins and members. Nobody can
         clear it. Name approvers on the rule, or set it to admin.

@@ -280,14 +280,22 @@ class TestCsvExport:
         assert "attachment; filename=" in response["Content-Disposition"]
 
         header, row = self._rows(response)
-        assert header[:5] == ["Date", "Agent", "Ticket", "Account", "Description"]
+        assert header[:6] == [
+            "Date",
+            "Agent",
+            "Ticket",
+            "Project",
+            "Account",
+            "Description",
+        ]
         assert row[2] == "Printer down"
-        assert row[3] == "Reyes & Co"
-        assert row[4] == "Traced the failed import"
-        assert row[5] == "45"
-        assert row[6] == "0.75"
-        assert row[7] == "yes"
-        assert row[10] == "60.00"
+        assert row[3] == ""
+        assert row[4] == "Reyes & Co"
+        assert row[5] == "Traced the failed import"
+        assert row[6] == "45"
+        assert row[7] == "0.75"
+        assert row[8] == "yes"
+        assert row[11] == "60.00"
 
     def test_a_non_billable_entry_has_no_value_rather_than_a_zero(
         self, admin_client, admin_user, admin_profile, org_a
@@ -296,9 +304,9 @@ class TestCsvExport:
 
         _header, row = self._rows(admin_client.get(EXPORT))
 
-        assert row[7] == "no"
-        assert row[8] == ""
-        assert row[10] == ""
+        assert row[8] == "no"
+        assert row[9] == ""
+        assert row[11] == ""
 
     def test_carries_the_same_window_and_the_same_visibility_as_the_report(
         self, user_client, admin_user, admin_profile, user_profile, org_a
@@ -310,7 +318,7 @@ class TestCsvExport:
 
         rows = self._rows(user_client.get(EXPORT))
 
-        assert [r[4] for r in rows[1:]] == ["Yours"]
+        assert [r[5] for r in rows[1:]] == ["Yours"]
 
     def test_an_agent_cannot_export_another_agents_time(
         self, user_client, admin_profile

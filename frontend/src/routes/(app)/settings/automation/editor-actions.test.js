@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const apiRequest = vi.fn();
-vi.mock('#lib/api-helpers.js', () => ({ apiRequest: (...a) => apiRequest(...a) }));
+vi.mock('#lib/api-helpers.js', () => ({
+  apiRequest: (/** @type {any[]} */ ...a) => apiRequest(...a)
+}));
 
 // Both import nothing from `$app/*`, so the standalone vitest config can load them.
 const newRule = await import('./new/+page.server.js');
@@ -223,7 +225,8 @@ describe('save refusals, on both pages', () => {
   it.each(pages)(
     'refuses a rule field that is not JSON without calling the API (%s)',
     async (_n, save, id) => {
-      for (const fields of [
+      /** @type {Record<string, string>[]} */
+      const bodies = [
         {},
         { rule: '' },
         { rule: '{"name": ' },
@@ -232,7 +235,8 @@ describe('save refusals, on both pages', () => {
         { rule: '"a rule"' },
         { rule: JSON.stringify({ ...DRAFT, conditions: 'all' }) },
         { rule: JSON.stringify({ ...DRAFT, trigger: 'created' }) }
-      ]) {
+      ];
+      for (const fields of bodies) {
         const result = /** @type {any} */ (await save()(event(fields, id)));
         expect(result.status).toBe(400);
         expect(result.data).toEqual({ save: { general: 'Could not read the rule.', rows: {} } });
@@ -270,7 +274,9 @@ describe('try, switch off and delete', () => {
   });
 
   it('refuses a malformed record id without calling the API', async () => {
-    for (const fields of [{ record_id: 'zz' }, { record_id: '' }, {}]) {
+    /** @type {Record<string, string>[]} */
+    const bodies = [{ record_id: 'zz' }, { record_id: '' }, {}];
+    for (const fields of bodies) {
       const result = /** @type {any} */ (await oneRule.actions.try(event(fields, ID)));
       expect(result.status).toBe(404);
       expect(result.data).toEqual({ tryError: GONE });

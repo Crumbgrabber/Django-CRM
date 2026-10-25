@@ -34,6 +34,10 @@ export const ORG_MAX_AGE = 60 * 60 * 24 * 365;
 
 /** Thrown when the portal API answers with a non-2xx status. */
 export class PortalError extends Error {
+  /**
+   * @param {number} status
+   * @param {any} data
+   */
   constructor(status, data) {
     super(`portal request failed with ${status}`);
     this.status = status;
@@ -77,24 +81,58 @@ export const requestLogin = (org, email, event) =>
     headers: relayHeaders(event)
   });
 
+/**
+ * @param {string} org
+ * @param {string} email
+ * @param {string} code
+ */
 export const verifyLogin = (org, email, code) =>
   call(`/login/${org}/verify/`, { method: 'POST', body: { email, code } });
 
+/**
+ * @param {string} token
+ * @param {string} [status]
+ */
 export const listCases = (token, status) =>
   call(`/cases/${status ? `?status=${encodeURIComponent(status)}` : ''}`, { token });
 
+/**
+ * @param {string} token
+ * @param {string} id
+ */
 export const getCase = (token, id) => call(`/cases/${id}/`, { token });
 
+/**
+ * @param {string} token
+ * @param {{ name: string, description: string, priority: string }} body
+ */
 export const createCase = (token, body) => call('/cases/', { method: 'POST', token, body });
 
+/**
+ * @param {string} token
+ * @param {string} id
+ * @param {string} comment
+ */
 export const postReply = (token, id, comment) =>
   call(`/cases/${id}/comment/`, { method: 'POST', token, body: { comment } });
 
+/**
+ * @param {string} token
+ * @param {string} [search]
+ */
 export const listArticles = (token, search) =>
   call(`/articles/${search ? `?search=${encodeURIComponent(search)}` : ''}`, { token });
 
+/**
+ * @param {string} token
+ * @param {string} id
+ */
 export const getArticle = (token, id) => call(`/articles/${id}/`, { token });
 
+/**
+ * @param {string} token
+ * @param {string} q
+ */
 export const suggestArticles = (token, q) =>
   call(`/articles/suggest/?q=${encodeURIComponent(q)}`, { token });
 
@@ -112,8 +150,15 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  */
 export const loginPath = (org) => (org && UUID.test(org) ? `/portal/login/${org}` : '/login');
 
-/** Write the session, httpOnly so no script on the page can read the token. */
+/**
+ * Write the session, httpOnly so no script on the page can read the token.
+ *
+ * @param {import('@sveltejs/kit').Cookies} cookies
+ * @param {string} accessToken
+ * @param {string} orgId
+ */
 export function setSession(cookies, accessToken, orgId) {
+  /** @type {Parameters<import('@sveltejs/kit').Cookies['set']>[2]} */
   const options = {
     path: '/',
     httpOnly: true,
@@ -131,6 +176,8 @@ export function setSession(cookies, accessToken, orgId) {
  * `portal_org` survives on purpose so the next visit lands on the right org's
  * sign-in page. Clearing it too would send a returning customer to the staff
  * login, which they cannot use.
+ *
+ * @param {import('@sveltejs/kit').Cookies} cookies
  */
 export function clearSession(cookies) {
   cookies.delete(ACCESS_COOKIE, { path: '/' });

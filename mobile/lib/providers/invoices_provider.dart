@@ -254,6 +254,31 @@ class InvoicesNotifier extends AsyncNotifier<InvoicesListData> {
     return (invoiceId: invoiceId, error: null);
   }
 
+  /// Drafts an invoice from billable time: a ticket's entries by
+  /// [accountId] and [entryIds], or a project's by [projectId], where the
+  /// server takes every unbilled entry started on or before [upTo] when no
+  /// ids are given. Admins only; the server refuses anyone else.
+  Future<({String? invoiceId, String? error})> createFromTimeEntries({
+    String? accountId,
+    String? projectId,
+    List<String>? entryIds,
+    String? upTo,
+    required String groupBy,
+  }) async {
+    final response = await _api.post(ApiConfig.invoiceFromTimeEntries, {
+      'account_id': ?accountId,
+      'project_id': ?projectId,
+      'entry_ids': ?entryIds,
+      'up_to': ?upTo,
+      'group_by': groupBy,
+    });
+    if (!response.success) {
+      return (invoiceId: null, error: _message(response));
+    }
+    await refresh();
+    return (invoiceId: response.data?['invoice_id']?.toString(), error: null);
+  }
+
   /// POSTs an action and refreshes the list. Returns null on success, or the
   /// server's own message.
   ///

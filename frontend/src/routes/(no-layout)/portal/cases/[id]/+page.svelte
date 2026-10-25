@@ -12,6 +12,7 @@
 
   const OPEN_STATUSES = new Set(['New', 'Assigned', 'Pending']);
 
+  /** @param {string | null | undefined} value */
   function formatWhen(value) {
     if (!value) return '';
     return new Date(value).toLocaleString(undefined, {

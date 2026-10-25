@@ -27,6 +27,8 @@ import { apiRequest } from '#lib/api-helpers.js';
 import { ESCALATION_PRIORITIES } from '#lib/v2/enums.js';
 import { viewerIsAdmin } from './organization.js';
 
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+
 /**
  * Profile → the `{ id, name }` the card renders, or null when unset.
  *
@@ -34,6 +36,8 @@ import { viewerIsAdmin } from './organization.js';
  * blank and dropping the email left the card rendering "Notify " with nothing
  * after it. The mobile client's `UserLookup.displayName` resolves the same
  * payload the same way.
+ *
+ * @param {{ id: string, user_details?: { name?: string | null, email?: string | null } } | null | undefined} target
  */
 function shapeTarget(target) {
   if (!target) return null;
@@ -42,7 +46,10 @@ function shapeTarget(target) {
   return { id: target.id, name: name || email.split('@')[0] || 'Unnamed' };
 }
 
-/** Team → `{ id, name }`, or null. */
+/**
+ * Team → `{ id, name }`, or null.
+ * @param {{ id: string, name: string } | null | undefined} team
+ */
 function shapeTeam(team) {
   if (!team) return null;
   return { id: team.id, name: team.name };
@@ -53,6 +60,8 @@ function shapeTeam(team) {
  * @returns {Promise<{ policies: any[], can_edit: boolean }>}
  */
 export async function getEscalationPolicies({ cookies }) {
+  // `{ policies }`, an envelope the schema's bare list does not describe.
+  /** @type {{ policies?: any[] }} */
   const { policies } = await apiRequest('/cases/escalation-policies/', {}, { cookies });
   return {
     policies: (policies ?? []).map((p) => ({
@@ -107,6 +116,9 @@ const MAX_SLA_HOURS = 8760;
  * deadline on `created_at`, so every new case would open already breached.
  * The serializer rejects both, so this is a faster message rather than the
  * rule itself.
+ *
+ * @param {unknown} value
+ * @param {string} field
  */
 function normalizeHours(value, field) {
   if (value === '' || value === null) return null;
@@ -144,7 +156,11 @@ function buildBody(allowed, values) {
   return body;
 }
 
-/** @param {{ cookies: import('@sveltejs/kit').Cookies }} event */
+/**
+ * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
+ * @param {{ [key: string]: unknown }} values
+ * @returns {Promise<Schemas['EscalationPolicy']>}
+ */
 export async function createEscalationPolicy({ cookies }, values) {
   const body = buildBody(CREATE_FIELDS, values);
   if (!ESCALATION_PRIORITIES.includes(body.priority)) {
@@ -153,7 +169,12 @@ export async function createEscalationPolicy({ cookies }, values) {
   return await apiRequest('/cases/escalation-policies/', { method: 'POST', body }, { cookies });
 }
 
-/** @param {{ cookies: import('@sveltejs/kit').Cookies }} event */
+/**
+ * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
+ * @param {string} id
+ * @param {{ [key: string]: unknown }} values
+ * @returns {Promise<Schemas['EscalationPolicy']>}
+ */
 export async function updateEscalationPolicy({ cookies }, id, values) {
   if (!id) throw new Error('Which policy? No policy id was given.');
   const body = buildBody(UPDATE_FIELDS, values);
@@ -170,6 +191,8 @@ export async function updateEscalationPolicy({ cookies }, id, values) {
  * what the confirm line has to say.
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
+ * @param {string} id
+ * @returns {Promise<Schemas['EscalationPolicyDeleteResponse']>}
  */
 export async function deleteEscalationPolicy({ cookies }, id) {
   if (!id) throw new Error('Which policy? No policy id was given.');

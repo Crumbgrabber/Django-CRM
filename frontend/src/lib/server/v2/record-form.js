@@ -5,10 +5,12 @@
  */
 import { collectFromForm, collectLinks, collectAssignees } from '#lib/server/v2/record-fields.js';
 
+/** @typedef {{ name: string, custom_fields: Record<string, any>, links?: Record<string, string[]>, assigned_to?: string[] }} RecordBody */
+
 /**
  * @param {FormData} form
  * @param {{ fields?: any[] }} definition The object with its active fields.
- * @returns {{ name: string, custom_fields: Record<string, any>, links?: Record<string, string[]>, assigned_to?: string[] }}
+ * @returns {RecordBody}
  */
 export function readRecordForm(form, definition) {
   const fields = (definition.fields ?? []).filter((f) => f.is_active !== false);
@@ -17,6 +19,7 @@ export function readRecordForm(form, definition) {
   const plain = fields.filter((f) => f.field_type !== 'link' && rendered.has(f.key));
   const linkFields = fields.filter((f) => f.field_type === 'link');
 
+  /** @type {RecordBody} */
   const body = {
     name: form.get('name')?.toString().trim() ?? '',
     custom_fields: collectFromForm(form, plain)

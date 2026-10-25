@@ -4,6 +4,7 @@
  */
 import { runTime } from '#lib/v2/format.js';
 import { isOn, OBJECT_MODULES } from '#lib/v2/modules.js';
+import { budgetNotificationText } from '#lib/v2/projects.js';
 
 /** @typedef {{ key: string, label: string, type: string, choices: any[], settable: boolean }} Field */
 
@@ -765,8 +766,9 @@ export function hubValue(summary) {
 }
 
 /**
- * The sentence an automation notification shows, composed from `data`. Null for
- * any other verb or data of the wrong type, so the row keeps its usual copy.
+ * The sentence an automation or project budget notification shows, composed
+ * from `data`. Null for any other verb or data of the wrong type, so the row
+ * keeps its usual copy.
  *
  * @param {any} n
  * @param {string} timeZone
@@ -795,6 +797,10 @@ export function notificationText(n, timeZone) {
         text: `Automation reached its limit of 1,000 runs in the hour from ${from}. The rest of that hour's runs were skipped.`,
         source: null
       };
+    }
+    case 'project.budget': {
+      const text = budgetNotificationText(d);
+      return text ? { text, source: null } : null;
     }
     default:
       return null;
