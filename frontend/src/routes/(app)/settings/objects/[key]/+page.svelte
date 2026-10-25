@@ -14,6 +14,7 @@
   import Pill from '#lib/v2/components/Pill.svelte';
   import EmptyState from '#lib/v2/components/EmptyState.svelte';
   import { FIELD_TYPE_LABEL } from '#lib/v2/enums.js';
+  import { billingHref } from '#lib/v2/billing.js';
   import { ChevronLeft, Plus } from '@lucide/svelte';
 
   const TYPE_LABEL = /** @type {Record<string, string>} */ ({ ...FIELD_TYPE_LABEL, link: 'Link' });
@@ -24,6 +25,7 @@
   let def = $derived(data.definition);
   let plan = $derived(data.customObjects?.has_custom_objects === true);
   let canWrite = $derived(data.can_edit && plan);
+  let plansHref = $derived(billingHref(data));
   let linkTargets = $derived(/** @type {any[]} */ (data.customObjects?.link_targets ?? []));
 
   let editingObject = $state(false);
@@ -102,6 +104,9 @@
       <p class="v2-sub" style="font-size:12.5px;margin:0 0 16px;max-width:66ch">
         Custom objects are not included in this organization's plan. Existing objects stay readable,
         and can be archived, restored or deleted.
+        {#if plansHref}
+          <a href={resolve(asInternalPath(plansHref))}>See plans</a>
+        {/if}
       </p>
     {/if}
 

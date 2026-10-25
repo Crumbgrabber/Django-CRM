@@ -8,6 +8,7 @@ import { countAwaitingApprovals } from '#lib/server/v2/approvals.js';
 import { countUnread } from '#lib/server/v2/notifications.js';
 import { getOrgTerminology } from '#lib/server/v2/organization.js';
 import { getCustomObjects } from '#lib/server/v2/custom-objects.js';
+import { getBilling } from '#lib/server/v2/billing.js';
 import { getModules } from '#lib/server/v2/modules.js';
 import { isOn } from '#lib/v2/modules.js';
 
@@ -116,9 +117,9 @@ const COUNT_MODULES = /** @type {Record<string, string | undefined>} */ ({
  * The shell: nav counts, the org name, and vertical-pack terminology.
  *
  * The org name is display-only and comes from the JWT via `locals.org`, never
- * the client, never a fixture. The module list, terminology and custom objects
- * start together, then the counts of available modules only (an off module's
- * list answers 404). Calls in a step run concurrently and start empty: every
+ * the client, never a fixture. The module list, terminology, custom objects and
+ * billing start together, then the counts of available modules only (an off
+ * module's list answers 404). Calls in a step run concurrently and start empty: every
  * badge the sidebar renders is in LIVE_COUNTS, so a count that fails just shows
  * no badge rather than a stale number. `terminology` joins the same fan-out.
  * A failed fetch there just leaves the sidebar's hard-coded labels in place
@@ -165,13 +166,16 @@ export async function load(event) {
     is_organization_admin: isOrgAdmin(event.locals.profile),
     // The `/objects/` answer, or null on a self-hosted install or any failure.
     customObjects: /** @type {any} */ (null),
+    // The `/billing/` answer, or null where billing is not offered or on any
+    // failure; read through `#lib/v2/billing.js`.
+    billing: /** @type {import('#lib/server/v2/billing.js').Billing | null} */ (null),
     // The `/org/modules/` rows, or null on an older API or any failure; read
     // only through `isOn` and `labelOf` (`#lib/v2/modules.js`).
     modules: /** @type {import('#lib/v2/modules.js').ModuleRow[] | null} */ (null)
   };
 
-  // The module list, terminology and custom objects start together; each count
-  // starts once the list answers, and only for a module that is on.
+  // The module list, terminology, custom objects and billing start together;
+  // each count starts once the list answers, and only for a module that is on.
   const modulesCall = getModules(event);
   const countsCall = modulesCall.then((answer) => {
     const modules = answer?.modules ?? null;
@@ -186,15 +190,18 @@ export async function load(event) {
       ])
     );
   });
-  const [modulesResult, terminologyResult, objectsResult, countsResult] = await Promise.allSettled([
-    modulesCall,
-    getOrgTerminology(event),
-    getCustomObjects(event),
-    countsCall
-  ]);
+  const [modulesResult, terminologyResult, objectsResult, billingResult, countsResult] =
+    await Promise.allSettled([
+      modulesCall,
+      getOrgTerminology(event),
+      getCustomObjects(event),
+      getBilling(event),
+      countsCall
+    ]);
 
   if (modulesResult.status === 'fulfilled') shell.modules = modulesResult.value?.modules ?? null;
   if (objectsResult.status === 'fulfilled') shell.customObjects = objectsResult.value ?? null;
+  if (billingResult.status === 'fulfilled') shell.billing = billingResult.value;
   if (terminologyResult.status === 'fulfilled') {
     shell.org.terminology = terminologyResult.value.terminology;
   }

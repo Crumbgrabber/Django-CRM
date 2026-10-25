@@ -302,9 +302,15 @@ describe('ruleErrors', () => {
     });
   });
 
-  it('shows a 403 detail as the general error', () => {
+  it('shows a 403 detail as the general error, marking a plan limit', () => {
     const err = status(403, { detail: 'Not available on this install', code: 'plan_limit' });
-    expect(ruleErrors(err)).toEqual({ general: 'Not available on this install', rows: {} });
+    expect(ruleErrors(err)).toEqual({
+      general: 'Not available on this install',
+      rows: {},
+      plan: true
+    });
+    const admins = status(403, { detail: 'Admins only.' });
+    expect(ruleErrors(admins)).toEqual({ general: 'Admins only.', rows: {}, plan: false });
   });
 
   it('still gives a message when a 400 maps to no rows', () => {

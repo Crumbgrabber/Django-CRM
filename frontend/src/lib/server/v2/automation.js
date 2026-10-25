@@ -6,6 +6,7 @@ import { error, fail } from '@sveltejs/kit';
 import { apiRequest } from '#lib/api-helpers.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
 import { checkId } from '#lib/server/v2/custom-objects.js';
+import { isPlanRefusal } from '#lib/server/v2/billing.js';
 
 export const RULE_GONE = 'That rule does not exist, or you do not have access to it.';
 // The hosted web app can run ahead of its API during a release, so an API
@@ -274,8 +275,10 @@ function rowKey(path) {
 }
 
 /**
+ * `plan` marks a plan limit, which the editor links to Billing for an admin.
+ *
  * @param {any} err the error thrown by `apiRequest`
- * @returns {{ general: string | null, rows: Record<string, string> }}
+ * @returns {{ general: string | null, rows: Record<string, string>, plan?: boolean }}
  */
 export function ruleErrors(err) {
   /** @type {Record<string, string>} */
@@ -290,7 +293,7 @@ export function ruleErrors(err) {
     if (Object.keys(rows).length) return { general: null, rows };
   }
   if (err?.status === 403 && typeof err?.body?.detail === 'string') {
-    return { general: err.body.detail, rows };
+    return { general: err.body.detail, rows, plan: isPlanRefusal(err) };
   }
   return { general: readableError(err, 'Could not save the rule.'), rows };
 }

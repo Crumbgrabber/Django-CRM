@@ -6,7 +6,8 @@ import {
   objectNavItems,
   showObjectsSetting,
   relatedView,
-  suggestKey
+  suggestKey,
+  objectLimit
 } from './custom-objects.js';
 
 describe('isPhoto', () => {
@@ -146,4 +147,16 @@ describe('suggestKey', () => {
   it('drops a trailing underscore left by the cut', () => {
     expect(suggestKey('ab cd', 3)).toBe('ab');
   });
+});
+
+describe('objectLimit', () => {
+  it.each([
+    [{ limit: 3 }, 3],
+    [{ limit: 0 }, 0],
+    [{ limit: 20 }, 20]
+  ])('reads %j', (answer, expected) => expect(objectLimit(answer)).toBe(expected));
+  it.each([[{}], [null], [undefined], [{ limit: '3' }], [{ limit: -1 }], [{ limit: 2.5 }]])(
+    "keeps today's 20 for %j",
+    (answer) => expect(objectLimit(answer)).toBe(20)
+  );
 });

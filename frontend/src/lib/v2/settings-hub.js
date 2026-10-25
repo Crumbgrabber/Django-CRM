@@ -7,6 +7,7 @@
  */
 import { isOrgAdmin } from '#lib/admin.js';
 import { hubValue, showAutomationSetting } from '#lib/v2/automation.js';
+import { BILLING_HREF } from '#lib/v2/billing.js';
 import { showObjectsSetting } from '#lib/v2/custom-objects.js';
 import { isOn, productsOn, wordsOn } from '#lib/v2/modules.js';
 
@@ -185,6 +186,20 @@ export function hubGroups(data) {
                       ? `${switchedOff} ${switchedOff === 1 ? 'module' : 'modules'} off`
                       : 'All modules on',
                 warn: false
+              }
+            ]
+          : []),
+        // Only where the server offers billing; a member's answer is the plan name.
+        ...(data.billing
+          ? [
+              {
+                href: BILLING_HREF,
+                title: 'Billing',
+                body: isOrgAdmin(data)
+                  ? "This organization's plan, and how it is paid for."
+                  : "This organization's plan.",
+                value: data.billing.plan.name,
+                warn: Boolean(data.billing.notice)
               }
             ]
           : [])

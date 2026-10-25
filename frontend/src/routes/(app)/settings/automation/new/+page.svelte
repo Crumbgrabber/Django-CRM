@@ -3,6 +3,7 @@
   import AdminsOnly from '#lib/v2/components/automation/AdminsOnly.svelte';
   import AutomationCrumb from '#lib/v2/components/automation/AutomationCrumb.svelte';
   import RuleEditor from '#lib/v2/components/automation/RuleEditor.svelte';
+  import { billingHref } from '#lib/v2/billing.js';
 
   /** @type {{ data: any, form: any }} */
   let { data, form } = $props();
@@ -18,5 +19,5 @@
     </div>
   </div>
 {:else}
-  <RuleEditor catalogue={data.catalogue} {form} />
+  <RuleEditor catalogue={data.catalogue} {form} plansHref={billingHref(data)} />
 {/if}

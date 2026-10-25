@@ -6,6 +6,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../core/theme/theme.dart';
 import '../../data/models/org_settings.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/billing_provider.dart';
 import '../../providers/org_modules_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../routes/app_router.dart';
@@ -26,6 +27,9 @@ import '../../services/org_date.dart';
 /// members legitimately see their org's address and currency. Editing is
 /// admin-only, enforced server-side; hiding the button is UX. Industry apps
 /// and sample data live on the Apps screen.
+///
+/// Where the server offers billing, the plan's name shows under the header,
+/// read-only for everyone: the phone never offers to buy or manage a plan.
 class OrganizationScreen extends ConsumerWidget {
   const OrganizationScreen({super.key});
 
@@ -35,6 +39,9 @@ class OrganizationScreen extends ConsumerWidget {
     final async = ref.watch(orgSettingsProvider);
     final invoicesOn = ref.watch(moduleOnProvider('invoices'));
     final ticketsOn = ref.watch(moduleOnProvider('tickets'));
+    // While it reloads, the previous value may be another org's plan.
+    final plan = ref.watch(orgPlanNameProvider);
+    final planName = plan.isLoading || plan.hasError ? null : plan.value;
 
     return Scaffold(
       backgroundColor: AppColors.surfaceDim,
@@ -58,11 +65,15 @@ class OrganizationScreen extends ConsumerWidget {
           onRetry: () => ref.read(orgSettingsProvider.notifier).refresh(),
         ),
         data: (org) => RefreshIndicator(
-          onRefresh: () => ref.read(orgSettingsProvider.notifier).refresh(),
+          onRefresh: () {
+            ref.invalidate(orgPlanNameProvider);
+            return ref.read(orgSettingsProvider.notifier).refresh();
+          },
           child: ListView(
             padding: const EdgeInsets.only(bottom: 40),
             children: [
               _Header(org: org),
+              if (planName != null) _Field(label: 'Plan', value: planName),
               const _SectionHeader('What customers see'),
               _Field(label: 'Legal name', value: org.companyName),
               _Field(label: 'Trading as', value: org.name),

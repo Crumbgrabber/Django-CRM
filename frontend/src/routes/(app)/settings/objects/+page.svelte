@@ -11,11 +11,10 @@
   import StatCard from '#lib/v2/components/StatCard.svelte';
   import EmptyState from '#lib/v2/components/EmptyState.svelte';
   import Pill from '#lib/v2/components/Pill.svelte';
-  import { suggestKey } from '#lib/v2/custom-objects.js';
+  import { objectLimit, suggestKey } from '#lib/v2/custom-objects.js';
+  import { billingHref } from '#lib/v2/billing.js';
   import { count } from '#lib/v2/format.js';
   import { Plus } from '@lucide/svelte';
-
-  const OBJECT_LIMIT = 20;
 
   /** @type {{ data: any, form: any }} */
   let { data, form } = $props();
@@ -27,7 +26,9 @@
 
   let objects = $derived(data.answer.objects);
   let archived = $derived(objects.filter((/** @type {any} */ o) => !o.is_active).length);
+  let limit = $derived(objectLimit(data.answer));
   let canAdd = $derived(data.can_edit && data.answer.has_custom_objects);
+  let plansHref = $derived(billingHref(data));
 
   function openCreate() {
     label = '';
@@ -63,7 +64,7 @@
       label="Objects used"
       value={count(objects.length)}
       tone="slate"
-      detail={`of ${OBJECT_LIMIT} objects`}
+      detail={`of ${limit} objects`}
     />
   </div>
 </div>
@@ -74,6 +75,9 @@
       <p class="v2-sub" style="font-size:12.5px;margin:0 0 16px;max-width:66ch">
         Custom objects are not included in this organization's plan. Existing objects stay readable,
         and can be archived, restored or deleted.
+        {#if plansHref}
+          <a href={resolve(asInternalPath(plansHref))}>See plans</a>
+        {/if}
       </p>
     {/if}
 

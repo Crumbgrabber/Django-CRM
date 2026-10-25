@@ -126,7 +126,7 @@ export async function getCustomObjects({ cookies }) {
  * Every object, archived ones included (admins only see those).
  *
  * @param {Event} event
- * @returns {Promise<{ has_custom_objects: boolean, objects: any[], link_targets: any[] }>}
+ * @returns {Promise<{ has_custom_objects: boolean, limit?: number, objects: any[], link_targets: any[] }>}
  */
 export async function listObjectsForSettings({ cookies }) {
   return await orNotFound(

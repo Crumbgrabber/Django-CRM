@@ -210,7 +210,7 @@ describe('save refusals, on both pages', () => {
       await save()(event({ rule: JSON.stringify(DRAFT), switch_on: 'true' }, id))
     );
     expect(result.status).toBe(403);
-    expect(result.data).toEqual({ save: { general: detail, rows: {} } });
+    expect(result.data).toEqual({ save: { general: detail, rows: {}, plan: true } });
   });
 
   it.each(pages)('says something when the API cannot be reached (%s)', async (_n, save, id) => {
