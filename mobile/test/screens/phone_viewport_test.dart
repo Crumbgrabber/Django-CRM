@@ -2916,6 +2916,32 @@ void main() {
       expect(find.text('Creating tickets'), findsWidgets);
     });
 
+    testWidgets('says what an address dropped and that it hit its limit', (
+      tester,
+    ) async {
+      await pump(tester, mailboxesApp(isAdmin: false));
+
+      expect(
+        find.text(
+          '1,250 dropped in 30 days: 900 spam, 2 with a virus, 300 failed the '
+          'sender check, 40 automatic replies, 8 other',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.text(
+          'Took its limit of 300 emails today. More mail is refused until '
+          'the count falls.',
+        ),
+        findsOneWidget,
+      );
+      await tester.scrollUntilVisible(
+        find.textContaining('Spam, viruses and mail'),
+        200,
+      );
+      expect(find.textContaining('up to 300 emails a day'), findsOneWidget);
+    });
+
     testWidgets('never claims a shared secret proves a delivery', (
       tester,
     ) async {
@@ -5920,7 +5946,19 @@ Map<String, dynamic> _mailboxJson({
 
 MailboxesState _mailboxState({bool allLive = false}) {
   final rows = [
-    Mailbox.fromJson(_mailboxJson(id: 'm1', address: 'support@acme.com')),
+    // The widest live row: every reason dropped, and over its limit.
+    Mailbox.fromJson({
+      ..._mailboxJson(id: 'm1', address: 'support@acme.com'),
+      'dropped_last_30d': 1250,
+      'drops_last_30d': {
+        'spam': 900,
+        'virus': 2,
+        'spoofed': 300,
+        'automatic': 40,
+        'other': 8,
+      },
+      'limit_reached': true,
+    }),
     Mailbox.fromJson(
       _mailboxJson(
         id: 'm2',
@@ -5940,6 +5978,7 @@ MailboxesState _mailboxState({bool allLive = false}) {
     mailboxes: sortedMailboxes(rows),
     count: rows.length,
     casesLast30d: 9,
+    dailyLimit: 300,
   );
 }
 

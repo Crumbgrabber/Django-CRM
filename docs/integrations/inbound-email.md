@@ -10,11 +10,13 @@ added, and so on), see [Webhooks](webhooks.md).
 
 ## How inbound email becomes a ticket
 
-The pipeline (`backend/cases/inbound/pipeline.py`, entry point `ingest()`) runs the same four
-steps for every message that reaches a configured mailbox:
+The pipeline (`backend/cases/inbound/pipeline.py`, entry point `ingest()`) first applies the
+address's [limits](#limits-and-filtering), then runs the same four steps for every message that
+reaches a configured mailbox:
 
 1. **Spam/noise filtering** (`cases/inbound/spam.py`). A message is dropped, recorded, but no
-   case touched, if it looks like a bounce, carries `Auto-Submitted: <anything but "no">`,
+   case touched, if the provider flagged it (see [Limits and filtering](#limits-and-filtering)),
+   if it looks like a bounce, carries `Auto-Submitted: <anything but "no">`,
    `Precedence: bulk|list|junk`, `X-Autoreply: yes`, or both `List-Id` and `List-Unsubscribe`
    headers (a mailing-list signature; either header alone isn't enough, since transactional mail
    sometimes carries `List-Unsubscribe` on its own). A message with no `Message-ID` at all is also
@@ -48,10 +50,35 @@ steps for every message that reaches a configured mailbox:
 
 Every message that reaches the pipeline, including dropped ones, is recorded as exactly one
 `EmailMessage` row (`org` + `message_id` is the idempotency key, so a provider retry never creates
-a duplicate case). Mail addressed to a different mailbox never reaches it: see
+a duplicate case), except mail over an address's [limits](#limits-and-filtering). Mail addressed to a different mailbox never reaches it: see
 [Which mailbox a notification belongs to](#which-mailbox-a-notification-belongs-to).
 That gives admins a forensic trail even for the mail that never became a ticket, and it's what
 [the mailbox list's per-mailbox counts](#configuring-a-mailbox) are computed from.
+
+## Limits and filtering
+
+Every inbound address, ticket or lead, is guarded the same way (`backend/cases/inbound/limits.py`
+and `_ses_verdict` in `backend/cases/inbound_views.py`):
+
+- **Flagged mail is dropped.** A `virusVerdict` or `spamVerdict` of `FAIL` from SES drops an email
+  as `virus` or `spam`. So does a `dmarcVerdict` of `FAIL` when the sender's domain publishes a
+  DMARC policy of `quarantine` or `reject` (recorded as `spoofed`). A domain whose policy is
+  `p=none` asks receivers to do nothing, so mail faking such an address is not caught here.
+  Postmark's `X-Spam-Status: Yes` and Mailgun's `X-Mailgun-Sflag: Yes` drop an email as `spam`. A
+  dropped email opens no ticket, never lands on an existing one, and keeps none of its files.
+- **An address accepts at most `INBOUND_EMAIL_DAILY_LIMIT` emails in 24 hours** (300 unless set).
+  Only accepted mail counts, so junk that is dropped anyway never locks a customer out. Past the
+  limit, mail is refused and not recorded.
+- **A ticket address accepts at most 20 emails an hour from one sender.** Lead addresses have no
+  such cap, because a portal sends every enquiry from one address.
+- **Dropped mail is recorded up to the same daily number per address.** Past it, a drop is only
+  logged, so a flood writes a bounded number of rows.
+- **A recorded email is never rewritten.** A later email that reuses an earlier one's `Message-ID`
+  cannot replace it or detach it from its ticket.
+
+The counts go by when the CRM received each email, never by the email's own `Date` header, which
+the sender writes. The mailbox list reports what each address dropped and whether it is at its
+limit (see [Configuring a mailbox](#configuring-a-mailbox)).
 
 ## How replies go back out
 
@@ -122,7 +149,13 @@ Fields worth knowing when creating one:
 mailbox row itself. `cases_last_30d` counts distinct cases *created* in the last 30 days that have
 an inbound message through that mailbox (a reply to an older case doesn't count as a new ticket);
 `last_received_at` is the newest inbound message's `received_at`, including dropped ones, the
-address still received mail even if the pipeline discarded it. Neither field is present on
+address still received mail even if the pipeline discarded it.
+
+It also adds, per mailbox, `dropped_last_30d` (emails the address dropped and recorded in the last
+30 days), `drops_last_30d` (the same by kind, non-zero kinds only: `spam`, `virus`, `spoofed`,
+`automatic` for bounces, auto-replies and mailing lists, and `other`) and `limit_reached` (whether
+it has accepted its daily limit in the last 24 hours), and a top-level `daily_limit`. Mail refused
+over a limit is in none of them. None of these fields is present on
 `GET /api/cases/mailboxes/{id}/`, which returns only the plain serializer.
 
 ### When Tickets or Leads is switched off
@@ -237,8 +270,8 @@ On a `Notification`, the view acks with:
 {"ok": true, "case_id": "<uuid or null>", "dropped": false, "reason": "", "created_case": true}
 ```
 
-`dropped`/`reason` reflect the spam-filtering outcome from [the pipeline](#how-inbound-email-becomes-a-ticket)
-above; the response is still `200` even when the message was dropped, and deliberately so: SES
+`dropped`/`reason` reflect the filtering outcome from [the pipeline](#how-inbound-email-becomes-a-ticket)
+above, a limit included (`daily_limit`, `sender_limit`); the response is still `200` even when the message was dropped, and deliberately so: SES
 already accepted the message from the original sender, and returning a `4xx` here would just
 trigger pointless provider retries of a message that was correctly classified as noise, not lost.
 

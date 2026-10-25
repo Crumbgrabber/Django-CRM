@@ -44,7 +44,7 @@ import email.utils
 import hashlib
 import json
 import logging
-from collections import Counter
+from collections import Counter, defaultdict
 from datetime import timedelta
 
 from django.conf import settings
@@ -63,6 +63,7 @@ from cases.inbound.generated import (
     lookup_token,
 )
 from cases.inbound.leads import ingest_lead, read_email
+from cases.inbound.limits import daily_limit
 from cases.inbound.parser import parse_raw_email
 from cases.inbound.pipeline import ingest
 from cases.inbound.providers import (
@@ -96,7 +97,67 @@ MAILBOX_WINDOW_DAYS = 30
 # Postmark and Mailgun posts larger than this are refused unread: above either
 # provider's message limit once attachments are base64 encoded.
 PROVIDER_BODY_MAX = 50 * 1024 * 1024
-SES_SPAM_VERDICTS = (("spamVerdict", "spam"), ("virusVerdict", "virus"))
+SES_SPAM_VERDICTS = (("virusVerdict", "virus"), ("spamVerdict", "spam"))
+# A DMARC failure is acted on only where the sender's domain asks receivers to.
+DMARC_ENFORCED_POLICIES = {"quarantine", "reject"}
+
+
+def _ses_verdict(receipt: dict) -> str:
+    """Why SES's checks failed an email ("virus", "spam" or "spoofed"), or an
+    empty string."""
+    for key, name in SES_SPAM_VERDICTS:
+        if isinstance(receipt.get(key), dict) and receipt[key].get("status") == "FAIL":
+            return name
+    dmarc = receipt.get("dmarcVerdict")
+    policy = str(receipt.get("dmarcPolicy") or "").lower()
+    if (
+        isinstance(dmarc, dict)
+        and dmarc.get("status") == "FAIL"
+        and policy in DMARC_ENFORCED_POLICIES
+    ):
+        return "spoofed"
+    return ""
+
+
+# How the settings page groups a dropped email's reason; any other is "other".
+DROP_CATEGORIES = {
+    "spam": "spam",
+    "virus": "virus",
+    "spoofed": "spoofed",
+    "bounce": "automatic",
+    "auto_submitted": "automatic",
+    "precedence_bulk": "automatic",
+    "x_autoreply": "automatic",
+    "mailing_list": "automatic",
+}
+
+
+def _mailbox_drops(org):
+    """Per mailbox, the emails dropped in the window by category, and the set
+    of mailboxes that have accepted their daily limit in the last 24 hours."""
+    now = timezone.now()
+    inbound = EmailMessage.objects.filter(
+        org=org, direction="inbound", mailbox__isnull=False
+    ).order_by()
+    drops = defaultdict(Counter)
+    for row in (
+        inbound.filter(created_at__gte=now - timedelta(days=MAILBOX_WINDOW_DAYS))
+        .exclude(drop_reason="")
+        .values("mailbox_id", "drop_reason")
+        .annotate(n=Count("id"))
+    ):
+        category = DROP_CATEGORIES.get(row["drop_reason"], "other")
+        drops[str(row["mailbox_id"])][category] += row["n"]
+    full = {
+        str(row["mailbox_id"])
+        for row in inbound.filter(
+            drop_reason="", created_at__gte=now - timedelta(hours=24)
+        )
+        .values("mailbox_id")
+        .annotate(n=Count("id"))
+        if row["n"] >= daily_limit()
+    }
+    return drops, full
 
 
 def _mailbox_analytics(org):
@@ -155,8 +216,7 @@ def _unwrap_sns_message(message):
     receipt rule matched. SES sets those, Bcc included, and the sender cannot
     forge them. A `Message` that is not a JSON object is taken to be the raw
     email itself, and the recipients come back as None: the caller then has
-    only the message's own headers to go on. The verdict is "spam" or "virus"
-    when SES's scan failed the message, else "".
+    only the message's own headers to go on. The verdict is `_ses_verdict`'s.
     """
     try:
         envelope = json.loads(message)
@@ -167,15 +227,7 @@ def _unwrap_sns_message(message):
     receipt = envelope.get("receipt")
     if not isinstance(receipt, dict):
         receipt = {}
-    verdict = next(
-        (
-            name
-            for key, name in SES_SPAM_VERDICTS
-            if isinstance(receipt.get(key), dict)
-            and receipt[key].get("status") == "FAIL"
-        ),
-        "",
-    )
+    verdict = _ses_verdict(receipt)
     recipients = receipt.get("recipients")
     if not isinstance(recipients, list):
         recipients = []
@@ -684,12 +736,17 @@ class InboundMailboxListCreateView(APIView):
             qs, many=True, context={"request": request}
         ).data
         cases_by, last_by, total_cases = _mailbox_analytics(org)
+        drops_by, full = _mailbox_drops(org)
         active = 0
         for mbx in mailboxes:
             mid = str(mbx["id"])
             mbx["cases_last_30d"] = cases_by.get(mid, 0)
             received = last_by.get(mid)
             mbx["last_received_at"] = received.isoformat() if received else None
+            drops = dict(drops_by.get(mid, {}))
+            mbx["drops_last_30d"] = drops
+            mbx["dropped_last_30d"] = sum(drops.values())
+            mbx["limit_reached"] = mid in full
             if mbx["is_active"]:
                 active += 1
         totals = {
@@ -703,6 +760,7 @@ class InboundMailboxListCreateView(APIView):
                 "totals": totals,
                 # Set when `generate_address` can make an address here.
                 "generated_domain": generated_domain() or None,
+                "daily_limit": daily_limit(),
             }
         )
 

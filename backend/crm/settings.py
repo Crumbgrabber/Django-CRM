@@ -554,6 +554,9 @@ INBOUND_EMAIL_TOPIC_ARN = os.environ.get("INBOUND_EMAIL_TOPIC_ARN", "").strip()
 # Where that rule's S3 action stores emails too large for SNS (over 150 KB).
 # The catch-all reads stored emails from this bucket only; empty: none.
 INBOUND_EMAIL_S3_BUCKET = os.environ.get("INBOUND_EMAIL_S3_BUCKET", "").strip()
+# Emails one inbound address accepts in 24 hours; past it, mail is refused and
+# not recorded (`cases.inbound.limits`).
+INBOUND_EMAIL_DAILY_LIMIT = int(os.environ.get("INBOUND_EMAIL_DAILY_LIMIT", "300"))
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "BottleCRM API",

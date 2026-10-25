@@ -49,8 +49,9 @@ class ParsedEmail:
     # stamps with the envelope recipient it delivered to. Read by the webhook
     # to tell whether a raw message was addressed to its mailbox.
     delivered_to: list[str] = field(default_factory=list)
-    # "spam" or "virus" when the provider flagged the message, else "". Only
-    # lead addresses act on it (`spam.lead_drop_reason`).
+    # "virus", "spam" or "spoofed" (failed a DMARC policy that asks receivers
+    # to refuse it) when the provider flagged the message, else "". Both
+    # ticket and lead addresses drop such mail.
     spam_verdict: str = ""
 
 

@@ -450,4 +450,98 @@ void main() {
       expect(mailboxDeactivateExplanation, contains('nothing bounces'));
     });
   });
+
+  group('dropped mail', () {
+    Mailbox dropped(int total, Object? reasons, {bool limit = false}) =>
+        Mailbox.fromJson(
+          mailboxJson()
+            ..['dropped_last_30d'] = total
+            ..['drops_last_30d'] = reasons
+            ..['limit_reached'] = limit,
+        );
+
+    test('an older API reads as nothing dropped and no limit reached', () {
+      final mailbox = build();
+      expect(mailbox.droppedLast30d, 0);
+      expect(mailbox.dropsLast30d, isEmpty);
+      expect(mailbox.limitReached, isFalse);
+      expect(mailbox.dropSummary, isNull);
+      expect(mailbox.limitNotice(300), isNull);
+    });
+
+    test('names each reason in a fixed order, whatever order it arrived', () {
+      expect(
+        dropped(12, {'automatic': 1, 'spoofed': 2, 'spam': 9}).dropSummary,
+        '12 dropped in 30 days: 9 spam, 2 failed the sender check, '
+        '1 automatic reply',
+      );
+      expect(
+        dropped(4, {'other': 1, 'virus': 2, 'spam': 1}).dropSummary,
+        '4 dropped in 30 days: 1 spam, 2 with a virus, 1 other',
+      );
+    });
+
+    test('says reply for one and replies for more', () {
+      expect(
+        dropped(1, {'automatic': 1}).dropSummary,
+        '1 dropped in 30 days: 1 automatic reply',
+      );
+      expect(
+        dropped(3, {'automatic': 3}).dropSummary,
+        '3 dropped in 30 days: 3 automatic replies',
+      );
+    });
+
+    test('leaves out a reason it does not know, and zero counts', () {
+      expect(
+        dropped(5, {'spam': 2, 'quarantined': 3, 'virus': 0}).dropSummary,
+        '5 dropped in 30 days: 2 spam',
+      );
+    });
+
+    test('states the total alone when there is no usable breakdown', () {
+      expect(dropped(7, null).dropSummary, '7 dropped in 30 days');
+      expect(dropped(7, 'spam').dropSummary, '7 dropped in 30 days');
+      expect(dropped(0, {'spam': 2}).dropSummary, isNull);
+    });
+
+    test('groups thousands as the web does', () {
+      expect(
+        dropped(1200, {'spam': 1200}).dropSummary,
+        '1,200 dropped in 30 days: 1,200 spam',
+      );
+    });
+
+    test('warns only when the limit was reached, naming it when known', () {
+      expect(dropped(0, null).limitNotice(300), isNull);
+      final full = dropped(0, null, limit: true);
+      expect(
+        full.limitNotice(300),
+        'Took its limit of 300 emails today. More mail is refused until the '
+        'count falls.',
+      );
+      expect(
+        full.limitNotice(1),
+        'Took its limit of 1 email today. More mail is refused until the '
+        'count falls.',
+      );
+      expect(
+        full.limitNotice(null),
+        'Took its daily limit today. More mail is refused until the count '
+        'falls.',
+      );
+    });
+
+    test('the policy says what is dropped and the limits, or nothing', () {
+      expect(
+        mailboxDropPolicy(300),
+        "Spam, viruses and mail that fails its sender's domain check are "
+        'dropped. Each address takes up to 300 emails a day, and a ticket '
+        'address up to 20 an hour from one sender.',
+      );
+      expect(mailboxDropPolicy(1000), contains('up to 1,000 emails a day'));
+      expect(mailboxDropPolicy(null), isNull);
+      expect(mailboxDropPolicy(0), isNull);
+    });
+  });
 }

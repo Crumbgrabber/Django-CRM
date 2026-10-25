@@ -1157,6 +1157,7 @@ class MailboxesState {
     this.casesLast30d = 0,
     this.leadsOffered = false,
     this.generatedDomain,
+    this.dailyLimit,
   });
 
   /// Live addresses first, then alphabetically.
@@ -1177,6 +1178,9 @@ class MailboxesState {
 
   /// Where the server makes addresses itself, when it does; null otherwise.
   final String? generatedDomain;
+
+  /// Emails one address takes in 24 hours. Null from an API that has no limit.
+  final int? dailyLimit;
 
   int get delivering => deliveringMailboxCount(mailboxes);
   int get deliveringLeads => deliveringMailboxCount(mailboxes, leads: true);
@@ -1208,6 +1212,7 @@ class MailboxesNotifier extends AsyncNotifier<MailboxesState> {
       for (final row in json) Mailbox.fromJson(row, generatedDomain: domain),
     ];
     final totals = body['totals'];
+    final limit = body['daily_limit'];
     return MailboxesState(
       mailboxes: sortedMailboxes(rows),
       count: _int(totals, 'count', rows.length),
@@ -1216,6 +1221,7 @@ class MailboxesNotifier extends AsyncNotifier<MailboxesState> {
           body.containsKey('generated_domain') ||
           json.any((row) => row.containsKey('creates')),
       generatedDomain: domain,
+      dailyLimit: limit is num ? limit.round() : null,
     );
   }
 
