@@ -551,6 +551,9 @@ if _bad_account_ids:
 # their own addresses, and the catch-all answers 404.
 INBOUND_EMAIL_DOMAIN = os.environ.get("INBOUND_EMAIL_DOMAIN", "").strip().lower()
 INBOUND_EMAIL_TOPIC_ARN = os.environ.get("INBOUND_EMAIL_TOPIC_ARN", "").strip()
+# Where that rule's S3 action stores emails too large for SNS (over 150 KB).
+# The catch-all reads stored emails from this bucket only; empty: none.
+INBOUND_EMAIL_S3_BUCKET = os.environ.get("INBOUND_EMAIL_S3_BUCKET", "").strip()
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "BottleCRM API",

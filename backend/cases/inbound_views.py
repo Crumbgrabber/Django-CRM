@@ -79,6 +79,7 @@ from cases.inbound.sns import (
     topic_account_id,
     verify_sns_message,
 )
+from cases.inbound.stored import StoredEmailUnavailable, stored_email
 from cases.models import EmailMessage, InboundMailbox
 from cases.serializer import InboundMailboxSerializer
 from common.models import PortalAccessToken
@@ -632,9 +633,17 @@ class InboundCatchAllView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        raw_message, recipients, verdict = _unwrap_sns_message(
-            payload.get("Message") or ""
-        )
+        message = payload.get("Message") or ""
+        raw_message, recipients, verdict = _unwrap_sns_message(message)
+        if not raw_message:
+            try:
+                raw_message = stored_email(message, topic)
+            except StoredEmailUnavailable as exc:
+                logger.warning("Stored email could not be read: %s", exc)
+                return Response(
+                    {"error": True, "errors": "Stored email could not be read"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
         if not raw_message:
             return Response(
                 {"error": True, "errors": "SNS Message body is empty"},

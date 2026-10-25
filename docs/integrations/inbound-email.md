@@ -313,6 +313,22 @@ that was correctly dropped; when any recipient failed it is `500` with `"ok": fa
 of failures, so SNS delivers the notification again, and the recipients that already have the email
 answer as for a repeat delivery. With either setting empty, the catch-all answers `404`.
 
+### Emails over 150 KB
+
+An SNS action carries at most 150 KB of email, attachments included, and SES bounces anything
+larger. To take larger mail (SES receives up to 40 MB), give the receipt rule an **S3 action**
+instead of the SNS action: it stores the whole email in a bucket and notifies the same
+`INBOUND_EMAIL_TOPIC_ARN` topic with only the object's location. Set
+[`INBOUND_EMAIL_S3_BUCKET`](../reference/environment-variables.md#inbound-email) to that bucket
+(new in django-crm 1.30.0). The catch-all reads a stored email from that bucket only, in the
+topic's region, after the same signature and topic checks; a notification naming any other
+bucket is refused with `400` and nothing is read. A read that fails answers `500`, so SNS
+delivers the notification again; an email that is gone or over 40 MB is dropped, logged, and
+answered `400`. The server's AWS credentials need `s3:GetObject` on the bucket, the bucket
+policy must let SES (`ses.amazonaws.com`, conditioned on your account) put objects, and a
+lifecycle rule that expires objects after a few days keeps no email longer than delivery needs.
+Only the catch-all reads stored emails; a per-mailbox SES webhook still needs the SNS action.
+
 ## Securing the endpoint
 
 Because the SES endpoint takes no credential, trust is established entirely by verifying the
