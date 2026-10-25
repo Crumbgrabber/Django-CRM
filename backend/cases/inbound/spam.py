@@ -1,8 +1,8 @@
 """Header-based filters for autoresponders, mailing-list traffic, and bounces.
 
-Provider-side spam scoring (Mailgun's X-Mailgun-Sflag, SES SNS verdicts) is
-deferred to a follow-up; for now we drop the obvious self-replying noise so
-auto-replies don't spawn empty Cases that immediately need closing.
+Drops the obvious self-replying noise so auto-replies don't spawn empty Cases
+that immediately need closing. Provider verdicts (SES's scans and DMARC check,
+Mailgun's X-Mailgun-Sflag) arrive on `ParsedEmail.spam_verdict` instead.
 """
 
 from __future__ import annotations
@@ -44,8 +44,9 @@ def should_drop(parsed: ParsedEmail) -> tuple[bool, str]:
 
 
 def lead_drop_reason(parsed: ParsedEmail, own_addresses) -> str:
-    """Why a lead address ignores this email (`bounce`, `own_address`, `spam`,
-    `virus`), or "". `own_addresses` are the org's inbound addresses, lowercased.
+    """Why a lead address ignores this email (`bounce`, `own_address`, or a
+    `spam_verdict`), or "". `own_addresses` are the org's inbound addresses,
+    lowercased.
 
     Unlike `should_drop`, Auto-Submitted, Precedence, X-Autoreply and list mail
     are kept: portal notifications carry those headers, and a lead address

@@ -271,6 +271,38 @@ describe('getMailboxes', () => {
     expect(mailboxes[0].topic_arn).toBeNull();
     expect(mailboxes[0].has_topic_arn).toBe(true);
   });
+
+  it('carries what each address dropped, its limit flag and the daily limit', async () => {
+    apiRequest.mockResolvedValue({
+      daily_limit: 300,
+      mailboxes: [
+        {
+          ...row,
+          dropped_last_30d: 12,
+          drops_last_30d: { spam: 9, spoofed: 2, automatic: 1 },
+          limit_reached: true
+        }
+      ]
+    });
+    const answer = await getMailboxes(event);
+    expect(answer.daily_limit).toBe(300);
+    expect(answer.mailboxes[0]).toMatchObject({
+      dropped_last_30d: 12,
+      drops_last_30d: { spam: 9, spoofed: 2, automatic: 1 },
+      limit_reached: true
+    });
+  });
+
+  it('reads an older API as nothing dropped, no limit reached and no daily limit', async () => {
+    apiRequest.mockResolvedValue({ mailboxes: [{ ...row }] });
+    const answer = await getMailboxes(event);
+    expect(answer.daily_limit).toBeNull();
+    expect(answer.mailboxes[0]).toMatchObject({
+      dropped_last_30d: 0,
+      drops_last_30d: {},
+      limit_reached: false
+    });
+  });
 });
 
 describe('lead addresses', () => {

@@ -949,6 +949,8 @@ class EmailMessage(BaseModel):
             models.Index(fields=["org", "-received_at"]),
             models.Index(fields=["case", "-received_at"]),
             models.Index(fields=["in_reply_to"]),
+            # The per-address limits count by arrival time on every email.
+            models.Index(fields=["mailbox", "created_at"]),
         ]
 
     def __str__(self):

@@ -673,7 +673,8 @@ class TestDropsAndRepeats:
         assert result.created_case is True
         assert Lead.objects.filter(org=us_org).count() == 1
 
-    def test_the_501st_email_in_a_day_is_dropped(self, mailbox, us_org):
+    def test_an_email_past_the_daily_limit_is_dropped(self, mailbox, us_org, settings):
+        settings.INBOUND_EMAIL_DAILY_LIMIT = 3
         with rls_org(us_org):
             EmailMessage.objects.bulk_create(
                 EmailMessage(
@@ -683,7 +684,7 @@ class TestDropsAndRepeats:
                     from_address="",
                     received_at=timezone.now(),
                 )
-                for n in range(inbound_leads.DAILY_LEAD_LIMIT)
+                for n in range(3)
             )
         rows = EmailMessage.objects.filter(org=us_org).count()
         outcome = _ingest(mailbox, _raw(body=ZILLOW_BODY))
@@ -694,9 +695,9 @@ class TestDropsAndRepeats:
         assert EmailMessage.objects.filter(org=us_org).count() == rows
 
     def test_past_the_limit_the_body_is_never_read(
-        self, mailbox, us_org, admin_profile, monkeypatch
+        self, mailbox, us_org, admin_profile, settings
     ):
-        monkeypatch.setattr(inbound_leads, "DAILY_LEAD_LIMIT", 1)
+        settings.INBOUND_EMAIL_DAILY_LIMIT = 1
         _ingest(mailbox, _raw(message_id="<first@x>", from_="p1@example.com"))
         rows = EmailMessage.objects.filter(org=us_org).count()
         parsed = parse_raw_email(_raw(message_id="<x@x>", body=ZILLOW_BODY))
@@ -715,9 +716,9 @@ class TestDropsAndRepeats:
         assert EmailMessage.objects.filter(org=us_org).count() == rows
 
     def test_an_email_over_one_addresss_limit_still_lands_at_another(
-        self, mailbox, us_org, monkeypatch
+        self, mailbox, us_org, settings
     ):
-        monkeypatch.setattr(inbound_leads, "DAILY_LEAD_LIMIT", 1)
+        settings.INBOUND_EMAIL_DAILY_LIMIT = 1
         with rls_org(us_org):
             second = InboundMailbox.objects.create(
                 org=us_org,
@@ -757,9 +758,9 @@ class TestDropsAndRepeats:
         assert _ingest(mailbox, raw).drop_reason == "own_address"
 
     def test_yesterdays_emails_do_not_count_toward_the_limit(
-        self, mailbox, us_org, monkeypatch
+        self, mailbox, us_org, settings
     ):
-        monkeypatch.setattr(inbound_leads, "DAILY_LEAD_LIMIT", 2)
+        settings.INBOUND_EMAIL_DAILY_LIMIT = 2
         for n in (1, 2):
             _ingest(mailbox, _raw(message_id=f"<{n}@x>", from_=f"p{n}@example.com"))
         assert _ingest(mailbox, _raw(message_id="<3@x>")).drop_reason == "daily_limit"
@@ -770,9 +771,9 @@ class TestDropsAndRepeats:
         assert _ingest(mailbox, _raw(message_id="<4@x>")).result == "created"
 
     def test_drops_do_not_count_toward_the_limit(
-        self, mailbox, us_org, admin_profile, monkeypatch
+        self, mailbox, us_org, admin_profile, settings
     ):
-        monkeypatch.setattr(inbound_leads, "DAILY_LEAD_LIMIT", 1)
+        settings.INBOUND_EMAIL_DAILY_LIMIT = 1
         _ingest(mailbox, _raw(message_id="<m@x>", from_="admin@test.com"))
         assert _ingest(mailbox, _raw(body=ZILLOW_BODY)).result == "created"
 
@@ -924,9 +925,7 @@ class TestSesWebhook:
         _webhook(unauthenticated_client, mailbox, message)
         assert Lead.objects.filter(org=us_org).count() == 1
 
-    def test_a_ticket_mailbox_ignores_verdicts_as_before(
-        self, us_org, unauthenticated_client
-    ):
+    def test_a_ticket_mailbox_drops_spam_too(self, us_org, unauthenticated_client):
         with rls_org(us_org):
             support = InboundMailbox.objects.create(
                 org=us_org,
@@ -936,9 +935,11 @@ class TestSesWebhook:
             )
         raw = _raw(from_="dana@example.com", to="support@acme.test")
         message = _ses(raw, spam="FAIL", recipients=["support@acme.test"])
-        response = _webhook(unauthenticated_client, support, message)
+        body = _webhook(unauthenticated_client, support, message).json()
 
-        assert response.json()["created_case"] is True
+        assert body["dropped"] is True
+        assert body["reason"] == "spam"
+        assert body["case_id"] is None
 
     def test_a_ticket_mailbox_reads_a_text_plain_body_too(
         self, us_org, unauthenticated_client

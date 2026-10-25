@@ -12,6 +12,8 @@
 /// same rules.
 library;
 
+import 'package:intl/intl.dart';
+
 import 'lead_source.dart';
 import 'lookup_models.dart';
 
@@ -87,6 +89,9 @@ class Mailbox {
     this.leadSource = '',
     this.leadSourceDetail = '',
     this.isGenerated = false,
+    this.droppedLast30d = 0,
+    this.dropsLast30d = const {},
+    this.limitReached = false,
   });
 
   final String id;
@@ -134,6 +139,16 @@ class Mailbox {
   /// webhook, so it needs no topic pin of its own.
   final bool isGenerated;
 
+  /// Emails this address refused in 30 days, and the count for each reason
+  /// (non-zero only). Mail refused over a limit is not recorded, so it is in
+  /// neither.
+  final int droppedLast30d;
+  final Map<String, int> dropsLast30d;
+
+  /// Whether the address took its daily limit in the last 24 hours, so more
+  /// mail is refused for now.
+  final bool limitReached;
+
   bool get createsLeads => creates == mailboxCreatesLeads;
 
   /// [generatedDomain] is the list's: an API that does not say which rows it
@@ -172,7 +187,38 @@ class Mailbox {
       isGenerated: json['is_generated'] is bool
           ? json['is_generated'] as bool
           : generatedDomain != null && address.endsWith('@$generatedDomain'),
+      droppedLast30d: json['dropped_last_30d'] is num
+          ? (json['dropped_last_30d'] as num).round()
+          : 0,
+      dropsLast30d: _dropCounts(json['drops_last_30d']),
+      limitReached: json['limit_reached'] == true,
     );
+  }
+
+  /// "12 dropped in 30 days: 9 spam, 2 failed the sender check, 1 automatic
+  /// reply", or null when the address dropped nothing. A reason not in
+  /// [_dropReasons] is left out of the breakdown but still counted in the
+  /// total.
+  String? get dropSummary {
+    if (droppedLast30d <= 0) return null;
+    final parts = <String>[
+      for (final (key, one, many) in _dropReasons)
+        if (dropsLast30d[key] case final n? when n > 0)
+          '${_count(n)} ${n == 1 ? one : many}',
+    ];
+    final head = '${_count(droppedLast30d)} dropped in 30 days';
+    return parts.isEmpty ? head : '$head: ${parts.join(', ')}';
+  }
+
+  /// The warning for an address that took its daily limit, or null.
+  /// [dailyLimit] is the list's; without one it says "its daily limit".
+  String? limitNotice(int? dailyLimit) {
+    if (!limitReached) return null;
+    final limit = dailyLimit != null && dailyLimit > 0
+        ? 'its limit of ${_count(dailyLimit)} '
+              '${dailyLimit == 1 ? 'email' : 'emails'}'
+        : 'its daily limit';
+    return 'Took $limit today. More mail is refused until the count falls.';
   }
 
   /// The first gate mail to this address would fail, or [MailboxDelivery.live].
@@ -248,6 +294,42 @@ class Mailbox {
     );
     return parts.join(' · ');
   }
+}
+
+/// The drop reasons the API sends, in the order a row names them, each with
+/// its singular and plural label. `frontend/src/lib/v2/inbound-drops.js` says
+/// the same.
+const List<(String, String, String)> _dropReasons = [
+  ('spam', 'spam', 'spam'),
+  ('virus', 'with a virus', 'with a virus'),
+  ('spoofed', 'failed the sender check', 'failed the sender check'),
+  ('automatic', 'automatic reply', 'automatic replies'),
+  ('other', 'other', 'other'),
+];
+
+final NumberFormat _grouped = NumberFormat('#,##0', 'en_US');
+
+String _count(int n) => _grouped.format(n);
+
+Map<String, int> _dropCounts(Object? raw) {
+  if (raw is! Map) return const {};
+  return {
+    for (final entry in raw.entries)
+      if (entry.value is num) '${entry.key}': (entry.value as num).round(),
+  };
+}
+
+/// What every address refuses, for the screen's explanation. Null when the
+/// API sends no `daily_limit`: an API that old filters none of this, so the
+/// sentence would be false.
+String? mailboxDropPolicy(int? dailyLimit) {
+  if (dailyLimit == null || dailyLimit <= 0) return null;
+  // The 20 is `cases.inbound.limits.SENDER_HOURLY_LIMIT`, which the API does
+  // not send.
+  return "Spam, viruses and mail that fails its sender's domain check are "
+      'dropped. Each address takes up to ${_count(dailyLimit)} '
+      '${dailyLimit == 1 ? 'email' : 'emails'} a day, and a ticket address up '
+      'to 20 an hour from one sender.';
 }
 
 /// The URL to give the provider for one mailbox, from the API origin.

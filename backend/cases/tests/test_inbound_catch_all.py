@@ -458,6 +458,22 @@ class TestStoredInS3:
         with patch("cases.inbound.stored._client", client):
             return _send(anon, key, message), regions
 
+    def test_a_stored_email_that_fails_dmarc_opens_no_ticket(
+        self, anon, org_a, signing_key
+    ):
+        b = _generated(org_a, "acme-a1b2c3", creates="tickets")
+        message = json.loads(_ses_stored([b.address]))
+        message["receipt"].update(dmarcVerdict={"status": "FAIL"}, dmarcPolicy="reject")
+
+        response, _ = self._send_stored(
+            anon, signing_key, _FakeS3(_raw(b.address).encode()), json.dumps(message)
+        )
+
+        assert response.status_code == 200, response.content
+        with rls_org(org_a):
+            assert not Case.objects.filter(org=org_a).exists()
+            assert EmailMessage.objects.get(org=org_a).drop_reason == "spoofed"
+
     def test_a_stored_email_is_read_and_delivered(self, anon, org_a, signing_key):
         b = _generated(org_a, "acme-a1b2c3", creates="tickets")
         s3 = _FakeS3(_raw(b.address).encode())

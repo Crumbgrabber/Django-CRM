@@ -32,6 +32,7 @@
   import { missingOption, inactiveOptionLabel } from '#lib/v2/pickers.js';
   import { sourceLabel, sourceOptions } from '#lib/v2/lead-sources.js';
   import { isOn } from '#lib/v2/modules.js';
+  import { dropSummary, limitNotice, dropPolicy } from '#lib/v2/inbound-drops.js';
   import {
     deliveryState,
     deliveryLabel,
@@ -60,6 +61,7 @@
   let mailboxes = $derived(data.mailboxes);
   let delivering = $derived(deliveringCount(mailboxes));
   let silent = $derived(silentMailboxes(mailboxes));
+  let policy = $derived(dropPolicy(data.daily_limit));
 
   // `null` when the panel is closed, `'new'` when adding, or the mailbox
   // object when editing that row. One panel, two modes, so two rows can
@@ -435,6 +437,8 @@
           m.creates,
           m.provider
         )}
+        {@const dropped = dropSummary(m)}
+        {@const atLimit = limitNotice(m.limit_reached, data.daily_limit)}
         <div class="v2-card v2-mbx" style="opacity:{state === 'live' ? 1 : 0.68}">
           <div style="flex:1;min-width:0">
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -452,6 +456,17 @@
                 no tickets in 30 days · last mail {relativeDays(m.last_received_at)}
               {/if}
             </div>
+            {#if dropped}
+              <div class="v2-sub" style="font-size:11.5px;margin-top:4px">{dropped}</div>
+            {/if}
+            {#if atLimit}
+              <p
+                class="v2-sub"
+                style="font-size:11.5px;margin:6px 0 0;line-height:1.5;color:var(--v2-clay)"
+              >
+                {atLimit}
+              </p>
+            {/if}
             {#if why}
               <p class="v2-sub" style="font-size:11.5px;margin:6px 0 0;line-height:1.5">{why}</p>
             {/if}
@@ -556,6 +571,9 @@
             Postmark's basic-auth password or Mailgun's signing key. With none stored, every post is
             refused. It is never readable back, here or anywhere.
           </p>
+          {#if policy}
+            <p class="v2-sub" style="font-size:12.5px;margin:8px 0 0;line-height:1.5">{policy}</p>
+          {/if}
         </div>
       </div>
     </div>

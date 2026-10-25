@@ -6,7 +6,9 @@
  * plus two backend-computed metrics, `cases_last_30d` (tickets opened from the
  * address in 30 days) and `last_received_at` (newest mail seen), both attributed
  * exactly via the `EmailMessage.mailbox` FK. Totals carry `count`, `active`, and
- * the org's `cases_last_30d`.
+ * the org's `cases_last_30d`. What an address refused rides along too:
+ * `dropped_last_30d` by reason (`drops_last_30d`), `limit_reached`, and the
+ * list's `daily_limit`, each defaulting so an older API still renders.
  *
  * NO SECRET COMES BACK. `webhook_secret` (Postmark's basic-auth password or
  * Mailgun's signing key) is write-only server-side. This layer never reads it
@@ -47,7 +49,7 @@ function isGenerated(m, domain) {
 
 /**
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
- * @returns {Promise<{ mailboxes: any[], totals: any, can_edit: boolean, generated_domain: string | null, can_create_leads: boolean }>}
+ * @returns {Promise<{ mailboxes: any[], totals: any, can_edit: boolean, generated_domain: string | null, can_create_leads: boolean, daily_limit: number | null }>}
  */
 export async function getMailboxes({ cookies }) {
   const resp = await apiRequest('/cases/mailboxes/', {}, { cookies });
@@ -83,11 +85,15 @@ export async function getMailboxes({ cookies }) {
       creates: m.creates === 'leads' ? 'leads' : 'tickets',
       lead_source: m.lead_source ?? '',
       lead_source_detail: m.lead_source_detail ?? '',
-      is_generated: isGenerated(m, domain)
+      is_generated: isGenerated(m, domain),
+      dropped_last_30d: m.dropped_last_30d ?? 0,
+      drops_last_30d: m.drops_last_30d ?? {},
+      limit_reached: m.limit_reached === true
     })),
     totals: totals ?? { count: 0, active: 0, cases_last_30d: 0 },
     // Set when the server mints addresses under its own inbound domain.
     generated_domain: domain,
+    daily_limit: typeof resp?.daily_limit === 'number' ? resp.daily_limit : null,
     // An API that can make lead addresses says so with these fields; an older
     // one has neither, and the form then offers tickets only.
     can_create_leads:

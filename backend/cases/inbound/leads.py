@@ -20,7 +20,6 @@ import hashlib
 import logging
 import re
 from dataclasses import dataclass, field
-from datetime import timedelta
 from itertools import islice
 
 import phonenumbers
@@ -40,6 +39,7 @@ from leads.intake import IncomingLead, receive_lead
 from leads.models import Lead
 
 from .generated import address_domain, on_generated_domain
+from .limits import daily_limit_reached, may_record_drop
 from .parser import ParsedEmail
 from .spam import lead_drop_reason
 from .text import (
@@ -67,7 +67,6 @@ AUTOMATED_LOCAL_PARTS = frozenset(
     }
 )
 _MACHINE_PRECEDENCE = {"bulk", "list", "junk"}
-DAILY_LEAD_LIMIT = 500
 ENQUIRY_MAX = 20_000
 # Read at most this much of a body; the enquiry keeps the first ENQUIRY_MAX.
 TEXT_MAX = 100_000
@@ -195,7 +194,7 @@ def ingest_lead(
     seen = EmailMessage.objects.filter(org=org, message_id__in=[org_key, mailbox_key])
     if seen.exists():
         return LeadIngestResult(dropped=True, drop_reason="already_received")
-    if _received_today(mailbox) >= DAILY_LEAD_LIMIT:
+    if daily_limit_reached(mailbox):
         logger.info("Lead email over the daily limit on mailbox=%s", mailbox.id)
         return LeadIngestResult(dropped=True, drop_reason="daily_limit")
 
@@ -206,6 +205,11 @@ def ingest_lead(
         incoming = lead_from_email(parsed, mailbox, reading)
         if incoming is None:
             reason = "member_sender"
+    if reason and not may_record_drop(mailbox):
+        logger.info(
+            "Dropped lead email on mailbox=%s unrecorded: %s", mailbox.id, reason
+        )
+        return LeadIngestResult(dropped=True, drop_reason=reason)
 
     with transaction.atomic():
         key = mailbox_key if reason in MAILBOX_DROPS else org_key
@@ -501,16 +505,6 @@ def _valid_email(address):
 # ---------------------------------------------------------------------------
 # Limits and files
 # ---------------------------------------------------------------------------
-
-
-def _received_today(mailbox):
-    """Emails this address turned into a lead (or a merge) in the last 24 hours."""
-    return EmailMessage.objects.filter(
-        org=mailbox.org,
-        mailbox=mailbox,
-        drop_reason="",
-        created_at__gte=timezone.now() - timedelta(hours=24),
-    ).count()
 
 
 def _store_attachments(parsed, record):

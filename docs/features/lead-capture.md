@@ -313,10 +313,10 @@ clock): a lead address always treats an email as arriving now.
 | --- | --- |
 | Bounces (delivery-status reports) | Not an enquiry |
 | Email from the address itself, or from any of the org's inbound addresses | A loop |
-| Email the provider marked as spam or a virus | SES's spam or virus verdict `FAIL`, Postmark's `X-Spam-Status: Yes`, Mailgun's `X-Mailgun-Sflag: Yes` |
+| Email the provider marked as spam or a virus, or as faking its sender | SES's spam or virus verdict `FAIL`, or a DMARC `FAIL` where the sender's domain asks for `quarantine` or `reject`; Postmark's `X-Spam-Status: Yes`, Mailgun's `X-Mailgun-Sflag: Yes` |
 | A member's own email | See above |
 | The same email again | Each email is recorded once per org by its `Message-ID` (by a hash of its content when it has none), so a provider's repeat delivery never makes or merges a lead twice, and the same email to two lead addresses in one org arrives once |
-| More than 500 emails a day | Per address, over the last 24 hours, counting the emails that made or merged a lead. An email over the limit is not recorded, so the same email can still arrive at the org's other lead addresses |
+| More than 300 emails a day | Per address, over the last 24 hours, counting the emails that made or merged a lead; `INBOUND_EMAIL_DAILY_LIMIT` changes the number. An email over the limit is not recorded, so the same email can still arrive at the org's other lead addresses |
 
 Unlike ticket addresses, lead addresses keep `Auto-Submitted`, bulk, mailing-list and
 `X-Autoreply` mail, because portal notifications carry those headers, and a lead address never
@@ -325,7 +325,8 @@ replies, so there is no mail loop to guard against. A lead address is also never
 
 Every email to a lead address leaves an `EmailMessage` row on the mailbox (which is what its "last
 received" time reads), holding no sender, subject or body: those are on the lead, and deleting the
-lead must not leave a copy behind. Ignored emails leave one too, except past the daily limit; a
+lead must not leave a copy behind. Ignored emails leave one too, except past the daily limit or
+past that many ignored emails in a day; a
 member's own email is recorded against that one address only, never for the whole org. The same
 email sent to a lead address and a ticket address of one org reaches both.
 

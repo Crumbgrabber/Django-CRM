@@ -5,8 +5,8 @@ Given a parsed email and the mailbox it arrived on, decide:
   2. Does it belong to an existing Case (threading match)?
   3. Otherwise: who's the contact, and we create a new Case.
 
-Always records exactly one `EmailMessage` row, even drops, so admins have a
-forensic trail.
+Records one `EmailMessage` row per email, drops included, so admins have a
+forensic trail; past an address's limits (`limits.py`) nothing is recorded.
 """
 
 from __future__ import annotations
@@ -25,6 +25,7 @@ from common.models import Attachments
 from common.utils import ATTACHMENT_MAX_BYTES, fit_attachment_file_name
 
 from .contacts import resolve_contact
+from .limits import daily_limit_reached, may_record_drop, sender_limit_reached
 from .parser import ParsedEmail
 from .spam import should_drop
 from .threading import _SUBJECT_FALLBACK_RE as _SUBJECT_TAG_RE
@@ -37,7 +38,7 @@ logger = logging.getLogger(__name__)
 class IngestResult:
     """Returned by `ingest`. Telemetry-shaped: tests assert on the fields."""
 
-    email_message: EmailMessage
+    email_message: Optional[EmailMessage]
     case: Optional[Case]
     created_case: bool
     dropped: bool
@@ -50,8 +51,13 @@ def _record_email_message(
     mailbox: InboundMailbox,
     case: Optional[Case],
     drop_reason: str = "",
-) -> EmailMessage:
-    """Create the audit row for this email. Idempotent on (org, message_id)."""
+) -> tuple[EmailMessage, bool]:
+    """Create the audit row for this email, or return the one already there,
+    with whether it was created.
+
+    Never updates: a later email that reuses a Message-ID must not rewrite or
+    detach the row an earlier one left on its ticket.
+    """
     defaults = {
         "case": case,
         "mailbox": mailbox,
@@ -67,12 +73,30 @@ def _record_email_message(
         "received_at": parsed.received_at,
         "drop_reason": drop_reason,
     }
-    obj, _created = EmailMessage.objects.update_or_create(
+    return EmailMessage.objects.get_or_create(
         org=mailbox.org,
         message_id=parsed.message_id,
         defaults=defaults,
     )
-    return obj
+
+
+class _AlreadyRecorded(Exception):
+    """A concurrent delivery of the same email recorded it first. Raised inside
+    the transaction so the case this delivery began is rolled back."""
+
+    def __init__(self, row: EmailMessage):
+        super().__init__(row.message_id)
+        self.row = row
+
+
+def _received_before(row: EmailMessage) -> IngestResult:
+    return IngestResult(
+        email_message=row,
+        case=row.case,
+        created_case=False,
+        dropped=bool(row.drop_reason),
+        drop_reason=row.drop_reason,
+    )
 
 
 def _store_attachments(parsed: ParsedEmail, case: Case) -> None:
@@ -118,6 +142,19 @@ def _sender_is_on_case(parsed: ParsedEmail, case: Case) -> bool:
     return case.contacts.filter(email__iexact=parsed.from_address).exists()
 
 
+def _refused(mailbox: InboundMailbox, reason: str) -> IngestResult:
+    logger.info(
+        "Inbound email refused unrecorded on mailbox=%s: %s", mailbox.id, reason
+    )
+    return IngestResult(
+        email_message=None,
+        case=None,
+        created_case=False,
+        dropped=True,
+        drop_reason=reason,
+    )
+
+
 def ingest(parsed: ParsedEmail, mailbox: InboundMailbox) -> IngestResult:
     """Run the inbound pipeline for one email; returns an `IngestResult`.
 
@@ -126,10 +163,25 @@ def ingest(parsed: ParsedEmail, mailbox: InboundMailbox) -> IngestResult:
     `dropped=True`: the provider already accepted the message and a 4xx
     would just trigger pointless retries.
     """
-    drop, reason = should_drop(parsed)
-    if drop:
+    if daily_limit_reached(mailbox):
+        return _refused(mailbox, "daily_limit")
+    if sender_limit_reached(mailbox, parsed.from_address):
+        return _refused(mailbox, "sender_limit")
+
+    reason = parsed.spam_verdict or should_drop(parsed)[1]
+    if not parsed.message_id:
+        # Treat a missing Message-ID as an auto_submitted-style drop. Without
+        # one we can't thread or de-dupe, and legitimate human-sent mail always
+        # has it. Fabricate a synthetic id for the audit row.
+        parsed.message_id = (
+            f"missing-msgid-{mailbox.id}-{parsed.received_at.isoformat()}"
+        )
+        reason = reason or "missing_message_id"
+    if reason:
+        if not may_record_drop(mailbox):
+            return _refused(mailbox, reason)
         with transaction.atomic():
-            row = _record_email_message(
+            row, _created = _record_email_message(
                 parsed=parsed, mailbox=mailbox, case=None, drop_reason=reason
             )
         return IngestResult(
@@ -140,27 +192,13 @@ def ingest(parsed: ParsedEmail, mailbox: InboundMailbox) -> IngestResult:
             drop_reason=reason,
         )
 
-    if not parsed.message_id:
-        # Treat a missing Message-ID as an auto_submitted-style drop. Without
-        # one we can't thread or de-dupe, and legitimate human-sent mail always
-        # has it. Fabricate a synthetic id for the audit row.
-        synthetic_id = f"missing-msgid-{mailbox.id}-{parsed.received_at.isoformat()}"
-        parsed.message_id = synthetic_id
-        with transaction.atomic():
-            row = _record_email_message(
-                parsed=parsed,
-                mailbox=mailbox,
-                case=None,
-                drop_reason="missing_message_id",
-            )
-        return IngestResult(
-            email_message=row,
-            case=None,
-            created_case=False,
-            dropped=True,
-            drop_reason="missing_message_id",
-        )
+    try:
+        return _accept(parsed, mailbox)
+    except _AlreadyRecorded as already:
+        return _received_before(already.row)
 
+
+def _accept(parsed: ParsedEmail, mailbox: InboundMailbox) -> IngestResult:
     with transaction.atomic():
         # Idempotency: if we've already processed this message (provider retry),
         # bail early without creating a duplicate Case.
@@ -170,13 +208,7 @@ def ingest(parsed: ParsedEmail, mailbox: InboundMailbox) -> IngestResult:
             .first()
         )
         if prior is not None:
-            return IngestResult(
-                email_message=prior,
-                case=prior.case,
-                created_case=False,
-                dropped=bool(prior.drop_reason),
-                drop_reason=prior.drop_reason,
-            )
+            return _received_before(prior)
 
         match = find_existing_case(parsed, mailbox.org)
         existing_case = None
@@ -187,9 +219,11 @@ def ingest(parsed: ParsedEmail, mailbox: InboundMailbox) -> IngestResult:
         contact = resolve_contact(parsed, mailbox.org)
 
         if existing_case is not None:
-            row = _record_email_message(
+            row, created = _record_email_message(
                 parsed=parsed, mailbox=mailbox, case=existing_case
             )
+            if not created:
+                raise _AlreadyRecorded(row)
             _store_attachments(parsed, existing_case)
             if (
                 contact is not None
@@ -243,7 +277,9 @@ def ingest(parsed: ParsedEmail, mailbox: InboundMailbox) -> IngestResult:
         if contact is not None:
             case.contacts.add(contact)
 
-        row = _record_email_message(parsed=parsed, mailbox=mailbox, case=case)
+        row, created = _record_email_message(parsed=parsed, mailbox=mailbox, case=case)
+        if not created:
+            raise _AlreadyRecorded(row)
         _store_attachments(parsed, case)
 
         from cases.signals import emit_email_received_activity
