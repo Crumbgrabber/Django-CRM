@@ -36,6 +36,23 @@ const BUILT_IN_PATHS = {
   task: '/tasks'
 };
 
+/** How many objects an org may have when the API names no limit of its own. */
+export const DEFAULT_OBJECT_LIMIT = 20;
+
+/**
+ * The most objects the org may have, from the `/objects/` answer's `limit`.
+ * An older or community API sends none, so today's number stands.
+ *
+ * @param {{ limit?: unknown } | null | undefined} answer
+ * @returns {number}
+ */
+export function objectLimit(answer) {
+  const limit = answer?.limit;
+  return Number.isInteger(limit) && /** @type {number} */ (limit) >= 0
+    ? /** @type {number} */ (limit)
+    : DEFAULT_OBJECT_LIMIT;
+}
+
 export const OBJECT_KEY = /^[a-z][a-z0-9_]{1,27}$/;
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

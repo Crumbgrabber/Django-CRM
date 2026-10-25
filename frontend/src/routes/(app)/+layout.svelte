@@ -8,6 +8,7 @@
   import Sidebar from '#lib/v2/components/Sidebar.svelte';
   import { isOrgAdmin } from '#lib/admin.js';
   import { objectNavItems } from '#lib/v2/custom-objects.js';
+  import { BILLING_HREF, shellNotice } from '#lib/v2/billing.js';
   import CommandPalette from '#lib/v2/components/CommandPalette.svelte';
   import {
     Search,
@@ -22,7 +23,7 @@
   } from '@lucide/svelte';
   import { tabBar, fabAction } from '#lib/v2/nav.js';
 
-  /** @type {{ data: { counts: Record<string, number>, org: { name: string, terminology?: Record<string, string> | null }, is_organization_admin: boolean, modules: import('#lib/v2/modules.js').ModuleRow[] | null, customObjects: any }, children: import('svelte').Snippet }} */
+  /** @type {{ data: { counts: Record<string, number>, org: { name: string, terminology?: Record<string, string> | null }, is_organization_admin: boolean, modules: import('#lib/v2/modules.js').ModuleRow[] | null, customObjects: any, billing: any }, children: import('svelte').Snippet }} */
   let { data, children } = $props();
 
   let paletteOpen = $state(false);
@@ -46,6 +47,7 @@
     tabBar(data.modules, data.org.terminology).map((tab) => ({ ...tab, icon: ICONS[tab.icon] }))
   );
   let fab = $derived(fabAction(data.modules));
+  let billingNotice = $derived(shellNotice(data, page.url.pathname));
 
   const isActive = (href, exact) =>
     exact ? page.url.pathname === href : page.url.pathname.startsWith(href);
@@ -102,6 +104,13 @@
         <Search />
       </button>
     </div>
+
+    {#if billingNotice}
+      <div class="billing-notice" role="status">
+        <span>{billingNotice}</span>
+        <a href={resolve(asInternalPath(BILLING_HREF))}>Open Billing</a>
+      </div>
+    {/if}
 
     {@render children()}
 
@@ -169,3 +178,28 @@
 
   <CommandPalette open={paletteOpen} modules={data.modules} onclose={() => (paletteOpen = false)} />
 </div>
+
+<style>
+  .billing-notice {
+    flex: none;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 12px;
+    padding: 9px var(--v2-pad);
+    border-bottom: 1px solid color-mix(in srgb, var(--v2-rust) 28%, transparent);
+    background: color-mix(in srgb, var(--v2-rust) 9%, transparent);
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+  .billing-notice a {
+    color: var(--v2-rust);
+  }
+  @media (max-width: 768px) {
+    .billing-notice a {
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
+    }
+  }
+</style>

@@ -132,6 +132,10 @@ class ApiConfig {
   /// the org's first admin and is rotated through `OrgApiKeyView` alone.
   static String get orgSettings => '$apiBaseUrl/org/settings/';
 
+  /// The org's plan. Any member may read its name; the phone reads nothing
+  /// else and never buys or manages one. A server without billing answers 404.
+  static String get billing => '$apiBaseUrl/billing/';
+
   /// The public help center switch and address. GET is open to any member and
   /// carries `can_edit`; PATCH is admin-only. Always the caller's own org.
   static String get helpCenterSettings => '$apiBaseUrl/org/help-center/';

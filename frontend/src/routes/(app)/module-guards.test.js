@@ -28,6 +28,7 @@ const CORE_SETTINGS = [
   'apps',
   'audit-log',
   'automation',
+  'billing',
   'custom-fields',
   'lead-sources',
   'modules',

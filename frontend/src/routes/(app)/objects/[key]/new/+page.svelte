@@ -4,6 +4,7 @@
   import { asInternalPath } from '#lib/utils/paths.js';
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
   import RecordFieldInputs from '#lib/v2/components/RecordFieldInputs.svelte';
+  import { billingHref } from '#lib/v2/billing.js';
   import { TriangleAlert } from '@lucide/svelte';
 
   /** @type {{ data: any, form: any }} */
@@ -11,6 +12,7 @@
 
   let def = $derived(data.definition);
   let plan = $derived(data.customObjects?.has_custom_objects === true);
+  let plansHref = $derived(billingHref(data));
   let busy = $state(false);
 
   // What was typed comes back after a refusal.
@@ -44,10 +46,13 @@
           ? "This organization's plan does not include creating custom object records."
           : 'Custom objects could not be loaded. Try again.'}
       </p>
-      <p style="margin-top:14px">
+      <p class="o-plan-actions">
         <a class="v2-btn" href={resolve(asInternalPath(`/objects/${def.key}`))}
           >Back to {def.label_plural}</a
         >
+        {#if data.customObjects && plansHref}
+          <a class="v2-btn" href={resolve(asInternalPath(plansHref))}>See plans</a>
+        {/if}
       </p>
     </div>
   {:else}
@@ -102,6 +107,12 @@
 </div>
 
 <style>
+  .o-plan-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 9px;
+    margin-top: 14px;
+  }
   .actions {
     display: flex;
     align-items: center;

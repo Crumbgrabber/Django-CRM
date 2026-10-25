@@ -171,3 +171,39 @@ describe('the lead rows', () => {
     expect(item(data({ mailboxLeads: false }), 'Inbound email')?.body).not.toContain('leads');
   });
 });
+
+describe('the billing row', () => {
+  const billing = (/** @type {Record<string, any>} */ more = {}) => ({
+    plan: { key: 'a', name: 'Plan A' },
+    canManage: false,
+    state: null,
+    notice: null,
+    plans: null,
+    ...more
+  });
+
+  it('is absent wherever the server offers no billing', () => {
+    expect(titles(data({ billing: null }))).not.toContain('Billing');
+    expect(titles(data({ is_organization_admin: false, billing: null }))).not.toContain('Billing');
+    expect(titles(data())).not.toContain('Billing');
+  });
+
+  it('shows a member the plan name and nothing to act on', () => {
+    const row = item(data({ is_organization_admin: false, billing: billing() }), 'Billing');
+    expect(row).toEqual({
+      href: '/settings/billing',
+      title: 'Billing',
+      body: "This organization's plan.",
+      value: 'Plan A',
+      warn: false
+    });
+  });
+
+  it('warns an admin while the server has a notice, after Apps', () => {
+    const d = data({ billing: billing({ notice: { sentence: 'The last payment failed.' } }) });
+    expect(item(d, 'Billing')?.warn).toBe(true);
+    expect(item(d, 'Billing')?.body).toContain('how it is paid for');
+    const names = titles(d);
+    expect(names.indexOf('Billing')).toBe(names.indexOf('Apps') + 1);
+  });
+});

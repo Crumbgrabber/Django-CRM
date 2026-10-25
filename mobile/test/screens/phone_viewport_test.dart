@@ -37,6 +37,7 @@ import 'package:bottle_crm/data/models/tag.dart';
 import 'package:bottle_crm/providers/invoice_extras_provider.dart';
 import 'package:bottle_crm/providers/invoices_provider.dart';
 import 'package:bottle_crm/providers/auth_provider.dart';
+import 'package:bottle_crm/providers/billing_provider.dart';
 import 'package:bottle_crm/providers/lookup_provider.dart';
 import 'package:bottle_crm/providers/notifications_provider.dart';
 import 'package:bottle_crm/providers/support_provider.dart';
@@ -479,6 +480,7 @@ void main() {
             cascadeOn ? _FakeOrgCascadeOn.new : _FakeOrg.new,
           ),
           isOrgAdminProvider.overrideWithValue(isAdmin),
+          orgPlanNameProvider.overrideWith((ref) async => 'Plan A'),
         ],
         child: const MaterialApp(home: OrganizationScreen()),
       );

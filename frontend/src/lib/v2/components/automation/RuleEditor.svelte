@@ -28,11 +28,12 @@
   /**
    * The rule editor both `settings/automation/new` and `[id]` render. The rule
    * is one `$state` draft, posted whole as the `rule` field; it outlives a
-   * refused save, so nothing the admin typed is lost.
+   * refused save, so nothing the admin typed is lost. `plansHref` is where a
+   * plan limit can be lifted (`billingHref`), or null.
    *
-   * @type {{ catalogue: any, rule?: any, row?: any, modules?: any, form: any }}
+   * @type {{ catalogue: any, rule?: any, row?: any, modules?: any, form: any, plansHref?: string | null }}
    */
-  let { catalogue, rule = null, row = null, modules = null, form } = $props();
+  let { catalogue, rule = null, row = null, modules = null, form, plansHref = null } = $props();
 
   let draft = $state(untrack(() => editorState(rule, catalogue?.objects?.[0]?.key ?? '')));
   let busy = $state(false);
@@ -179,7 +180,13 @@
 
       {#if errors.general}
         <div class="au-general">
-          <NextAction label="Not saved" text={errors.general} tone="rust" />
+          <NextAction
+            label="Not saved"
+            text={errors.general}
+            tone="rust"
+            action={form?.save?.plan && plansHref ? 'See plans' : undefined}
+            href={form?.save?.plan ? plansHref : null}
+          />
         </div>
       {/if}
 
