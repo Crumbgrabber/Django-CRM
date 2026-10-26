@@ -566,7 +566,14 @@ def test_a_time_entry_hides_its_invoice_while_invoices_is_off(viewer, org_a, acc
         """``{entry id: (list, timesheet, CSV)}``, each list and timesheet
         entry as ``(invoice, invoiced)`` and each CSV row as its Invoice cell."""
         listed = _get(client, f"/api/cases/{ticket.id}/time-entries/")
-        days = _get(client, "/api/time-entries/timesheet/")["days"]
+        # Ask for the entries' own days: the default week starts on Monday,
+        # so just after midnight an entry logged two hours ago is last week's.
+        days = _get(
+            client,
+            "/api/time-entries/timesheet/",
+            start=timezone.localdate(billed.started_at).isoformat(),
+            end=timezone.localdate(unbilled.started_at).isoformat(),
+        )["days"]
         week = {e["id"]: e for day in days for e in day["entries"]}
         export = client.get("/api/time-entries/report/export/")
         assert export.status_code == 200, export.content
