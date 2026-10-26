@@ -27,7 +27,9 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.clickjacking import xframe_options_exempt
-from rest_framework import status
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema, inline_serializer
+from rest_framework import serializers, status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -146,6 +148,21 @@ class PublicWebFormMixin:
 class WebFormSubmitView(FirstRefusalThrottleMixin, PublicWebFormMixin, APIView):
     throttle_classes = [WebFormIPThrottle, WebFormGlobalThrottle]
 
+    @extend_schema(
+        tags=["Public"],
+        # The form's own fields, built per form by `build_serializer`.
+        request=OpenApiTypes.OBJECT,
+        # `success_payload`: `redirect_url` in redirect mode, else `message`.
+        responses=inline_serializer(
+            "WebFormSubmitResponse",
+            {
+                "status": serializers.CharField(),
+                "mode": serializers.CharField(),
+                "redirect_url": serializers.CharField(required=False),
+                "message": serializers.CharField(required=False),
+            },
+        ),
+    )
     def post(self, request, org_id, form_id):
         form = self.load_form(org_id, form_id)
         if form is None:

@@ -9,6 +9,7 @@ import {
   saveRefusal
 } from '#lib/server/v2/record-custom-fields.js';
 import { getNumbering } from '#lib/server/v2/organization.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 /** @typedef {{ id: string, name: string, email: string, account: { id: string, name: string } | null }} ContactRow */
 
@@ -54,9 +55,14 @@ export const actions = {
    * field so the dynamic line-item list travels intact; the server owns org,
    * totals, number, token, and forces the status to Draft. On success we land on
    * the new invoice; on rejection the DRF field errors surface in the banner.
+   *
+   * Annotated so the refusal with `fieldErrors` is not folded into the bare one.
+   *
+   * @returns {Promise<import('@sveltejs/kit').ActionFailure<{ error: string, fieldErrors?: Record<string, string> }>>}
    */
   create: async ({ cookies, request }) => {
     const form = await request.formData();
+    /** @type {Record<string, unknown>} */
     let body;
     try {
       body = JSON.parse(form.get('payload')?.toString() || '{}');
@@ -79,8 +85,8 @@ export const actions = {
     let created;
     try {
       created = await createInvoice({ cookies }, body);
-    } catch (/** @type {any} */ err) {
-      return fail(err?.status === 403 ? 403 : 400, {
+    } catch (err) {
+      return fail(apiStatus(err) === 403 ? 403 : 400, {
         ...saveRefusal(err, custom.definitions, 'Could not create the invoice.')
       });
     }

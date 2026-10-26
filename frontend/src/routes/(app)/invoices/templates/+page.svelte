@@ -28,7 +28,7 @@
   import { count, relativeDays } from '#lib/v2/format.js';
   import { Plus, FileCode, ShieldAlert } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   let canManage = $derived(data.can_manage);

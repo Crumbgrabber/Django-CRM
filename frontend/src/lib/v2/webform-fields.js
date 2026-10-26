@@ -97,8 +97,18 @@ export const REQUIRED_LEAD_FIELD = 'email';
  */
 export function builtinFor(target) {
   return target === 'ticket'
-    ? { source: 'ticket', key: 'ticket_field', choices: WEBFORM_TICKET_FIELDS, model: 'Case' }
-    : { source: 'lead', key: 'lead_field', choices: WEBFORM_LEAD_FIELDS, model: 'Lead' };
+    ? {
+        source: 'ticket',
+        key: /** @type {const} */ ('ticket_field'),
+        choices: WEBFORM_TICKET_FIELDS,
+        model: 'Case'
+      }
+    : {
+        source: 'lead',
+        key: /** @type {const} */ ('lead_field'),
+        choices: WEBFORM_LEAD_FIELDS,
+        model: 'Lead'
+      };
 }
 
 /**
@@ -121,9 +131,7 @@ export function builtinFieldLabel(target, value) {
  */
 export function hasRequiredField(fields, target = 'lead') {
   const { source, key } = builtinFor(target);
-  return fields.some(
-    (f) => f.source === source && /** @type {any} */ (f)[key] === REQUIRED_LEAD_FIELD
-  );
+  return fields.some((f) => f.source === source && f[key] === REQUIRED_LEAD_FIELD);
 }
 
 /**
@@ -152,7 +160,7 @@ export function moveField(fields, index, delta) {
 /**
  * Stamp `order` from list position, discarding whatever was there.
  *
- * @template {Record<string, any>} T
+ * @template {object} T
  * @param {T[]} fields
  * @returns {(T & { order: number })[]}
  */

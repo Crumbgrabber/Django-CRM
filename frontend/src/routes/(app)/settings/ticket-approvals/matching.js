@@ -35,20 +35,35 @@
  */
 export const ROLES_THAT_EXIST = ['ADMIN'];
 
-/** @param {any} rule */
+/**
+ * The fields of an approval rule row (`getApprovalRules`) these read.
+ *
+ * @typedef {{
+ *   id: string,
+ *   is_active: boolean,
+ *   approver_role: string,
+ *   approvers: ({ email?: string | null } | null)[],
+ *   match_priority: string | null,
+ *   match_case_type: string | null,
+ *   match_team: { id: string, name: string } | null,
+ *   created_at: string | null
+ * }} MatchingRule
+ */
+
+/** @param {MatchingRule | null | undefined} rule */
 export function roleClears(rule) {
-  return ROLES_THAT_EXIST.includes(rule?.approver_role);
+  return ROLES_THAT_EXIST.includes(rule?.approver_role ?? '');
 }
 
-/** The named approvers' emails, blanks dropped. @param {any} rule */
+/** The named approvers' emails, blanks dropped. @param {MatchingRule | null | undefined} rule */
 function namedApprovers(rule) {
-  return (rule?.approvers ?? []).map((/** @type {any} */ a) => a?.email).filter(Boolean);
+  return (rule?.approvers ?? []).map((a) => a?.email).filter(Boolean);
 }
 
 /**
  * Everyone who can clear this rule, as the sentence a person would say.
  *
- * @param {any} rule
+ * @param {MatchingRule | null | undefined} rule
  */
 export function approverSentence(rule) {
   const named = namedApprovers(rule);
@@ -64,7 +79,7 @@ export function approverSentence(rule) {
  * Only meaningful for an active rule: an inactive one gates nothing, so it
  * cannot strand anything.
  *
- * @param {any} rule
+ * @param {MatchingRule | null | undefined} rule
  */
 export function clearableByNobody(rule) {
   return Boolean(rule?.is_active) && !roleClears(rule) && namedApprovers(rule).length === 0;
@@ -73,7 +88,7 @@ export function clearableByNobody(rule) {
 /**
  * What the rule matches, as the sentence a person would say.
  *
- * @param {any} rule
+ * @param {MatchingRule | null | undefined} rule
  */
 export function ruleMatchSentence(rule) {
   const parts = [
@@ -88,7 +103,7 @@ export function ruleMatchSentence(rule) {
  * How many filters a rule sets. Mirrors `ApprovalRule.specificity`, which is
  * the sort key that decides which of several matching rules runs.
  *
- * @param {any} rule
+ * @param {MatchingRule | null | undefined} rule
  */
 export function ruleSpecificity(rule) {
   return [rule?.match_priority, rule?.match_case_type, rule?.match_team?.id].filter(Boolean).length;
@@ -100,7 +115,7 @@ export function ruleSpecificity(rule) {
  * `trigger_event` is deliberately not in it: `pre_close` is the only value the
  * backend accepts, so including a constant would only look like a comparison.
  *
- * @param {any} rule
+ * @param {MatchingRule | null | undefined} rule
  */
 export function ruleSignature(rule) {
   return [rule?.match_priority ?? '', rule?.match_case_type ?? '', rule?.match_team?.id ?? ''].join(
@@ -118,7 +133,7 @@ export function ruleSignature(rule) {
  * Inactive rules are neither reported nor counted as shadowers. One gates
  * nothing, so it cannot be beaten, and it cannot beat anything either.
  *
- * @param {any[] | undefined} rules
+ * @param {MatchingRule[] | undefined} rules
  * @returns {Set<string>}
  */
 export function shadowedRuleIds(rules) {
@@ -141,8 +156,10 @@ export function shadowedRuleIds(rules) {
 /**
  * The rule that actually runs for a shadowed rule's tickets.
  *
- * @param {any} rule
- * @param {any[]} rules
+ * @template {MatchingRule} R
+ * @param {R | null | undefined} rule
+ * @param {R[]} rules
+ * @returns {R | null}
  */
 export function shadowedBy(rule, rules) {
   const signature = ruleSignature(rule);

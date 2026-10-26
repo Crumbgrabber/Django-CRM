@@ -17,7 +17,7 @@
   import { money, shortDate, longDate } from '#lib/v2/format.js';
   import { ChevronRight, Download } from '@lucide/svelte';
 
-  /** @type {{ data: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data } = $props();
 
   let statement = $derived(data.statement);

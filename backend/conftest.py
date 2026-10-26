@@ -15,6 +15,8 @@ not a hypothetical. The enterprise suite re-exported this file with
 whole time.
 """
 
+import pytest
+
 from common.testing import (  # noqa: F401
     _make_authenticated_client,
     _restore_rls_context_after_each_request,
@@ -36,3 +38,29 @@ from common.testing import (  # noqa: F401
     user_client,
     user_profile,
 )
+
+
+@pytest.fixture(autouse=True)
+def _schema_contract(monkeypatch):
+    """Fail a test whose API responses do not match the OpenAPI schema.
+
+    Community only: the leading underscore keeps it out of the enterprise
+    suite's star import, since enterprise endpoints have their own schema.
+    See common/schema_contract.py.
+    """
+    from django.test import Client
+
+    from common.schema_contract import check_response
+
+    problems = []
+    original = Client.request
+
+    def request(self, **kwargs):
+        response = original(self, **kwargs)
+        problems.extend(check_response(response))
+        return response
+
+    monkeypatch.setattr(Client, "request", request)
+    yield
+    if problems:
+        pytest.fail("\n".join(dict.fromkeys(problems)), pytrace=False)

@@ -8,7 +8,7 @@
   import { t } from '#lib/terminology.js';
   import { ChevronRight, Timer } from '@lucide/svelte';
 
-  /** @type {{ data: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data } = $props();
 
   let plural = $derived(t(data.org?.terminology, 'lead.plural', 'Leads'));

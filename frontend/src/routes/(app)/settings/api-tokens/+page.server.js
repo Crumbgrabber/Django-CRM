@@ -1,6 +1,7 @@
 import { fail } from '@sveltejs/kit';
 import { listOrgTokens, createToken, revokeToken } from '#lib/server/v2/tokens.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiStatus } from '#lib/api-errors.js';
 import { expiryFromChoice, scopesFromChoice } from '#lib/v2/token-rules.js';
 
 /**
@@ -42,11 +43,11 @@ export const actions = {
           expires_at: res.expires_at ?? null
         }
       };
-    } catch (/** @type {any} */ err) {
-      return fail(err?.status === 403 ? 403 : 400, {
+    } catch (err) {
+      return fail(apiStatus(err) === 403 ? 403 : 400, {
         create: {
           error:
-            err?.status === 403
+            apiStatus(err) === 403
               ? 'You do not have permission to create tokens here.'
               : readableError(err, 'Could not create that token.')
         }
@@ -61,10 +62,10 @@ export const actions = {
     if (!id) return fail(400, { error: 'Which token?' });
     try {
       await revokeToken({ cookies }, id);
-    } catch (/** @type {any} */ err) {
-      return fail(err?.status === 403 ? 403 : 400, {
+    } catch (err) {
+      return fail(apiStatus(err) === 403 ? 403 : 400, {
         error:
-          err?.status === 403
+          apiStatus(err) === 403
             ? 'Only an admin can revoke tokens.'
             : readableError(err, 'Could not revoke that token.')
       });
@@ -78,13 +79,15 @@ export const actions = {
    * to revoke an arbitrary set, only the orphaned rows the API itself reports.
    */
   revokeOrphaned: async ({ cookies }) => {
+    /** @type {string[] | undefined} */
     let ids;
     try {
-      ({ orphaned_ids: ids } = await listOrgTokens({ cookies }));
-    } catch (/** @type {any} */ err) {
-      return fail(err?.status === 403 ? 403 : 400, {
+      const answer = await listOrgTokens({ cookies });
+      ids = answer.forbidden ? undefined : answer.orphaned_ids;
+    } catch (err) {
+      return fail(apiStatus(err) === 403 ? 403 : 400, {
         error:
-          err?.status === 403
+          apiStatus(err) === 403
             ? 'Only an admin can revoke tokens.'
             : readableError(err, 'Could not load tokens to revoke.')
       });

@@ -129,7 +129,7 @@ export const actions = {
       // Redirect to app
       throw redirect(303, '/');
     } catch (error) {
-      if (error.status === 303) {
+      if (/** @type {{ status?: unknown }} */ (error).status === 303) {
         throw error; // Re-throw redirect
       }
       console.error('Org switch failed:', describeError(error));

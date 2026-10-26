@@ -40,7 +40,7 @@
   import { ChevronRight, TriangleAlert } from '@lucide/svelte';
   import { isOn } from '#lib/v2/modules.js';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form: result } = $props();
 
   // A switched-off module's fields are left out, and the save sends only what
@@ -50,13 +50,14 @@
 
   // A supported currency is required (the column is non-blank with a default),
   // so the empty "Select Currency" placeholder is dropped from the options.
-  const currencyOptions = CURRENCY_CODES.filter((/** @type {any} */ c) => c.value);
+  const currencyOptions = CURRENCY_CODES.filter((c) => c.value);
 
   // The full list the backend COUNTRIES accepts, so every stored code has an
   // option. A code missing here would leave the select on its first entry and
   // the next save would silently clear the org's country.
   const countryOptions = COUNTRIES.map((c) => ({ value: c.code, label: c.name }));
 
+  /** @type {Partial<import('#lib/api-schema.js').components['schemas']['OrgSettings']>} */
   const org = untrack(() => data.org ?? {});
   // Always includes the org's current value, because the API builds the list
   // from the same database the value was validated against. A stored zone with

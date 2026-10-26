@@ -2,6 +2,7 @@ import { fail } from '@sveltejs/kit';
 import { listInvoiceTemplates, setDefaultTemplate } from '#lib/server/v2/templates.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
 import { isOrgAdmin } from '#lib/admin.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 /**
  * The template catalogue. `load` returns `{ templates, totals }`. The names the
@@ -15,7 +16,7 @@ export async function load({ cookies, locals }) {
   const data = await listInvoiceTemplates({ cookies });
   return {
     ...data,
-    can_manage: isOrgAdmin(/** @type {any} */ (locals).profile)
+    can_manage: isOrgAdmin(locals.profile)
   };
 }
 
@@ -32,10 +33,10 @@ export const actions = {
 
     try {
       await setDefaultTemplate({ cookies }, id);
-    } catch (/** @type {any} */ err) {
-      return fail(err?.status === 403 ? 403 : 400, {
+    } catch (err) {
+      return fail(apiStatus(err) === 403 ? 403 : 400, {
         error:
-          err?.status === 403
+          apiStatus(err) === 403
             ? 'Only an administrator can change invoice templates.'
             : readableError(err, 'Could not change the default template.')
       });

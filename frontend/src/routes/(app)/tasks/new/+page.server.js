@@ -13,7 +13,7 @@ import {
   saveRefusal
 } from '#lib/server/v2/record-custom-fields.js';
 
-/** @type {any} */
+/** @type {{ results: never[] }} */
 const NONE = { results: [] };
 
 /**
@@ -35,17 +35,17 @@ export async function load(event) {
   const when = (key) => modulesP.then((m) => isOn(m?.modules ?? null, key));
   const [options, tickets, deals, leads, customFields, projects] = await Promise.allSettled([
     getTaskFormOptions(event),
-    when('tickets').then((on) =>
-      on ? listTickets(event, new URLSearchParams({ limit: '100' })) : NONE
+    when('tickets').then(async (on) =>
+      on ? await listTickets(event, new URLSearchParams({ limit: '100' })) : NONE
     ),
     // Open deals only, matching what this picker offered before `listDeals`
     // stopped assuming it: attaching a task to a deal you already closed is
     // an edge case the picker does not need to carry by default.
-    when('deals').then((on) =>
-      on ? listDeals(event, new URLSearchParams({ open: 'true', limit: '100' })) : NONE
+    when('deals').then(async (on) =>
+      on ? await listDeals(event, new URLSearchParams({ open: 'true', limit: '100' })) : NONE
     ),
-    when('leads').then((on) =>
-      on ? listLeads(event, new URLSearchParams({ limit: '100' })) : NONE
+    when('leads').then(async (on) =>
+      on ? await listLeads(event, new URLSearchParams({ limit: '100' })) : NONE
     ),
     fieldsForNew(event.cookies, 'Task'),
     when('projects').then((on) => (on ? projectChoices(event) : []))
@@ -61,34 +61,37 @@ export async function load(event) {
 
   const settled = options.status === 'fulfilled' ? options.value : { owners: [], accounts: [] };
 
+  /** @type {Record<string, { id: string, name: string }[]>} */
+  const parents = {
+    project: projectOptions(projectList, current),
+    account: settled.accounts ?? [],
+    opportunity:
+      deals.status === 'fulfilled'
+        ? deals.value.results.map((d) => ({ id: d.id, name: d.name }))
+        : [],
+    case:
+      tickets.status === 'fulfilled'
+        ? tickets.value.results.map((t) => ({ id: t.id, name: t.name }))
+        : [],
+    lead:
+      leads.status === 'fulfilled'
+        ? leads.value.results.map((l) => ({
+            id: l.id,
+            name:
+              `${l.first_name} ${l.last_name}`.trim() ||
+              l.company_name ||
+              l.email ||
+              '(unnamed lead)'
+          }))
+        : []
+  };
+
   return {
     modules: (await modulesP)?.modules ?? null,
     owners: settled.owners,
     customFields: customFields.status === 'fulfilled' ? customFields.value : [],
     prefill,
-    parents: {
-      project: projectOptions(projectList, current),
-      account: settled.accounts ?? [],
-      opportunity:
-        deals.status === 'fulfilled'
-          ? deals.value.results.map((/** @type {any} */ d) => ({ id: d.id, name: d.name }))
-          : [],
-      case:
-        tickets.status === 'fulfilled'
-          ? tickets.value.results.map((/** @type {any} */ t) => ({ id: t.id, name: t.name }))
-          : [],
-      lead:
-        leads.status === 'fulfilled'
-          ? leads.value.results.map((/** @type {any} */ l) => ({
-              id: l.id,
-              name:
-                `${l.first_name} ${l.last_name}`.trim() ||
-                l.company_name ||
-                l.email ||
-                '(unnamed lead)'
-            }))
-          : []
-    }
+    parents
   };
 }
 
@@ -120,6 +123,15 @@ function readParent(form) {
   return { parent: { [kind]: id } };
 }
 
+/**
+ * A refused create, with what the person typed. One shape for every refusal,
+ * so the page can read `fieldErrors` whichever one it got.
+ *
+ * @param {number} status
+ * @param {{ values: import('#lib/server/v2/tasks.js').TaskValues & { parent_kind: string }, error: string, fieldErrors?: Record<string, string> }} data
+ */
+const refuse = (status, data) => fail(status, data);
+
 /** @type {import('./$types').Actions} */
 export const actions = {
   create: async (event) => {
@@ -127,7 +139,7 @@ export const actions = {
     const kind = form.get('parent_kind')?.toString() ?? '';
     const { parent, error: parentError } = readParent(form);
 
-    /** @type {Record<string, any>} */
+    /** @type {import('#lib/server/v2/tasks.js').TaskValues} */
     const values = {
       title: form.get('title')?.toString().trim() ?? '',
       status: form.get('status')?.toString() || 'New',
@@ -145,17 +157,17 @@ export const actions = {
 
     const custom = await readCustomFields(event.cookies, 'Task', form);
     if (custom.refusal)
-      return fail(503, { values: { ...values, parent_kind: kind }, ...custom.refusal });
+      return refuse(503, { values: { ...values, parent_kind: kind }, ...custom.refusal });
     if (custom.values) values.custom_fields = custom.values;
 
     if (parentError) {
-      return fail(400, { values: { ...values, parent_kind: kind }, error: parentError });
+      return refuse(400, { values: { ...values, parent_kind: kind }, error: parentError });
     }
 
     try {
       await createTask(event, values);
-    } catch (/** @type {any} */ err) {
-      return fail(400, {
+    } catch (err) {
+      return refuse(400, {
         values: { ...values, parent_kind: kind },
         ...saveRefusal(err, custom.definitions, 'Could not save this task.')
       });

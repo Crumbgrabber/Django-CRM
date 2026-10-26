@@ -24,7 +24,7 @@
   import { enhance } from '$app/forms';
   import { CircleCheck, Circle, Plus } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   let totals = $derived(data.totals);
@@ -34,7 +34,7 @@
   let saving = $state(/** @type {Record<string, boolean>} */ ({}));
 
   /** Overdue is only meaningful for something still open. */
-  const overdueDays = (/** @type {any} */ t) => {
+  const overdueDays = (/** @type {{ due_date: string | null, is_done: boolean }} */ t) => {
     if (!t.due_date || t.is_done) return 0;
     const n = daysSince(t.due_date) ?? 0;
     return n > 0 ? n : 0;

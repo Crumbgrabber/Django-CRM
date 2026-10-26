@@ -1,6 +1,7 @@
 import { fail } from '@sveltejs/kit';
 import { listWebhooks, createWebhook, eventsFromForm } from '#lib/server/v2/webhooks.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 /**
  * Outbound webhooks: the list and the create panel.
@@ -35,8 +36,8 @@ export const actions = {
     try {
       const created = await createWebhook(event, values);
       return { created: { id: created.id, url: created.url, secret: created.secret } };
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, { create: { error: 'Only an admin can add webhooks.', values } });
       }
       return fail(400, {

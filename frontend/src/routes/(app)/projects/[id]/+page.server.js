@@ -16,10 +16,21 @@ import { getModules } from '#lib/server/v2/modules.js';
 import { fieldDefinitions, fieldsForDetail } from '#lib/server/v2/record-custom-fields.js';
 import { commentAction } from '#lib/server/v2/record-notes.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiErrorBody, apiStatus } from '#lib/api-errors.js';
 import { isOn } from '#lib/v2/modules.js';
 import { isOrgAdmin } from '#lib/admin.js';
 import { todayIn } from '#lib/v2/dates.js';
 import { billGrouping, invoiceAmountBody, isoDateOrNull } from '#lib/v2/projects.js';
+
+/**
+ * A refusal's own 4xx status for `fail`, or 400 for anything else.
+ *
+ * @param {unknown} err
+ */
+function clientStatus(err) {
+  const status = apiStatus(err);
+  return status !== undefined && status >= 400 && status < 500 ? status : 400;
+}
 
 /**
  * One project: the record, its tasks and time, and the Bill time preview
@@ -53,7 +64,7 @@ export async function load(event) {
     fieldDefinitions(event.cookies, 'Project')
   ]);
 
-  const timezone = /** @type {any} */ (locals).org_settings?.timezone || 'UTC';
+  const timezone = locals.org_settings?.timezone || 'UTC';
   const billable = detail.project.billing_type !== 'non_billable';
   const bill = {
     open: url.searchParams.get('bill') === '1' && detail.canBill && invoicesOn && timesheetOn,
@@ -73,7 +84,7 @@ export async function load(event) {
       entries,
       // Display-only: which running timer is this person's to stop. User
       // ids on both sides, as on the ticket panel.
-      viewerUserId: /** @type {any} */ (locals).user?.id ?? null,
+      viewerUserId: locals.user?.id ?? null,
       now: new Date().toISOString()
     },
     on: { timesheet: timesheetOn, tasks: tasksOn, invoices: invoicesOn },
@@ -98,8 +109,8 @@ export const actions = {
   delete: async (event) => {
     try {
       await deleteProject(event, event.params.id);
-    } catch (/** @type {any} */ err) {
-      const code = err?.status >= 400 && err?.status < 500 ? err.status : 400;
+    } catch (err) {
+      const code = clientStatus(err);
       return fail(code, { error: readableError(err, 'Could not delete this project.') });
     }
     redirect(303, '/projects');
@@ -113,11 +124,12 @@ export const actions = {
         task: form.get('task')?.toString() ?? '',
         billable: form.get('billable') === 'true'
       });
-    } catch (/** @type {any} */ err) {
-      return fail(err?.status === 409 ? 409 : 400, {
+    } catch (err) {
+      const body = apiErrorBody(err);
+      return fail(apiStatus(err) === 409 ? 409 : 400, {
         timeError: readableError(err, 'Could not start the timer.'),
-        runningTicketId: err?.body?.running_case_id ?? null,
-        runningProjectId: err?.body?.running_project_id ?? null
+        runningTicketId: body?.running_case_id ?? null,
+        runningProjectId: body?.running_project_id ?? null
       });
     }
     return { timeStarted: true };
@@ -127,7 +139,7 @@ export const actions = {
     const form = await event.request.formData();
     try {
       await stopTimer(event, form.get('entry_id')?.toString() ?? '');
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       return fail(400, { timeError: readableError(err, 'Could not stop the timer.') });
     }
     return { timeStopped: true };
@@ -141,12 +153,12 @@ export const actions = {
         description: form.get('description')?.toString() ?? '',
         billable: form.get('billable') === 'on',
         // Only an admin types a rate; the API ignores a member's anyway.
-        hourlyRate: isOrgAdmin(/** @type {any} */ (event.locals).profile)
+        hourlyRate: isOrgAdmin(event.locals.profile)
           ? (form.get('hourly_rate')?.toString() ?? '')
           : '',
         task: form.get('task')?.toString() ?? ''
       });
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       return fail(400, { timeError: readableError(err, 'Could not log this time.') });
     }
     return { timeLogged: true };
@@ -160,7 +172,7 @@ export const actions = {
         form.get('entry_id')?.toString() ?? '',
         form.get('billable') === 'true'
       );
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       return fail(400, { timeError: readableError(err, 'Could not change this entry.') });
     }
     return { timeUpdated: true };
@@ -170,7 +182,7 @@ export const actions = {
     const form = await event.request.formData();
     try {
       await deleteEntry(event, form.get('entry_id')?.toString() ?? '');
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       return fail(400, { timeError: readableError(err, 'Could not delete this entry.') });
     }
     return { timeDeleted: true };
@@ -186,8 +198,8 @@ export const actions = {
         upTo: form.get('up_to')?.toString() ?? '',
         groupBy: billGrouping(form.get('group_by')?.toString())
       });
-    } catch (/** @type {any} */ err) {
-      const code = err?.status >= 400 && err?.status < 500 ? err.status : 400;
+    } catch (err) {
+      const code = clientStatus(err);
       return fail(code, { billError: readableError(err, 'Could not bill this time.') });
     }
     redirect(303, made?.invoice_id ? `/invoices/${made.invoice_id}` : '/invoices');
@@ -210,8 +222,8 @@ export const actions = {
     let made;
     try {
       made = await invoiceProjectAmount(event, event.params.id, body);
-    } catch (/** @type {any} */ err) {
-      const code = err?.status >= 400 && err?.status < 500 ? err.status : 400;
+    } catch (err) {
+      const code = clientStatus(err);
       return fail(code, { amountError: readableError(err, 'Could not make that invoice.') });
     }
     redirect(303, made?.invoice_id ? `/invoices/${made.invoice_id}` : '/invoices');

@@ -2,6 +2,7 @@ import { fail, redirect } from '@sveltejs/kit';
 import { addDealNote, deleteDeal, getDeal } from '#lib/server/v2/deals.js';
 import { invoiceFromDeal } from '#lib/server/v2/invoices.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiErrorBody, apiStatus } from '#lib/api-errors.js';
 import { loadRelated, relatedActions } from '#lib/server/v2/related-records.js';
 import { commentAction } from '#lib/server/v2/record-notes.js';
 import { getLeadSources } from '#lib/server/v2/lead-sources.js';
@@ -47,10 +48,12 @@ export const actions = {
     let created;
     try {
       created = await invoiceFromDeal({ cookies }, params.id);
-    } catch (/** @type {any} */ err) {
-      return fail(err?.status === 404 ? 404 : 400, {
+    } catch (err) {
+      const message = apiErrorBody(err)?.message;
+      return fail(apiStatus(err) === 404 ? 404 : 400, {
         error:
-          err?.body?.message || readableError(err, 'Could not raise an invoice from this deal.')
+          (typeof message === 'string' && message) ||
+          readableError(err, 'Could not raise an invoice from this deal.')
       });
     }
     redirect(303, created?.id ? `/invoices/${created.id}` : '/invoices');
@@ -63,8 +66,9 @@ export const actions = {
   delete: async ({ cookies, params }) => {
     try {
       await deleteDeal({ cookies }, params.id);
-    } catch (/** @type {any} */ err) {
-      const code = err?.status >= 400 && err?.status < 500 ? err.status : 400;
+    } catch (err) {
+      const status = apiStatus(err);
+      const code = status !== undefined && status >= 400 && status < 500 ? status : 400;
       return fail(code, { error: readableError(err, 'Could not delete this deal.') });
     }
     redirect(303, '/pipeline');

@@ -32,7 +32,7 @@
   import { relatedView } from '#lib/v2/custom-objects.js';
   import { isOn } from '#lib/v2/modules.js';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
   let related = $derived(relatedView(data.related));
   let dealsOn = $derived(isOn(data.modules, 'deals'));
@@ -41,16 +41,12 @@
 
   let { account, deals, contacts, tickets, invoices, owners } = $derived(data);
 
-  let openDeals = $derived(
-    deals.filter((/** @type {any} */ d) => !CLOSED_KINDS.includes(d.stage_kind))
-  );
-  let stalled = $derived(
-    dealsOn ? openDeals.filter((/** @type {any} */ d) => d.aging_status === 'red') : []
-  );
+  let openDeals = $derived(deals.filter((d) => !CLOSED_KINDS.includes(d.stage_kind ?? '')));
+  let stalled = $derived(dealsOn ? openDeals.filter((d) => d.aging_status === 'red') : []);
   // `past_due` is decided by the same rule as the header figure. See
   // `isPastDue` in the data layer. The invoice's own `is_overdue` flag counts
   // drafts, and a rail that disagrees with its header discredits both.
-  let pastDue = $derived(invoicesOn ? invoices.filter((/** @type {any} */ i) => i.past_due) : []);
+  let pastDue = $derived(invoicesOn ? invoices.filter((i) => i.past_due) : []);
 
   /** One sentence that connects problems across objects. Every clause is a
       fact on this page: a stalled deal, or an invoice past its due date. */
@@ -134,7 +130,7 @@
           value={account.overdue_by_currency?.length ? moneyEach(account.overdue_by_currency) : '—'}
           tone={account.overdue_by_currency?.length ? 'rust' : 'slate'}
           detail={pastDue.length
-            ? pastDue.map((/** @type {any} */ i) => i.invoice_number).join(', ')
+            ? pastDue.map((i) => i.invoice_number).join(', ')
             : 'Nothing past due'}
         />
       {/if}
@@ -142,7 +138,7 @@
         <StatCard
           label="Open tickets"
           value={String(account.open_tickets ?? 0)}
-          tone={tickets.some((/** @type {any} */ t) => t.priority === 'Urgent') ? 'rust' : 'slate'}
+          tone={tickets.some((t) => t.priority === 'Urgent') ? 'rust' : 'slate'}
           detail={tickets.length ? `${tickets[0].name} · ${tickets[0].priority}` : 'None open'}
         />
       {/if}
@@ -214,13 +210,13 @@
                    it reads as though an open deal already closed. -->
                 <div class="v2-sub" style="font-size:11.5px">
                   {d.stage_label}{d.closed_on
-                    ? CLOSED_KINDS.includes(d.stage_kind)
+                    ? CLOSED_KINDS.includes(d.stage_kind ?? '')
                       ? ` · closed ${shortDate(d.closed_on)}`
                       : ` · due ${shortDate(d.closed_on)}`
                     : ''}
                 </div>
               </div>
-              {#if d.aging_status === 'red' && !CLOSED_KINDS.includes(d.stage_kind)}
+              {#if d.aging_status === 'red' && !CLOSED_KINDS.includes(d.stage_kind ?? '')}
                 <Pill tone="rust">{d.days_in_current_stage}d</Pill>
               {/if}
               <span class="v2-num" style="font-weight:600;font-size:13px"

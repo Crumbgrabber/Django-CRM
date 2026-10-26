@@ -8,6 +8,7 @@ import {
 } from '#lib/server/v2/routing.js';
 import { getOrgPeopleAndTeams } from '#lib/server/v2/org-people.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 // The rule list and the create/edit form's people/team pickers are two
 // independent fetches: `getRoutingRules` no longer folds `getOrgPeopleAndTeams`
@@ -63,8 +64,8 @@ export const actions = {
     const values = { ...readValues(form), is_active: form.get('is_active') === 'true' };
     try {
       await createRoutingRule(event, values);
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, { create: { error: 'Only an admin can add routing rules.' } });
       }
       return fail(400, { create: { error: readableError(err, 'Could not add the rule.') } });
@@ -78,8 +79,8 @@ export const actions = {
     const values = readValues(form);
     try {
       await updateRoutingRule(event, id, values);
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, { update: { error: 'Only an admin can change routing rules.' } });
       }
       return fail(400, { update: { error: readableError(err, 'Could not save the rule.') } });
@@ -92,8 +93,8 @@ export const actions = {
     const id = form.get('id')?.toString() ?? '';
     try {
       await updateRoutingRule(event, id, { is_active: false });
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, { deactivate: { error: 'Only an admin can turn routing rules off.' } });
       }
       return fail(400, {
@@ -116,8 +117,8 @@ export const actions = {
     const id = form.get('id')?.toString() ?? '';
     try {
       await updateRoutingRule(event, id, { is_active: true });
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, { activate: { error: 'Only an admin can turn routing rules on.' } });
       }
       return fail(400, {
@@ -134,8 +135,8 @@ export const actions = {
     const id = form.get('id')?.toString() ?? '';
     try {
       await deleteRoutingRule(event, id);
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, { remove: { error: 'Only an admin can delete routing rules.' } });
       }
       return fail(400, { remove: { error: readableError(err, 'Could not delete the rule.') } });

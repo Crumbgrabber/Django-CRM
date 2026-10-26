@@ -3,6 +3,8 @@ import { listTasks, setTaskDone, FILTER_FIELDS } from '#lib/server/v2/tasks.js';
 import { readFilters, buildFilterQuery } from '#lib/server/v2/filter-params.js';
 import { getOrgPeopleAndTeams, resolveMe } from '#lib/server/v2/org-people.js';
 import { isOrgAdmin } from '#lib/admin.js';
+import { apiStatus } from '#lib/api-errors.js';
+import { readableError } from '#lib/server/v2/form-errors.js';
 
 /**
  * The task queue.
@@ -37,16 +39,13 @@ export async function load(event) {
   return {
     // Filtered here rather than with `?status=` alone, because the totals the
     // header reads have to cover both; "3 of 11 open" needs the 11.
-    tasks:
-      showAll || explicitStatus
-        ? results
-        : results.filter((/** @type {{ is_done: boolean }} */ task) => !task.is_done),
+    tasks: showAll || explicitStatus ? results : results.filter((task) => !task.is_done),
     totals,
     owners,
     showAll,
     people: orgPeople.people,
-    meId: resolveMe(orgPeople.people, /** @type {any} */ (locals).user?.email),
-    canDelete: isOrgAdmin(/** @type {any} */ (locals).profile)
+    meId: resolveMe(orgPeople.people, locals.user?.email),
+    canDelete: isOrgAdmin(locals.profile)
   };
 }
 
@@ -67,14 +66,14 @@ export const actions = {
 
     try {
       await setTaskDone(event, id, done);
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       // 403 is the interesting one: the list can show a task you may read
       // through a shared parent but not edit.
-      return fail(err?.status === 403 ? 403 : 400, {
+      return fail(apiStatus(err) === 403 ? 403 : 400, {
         error:
-          err?.status === 403
+          apiStatus(err) === 403
             ? 'That task is not yours to change.'
-            : (err?.body?.errors ?? 'That did not save. Try again.')
+            : readableError(err, 'That did not save. Try again.')
       });
     }
     return { done };

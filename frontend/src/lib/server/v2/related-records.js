@@ -13,6 +13,7 @@ import {
   checkId
 } from '#lib/server/v2/custom-objects.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 const REFUSED = 'No such record, or you cannot open it.';
 
@@ -20,7 +21,7 @@ const REFUSED = 'No such record, or you cannot open it.';
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} to A built-in registry key.
  * @param {string} id
- * @returns {Promise<any | null>} Null on any failure, including no custom objects.
+ * @returns {Promise<import('#lib/server/v2/custom-objects.js').RelatedRecords | null>} Null on any failure, including no custom objects.
  */
 export function loadRelated(event, to, id) {
   return getRelated(event, to, id);
@@ -48,7 +49,7 @@ function readLink(form) {
 
 /**
  * @param {string} to A built-in registry key.
- * @param {typeof addRelated} call
+ * @param {(event: import('@sveltejs/kit').RequestEvent, link: Parameters<typeof addRelated>[1]) => Promise<unknown>} call
  * @param {string} fallback
  * @param {boolean} [needsRecord] Refuse an empty record before any API call.
  */
@@ -63,8 +64,9 @@ function writer(to, call, fallback, needsRecord = false) {
     if (!link) return fail(400, { related: { error: REFUSED } });
     try {
       await call(event, { to, id: event.params.id ?? '', ...link });
-    } catch (/** @type {any} */ err) {
-      const code = [400, 403, 404].includes(err?.status) ? err.status : 400;
+    } catch (err) {
+      const status = apiStatus(err);
+      const code = status !== undefined && [400, 403, 404].includes(status) ? status : 400;
       return fail(code, { related: { error: readableError(err, fallback) } });
     }
     return { related: { done: true } };

@@ -7,7 +7,7 @@
   import { billingHref } from '#lib/v2/billing.js';
   import { TriangleAlert } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form: result } = $props();
 
   let def = $derived(data.definition);
@@ -16,19 +16,19 @@
   let busy = $state(false);
 
   // What was typed comes back after a refusal.
-  let typed = $derived(result?.values ?? {});
+  let typed = $derived(result?.values);
   let fields = $derived(
-    data.fields.map((/** @type {any} */ f) => {
-      const v = typed.custom_fields?.[f.key];
-      if (!typed.custom_fields || !(f.key in typed.custom_fields)) return f;
+    data.fields.map((f) => {
+      const v = typed?.custom_fields?.[f.key];
+      if (!typed?.custom_fields || !(f.key in typed.custom_fields)) return f;
       return { ...f, value: f.field_type === 'checkbox' ? Boolean(v) : v == null ? '' : String(v) };
     })
   );
   let linkFields = $derived(data.linkFields);
   let assignees = $derived(
-    (typed.assigned_to ?? [])
-      .map((/** @type {string} */ id) => data.people.find((/** @type {any} */ p) => p.id === id))
-      .filter(Boolean)
+    (typed?.assigned_to ?? [])
+      .map((id) => data.people.find((p) => p.id === id))
+      .filter((p) => p !== undefined)
   );
 </script>
 
@@ -90,7 +90,7 @@
           class="v2-input"
           required
           maxlength="255"
-          value={typed.name ?? ''}
+          value={typed?.name ?? ''}
         />
       </div>
 

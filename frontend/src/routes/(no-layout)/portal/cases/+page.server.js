@@ -7,6 +7,7 @@
  */
 
 import { fail, redirect } from '@sveltejs/kit';
+import { apiStatus } from '#lib/api-errors.js';
 import {
   ACCESS_COOKIE,
   ORG_COOKIE,
@@ -66,7 +67,7 @@ export const actions = {
       const data = await createCase(token, { name, description, priority });
       throw redirect(303, `/portal/cases/${data.case.id}`);
     } catch (err) {
-      if (err?.status === 303) throw err;
+      if (apiStatus(err) === 303) throw err;
       if (err instanceof PortalError) {
         if (err.status === 401 || err.status === 403) toLogin(cookies);
         return fail(err.status, { error: err.data?.name?.[0] || 'Could not send that request.' });

@@ -11,6 +11,7 @@
   import { resolve } from '$app/paths';
   import HelpCenterShell from '#lib/v2/components/HelpCenterShell.svelte';
 
+  /** @type {import('./$types').PageProps} */
   let { data } = $props();
 
   let title = $derived(`${data.article.title} | ${data.name} help center`);

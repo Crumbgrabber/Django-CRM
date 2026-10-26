@@ -3,7 +3,7 @@
   import { resolve } from '$app/paths';
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
   let submitting = $state(false);
 </script>

@@ -51,6 +51,6 @@ describe('cases list when its module is off', () => {
   it('still rethrows other portal errors as before', async () => {
     const err = await run(500);
     expect(err).toBeInstanceOf(portal.PortalError);
-    expect(err.status).toBe(500);
+    expect(/** @type {{ status: number }} */ (err).status).toBe(500);
   });
 });

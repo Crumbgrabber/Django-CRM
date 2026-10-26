@@ -425,7 +425,7 @@ REST_FRAMEWORK = {
     else None,
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.LimitOffsetPagination",
     "PAGE_SIZE": 10,
-    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_SCHEMA_CLASS": "common.custom_openapi.AutoSchema",
     # Anonymous endpoints only (issue #634 started it). There is deliberately
     # no DEFAULT_THROTTLE_CLASSES entry: setting one would rate-limit every
     # authenticated endpoint in the app, which nobody asked for and which would
@@ -579,7 +579,7 @@ SPECTACULAR_SETTINGS = {
         "CaseStatusEnum": "common.utils.STATUS_CHOICE",
         "SolutionStatusEnum": "cases.models.Solution.STATUS_CHOICES",
         "DocumentStatusEnum": "common.models.Document.DOCUMENT_STATUS_CHOICE",
-        "InvoiceStatusEnum": "invoices.models.Invoice.INVOICE_STATUS",
+        "InvoiceStatusEnum": "invoices.models.INVOICE_STATUS",
         "ContactFormStatusEnum": "common.models.ContactFormSubmission.STATUS_CHOICES",
         "LeadStatusEnum": "common.utils.LEAD_STATUS",
     },

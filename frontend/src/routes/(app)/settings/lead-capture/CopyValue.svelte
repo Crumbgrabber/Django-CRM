@@ -1,11 +1,8 @@
 <script>
-  /**
-   * A value to paste somewhere else (a webhook URL, a key), with a copy button.
-   *
-   * @type {{ label: string, value: string, id: string }}
-   */
+  /** A value to paste somewhere else (a webhook URL, a key), with a copy button. */
   import { Copy, Check } from '@lucide/svelte';
 
+  /** @type {{ label: string, value: string, id: string }} */
   let { label, value, id } = $props();
   let copied = $state(false);
 

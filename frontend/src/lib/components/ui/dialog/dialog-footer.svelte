@@ -1,5 +1,6 @@
 <script>
   import { cn } from '#lib/utils.js';
+  /** @type {import('bits-ui').WithElementRef<import('svelte/elements').HTMLAttributes<HTMLDivElement>>} */
   let { ref = $bindable(null), class: className = undefined, children, ...restProps } = $props();
 </script>
 

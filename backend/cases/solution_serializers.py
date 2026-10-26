@@ -157,6 +157,16 @@ class SolutionCreateUpdateSerializer(serializers.ModelSerializer):
         return attrs
 
 
+class SolutionLinkedCaseSerializer(serializers.Serializer):
+    """One row of `SolutionDetailSerializer.linked_cases`, for the schema."""
+
+    id = serializers.UUIDField()
+    name = serializers.CharField()
+    status = serializers.CharField()
+    priority = serializers.CharField()
+    created_at = serializers.DateTimeField(allow_null=True)
+
+
 class SolutionDetailSerializer(serializers.ModelSerializer):
     """Detailed serializer for solution with linked cases"""
 
@@ -190,7 +200,7 @@ class SolutionDetailSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
-    @extend_schema_field(list)
+    @extend_schema_field(SolutionLinkedCaseSerializer(many=True))
     def get_linked_cases(self, obj):
         """Linked tickets the *requester* is allowed to open.
 

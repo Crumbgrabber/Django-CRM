@@ -7,7 +7,7 @@
   import { shortDate } from '#lib/v2/format.js';
   import { Paperclip, Send } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
   let submitting = $state(false);
   let ticket = $derived(data.ticket);

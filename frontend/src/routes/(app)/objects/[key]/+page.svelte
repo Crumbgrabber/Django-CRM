@@ -6,7 +6,7 @@
   import { count } from '#lib/v2/format.js';
   import { Boxes, Plus } from '@lucide/svelte';
 
-  /** @type {{ data: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data } = $props();
 
   let def = $derived(data.definition);

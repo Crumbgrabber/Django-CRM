@@ -1,6 +1,7 @@
 <script>
   import { Dialog as DialogPrimitive } from 'bits-ui';
 
+  /** @type {import('bits-ui').DialogTriggerProps} */
   let { ref = $bindable(null), ...restProps } = $props();
 </script>
 

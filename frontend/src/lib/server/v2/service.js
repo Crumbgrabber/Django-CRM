@@ -25,8 +25,29 @@
  * render a dashboard built from a personal slice.
  */
 import { apiRequest } from '#lib/api-helpers.js';
+import { apiStatus } from '#lib/api-errors.js';
 
-/** A fully-shaped but empty payload, so a non-admin render never throws. */
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+
+/**
+ * The page's shape: the service call re-keyed, plus the two window calls.
+ *
+ * @typedef {object} ServiceAnalytics
+ * @property {boolean} can_view
+ * @property {Schemas['ServiceTotals']} totals
+ * @property {Schemas['ServiceVolumeDay'][]} volume
+ * @property {Schemas['ServiceFirstResponse'][]} firstResponse
+ * @property {Schemas['ServiceCaseType'][]} byType
+ * @property {Schemas['ServiceAgent'][]} byAgent
+ * @property {Schemas['CsatAggregateResponse']} csat
+ * @property {Schemas['AnalyticsNrtPriority'][]} nextResponse
+ */
+
+/**
+ * A fully-shaped but empty payload, so a non-admin render never throws.
+ *
+ * @type {Omit<ServiceAnalytics, 'can_view'>}
+ */
 const EMPTY = {
   totals: {
     opened: 0,
@@ -51,23 +72,26 @@ const EMPTY = {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string | number} [days] optional window length in days (backend clamps 1-90)
+ * @returns {Promise<ServiceAnalytics>}
  */
 export async function getServiceAnalytics({ cookies }, days) {
   const query = days ? `?days=${encodeURIComponent(days)}` : '';
+  /** @type {Schemas['AnalyticsServiceResponse']} */
   let data;
   try {
     data = await apiRequest(`/cases/analytics/service/${query}`, {}, { cookies });
-  } catch (/** @type {any} */ err) {
-    if (err?.status === 403) return { can_view: false, ...EMPTY };
+  } catch (err) {
+    if (apiStatus(err) === 403) return { can_view: false, ...EMPTY };
     throw err;
   }
   const volume = data.volume ?? [];
   const from = volume[0]?.date;
   const windowQuery = from ? `?from=${encodeURIComponent(from)}` : '';
-  const [csat, nrt] = await Promise.all([
-    apiRequest(`/cases/csat/aggregate/${windowQuery}`, {}, { cookies }),
-    apiRequest(`/cases/analytics/nrt/${windowQuery}`, {}, { cookies })
-  ]);
+  /** @type {Promise<Schemas['CsatAggregateResponse']>} */
+  const csatRead = apiRequest(`/cases/csat/aggregate/${windowQuery}`, {}, { cookies });
+  /** @type {Promise<Schemas['AnalyticsNrtResponse']>} */
+  const nrtRead = apiRequest(`/cases/analytics/nrt/${windowQuery}`, {}, { cookies });
+  const [csat, nrt] = await Promise.all([csatRead, nrtRead]);
   return {
     can_view: true,
     totals: data.totals ?? EMPTY.totals,

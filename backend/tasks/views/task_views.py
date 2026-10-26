@@ -67,6 +67,20 @@ from tasks.updates import (
 )
 
 
+def _choice_pairs():
+    """`[value, label]` pairs, as Django stores choices."""
+    return serializers.ListField(
+        child=serializers.ListField(child=serializers.CharField())
+    )
+
+
+_PROFILE_EMAILS = inline_serializer(
+    name="ProfileEmail",
+    fields={"id": serializers.UUIDField(), "user__email": serializers.EmailField()},
+    many=True,
+)
+
+
 class TaskListView(APIView, LimitOffsetPagination):
     model = Task
     permission_classes = (IsAuthenticated, HasOrgContext)
@@ -225,12 +239,27 @@ class TaskListView(APIView, LimitOffsetPagination):
                     "tasks_count": serializers.IntegerField(),
                     "offset": serializers.IntegerField(allow_null=True),
                     "tasks": TaskListSerializer(many=True),
-                    "totals": serializers.DictField(),
-                    "status": serializers.ListField(),
-                    "priority": serializers.ListField(),
-                    "users": serializers.ListField(),
-                    "accounts_list": AccountPickerSerializer(many=True),
-                    "contacts_list": ContactPickerSerializer(many=True),
+                    "totals": inline_serializer(
+                        name="TaskListTotals",
+                        fields={
+                            key: serializers.IntegerField()
+                            for key in (
+                                "count",
+                                "open",
+                                "overdue",
+                                "due_today",
+                                "due_this_week",
+                                "no_due_date",
+                                "unassigned",
+                            )
+                        },
+                    ),
+                    "status": _choice_pairs(),
+                    "priority": _choice_pairs(),
+                    "users": _PROFILE_EMAILS,
+                    # Left out with `?slim=true`.
+                    "accounts_list": AccountPickerSerializer(many=True, required=False),
+                    "contacts_list": ContactPickerSerializer(many=True, required=False),
                 },
             )
         },
@@ -371,8 +400,20 @@ class TaskDetailView(APIView):
                     "task_obj": TaskSerializer(),
                     "attachments": AttachmentsSerializer(many=True),
                     "comments": CommentSerializer(many=True),
-                    "users_mention": serializers.ListField(),
-                    "assigned_data": serializers.DictField(),
+                    # An admin, or the task's creator, gets `user__email` rows;
+                    # anyone else gets the creator alone, as `username`.
+                    "users_mention": inline_serializer(
+                        name="TaskMention",
+                        fields={
+                            "user__email": serializers.EmailField(required=False),
+                            "username": serializers.EmailField(required=False),
+                        },
+                        many=True,
+                    ),
+                    "assigned_data": _PROFILE_EMAILS,
+                    "custom_field_definitions": CustomFieldDefinitionSerializer(
+                        many=True
+                    ),
                     "users": ProfileSerializer(many=True),
                     "users_excluding_team": ProfileSerializer(many=True),
                     "teams": TeamsSerializer(many=True),

@@ -40,6 +40,7 @@ import { viewerIsAdmin } from './organization.js';
 /** Enough forms that no real org is truncated, small enough to stay one page. */
 const LIST_LIMIT = 100;
 
+/** @type {Schemas['WebFormTotals']} */
 const EMPTY_TOTALS = { count: 0, published: 0, submissions_30d: 0, spam_30d: 0 };
 
 /**
@@ -52,8 +53,7 @@ const EMPTY_TOTALS = { count: 0, published: 0, submissions_30d: 0, spam_30d: 0 }
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  */
 export async function getWebForms({ cookies }) {
-  // A limit/offset page with `totals`, which the schema describes as a bare list.
-  /** @type {{ count: number, results: Schemas['WebFormList'][], totals: typeof EMPTY_TOTALS }} */
+  /** @type {Schemas['WebFormListResponse']} */
   const resp = await apiRequest(`/webforms/?limit=${LIST_LIMIT}`, {}, { cookies });
   const forms = resp?.results ?? [];
   const totals = resp?.totals ?? EMPTY_TOTALS;
@@ -107,8 +107,7 @@ async function listProfiles(cookies) {
  */
 async function listCustomFields(cookies) {
   try {
-    // `{ definitions, totals }`, an envelope the schema's bare list does not describe.
-    /** @type {{ definitions?: Schemas['CustomFieldDefinition'][] }} */
+    /** @type {Schemas['CustomFieldDefinitionListResponse']} */
     const resp = await apiRequest('/custom-fields/', {}, { cookies });
     return (resp.definitions ?? [])
       .filter((d) => d.is_active)
@@ -152,8 +151,10 @@ async function listTags(cookies) {
  */
 export async function getWebForm({ cookies }, id) {
   if (!id) throw new Error('Which form? No form id was given.');
+  /** @type {Promise<Schemas['WebFormDetail']>} */
+  const formRead = apiRequest(`/webforms/${id}/`, {}, { cookies });
   const [form, profiles, definitions, tags] = await Promise.all([
-    apiRequest(`/webforms/${id}/`, {}, { cookies }),
+    formRead,
     listProfiles(cookies),
     listCustomFields(cookies),
     listTags(cookies)
@@ -187,7 +188,7 @@ export async function getWebForm({ cookies }, id) {
  * A `*_details` profile as a picker option, labelled by email as
  * `listProfiles` labels everyone else.
  *
- * @param {{ id: string, email: string, is_active: boolean }} details
+ * @param {Schemas['WebFormMember']} details
  */
 function asOption(details) {
   return { id: details.id, name: details.email, is_active: details.is_active };
@@ -245,10 +246,10 @@ const WRITABLE_FIELD_KEYS = [
  * authority: the model requires a name and the serializer re-validates
  * everything here regardless of what this lets through.
  *
- * @param {{ [key: string]: any }} values
+ * @param {Record<string, unknown>} values
  */
 function buildBody(values) {
-  /** @type {Record<string, any>} */
+  /** @type {Record<string, unknown>} */
   const body = {};
   for (const field of WRITABLE_FIELDS) {
     if (values[field] === undefined) continue;
@@ -261,8 +262,8 @@ function buildBody(values) {
   }
 
   if (Array.isArray(values.fields)) {
-    body.fields = values.fields.map((/** @type {any} */ row) => {
-      /** @type {Record<string, any>} */
+    body.fields = values.fields.map((/** @type {Record<string, unknown>} */ row) => {
+      /** @type {Record<string, unknown>} */
       const out = {};
       for (const key of WRITABLE_FIELD_KEYS) {
         if (row[key] === undefined) continue;
@@ -277,7 +278,8 @@ function buildBody(values) {
 
 /**
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
- * @param {{ [key: string]: any }} values
+ * @param {Record<string, unknown>} values
+ * @returns {Promise<Schemas['WebFormDetail']>}
  */
 export async function createWebForm({ cookies }, values) {
   const body = buildBody(values);
@@ -292,7 +294,8 @@ export async function createWebForm({ cookies }, values) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
- * @param {{ [key: string]: any }} values
+ * @param {Record<string, unknown>} values
+ * @returns {Promise<Schemas['WebFormDetail']>}
  */
 export async function updateWebForm({ cookies }, id, values) {
   if (!id) throw new Error('Which form? No form id was given.');
@@ -323,6 +326,7 @@ export async function deleteWebForm({ cookies }, id) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
+ * @returns {Promise<Schemas['WebFormDoneResponse']>}
  */
 export async function publishWebForm({ cookies }, id) {
   if (!id) throw new Error('Which form? No form id was given.');
@@ -332,6 +336,7 @@ export async function publishWebForm({ cookies }, id) {
 /**
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
+ * @returns {Promise<Schemas['WebFormDoneResponse']>}
  */
 export async function unpublishWebForm({ cookies }, id) {
   if (!id) throw new Error('Which form? No form id was given.');
@@ -351,7 +356,7 @@ export async function unpublishWebForm({ cookies }, id) {
  */
 export async function getSubmissions({ cookies }, id, limit = 25) {
   if (!id) throw new Error('Which form? No form id was given.');
-  /** @type {{ count: number, results: Schemas['WebFormSubmission'][] }} */
+  /** @type {Schemas['WebFormSubmissionListResponse']} */
   const resp = await apiRequest(`/webforms/${id}/submissions/?limit=${limit}`, {}, { cookies });
   return { submissions: resp?.results ?? [], count: resp?.count ?? 0 };
 }
@@ -365,6 +370,7 @@ export async function getSubmissions({ cookies }, id, limit = 25) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
+ * @returns {Promise<Schemas['WebFormAnalyticsResponse']>}
  */
 export async function getAnalytics({ cookies }, id) {
   if (!id) throw new Error('Which form? No form id was given.');

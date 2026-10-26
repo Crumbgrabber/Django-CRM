@@ -33,7 +33,7 @@
     {action}
     use:enhance={() => {
       busy = true;
-      return async (/** @type {any} */ { update }) => {
+      return async ({ update }) => {
         await update();
         busy = false;
         // Disarm either way. On success the row is gone; on failure the page

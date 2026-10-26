@@ -27,7 +27,7 @@
   import { BookOpen, Eye, EyeOff, Plus } from '@lucide/svelte';
   import { isOn } from '#lib/v2/modules.js';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   let articles = $derived(data.articles);

@@ -45,21 +45,20 @@ function shapeAssignee(p) {
  * Whether a mailbox's address was minted under the server's inbound domain.
  * Read from `is_generated` when the row carries it, else from the address.
  *
- * @param {any} m @param {string | null} domain
+ * @param {{ is_generated?: boolean, address?: string }} m @param {string | null} domain
  */
 function isGenerated(m, domain) {
   if (typeof m.is_generated === 'boolean') return m.is_generated;
   return Boolean(domain) && String(m.address ?? '').endsWith(`@${domain}`);
 }
 
+/** @typedef {Awaited<ReturnType<typeof getMailboxes>>['mailboxes'][number]} MailboxRow */
+
 /**
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
- * @returns {Promise<{ mailboxes: any[], totals: any, can_edit: boolean, generated_domain: string | null, can_create_leads: boolean, daily_limit: number | null }>}
  */
 export async function getMailboxes({ cookies }) {
-  // `{ mailboxes, totals, generated_domain, daily_limit }`, an envelope the
-  // schema's bare list does not describe.
-  /** @type {{ mailboxes?: any[], totals?: any, generated_domain?: unknown, daily_limit?: unknown }} */
+  /** @type {Schemas['InboundMailboxListResponse']} */
   const resp = await apiRequest('/cases/mailboxes/', {}, { cookies });
   const { mailboxes, totals } = resp;
   const domain = typeof resp?.generated_domain === 'string' ? resp.generated_domain : null;
@@ -147,9 +146,9 @@ const UPDATE_FIELDS = [
  *  field only. */
 const CREATE_FIELDS = [...UPDATE_FIELDS, 'generate_address'];
 
-/** @param {string[]} allowed @param {{ [key: string]: any }} values */
+/** @param {string[]} allowed @param {{ [key: string]: unknown }} values */
 function buildBody(allowed, values) {
-  /** @type {Record<string, any>} */
+  /** @type {{ [key: string]: unknown }} */
   const body = {};
   for (const field of allowed) {
     if (values[field] === undefined) continue;

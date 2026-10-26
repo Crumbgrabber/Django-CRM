@@ -65,9 +65,49 @@ class CaseImportPreviewView(APIView):
                 name="CaseImportPreviewResponse",
                 fields={
                     "header_error": serializers.CharField(allow_null=True),
-                    "valid": serializers.ListField(child=serializers.DictField()),
-                    "errors": serializers.ListField(child=serializers.DictField()),
-                    "summary": serializers.DictField(),
+                    "valid": inline_serializer(
+                        name="CaseImportValidRow",
+                        fields={
+                            "row": serializers.IntegerField(),
+                            "name": serializers.CharField(),
+                            "status": serializers.CharField(),
+                            "priority": serializers.CharField(),
+                            "description": serializers.CharField(),
+                            "case_type": serializers.CharField(allow_null=True),
+                            "closed_on": serializers.CharField(allow_null=True),
+                            "account_id": serializers.CharField(allow_null=True),
+                            "contact_ids": serializers.ListField(
+                                child=serializers.CharField()
+                            ),
+                            "assigned_ids": serializers.ListField(
+                                child=serializers.CharField()
+                            ),
+                            "team_ids": serializers.ListField(
+                                child=serializers.CharField()
+                            ),
+                            "tag_names": serializers.ListField(
+                                child=serializers.CharField()
+                            ),
+                        },
+                        many=True,
+                    ),
+                    "errors": inline_serializer(
+                        name="CaseImportRowError",
+                        fields={
+                            "row": serializers.IntegerField(),
+                            "field": serializers.CharField(),
+                            "message": serializers.CharField(),
+                        },
+                        many=True,
+                    ),
+                    "summary": inline_serializer(
+                        name="CaseImportSummary",
+                        fields={
+                            "total": serializers.IntegerField(),
+                            "valid": serializers.IntegerField(),
+                            "invalid": serializers.IntegerField(),
+                        },
+                    ),
                 },
             )
         },

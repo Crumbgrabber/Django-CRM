@@ -20,7 +20,8 @@ nothing here reads `request.user`, `request.profile` or `request.org`, so a
 staff JWT sent along with the request changes nothing about the answer.
 """
 
-from rest_framework import status
+from drf_spectacular.utils import extend_schema, inline_serializer
+from rest_framework import serializers, status
 from rest_framework.pagination import LimitOffsetPagination
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -48,6 +49,18 @@ SEARCH_MAX = 200
 # Telling any two of those apart would let a stranger probe which orgs use the
 # product and which article ids exist behind the published set.
 NOT_FOUND = {"error": "Not found"}
+
+
+class PublicHelpArticleRowSerializer(PortalSolutionSerializer):
+    """Response-only: one row of the public article list."""
+
+    snippet = serializers.CharField(read_only=True)
+
+    class Meta(PortalSolutionSerializer.Meta):
+        fields = (*PortalSolutionSerializer.Meta.fields, "snippet")
+
+
+_HEADER = inline_serializer("PublicHelpCenterHeader", {"name": serializers.CharField()})
 
 
 class HelpCenterIPThrottle(SimpleRateThrottle):
@@ -122,6 +135,17 @@ class PublicHelpCenterView(FirstRefusalThrottleMixin, APIView):
 
 
 class PublicHelpCenterListView(PublicHelpCenterView):
+    @extend_schema(
+        tags=["Public"],
+        responses=inline_serializer(
+            "PublicHelpCenterListResponse",
+            {
+                "help_center": _HEADER,
+                "articles": PublicHelpArticleRowSerializer(many=True),
+                "articles_count": serializers.IntegerField(),
+            },
+        ),
+    )
     def get(self, request, slug):
         org = self._org(slug)
         if org is None:
@@ -151,6 +175,21 @@ class PublicHelpCenterListView(PublicHelpCenterView):
 
 
 class PublicHelpCenterArticleView(PublicHelpCenterView):
+    @extend_schema(
+        tags=["Public"],
+        responses=inline_serializer(
+            "PublicHelpCenterArticleResponse",
+            {
+                "help_center": _HEADER,
+                "article": PortalSolutionDetailSerializer(),
+                "related": inline_serializer(
+                    "PublicHelpRelatedArticle",
+                    {"id": serializers.CharField(), "title": serializers.CharField()},
+                    many=True,
+                ),
+            },
+        ),
+    )
     def get(self, request, slug, pk):
         org = self._org(slug)
         if org is None:

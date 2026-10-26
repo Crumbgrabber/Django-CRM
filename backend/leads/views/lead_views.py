@@ -198,6 +198,33 @@ def lead_list_queryset(profile, params):
     return queryset.distinct()
 
 
+def _choice_pairs():
+    """Schema only: a `(value, label)` choices tuple as JSON renders it."""
+    return serializers.ListField(
+        child=serializers.ListField(child=serializers.CharField())
+    )
+
+
+class LeadUserOptionSerializer(serializers.Serializer):
+    """Schema only: a row of `users`, `values("id", "user__email")`."""
+
+    id = serializers.UUIDField()
+    user__email = serializers.EmailField()
+
+
+class LeadPipelineStageRefSerializer(serializers.Serializer):
+    """Schema only: `LeadDetailView`'s `pipeline_stage`."""
+
+    id = serializers.CharField()
+    name = serializers.CharField()
+    color = serializers.CharField()
+    stage_type = serializers.CharField()
+    pipeline = inline_serializer(
+        name="LeadPipelineRef",
+        fields={"id": serializers.CharField(), "name": serializers.CharField()},
+    )
+
+
 class LeadListView(APIView, LimitOffsetPagination):
     model = Lead
     permission_classes = (IsAuthenticated, HasOrgContext)
@@ -319,15 +346,43 @@ class LeadListView(APIView, LimitOffsetPagination):
                 fields={
                     "per_page": serializers.IntegerField(),
                     "page_number": serializers.IntegerField(),
-                    "open_leads": serializers.DictField(),
-                    "close_leads": serializers.DictField(),
-                    "contacts": serializers.ListField(),
-                    "status": serializers.ListField(),
-                    "source": serializers.ListField(),
+                    "open_leads": inline_serializer(
+                        name="LeadListOpenPage",
+                        fields={
+                            "leads_count": serializers.IntegerField(),
+                            "open_leads": LeadSerializer(many=True),
+                            "offset": serializers.IntegerField(allow_null=True),
+                        },
+                    ),
+                    "totals": inline_serializer(
+                        name="LeadListTotals",
+                        fields={
+                            "count": serializers.IntegerField(),
+                            "unworked_over_a_week": serializers.IntegerField(),
+                        },
+                    ),
+                    "close_leads": inline_serializer(
+                        name="LeadListClosedPage",
+                        fields={
+                            "leads_count": serializers.IntegerField(),
+                            "close_leads": LeadSerializer(many=True),
+                            "offset": serializers.IntegerField(allow_null=True),
+                        },
+                    ),
+                    "contacts": inline_serializer(
+                        name="LeadContactOption",
+                        fields={
+                            "id": serializers.UUIDField(),
+                            "first_name": serializers.CharField(),
+                        },
+                        many=True,
+                    ),
+                    "status": _choice_pairs(),
+                    "source": _choice_pairs(),
                     "tags": TagsSerializer(many=True),
-                    "users": serializers.ListField(),
-                    "countries": serializers.ListField(),
-                    "industries": serializers.ListField(),
+                    "users": LeadUserOptionSerializer(many=True),
+                    "countries": _choice_pairs(),
+                    "industries": _choice_pairs(),
                 },
             )
         },
@@ -348,6 +403,7 @@ class LeadListView(APIView, LimitOffsetPagination):
                 fields={
                     "error": serializers.BooleanField(),
                     "message": serializers.CharField(),
+                    "id": serializers.UUIDField(),
                     "account_id": serializers.CharField(required=False),
                     "contact_id": serializers.CharField(
                         required=False, allow_null=True
@@ -482,6 +538,7 @@ class LeadListView(APIView, LimitOffsetPagination):
                     {
                         "error": False,
                         "message": "Lead Converted Successfully",
+                        "id": str(lead_obj.id),
                         "account_id": str(account.id),
                         "contact_id": str(contact.id) if contact else None,
                         "opportunity_id": str(opportunity.id) if opportunity else None,
@@ -489,7 +546,11 @@ class LeadListView(APIView, LimitOffsetPagination):
                     status=status.HTTP_200_OK,
                 )
             return Response(
-                {"error": False, "message": "Lead Created Successfully"},
+                {
+                    "error": False,
+                    "message": "Lead Created Successfully",
+                    "id": str(lead_obj.id),
+                },
                 status=status.HTTP_200_OK,
             )
         return Response(
@@ -650,15 +711,29 @@ class LeadDetailView(APIView):
                     "lead_obj": LeadSerializer(),
                     "attachments": AttachmentsSerializer(many=True),
                     "comments": LeadCommentSerializer(many=True),
-                    "users_mention": serializers.ListField(),
-                    "assigned_data": serializers.ListField(),
+                    "users_mention": inline_serializer(
+                        name="LeadMentionUser",
+                        fields={"user__email": serializers.EmailField()},
+                        many=True,
+                    ),
+                    "assigned_data": inline_serializer(
+                        name="LeadAssignee",
+                        fields={
+                            "id": serializers.UUIDField(),
+                            "name": serializers.EmailField(),
+                        },
+                        many=True,
+                    ),
                     "users": ProfileSerializer(many=True),
                     "users_excluding_team": ProfileSerializer(many=True),
-                    "source": serializers.ListField(),
-                    "status": serializers.ListField(),
+                    "source": _choice_pairs(),
+                    "status": _choice_pairs(),
                     "teams": TeamsSerializer(many=True),
-                    "countries": serializers.ListField(),
-                    "pipeline_stage": serializers.DictField(allow_null=True),
+                    "countries": _choice_pairs(),
+                    "pipeline_stage": LeadPipelineStageRefSerializer(allow_null=True),
+                    "custom_field_definitions": CustomFieldDefinitionSerializer(
+                        many=True
+                    ),
                     "can_delete": serializers.BooleanField(),
                 },
             )

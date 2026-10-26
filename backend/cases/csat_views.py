@@ -17,7 +17,8 @@ from datetime import timedelta
 from django.core.signing import BadSignature, SignatureExpired
 from django.db.models import Avg, Count
 from django.utils import timezone
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import extend_schema, inline_serializer
+from rest_framework import serializers
 from rest_framework import status as drf_status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -107,6 +108,22 @@ class PublicCsatView(APIView):
     permission_classes = (AllowAny,)
     authentication_classes: list = []  # No JWT/session/csrf needed.
 
+    @extend_schema(
+        tags=["Public"],
+        responses=inline_serializer(
+            "PublicCsatSurvey",
+            {
+                "case_subject": serializers.CharField(),
+                "case_closed_on": serializers.DateField(allow_null=True),
+                "org_name": serializers.CharField(allow_null=True),
+                "agent_name": serializers.CharField(),
+                "rating": serializers.IntegerField(allow_null=True),
+                "comment": serializers.CharField(),
+                "responded_at": serializers.DateTimeField(allow_null=True),
+                "edit_window_closes_at": serializers.DateTimeField(allow_null=True),
+            },
+        ),
+    )
     def get(self, request, token: str):
         survey, status, err = _load_survey(token)
         if survey is None:
@@ -135,6 +152,24 @@ class PublicCsatView(APIView):
             }
         )
 
+    @extend_schema(
+        tags=["Public"],
+        request=inline_serializer(
+            "PublicCsatRating",
+            {
+                "rating": serializers.IntegerField(),
+                "comment": serializers.CharField(required=False),
+            },
+        ),
+        responses=inline_serializer(
+            "PublicCsatAnswer",
+            {
+                "rating": serializers.IntegerField(),
+                "comment": serializers.CharField(),
+                "responded_at": serializers.DateTimeField(),
+            },
+        ),
+    )
     def post(self, request, token: str):
         survey, status, err = _load_survey(token)
         if survey is None:
@@ -196,7 +231,26 @@ class CsatAggregateView(APIView):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
-    @extend_schema(tags=["cases-analytics"], parameters=_FILTER_PARAMS)
+    @extend_schema(
+        tags=["cases-analytics"],
+        parameters=_FILTER_PARAMS,
+        responses={
+            200: inline_serializer(
+                name="CsatAggregateResponse",
+                fields={
+                    "average": serializers.FloatField(allow_null=True),
+                    "count": serializers.IntegerField(),
+                    # Every rating on the scale, "1" to "5", zero included.
+                    "distribution": inline_serializer(
+                        name="CsatDistribution",
+                        fields={
+                            str(i): serializers.IntegerField() for i in range(1, 6)
+                        },
+                    ),
+                },
+            )
+        },
+    )
     def get(self, request):
         qs, from_dt, to_dt = _filtered_qs(request)
         responded = CsatSurvey.objects.filter(

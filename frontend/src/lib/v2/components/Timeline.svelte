@@ -9,7 +9,7 @@
    * An event with `canDelete` is a logged interaction the caller may remove,
    * through the page's `?/deleteActivity`.
    *
-   * @type {{ events: Array<{ id: string, body: string, at: string, by?: string|null, type?: string, detail?: string, canDelete?: boolean, interaction?: string }> }}
+   * @type {{ events: Array<{ id: string, body: string, at: string | null, by?: string|null, type?: string, detail?: string, canDelete?: boolean, interaction?: string }> }}
    */
   let { events = [] } = $props();
 </script>

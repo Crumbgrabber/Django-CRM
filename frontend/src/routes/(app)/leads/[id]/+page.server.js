@@ -1,6 +1,7 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { addLeadNote, convertLead, deleteLead, getLead } from '#lib/server/v2/leads.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiStatus } from '#lib/api-errors.js';
 import { loadRelated, relatedActions } from '#lib/server/v2/related-records.js';
 import { getLeadSources } from '#lib/server/v2/lead-sources.js';
 import {
@@ -63,8 +64,9 @@ export const actions = {
 
     try {
       await addLeadNote({ cookies }, params.id, comment, file);
-    } catch (/** @type {any} */ err) {
-      return fail(400, { message: String(err?.message ?? 'Could not save that note.') });
+    } catch (err) {
+      const message = /** @type {{ message?: unknown } | null | undefined} */ (err)?.message;
+      return fail(400, { message: String(message ?? 'Could not save that note.') });
     }
 
     return { noted: true };
@@ -84,9 +86,9 @@ export const actions = {
         contact_id: result?.contact_id ?? null,
         opportunity_id: result?.opportunity_id ?? null
       };
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       // A lead this profile may not open is a 404, the same as a missing one.
-      return fail(err?.status === 404 ? 404 : 400, {
+      return fail(apiStatus(err) === 404 ? 404 : 400, {
         error: readableError(err, 'Could not convert this lead.')
       });
     }
@@ -99,8 +101,9 @@ export const actions = {
   delete: async ({ cookies, params }) => {
     try {
       await deleteLead({ cookies }, params.id);
-    } catch (/** @type {any} */ err) {
-      const code = err?.status >= 400 && err?.status < 500 ? err.status : 400;
+    } catch (err) {
+      const status = apiStatus(err);
+      const code = status !== undefined && status >= 400 && status < 500 ? status : 400;
       return fail(code, { deleteError: readableError(err, 'Could not delete this lead.') });
     }
     redirect(303, '/leads');

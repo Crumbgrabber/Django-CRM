@@ -25,7 +25,7 @@
   import { APPROVAL_STATE_LABEL, APPROVAL_STATE_TONE, PRIORITY_TONE } from '#lib/v2/enums.js';
   import { ShieldCheck, TriangleAlert, ChevronRight } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   let totals = $derived(data.totals);

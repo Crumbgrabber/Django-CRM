@@ -28,7 +28,7 @@ export function moneyEach(list) {
  * `moneyEach` prints: ordered by code, zeros dropped. Only for figures a page
  * derives from rows it holds; totals the API computes arrive already split.
  *
- * @param {any[]} rows
+ * @param {Array<{ [key: string]: unknown }>} rows
  * @param {string} [field]
  * @returns {{ currency: string, amount: number }[]}
  */
@@ -36,7 +36,8 @@ export function sumByCurrency(rows, field = 'amount') {
   /** @type {Record<string, number>} */
   const totals = {};
   for (const row of rows) {
-    totals[row.currency] = (totals[row.currency] ?? 0) + (row[field] ?? 0);
+    const currency = String(row.currency);
+    totals[currency] = (totals[currency] ?? 0) + /** @type {number} */ (row[field] ?? 0);
   }
   return Object.keys(totals)
     .sort()
@@ -229,9 +230,9 @@ export function runTime(iso, timeZone, now = new Date()) {
   } catch {
     zone = 'UTC';
   }
-  /** @returns {Record<string, any>} */
+  /** @returns {{ hour: string, minute: string, day: number, year: number, monthIndex: number, month: string }} */
   const parts = (/** @type {Date} */ date) => {
-    /** @type {Record<string, any>} */
+    /** @type {Record<string, string>} */
     const out = Object.fromEntries(
       new Intl.DateTimeFormat('en-US', {
         timeZone: zone,
@@ -247,7 +248,8 @@ export function runTime(iso, timeZone, now = new Date()) {
     );
     const monthIndex = Number(out.month) - 1;
     return {
-      ...out,
+      hour: out.hour,
+      minute: out.minute,
       day: Number(out.day),
       year: Number(out.year),
       monthIndex,
@@ -256,7 +258,8 @@ export function runTime(iso, timeZone, now = new Date()) {
   };
   const at = parts(d);
   const today = parts(now);
-  const dayNumber = (/** @type {any} */ p) => Date.UTC(p.year, p.monthIndex, p.day) / 86400000;
+  const dayNumber = (/** @type {{ year: number, monthIndex: number, day: number }} */ p) =>
+    Date.UTC(p.year, p.monthIndex, p.day) / 86400000;
   const clock = `${at.hour}:${at.minute}`;
   const gap = dayNumber(today) - dayNumber(at);
   if (gap === 0) return `Today ${clock}`;

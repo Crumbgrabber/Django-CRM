@@ -20,7 +20,7 @@
   import { labelOf } from '#lib/v2/modules.js';
   import { asInternalPath } from '#lib/utils/paths.js';
 
-  /** @type {{ data: any, form?: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   const GROUPS = [
@@ -42,11 +42,11 @@
   let formsLink = $derived(form?.key === 'leads' || form?.key === 'tickets');
   let mailboxLink = $derived(form?.key === 'tickets');
   // Shown under the row it is about, so a phone user sees it where they tapped.
-  let refusedKey = $derived(rows.some((r) => r.key === form?.key) ? form.key : null);
+  let refusedKey = $derived(rows.some((r) => r.key === form?.key) ? form?.key : null);
 
   let apps = $derived(data.apps?.apps ?? []);
   let confirm = $derived(data.confirm ?? null);
-  let doneApp = $derived(apps.find((/** @type {any} */ a) => a.id === data.done?.app) ?? null);
+  let doneApp = $derived(apps.find((a) => a.id === data.done?.app) ?? null);
   let busy = $state(false);
   let confirmingClear = $state(false);
 
@@ -61,7 +61,7 @@
     remove: 'Remove'
   });
 
-  /** @param {any} app */
+  /** @param {import('#lib/server/v2/apps.js').App} app */
   function statusLine(app) {
     if (app.status === 'removed') return 'Removed. Installing it again brings its parts back.';
     if (app.status !== 'installed') return '';
@@ -73,17 +73,19 @@
   /** @param {string} id @param {string} action */
   const ask = (id, action) => `/settings/apps?app=${encodeURIComponent(id)}&do=${action}`;
 
+  /** @type {import('$app/forms').SubmitFunction} */
   const submitting = () => {
     busy = true;
-    return async (/** @type {any} */ { update }) => {
+    return async ({ update }) => {
       await update();
       busy = false;
     };
   };
 
+  /** @type {import('$app/forms').SubmitFunction} */
   const clearSubmit = () => {
     busy = true;
-    return async (/** @type {any} */ { update, result }) => {
+    return async ({ update, result }) => {
       await update();
       busy = false;
       if (result?.type === 'success') confirmingClear = false;
@@ -216,7 +218,7 @@
                           This is everything it adds. Anything already here is kept as it is.
                         </p>
                       {/if}
-                      {#each open.preview.groups as group (group.type)}
+                      {#each open.preview?.groups ?? [] as group (group.type)}
                         <div class="v2-label" style="margin:12px 0 4px">{group.label}</div>
                         <ul class="app-items">
                           {#each group.items as item, n (n)}

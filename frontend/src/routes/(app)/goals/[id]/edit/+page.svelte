@@ -10,7 +10,7 @@
   import { CURRENCY_CODES } from '#lib/constants/filters.js';
   import { TriangleAlert } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form: result } = $props();
 
   /**
@@ -23,18 +23,23 @@
    * org. See CLAUDE.md, "API Validation & Authorization".
    */
   let form = $state(
-    untrack(() => ({
-      name: data.goal?.name ?? '',
-      goal_type: data.goal?.goal_type ?? 'REVENUE',
-      target_value: data.goal?.target_value ?? '',
-      currency: data.goal?.currency ?? data.org.currency,
-      period_type: data.goal?.period_type ?? 'MONTHLY',
-      period_start: data.goal?.period_start ?? '',
-      period_end: data.goal?.period_end ?? '',
-      target: data.goal?.target ?? 'org',
-      is_active: String(data.goal?.is_active ?? true),
-      ...(untrack(() => result?.values) ?? {})
-    }))
+    untrack(() => {
+      const values = result?.values;
+      return {
+        name: data.goal?.name ?? '',
+        goal_type: data.goal?.goal_type ?? 'REVENUE',
+        target_value: data.goal?.target_value ?? '',
+        currency: data.goal?.currency ?? data.org.currency,
+        period_type: data.goal?.period_type ?? 'MONTHLY',
+        period_start: data.goal?.period_start ?? '',
+        period_end: data.goal?.period_end ?? '',
+        target: data.goal?.target ?? 'org',
+        ...values,
+        // The action echoes the switch as a boolean; the select binds 'true' or
+        // 'false', and a value matching no option would submit nothing.
+        is_active: String(values?.is_active ?? data.goal?.is_active ?? true)
+      };
+    })
   );
 
   let touched = $state(/** @type {Record<string, boolean>} */ ({}));

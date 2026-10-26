@@ -2,6 +2,7 @@ import { fail, redirect } from '@sveltejs/kit';
 import { apiRequest } from '#lib/api-helpers.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
 import { getProfile } from '#lib/server/v2/profile.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 /** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
 
@@ -30,8 +31,8 @@ export const actions = {
 
     try {
       await apiRequest('/profile/', { method: 'PATCH', body }, { cookies });
-    } catch (/** @type {any} */ err) {
-      return fail(err?.status === 400 ? 400 : 500, {
+    } catch (err) {
+      return fail(apiStatus(err) === 400 ? 400 : 500, {
         values: body,
         message: readableError(err, 'Could not save your profile.')
       });
@@ -70,13 +71,13 @@ export const actions = {
         { method: 'POST', body: payload },
         { cookies }
       );
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       // 403 is the honest one: you asked for an org you are not a member of.
       const message =
-        err?.status === 403
+        apiStatus(err) === 403
           ? 'You are not a member of that organisation.'
           : readableError(err, 'Could not switch organisation.');
-      return fail(err?.status === 403 ? 403 : 500, { scope: 'switch', message });
+      return fail(apiStatus(err) === 403 ? 403 : 500, { scope: 'switch', message });
     }
 
     const secure = process.env.NODE_ENV === 'production';

@@ -252,7 +252,9 @@ class TestAFileSentOnItsOwn:
     def test_a_ticket_stores_it(self, admin_client, org_a):
         from cases.models import Case
 
-        case = Case.objects.create(name="Login fails", org=org_a, status="New")
+        case = Case.objects.create(
+            name="Login fails", org=org_a, status="New", priority="Normal"
+        )
         before = self._count(org_a)
 
         response = self._upload(

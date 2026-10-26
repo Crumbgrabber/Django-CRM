@@ -50,13 +50,13 @@ function shapeTeam(team) {
   return { id: team.id, name: team.name };
 }
 
+/** @typedef {Awaited<ReturnType<typeof getRoutingRules>>['rules'][number]} RoutingRuleRow */
+
 /**
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
- * @returns {Promise<{ rules: any[], totals: any, can_edit: boolean }>}
  */
 export async function getRoutingRules({ cookies }) {
-  // `{ rules, totals }`, an envelope the schema's bare list does not describe.
-  /** @type {{ rules?: any[], totals?: any }} */
+  /** @type {Schemas['RoutingRuleListResponse']} */
   const { rules, totals } = await apiRequest('/cases/routing-rules/', {}, { cookies });
   return {
     rules: (rules ?? []).map((r) => ({
@@ -207,9 +207,9 @@ function cleanConditions(rows) {
     });
 }
 
-/** @param {string[]} allowed @param {{ [key: string]: any }} values */
+/** @param {string[]} allowed @param {RuleValues} values */
 function buildBody(allowed, values) {
-  /** @type {Record<string, any>} */
+  /** @type {RuleValues} */
   const body = {};
   for (const field of allowed) {
     if (values[field] === undefined) continue;
@@ -308,6 +308,7 @@ export async function updateRoutingRule({ cookies }, id, values) {
   if (
     submittedAssignees &&
     body.target_assignee_ids === undefined &&
+    body.strategy !== undefined &&
     PEOPLE_STRATEGIES.includes(body.strategy)
   ) {
     const name = ROUTING_STRATEGY_NAME[body.strategy].toLowerCase();

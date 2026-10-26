@@ -42,7 +42,7 @@ export async function load({ cookies, url, locals }) {
     people: orgPeople.people,
     tags: tagList.tags ?? [],
     savedViews,
-    meId: resolveMe(orgPeople.people, /** @type {any} */ (locals).user?.email)
+    meId: resolveMe(orgPeople.people, locals.user?.email)
   };
 }
 

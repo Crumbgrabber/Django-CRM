@@ -239,7 +239,7 @@ describe('ruleBody', () => {
       { actions: [{ type: 'webhook', endpoint: 'gone-id' }] },
       { create: false }
     );
-    expect(body.actions[0].endpoint).toBe('gone-id');
+    expect(/** @type {any} */ (body.actions)[0].endpoint).toBe('gone-id');
   });
 
   it('refuses a body that is not an object, or a conditions value that is not a list', () => {

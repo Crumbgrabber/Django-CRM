@@ -40,7 +40,9 @@ from urllib.parse import parse_qsl
 from django.core.exceptions import RequestDataTooBig
 from django.db import transaction
 from django.utils import timezone
-from rest_framework import status
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema, inline_serializer
+from rest_framework import serializers, status
 from rest_framework.negotiation import BaseContentNegotiation
 from rest_framework.permissions import AllowAny
 from rest_framework.renderers import JSONRenderer
@@ -134,6 +136,25 @@ class LeadIntakePostView(APIView):
     # Applied in the view: the webhook's own limits only once the key matched.
     throttle_classes = ()
 
+    @extend_schema(
+        tags=["Public"],
+        # Whatever the sender posts, read through the webhook's mapping.
+        request=OpenApiTypes.OBJECT,
+        responses={
+            # A test post answers `result` alone.
+            200: inline_serializer(
+                "LeadIntakePostResponse",
+                {
+                    "result": serializers.CharField(),
+                    "lead": serializers.CharField(required=False),
+                },
+            ),
+            201: inline_serializer(
+                "LeadIntakeCreatedResponse",
+                {"result": serializers.CharField(), "lead": serializers.CharField()},
+            ),
+        },
+    )
     def post(self, request, intake_id):
         org_id = resolve_portal_org(intake_id, PortalAccessToken.LEAD_INTAKE)
         intake = None

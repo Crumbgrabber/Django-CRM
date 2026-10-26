@@ -25,11 +25,30 @@
  */
 import { error } from '@sveltejs/kit';
 import { apiRequest } from '#lib/api-helpers.js';
+import { apiStatus } from '#lib/api-errors.js';
 import { fieldsForDetail, fieldsForEdit } from '#lib/server/v2/record-custom-fields.js';
 import { rethrowModuleOff } from '#lib/server/v2/modules.js';
 import { attachmentHref } from '#lib/server/v2/files.js';
 import { sumByCurrency } from '#lib/v2/format.js';
 import { canMoveCard } from '#lib/v2/board-drag.js';
+
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+/** @typedef {Record<string, string | boolean | null>} CustomFieldValues */
+/**
+ * What the create and edit actions collect: the submitted fields as strings,
+ * plus the typed custom values.
+ *
+ * @typedef {{ [field: string]: string | CustomFieldValues | undefined, custom_fields?: CustomFieldValues }} DealFormValues
+ */
+
+/**
+ * What `toRow` reads: the fields a list row, a board card and the detail
+ * record share, plus the ones only some of them carry.
+ *
+ * @typedef {Pick<Schemas['Opportunity'], 'id' | 'name' | 'account' | 'pipeline' | 'stage' | 'stage_label' | 'stage_kind' | 'amount' | 'currency' | 'probability' | 'closed_on' | 'assigned_to' | 'stage_changed_at' | 'days_in_stage' | 'aging_status' | 'created_at'>
+ *   & Partial<Pick<Schemas['Opportunity'], 'opportunity_type' | 'lead_source' | 'description' | 'created_by'>>
+ *   & { next_activity?: Schemas['NextActivity'] | null }} DealFields
+ */
 
 /**
  * DRF decimals are strings. `null` stays `null`. It means "not priced".
@@ -47,11 +66,10 @@ function num(value) {
  * the list row show one owner. Falls back to the creator, which is what the
  * column means by "Owner". Whoever is answerable for this deal.
  *
- * @param {any} deal
+ * @param {DealFields} deal
  */
 function ownerName(deal) {
-  const assigned = deal.assigned_to?.[0];
-  const email = assigned?.user_details?.email || assigned?.user?.email;
+  const email = deal.assigned_to?.[0]?.user_details?.email;
   return email || deal.created_by?.email || '';
 }
 
@@ -62,7 +80,7 @@ function ownerName(deal) {
  * task never reaches here. The deal detail does not carry the field, so there
  * it stays `undefined`, which the pages never read as "nothing scheduled".
  *
- * @param {any} value
+ * @param {Schemas['NextActivity'] | null | undefined} value
  */
 function toNextActivity(value) {
   if (value === undefined) return undefined;
@@ -77,7 +95,7 @@ function toNextActivity(value) {
  * renames the model property. Keeping the model's name here means the pages
  * and `opportunity/models.py` say the same word for the same number.
  *
- * @param {any} deal
+ * @param {DealFields} deal
  */
 function toRow(deal) {
   return {
@@ -134,6 +152,7 @@ export async function listDeals({ cookies }, params) {
   const query = new URLSearchParams(params ?? undefined);
   if (!query.has('limit')) query.set('limit', '25');
 
+  /** @type {Schemas['OpportunityListResponse']} */
   const response = await apiRequest(`/opportunities/?${query}`, {}, { cookies });
   /** @type {ReturnType<typeof toRow>[]} */
   const rows = (response.opportunities ?? []).map(toRow);
@@ -155,8 +174,8 @@ export async function listDeals({ cookies }, params) {
  * `{currency, amount}` list `moneyEach` prints, holding only the currencies
  * with something in them, so an empty list means nothing is priced.
  *
- * @param {any} totals
- * @param {any[]} rows
+ * @param {Schemas['OpportunityListTotals'] | null | undefined} totals
+ * @param {ReturnType<typeof toRow>[]} rows
  */
 function normaliseTotals(totals, rows) {
   if (!totals) {
@@ -170,13 +189,13 @@ function normaliseTotals(totals, rows) {
     };
   }
   /**
-   * @param {string} field
+   * @param {'amount_sum' | 'weighted_sum'} field
    * @param {(n: number) => number} [shape]
    */
   const perCurrency = (field, shape = (n) => n) =>
     (totals.by_currency ?? [])
-      .map((/** @type {any} */ r) => ({ currency: r.currency, amount: shape(num(r[field]) ?? 0) }))
-      .filter((/** @type {any} */ m) => m.amount !== 0);
+      .map((r) => ({ currency: r.currency, amount: shape(num(r[field]) ?? 0) }))
+      .filter((m) => m.amount !== 0);
   return {
     count: totals.count,
     amount_by_currency: perCurrency('amount_sum'),
@@ -235,20 +254,20 @@ export const FILTER_FIELDS = [
  * may change it (see `settings/deal-pipelines`).
  *
  * @param {import('@sveltejs/kit').Cookies} cookies
- * @returns {Promise<any[]>}
  */
 export async function listPipelines(cookies) {
+  /** @type {Schemas['DealPipelineListResponse']} */
   const response = await apiRequest('/opportunities/pipelines/', {}, { cookies });
   return (response.pipelines ?? []).map(toPipeline);
 }
 
-/** @param {any} pipeline */
+/** @param {Schemas['DealPipeline']} pipeline */
 export function toPipeline(pipeline) {
   return {
     id: pipeline.id,
     name: pipeline.name ?? '',
     is_default: Boolean(pipeline.is_default),
-    stages: (pipeline.stages ?? []).map((/** @type {any} */ stage) => ({
+    stages: (pipeline.stages ?? []).map((stage) => ({
       id: stage.id,
       code: stage.code,
       label: stage.label ?? stage.code,
@@ -280,14 +299,15 @@ export function toPipeline(pipeline) {
  */
 export async function listBoard({ cookies }, params) {
   const query = new URLSearchParams(params ?? undefined);
+  /** @type {Schemas['OpportunityKanbanResponse']} */
   const response = await apiRequest(`/opportunities/kanban/?${query}`, {}, { cookies });
 
   const lanes = (response.columns ?? [])
-    .filter((/** @type {any} */ column) => column.kind === 'open')
-    .map((/** @type {any} */ column) => {
+    .filter((column) => column.kind === 'open')
+    .map((column) => {
       // `canMove` is the kanban card's own flag; the list has none, so it is
       // added here rather than in `toRow`.
-      const rows = (column.items ?? []).map((/** @type {any} */ item) => ({
+      const rows = (column.items ?? []).map((item) => ({
         ...toRow(item),
         canMove: canMoveCard(item)
       }));
@@ -326,7 +346,7 @@ export async function getDeal({ cookies }, id) {
     // The deal's own pipeline, for the stage stepper.
     pipeline: pipelines.find((p) => p.id === deal.pipeline) ?? null,
     activity: buildActivity(response),
-    lineItems: (raw.line_items ?? []).map((/** @type {any} */ item) => ({
+    lineItems: (raw.line_items ?? []).map((item) => ({
       id: item.id,
       name: item.name,
       quantity: num(item.quantity) ?? 0,
@@ -335,7 +355,7 @@ export async function getDeal({ cookies }, id) {
       subtotal: num(item.subtotal) ?? 0,
       total: num(item.total) ?? 0
     })),
-    contacts: (response.contacts ?? []).map((/** @type {any} */ contact) => ({
+    contacts: (response.contacts ?? []).map((contact) => ({
       id: contact.id,
       first_name: contact.first_name ?? '',
       last_name: contact.last_name ?? '',
@@ -346,7 +366,7 @@ export async function getDeal({ cookies }, id) {
     })),
     customFields: fieldsForDetail(response, raw.custom_fields),
     // Newest first, through the download proxy. Comments are in `activity`.
-    files: (response.attachments ?? []).map((/** @type {any} */ a) => ({
+    files: (response.attachments ?? []).map((a) => ({
       id: String(a.id),
       name: a.file_name || 'Attachment',
       at: a.created_at ?? null,
@@ -367,6 +387,7 @@ export async function getDeal({ cookies }, id) {
  * @param {string} id
  * @param {string} comment
  * @param {File | null} [file]
+ * @returns {Promise<Schemas['OpportunityCommentAttachmentResponse']>}
  */
 export async function addDealNote({ cookies }, id, comment, file = null) {
   if (file) {
@@ -389,6 +410,7 @@ export async function addDealNote({ cookies }, id, comment, file = null) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
+ * @returns {Promise<Schemas['OpportunityDetailDeleteResponse']>}
  */
 export async function deleteDeal({ cookies }, id) {
   return await apiRequest(`/opportunities/${id}/`, { method: 'DELETE' }, { cookies });
@@ -403,26 +425,28 @@ export async function deleteDeal({ cookies }, id) {
  * later than creation, because `save()` also stamps `stage_changed_at` on a new
  * record and "moved to Prospecting" the second a deal is created is noise.
  *
- * @param {any} response
+ * @param {Schemas['OpportunityDetailResponse']} response
  */
 function buildActivity(response) {
   const deal = response.opportunity_obj;
 
-  const events = (response.comments ?? []).map((/** @type {any} */ comment) => ({
+  /** @type {Array<{ id: string, type: 'note' | 'stage', at: string, by: string | null, body: string }>} */
+  const events = (response.comments ?? []).map((comment) => ({
     id: comment.id,
     type: 'note',
     at: comment.commented_on,
-    by: comment.commented_by_user?.email || comment.commented_by?.user_details?.email || null,
+    by: comment.commented_by?.user_details?.email || null,
     body: comment.comment
   }));
 
   const created = new Date(deal.created_at).getTime();
-  const moved = deal.stage_changed_at ? new Date(deal.stage_changed_at).getTime() : 0;
-  if (moved && moved - created > 60_000) {
+  const changedAt = deal.stage_changed_at;
+  const moved = changedAt ? new Date(changedAt).getTime() : 0;
+  if (changedAt && moved && moved - created > 60_000) {
     events.push({
       id: `stage-${deal.id}`,
       type: 'stage',
-      at: deal.stage_changed_at,
+      at: changedAt,
       by: null,
       // Deliberately not "moved from X to Y". The previous stage is not
       // recorded anywhere, and inventing it would be inventing history.
@@ -438,10 +462,7 @@ function buildActivity(response) {
     body: 'Deal created'
   });
 
-  return events.sort(
-    (/** @type {any} */ a, /** @type {any} */ b) =>
-      new Date(b.at).getTime() - new Date(a.at).getTime()
-  );
+  return events.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
 }
 
 /** Scalar fields the deal forms own. Everything else is server-derived. */
@@ -470,8 +491,9 @@ export const EDITABLE_FIELDS = [
  */
 async function listAccounts(cookies) {
   try {
+    /** @type {Schemas['OpportunityListResponse']} */
     const response = await apiRequest('/opportunities/?limit=1', {}, { cookies });
-    return (response.accounts_list ?? []).map((/** @type {any} */ account) => ({
+    return (response.accounts_list ?? []).map((account) => ({
       id: account.id,
       name: account.name
     }));
@@ -492,10 +514,11 @@ async function listAccounts(cookies) {
  */
 async function listOwners(cookies) {
   try {
+    /** @type {Schemas['TeamsAndUsersResponse']} */
     const response = await apiRequest('/users/get-teams-and-users/', {}, { cookies });
-    return (response.profiles ?? []).map((/** @type {any} */ profile) => ({
+    return (response.profiles ?? []).map((profile) => ({
       id: profile.id,
-      name: profile.user_details?.email || profile.user?.email || 'Unknown'
+      name: profile.user_details?.email || 'Unknown'
     }));
   } catch {
     return [];
@@ -514,6 +537,7 @@ async function listOwners(cookies) {
  */
 async function myProfileId(cookies) {
   try {
+    /** @type {Schemas['ProfileViewResponse']} */
     const response = await apiRequest('/profile/', {}, { cookies });
     return response.user_obj?.id ?? '';
   } catch {
@@ -537,7 +561,7 @@ export async function getDealFormOptions({ cookies }) {
   ]);
   // The API lists the default pipeline first and creates it if missing.
   const pipeline = pipelines.find((p) => p.is_default) ?? pipelines[0];
-  const firstOpen = pipeline?.stages.find((/** @type {any} */ s) => s.kind === 'open');
+  const firstOpen = pipeline?.stages.find((s) => s.kind === 'open');
   return {
     accounts,
     owners,
@@ -601,10 +625,7 @@ export async function getDealForEdit({ cookies }, id) {
       // than inferred, but the line-item count is what the form explains with.
       amount_source: lineItems.length ? 'CALCULATED' : raw.amount_source || 'MANUAL',
       line_item_count: lineItems.length,
-      line_item_total: lineItems.reduce(
-        (/** @type {number} */ total, /** @type {any} */ item) => total + (num(item.total) ?? 0),
-        0
-      ),
+      line_item_total: lineItems.reduce((total, item) => total + (num(item.total) ?? 0), 0),
       // Drives the aging chain the board renders. Changing stage resets it.
       stage_changed_at: deal.stage_changed_at,
       days_in_current_stage: deal.days_in_current_stage,
@@ -621,10 +642,10 @@ export async function getDealForEdit({ cookies }, id) {
  * that number. Sending back the value the field was showing would be sending
  * a value nobody typed.
  *
- * @param {Record<string, any>} values
+ * @param {Record<string, unknown>} values
  */
 function toBody(values) {
-  /** @type {Record<string, any>} */
+  /** @type {Record<string, unknown>} */
   const body = {};
   for (const field of EDITABLE_FIELDS) {
     if (!(field in values)) continue;
@@ -658,7 +679,8 @@ function toBody(values) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
- * @param {Record<string, any>} values
+ * @param {Record<string, unknown>} values
+ * @returns {Promise<Schemas['OpportunityPatchResponse']>}
  */
 export async function updateDeal({ cookies }, id, values) {
   return await apiRequest(
@@ -680,6 +702,7 @@ export async function updateDeal({ cookies }, id, values) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
  * @param {{ columnId: string, aboveId?: string, belowId?: string }} position
+ * @returns {Promise<Schemas['OpportunityMoveResponse']>}
  */
 export async function moveDeal({ cookies }, id, { columnId, aboveId, belowId }) {
   return await apiRequest(
@@ -705,7 +728,8 @@ export async function moveDeal({ cookies }, id, { columnId, aboveId, belowId }) 
  * sending fields whose absence is what makes them safe.
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
- * @param {Record<string, any>} values
+ * @param {Record<string, unknown>} values
+ * @returns {Promise<Schemas['OpportunityCreateResponse']>}
  */
 export async function createDeal({ cookies }, values) {
   return await apiRequest('/opportunities/', { method: 'POST', body: toBody(values) }, { cookies });
@@ -720,14 +744,15 @@ export async function createDeal({ cookies }, values) {
  *
  * @param {import('@sveltejs/kit').Cookies} cookies
  * @param {string} id
+ * @returns {Promise<Schemas['OpportunityDetailResponse']>}
  */
 async function fetchDetail(cookies, id) {
   try {
     return await apiRequest(`/opportunities/${id}/`, {}, { cookies });
-  } catch (/** @type {any} */ err) {
+  } catch (err) {
     rethrowModuleOff(err);
     // On the status, not on the wording. See `api-helpers.js`.
-    if (err?.status === 404) {
+    if (apiStatus(err) === 404) {
       error(404, 'That deal does not exist, or you do not have access to it.');
     }
     throw err;

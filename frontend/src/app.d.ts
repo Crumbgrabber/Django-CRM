@@ -9,8 +9,8 @@ declare global {
       label?: string;
     }
     interface Locals {
-      user?: any; // You might want to replace 'any' with a more specific type for user
-      org?: any; // You might want to replace 'any' with a more specific type for org
+      user?: { id?: string; name: string; email: string; profilePhoto: string };
+      org?: { id: string; name: string };
       org_name?: string;
       org_settings?: {
         default_currency?: string;
@@ -19,6 +19,7 @@ declare global {
         timezone?: string;
       };
       profile?: {
+        org?: { id: string; name: string };
         role?: string;
         is_organization_admin?: boolean;
       };

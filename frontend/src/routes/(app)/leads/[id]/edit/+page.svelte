@@ -65,7 +65,7 @@
   import { sourceOptions } from '#lib/v2/lead-sources.js';
   import { ChevronRight, TriangleAlert, Lock } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form: result } = $props();
 
   /* Read once, on purpose. `originalStatus` in particular has to be the status

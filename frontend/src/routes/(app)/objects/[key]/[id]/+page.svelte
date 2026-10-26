@@ -10,7 +10,7 @@
   import { recordHref, uploadTooLarge } from '#lib/v2/custom-objects.js';
   import { Pencil } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   let def = $derived(data.definition);
@@ -120,7 +120,7 @@
         <div class="photos">
           {#each data.photos as p (p.id)}
             <div class="photo v2-card">
-              <a href={resolve(asInternalPath(p.href))} aria-label="Download {p.file_name}">
+              <a href={resolve(asInternalPath(p.href ?? ''))} aria-label="Download {p.file_name}">
                 <img src={p.href} alt={p.file_name} loading="lazy" />
               </a>
               <div class="photo-foot">
@@ -147,7 +147,7 @@
         {#each data.files as f (f.id)}
           <div class="cf-row file-row">
             <span class="cf-value">
-              <a class="file-link" href={resolve(asInternalPath(f.href))}>{f.file_name}</a>
+              <a class="file-link" href={resolve(asInternalPath(f.href ?? ''))}>{f.file_name}</a>
               <span class="v2-sub" style="display:block;font-size:12px">
                 {f.created_by?.name ?? 'Unknown'} · {shortDate(f.created_at)}
               </span>

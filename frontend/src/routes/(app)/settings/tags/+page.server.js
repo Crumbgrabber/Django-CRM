@@ -1,6 +1,7 @@
 import { fail } from '@sveltejs/kit';
 import { getTags, createTag, archiveTag, restoreTag, mergeTags } from '#lib/server/v2/tags.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 /** @type {import('./$types').PageServerLoad} */
 export async function load({ cookies }) {
@@ -21,8 +22,8 @@ export const actions = {
 
     try {
       await createTag(event, { name });
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, { create: { name, error: 'Only an admin can create tags.' } });
       }
       return fail(400, {
@@ -48,8 +49,8 @@ export const actions = {
 
     try {
       await archiveTag(event, id);
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, { archive: { error: 'Only an admin can turn a tag off.' } });
       }
       return fail(400, {
@@ -67,8 +68,8 @@ export const actions = {
 
     try {
       await restoreTag(event, id);
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, { restore: { error: 'Only an admin can turn a tag back on.' } });
       }
       return fail(400, {
@@ -96,8 +97,8 @@ export const actions = {
     let result;
     try {
       result = await mergeTags(event, id, into);
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, { merge: { error: 'Only an admin can merge tags.' } });
       }
       return fail(400, {

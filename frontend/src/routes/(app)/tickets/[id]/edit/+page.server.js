@@ -2,7 +2,11 @@ import { fail, redirect } from '@sveltejs/kit';
 import { getTicketForEdit, updateTicket } from '#lib/server/v2/tickets.js';
 import { readCustomFields, saveRefusal } from '#lib/server/v2/record-custom-fields.js';
 
-/** Scalars this form owns. `account` is not among them. See the loader note. */
+/**
+ * Scalars this form owns. `account` is not among them. See the loader note.
+ *
+ * @type {import('#lib/server/v2/tickets.js').TicketField[]}
+ */
 const FIELDS = ['name', 'status', 'priority', 'case_type', 'description', 'closed_on'];
 
 /** @type {import('./$types').PageServerLoad} */
@@ -15,7 +19,7 @@ export const actions = {
   save: async ({ cookies, params, request }) => {
     const form = await request.formData();
 
-    /** @type {Record<string, any>} */
+    /** @type {import('#lib/server/v2/tickets.js').TicketValues} */
     const values = {};
     for (const field of FIELDS) {
       // Only fields the form actually submitted. A control that is absent or
@@ -54,7 +58,7 @@ export const actions = {
 
     try {
       await updateTicket({ cookies }, params.id, values);
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       return fail(400, {
         values,
         ...saveRefusal(err, custom.definitions, 'Could not save this ticket.')

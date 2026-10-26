@@ -1,6 +1,7 @@
 import { fail } from '@sveltejs/kit';
 import { listTeam, inviteUser, setRole, setStatus, ROLES } from '#lib/server/v2/team.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 /**
  * Team and access.
@@ -32,11 +33,11 @@ export const actions = {
 
     try {
       await inviteUser({ cookies }, { email, role });
-    } catch (/** @type {any} */ err) {
-      return fail(err?.status === 403 ? 403 : 400, {
+    } catch (err) {
+      return fail(apiStatus(err) === 403 ? 403 : 400, {
         invite: {
           error:
-            err?.status === 403
+            apiStatus(err) === 403
               ? 'Only an admin can invite people.'
               : readableError(err, 'Could not send that invite.')
         }
@@ -60,10 +61,10 @@ export const actions = {
     }
     try {
       await setRole({ cookies }, userId, role);
-    } catch (/** @type {any} */ err) {
-      return fail(err?.status === 403 ? 403 : 400, {
+    } catch (err) {
+      return fail(apiStatus(err) === 403 ? 403 : 400, {
         error:
-          err?.status === 403
+          apiStatus(err) === 403
             ? 'That is not yours to change.'
             : readableError(err, 'Could not change that role.')
       });
@@ -84,10 +85,10 @@ export const actions = {
     }
     try {
       await setStatus({ cookies }, userId, status);
-    } catch (/** @type {any} */ err) {
-      return fail(err?.status === 403 ? 403 : 400, {
+    } catch (err) {
+      return fail(apiStatus(err) === 403 ? 403 : 400, {
         error:
-          err?.status === 403
+          apiStatus(err) === 403
             ? 'Only an admin can change who is active.'
             : readableError(err, 'Could not change that status.')
       });

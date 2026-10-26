@@ -48,6 +48,21 @@ export function teamPhrase(name) {
   return saysSo ? `the ${trimmed}` : `the ${trimmed} team`;
 }
 
+/**
+ * The fields of a policy row (`getEscalationPolicies`) these read.
+ *
+ * @typedef {{
+ *   priority: string,
+ *   is_active: boolean,
+ *   first_response_action: string,
+ *   resolution_action: string,
+ *   first_response_target: { name: string } | null,
+ *   resolution_target: { name: string } | null,
+ *   notify_team: { name: string } | null,
+ *   breaches_last_30d?: { first_response: number, resolution: number }
+ * }} OutcomePolicy
+ */
+
 /** Whether an action emails anybody at all. @param {string} action */
 export function actionNotifies(action) {
   return action === 'notify' || action === 'notify_and_reassign';
@@ -57,24 +72,24 @@ export function actionNotifies(action) {
  * Whether this half fires. See the note above: an inactive policy is skipped
  * whole, and a half with no target is skipped whatever else is set.
  *
- * @param {any} policy
+ * @param {OutcomePolicy | null | undefined} policy
  * @param {'first_response' | 'resolution'} kind
  */
 export function halfFires(policy, kind) {
-  return Boolean(policy?.is_active) && Boolean(policy?.[`${kind}_target`]);
+  return Boolean(policy?.is_active) && Boolean(policy?.[/** @type {const} */ (`${kind}_target`)]);
 }
 
 /**
  * What this half does, in a sentence, including when that is nothing.
  *
- * @param {any} policy
+ * @param {OutcomePolicy | null | undefined} policy
  * @param {'first_response' | 'resolution'} kind
  * @returns {{ text: string, dead: boolean }}
  */
 export function escalationOutcome(policy, kind) {
   if (!policy?.is_active) return { text: 'Nothing. The policy is turned off', dead: true };
 
-  const target = policy[`${kind}_target`];
+  const target = policy[/** @type {const} */ (`${kind}_target`)];
   const team = policy.notify_team;
 
   if (!target) {
@@ -88,7 +103,7 @@ export function escalationOutcome(policy, kind) {
     };
   }
 
-  const action = policy[`${kind}_action`];
+  const action = policy[/** @type {const} */ (`${kind}_action`)];
   const label = ESCALATION_ACTION_LABEL[action] ?? action;
   const who =
     team && actionNotifies(action) ? `${target.name} and ${teamPhrase(team.name)}` : target.name;
@@ -101,14 +116,14 @@ export function escalationOutcome(policy, kind) {
  * Only for a half that fires: when it does not, the outcome sentence has
  * already said the team is not involved and repeating it would be noise.
  *
- * @param {any} policy
+ * @param {OutcomePolicy | null | undefined} policy
  * @param {'first_response' | 'resolution'} kind
  * @returns {string | null}
  */
 export function teamIgnoredNote(policy, kind) {
   const team = policy?.notify_team;
-  if (!team || !halfFires(policy, kind)) return null;
-  if (actionNotifies(policy[`${kind}_action`])) return null;
+  if (!policy || !team || !halfFires(policy, kind)) return null;
+  if (actionNotifies(policy[/** @type {const} */ (`${kind}_action`)])) return null;
   const phrase = teamPhrase(team.name);
   return `${phrase[0].toUpperCase()}${phrase.slice(1)} is not notified here: this half only reassigns.`;
 }
@@ -116,7 +131,7 @@ export function teamIgnoredNote(policy, kind) {
 /** @type {('first_response' | 'resolution')[]} */
 export const ESCALATION_HALVES = ['first_response', 'resolution'];
 
-/** Policies that do nothing on either half. @param {any[]} policies */
+/** Policies that do nothing on either half. @param {OutcomePolicy[] | null | undefined} policies */
 export function deadPolicyCount(policies) {
   return (policies ?? []).filter((p) => ESCALATION_HALVES.every((kind) => !halfFires(p, kind)))
     .length;
@@ -126,7 +141,7 @@ export function deadPolicyCount(policies) {
  * Breaches in the last 30 days that reached nobody, counting only the halves
  * that cannot fire.
  *
- * @param {any[]} policies
+ * @param {OutcomePolicy[] | null | undefined} policies
  */
 export function breachesGoingNowhere(policies) {
   return (policies ?? []).reduce(
@@ -151,7 +166,7 @@ export function breachesGoingNowhere(policies) {
  * invisible: the API attaches `breaches_last_30d` to policies, so an
  * unconfigured priority contributes no row and no number anywhere.
  *
- * @param {any[]} policies
+ * @param {OutcomePolicy[] | null | undefined} policies
  */
 export function unconfiguredPriorities(policies) {
   const taken = new Set((policies ?? []).map((p) => p.priority));

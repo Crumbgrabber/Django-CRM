@@ -24,7 +24,7 @@
   import { isOn, labelOf } from '#lib/v2/modules.js';
   import { asInternalPath } from '#lib/utils/paths.js';
 
-  /** @type {{ data: import('./$types').PageData, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   let p = $derived(data.profile);
@@ -51,7 +51,8 @@
     editing = true;
   }
 
-  const onEdit = (/** @type {any} */ { formData }) => {
+  /** @type {import('$app/forms').SubmitFunction} */
+  const onEdit = ({ formData }) => {
     // Only send the field the person actually changed. The PATCH treats an
     // absent field as "leave it alone", so an untouched phone is not
     // re-validated, which matters because some seeded numbers carry an
@@ -60,7 +61,7 @@
     if ((formData.get('name') ?? '') === name) formData.delete('name');
     if ((formData.get('phone') ?? '') === (p.phone || '')) formData.delete('phone');
 
-    return async (/** @type {any} */ { result, update }) => {
+    return async ({ result, update }) => {
       if (result.type === 'success') {
         editing = false;
         await update(); // reloads the profile with the saved values

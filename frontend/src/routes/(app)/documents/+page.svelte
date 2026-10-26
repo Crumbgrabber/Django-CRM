@@ -29,7 +29,7 @@
   import { count, relativeDays } from '#lib/v2/format.js';
   import { FileText, FileSpreadsheet, File, Users, Upload, Lock, Pencil } from '@lucide/svelte';
 
-  /** @type {{ data: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data } = $props();
 
   let documents = $derived(data.results);

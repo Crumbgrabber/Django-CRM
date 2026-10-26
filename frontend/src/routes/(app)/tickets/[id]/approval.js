@@ -16,7 +16,8 @@
  * `approvals` is null when the list could not be loaded. The panel then says
  * so and offers nothing, since it cannot tell whether a request is pending.
  *
- * @param {any[] | null} approvals newest first, as the API orders them
+ * @template {{ state: string, can_act?: boolean, can_cancel?: boolean, rule?: { id?: string } | null }} A
+ * @param {A[] | null} approvals newest first, as the API orders them
  * @param {{ id: string, name: string } | null} rule
  * @param {{ canReply: boolean, isOpen: boolean }} viewer
  */

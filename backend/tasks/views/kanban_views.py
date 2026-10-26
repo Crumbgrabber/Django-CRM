@@ -7,7 +7,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
-from drf_spectacular.utils import OpenApiParameter, extend_schema
+from drf_spectacular.utils import OpenApiParameter, extend_schema, inline_serializer
 from rest_framework import serializers, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -26,6 +26,26 @@ from tasks.serializer import (
     TaskStageSerializer,
 )
 from tasks.views.task_views import _model_errors
+
+_KANBAN_COLUMN = inline_serializer(
+    name="TaskKanbanColumn",
+    fields={
+        # A status value on the status board, a stage id on a pipeline board.
+        "id": serializers.CharField(),
+        "name": serializers.CharField(),
+        "order": serializers.IntegerField(),
+        "color": serializers.CharField(),
+        "stage_type": serializers.CharField(),
+        "is_status_column": serializers.BooleanField(),
+        "wip_limit": serializers.IntegerField(allow_null=True),
+        # Pipeline columns only.
+        "maps_to_status": serializers.CharField(required=False, allow_null=True),
+        "task_count": serializers.IntegerField(),
+        # The first 100 of `task_count`.
+        "tasks": TaskKanbanCardSerializer(many=True),
+    },
+    many=True,
+)
 
 
 class TaskKanbanView(APIView):
@@ -105,6 +125,17 @@ class TaskKanbanView(APIView):
                 type=str,
             ),
         ],
+        responses={
+            200: inline_serializer(
+                name="TaskKanbanResponse",
+                fields={
+                    "mode": serializers.ChoiceField(choices=["status", "pipeline"]),
+                    "pipeline": TaskPipelineListSerializer(allow_null=True),
+                    "columns": _KANBAN_COLUMN,
+                    "total_tasks": serializers.IntegerField(),
+                },
+            )
+        },
     )
     def get(self, request):
         """Get kanban board data."""
@@ -262,6 +293,16 @@ class TaskMoveView(APIView):
         tags=["Tasks Kanban"],
         operation_id="task_move",
         request=TaskMoveSerializer,
+        responses={
+            200: inline_serializer(
+                name="TaskMoveResponse",
+                fields={
+                    "error": serializers.BooleanField(),
+                    "message": serializers.CharField(),
+                    "task": TaskKanbanCardSerializer(),
+                },
+            )
+        },
     )
     @transaction.atomic
     def patch(self, request, pk):
@@ -393,7 +434,14 @@ class TaskPipelineListCreateView(APIView):
     permission_classes = (IsAuthenticated, HasOrgContext)
 
     @extend_schema(
-        tags=["Task Pipelines"], responses={200: TaskPipelineListSerializer(many=True)}
+        tags=["Task Pipelines"],
+        operation_id="tasks_pipelines_list",
+        responses={
+            200: inline_serializer(
+                name="TaskPipelineListResponse",
+                fields={"pipelines": TaskPipelineListSerializer(many=True)},
+            )
+        },
     )
     def get(self, request):
         """List all pipelines for the organization."""
@@ -657,6 +705,12 @@ class TaskStageReorderView(APIView):
     @extend_schema(
         tags=["Task Stages"],
         request=TaskStageReorderSerializer,
+        responses={
+            200: inline_serializer(
+                name="TaskStageReorderResponse",
+                fields={"message": serializers.CharField()},
+            )
+        },
     )
     @transaction.atomic
     def post(self, request, pipeline_pk):

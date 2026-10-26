@@ -157,7 +157,7 @@ return `{"error": bool, ...}`, checked explicitly rather than relying on the HTT
 for example a successful lead create (`backend/leads/views/lead_views.py:402-404`):
 
 ```json
-{"error": false, "message": "Lead Created Successfully"}
+{"error": false, "message": "Lead Created Successfully", "id": "<uuid>"}
 ```
 
 and a failed one (`backend/leads/views/lead_views.py:406-408`):

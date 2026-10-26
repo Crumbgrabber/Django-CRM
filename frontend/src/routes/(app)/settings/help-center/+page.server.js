@@ -5,6 +5,7 @@ import {
   updateHelpCenterSettings
 } from '#lib/server/v2/help-center-settings.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 /** @type {import('./$types').PageServerLoad} */
 export async function load({ cookies }) {
@@ -24,13 +25,15 @@ export const actions = {
     };
     try {
       await updateHelpCenterSettings(event, values);
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
-        return fail(403, { update: { error: 'Only an admin can change the help center.' } });
-      }
-      return fail(400, {
-        update: { error: saveErrorMessage(err, readableError), values }
-      });
+    } catch (err) {
+      // One declared shape for both refusals, so the page's `values` survives
+      // the union of the two.
+      /** @type {{ error: string, values?: typeof values }} */
+      const update =
+        apiStatus(err) === 403
+          ? { error: 'Only an admin can change the help center.' }
+          : { error: saveErrorMessage(err, readableError), values };
+      return fail(apiStatus(err) === 403 ? 403 : 400, { update });
     }
     return { updated: true };
   }

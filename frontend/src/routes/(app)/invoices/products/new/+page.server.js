@@ -1,6 +1,7 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { getNewProductOptions, createProduct } from '#lib/server/v2/products.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 /**
  * Adding to the product catalogue.
@@ -47,8 +48,8 @@ export const actions = {
 
     try {
       await createProduct(event, values);
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, { values, error: 'Only an administrator can add products.' });
       }
       return fail(400, { values, error: readableError(err, 'Could not create this product.') });

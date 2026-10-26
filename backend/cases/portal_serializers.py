@@ -21,7 +21,7 @@ class PortalCommentSerializer(serializers.ModelSerializer):
         model = Comment
         fields = ("id", "comment", "commented_on", "author", "is_mine")
 
-    def get_author(self, obj):
+    def get_author(self, obj) -> str:
         """Name the customer, but never name the agent.
 
         Which colleague replied is internal information; that support replied
@@ -32,7 +32,7 @@ class PortalCommentSerializer(serializers.ModelSerializer):
             return f"{contact.first_name} {contact.last_name}".strip()
         return "Support"
 
-    def get_is_mine(self, obj):
+    def get_is_mine(self, obj) -> bool:
         contact = self.context.get("portal_contact")
         return bool(contact and obj.commented_by_contact_id == contact.id)
 
@@ -82,6 +82,21 @@ class PortalSolutionDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Solution
         fields = ("id", "title", "description", "updated_at")
+
+
+class PortalRelatedArticleSerializer(serializers.Serializer):
+    """Response-only: an entry in an article's `related` list."""
+
+    id = serializers.CharField()
+    title = serializers.CharField()
+
+
+class PortalArticleSuggestionSerializer(serializers.Serializer):
+    """Response-only: an entry in the deflection panel's `articles` list."""
+
+    id = serializers.CharField()
+    title = serializers.CharField()
+    snippet = serializers.CharField()
 
 
 class PortalCaseCreateSerializer(serializers.ModelSerializer):

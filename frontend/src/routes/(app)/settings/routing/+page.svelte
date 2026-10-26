@@ -32,13 +32,15 @@
   import { nextInRotation } from './rotation.js';
   import { Plus, GripVertical, TriangleAlert, UserX } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @typedef {import('#lib/server/v2/routing.js').RoutingRuleRow} RoutingRuleRow */
+
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   // `null` when the panel is closed, `'new'` when adding, or the rule object
   // when editing that row. One panel, two modes, so two rows can never be
   // open for edit at once.
-  let editing = $state(/** @type {any} */ (null));
+  let editing = $state(/** @type {'new' | RoutingRuleRow | null} */ (null));
 
   // The strategy currently selected in the form, so the target picker below
   // it (team vs. people) can switch without a round trip. Seeded from the
@@ -56,7 +58,7 @@
     conditionRows = [];
   }
 
-  /** @param {any} r */
+  /** @param {RoutingRuleRow} r */
   function openEdit(r) {
     editing = r;
     strategy = r.strategy;
@@ -69,9 +71,10 @@
     // limitation: a value that itself contains a literal comma cannot be
     // expressed here, since splitting can't tell that comma apart from a
     // separator.
-    conditionRows = r.conditions.map((/** @type {any} */ c) => ({
+    // A stored condition may have no `op`; the engine reads that as `eq`.
+    conditionRows = r.conditions.map((c) => ({
       field: c.field,
-      op: c.op,
+      op: c.op ?? 'eq',
       value: Array.isArray(c.value) ? c.value.join(', ') : String(c.value ?? '')
     }));
   }
@@ -116,7 +119,7 @@
    */
   let rules = $derived.by(() => {
     let sealed = false;
-    return data.rules.map((/** @type {any} */ r) => {
+    return data.rules.map((r) => {
       const unreachable = sealed;
       if (r.is_active && r.stop_processing && r.conditions.length === 0) sealed = true;
       return { ...r, unreachable };
@@ -125,27 +128,27 @@
 
   /**
    * The conditions as one clause. No conditions means every ticket.
-   * @param {any} r
+   * @param {RoutingRuleRow} r
    */
   function when(r) {
     if (!r.conditions.length) return 'Any ticket';
     return r.conditions
-      .map((/** @type {any} */ c) => {
+      .map((c) => {
         const field = CONDITION_FIELD_LABEL[c.field] ?? c.field.replace('custom_fields.', '');
         const value = Array.isArray(c.value) ? c.value.join(', ') : c.value;
-        return `${field} ${CONDITION_OP_LABEL[c.op]} ${value}`;
+        return `${field} ${CONDITION_OP_LABEL[c.op ?? 'eq']} ${value}`;
       })
       .join(' and ');
   }
 
   /**
    * The action as one clause: verb phrase from the strategy, then its object.
-   * @param {any} r
+   * @param {RoutingRuleRow} r
    */
   function then(r) {
     const verb = ROUTING_STRATEGY_LABEL[r.strategy];
     if (r.strategy === 'by_team') return `${verb} ${r.target_team?.name ?? '—'}`;
-    return `${verb} ${r.target_assignees.map((/** @type {any} */ a) => a.name).join(', ') || '—'}`;
+    return `${verb} ${r.target_assignees.map((a) => a.name).join(', ') || '—'}`;
   }
 </script>
 
@@ -177,17 +180,18 @@
 <div class="v2-scroll">
   <div class="v2-pad" style="padding-bottom:32px">
     {#if editing}
+      {@const current = editing}
       <SettingsFormPanel
-        title={editing === 'new' ? 'New rule' : `Edit ${editing.name}`}
-        action={editing === 'new' ? '?/create' : '?/update'}
-        error={editing === 'new' ? form?.create?.error : form?.update?.error}
-        submitLabel={editing === 'new' ? 'Add rule' : 'Save rule'}
+        title={current === 'new' ? 'New rule' : `Edit ${current.name}`}
+        action={current === 'new' ? '?/create' : '?/update'}
+        error={current === 'new' ? form?.create?.error : form?.update?.error}
+        submitLabel={current === 'new' ? 'Add rule' : 'Save rule'}
         oncancel={() => (editing = null)}
         ondone={() => (editing = null)}
       >
         {#snippet fields()}
-          {#if editing !== 'new'}
-            <input type="hidden" name="id" value={editing.id} />
+          {#if current !== 'new'}
+            <input type="hidden" name="id" value={current.id} />
           {/if}
 
           <div class="v2-field">
@@ -198,7 +202,7 @@
               name="name"
               maxlength="128"
               required
-              value={editing === 'new' ? '' : editing.name}
+              value={current === 'new' ? '' : current.name}
             />
           </div>
 
@@ -210,7 +214,7 @@
               type="number"
               name="priority_order"
               min="0"
-              value={editing === 'new' ? 0 : editing.priority_order}
+              value={current === 'new' ? 0 : current.priority_order}
             />
             <p class="v2-hint">The engine runs rules low number first and takes the first match.</p>
           </div>
@@ -228,13 +232,13 @@
             <div class="v2-field">
               <label for="r-team">Team</label>
               <select id="r-team" class="v2-input" name="target_team_id" required>
-                <option value="" disabled selected={editing === 'new' || !editing.target_team}>
+                <option value="" disabled selected={current === 'new' || !current.target_team}>
                   Choose a team
                 </option>
                 {#each data.teams as t (t.id)}
                   <option
                     value={t.id}
-                    selected={editing !== 'new' && editing.target_team?.id === t.id}
+                    selected={current !== 'new' && current.target_team?.id === t.id}
                   >
                     {t.name}
                   </option>
@@ -264,8 +268,8 @@
                 {#each data.people as p (p.id)}
                   <option
                     value={p.id}
-                    selected={editing !== 'new' &&
-                      editing.target_assignees.some((/** @type {any} */ a) => a.id === p.id)}
+                    selected={current !== 'new' &&
+                      current.target_assignees.some((a) => a.id === p.id)}
                   >
                     {p.name}
                   </option>
@@ -297,13 +301,13 @@
                 type="checkbox"
                 name="stop_processing"
                 value="true"
-                checked={editing !== 'new' && editing.stop_processing}
+                checked={current !== 'new' && current.stop_processing}
               />
               A matching rule with this on stops the engine, so later rules never see the ticket.
             </label>
           </div>
 
-          {#if editing === 'new'}
+          {#if current === 'new'}
             <div class="v2-field">
               <label for="r-active">Active</label>
               <label style="display:flex;gap:8px;align-items:center;font-weight:400">
@@ -407,7 +411,7 @@
     <div style="display:flex;flex-direction:column;gap:9px">
       {#each rules as r, i (r.id)}
         {@const next = nextInRotation(r)}
-        {@const inactiveTargets = r.target_assignees.filter((/** @type {any} */ a) => !a.is_active)}
+        {@const inactiveTargets = r.target_assignees.filter((a) => !a.is_active)}
         <div class="v2-card v2-rule" style="opacity:{r.is_active && !r.unreachable ? 1 : 0.62}">
           <!-- The handle and the number say the same thing: this position is
                the logic. Dragging is the edit; the number is the reading. -->
@@ -442,7 +446,7 @@
               <div class="v2-rule-flag">
                 <UserX size={14} style="color:var(--v2-clay);flex:none" />
                 <span>
-                  {inactiveTargets.map((/** @type {any} */ a) => a.name).join(', ')}
+                  {inactiveTargets.map((a) => a.name).join(', ')}
                   {inactiveTargets.length === 1 ? 'is' : 'are'} deactivated and still in the rotation,
                   tickets routed there wait for someone who cannot sign in.
                 </span>
@@ -454,8 +458,7 @@
                 <TriangleAlert size={14} style="color:var(--v2-rust);flex:none" />
                 <span>
                   Rule {rules.findIndex(
-                    (/** @type {any} */ x) =>
-                      x.is_active && x.stop_processing && !x.conditions.length
+                    (x) => x.is_active && x.stop_processing && !x.conditions.length
                   ) + 1} above matches every ticket and stops, so this one is never reached. Move it higher,
                   or let that rule fall through.
                 </span>

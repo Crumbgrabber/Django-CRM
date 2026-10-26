@@ -23,7 +23,7 @@
   } from '@lucide/svelte';
   import { tabBar, fabAction } from '#lib/v2/nav.js';
 
-  /** @type {{ data: { counts: Record<string, number>, org: { name: string, terminology?: Record<string, string> | null }, is_organization_admin: boolean, modules: import('#lib/v2/modules.js').ModuleRow[] | null, customObjects: any, billing: any }, children: import('svelte').Snippet }} */
+  /** @type {import('./$types').LayoutProps} */
   let { data, children } = $props();
 
   let paletteOpen = $state(false);

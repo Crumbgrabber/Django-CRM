@@ -9,6 +9,18 @@
 import { error } from '@sveltejs/kit';
 
 import { apiRequest } from '#lib/api-helpers.js';
+import { apiStatus } from '#lib/api-errors.js';
+
+/**
+ * The enterprise `platform_support` API's shapes (`SupportMessageSerializer`,
+ * `SupportTicketListSerializer` and `SupportTicketDetailSerializer`); it is
+ * not in the community schema. A list row has no `assigned`,
+ * `first_response_at` or `messages`.
+ *
+ * @typedef {{ id: string, author_label: string, author_type: string, body: string, attachment_name: string, attachment_download_url: string | null, created_at: string }} SupportMessage
+ * @typedef {{ id: string, reference: string, subject: string, category: string, category_label: string, status: string, status_label: string, priority: string, priority_label: string, message_count?: number, last_activity_at: string, created_at: string, assigned?: boolean, first_response_at?: string | null, messages?: SupportMessage[] }} SupportTicket
+ * @typedef {{ count: number, tickets: SupportTicket[] }} SupportTicketList
+ */
 
 export const SUPPORT_CATEGORIES = [
   { value: 'technical', label: 'Technical issue' },
@@ -18,7 +30,7 @@ export const SUPPORT_CATEGORIES = [
   { value: 'other', label: 'Other' }
 ];
 
-/** @param {any} message @param {string} ticketId */
+/** @param {SupportMessage} message @param {string} ticketId */
 function toMessage(message, ticketId) {
   return {
     id: message.id,
@@ -33,7 +45,7 @@ function toMessage(message, ticketId) {
   };
 }
 
-/** @param {any} ticket */
+/** @param {SupportTicket} ticket */
 function toTicket(ticket) {
   return {
     id: ticket.id,
@@ -50,14 +62,13 @@ function toTicket(ticket) {
     firstResponseAt: ticket.first_response_at ?? null,
     lastActivityAt: ticket.last_activity_at,
     createdAt: ticket.created_at,
-    messages: (ticket.messages ?? []).map((/** @type {any} */ message) =>
-      toMessage(message, ticket.id)
-    )
+    messages: (ticket.messages ?? []).map((message) => toMessage(message, ticket.id))
   };
 }
 
 /** @param {{ cookies: import('@sveltejs/kit').Cookies }} event */
 export async function listSupportTickets({ cookies }) {
+  /** @type {SupportTicketList} */
   const response = await apiRequest('/support/?limit=100', {}, { cookies });
   return {
     count: response.count ?? response.tickets?.length ?? 0,
@@ -86,8 +97,8 @@ export async function listSupportTickets({ cookies }) {
 export async function loadHelpPage({ cookies }) {
   try {
     return { available: true, ...(await listSupportTickets({ cookies })) };
-  } catch (/** @type {any} */ err) {
-    if (err?.status !== 404) throw err;
+  } catch (err) {
+    if (apiStatus(err) !== 404) throw err;
     return { available: false, count: 0, tickets: [] };
   }
 }
@@ -96,13 +107,15 @@ export async function loadHelpPage({ cookies }) {
 export async function getSupportTicket({ cookies }, id) {
   if (!id) throw new Error('A support ticket id is required.');
   try {
-    return toTicket(await apiRequest(`/support/${encodeURIComponent(id)}/`, {}, { cookies }));
-  } catch (/** @type {any} */ err) {
+    /** @type {SupportTicket} */
+    const ticket = await apiRequest(`/support/${encodeURIComponent(id)}/`, {}, { cookies });
+    return toTicket(ticket);
+  } catch (err) {
     // On the status, not the wording. The API answers a ticket belonging to
     // somebody else with the same 404 as one that does not exist, which is
     // deliberate: a 403 here would confirm the id is real. Without this the
     // page answered 500, which every other v2 detail page already avoids.
-    if (err?.status === 404) {
+    if (apiStatus(err) === 404) {
       error(404, 'That request does not exist, or somebody else opened it.');
     }
     throw err;
@@ -123,7 +136,9 @@ export async function createSupportTicket({ cookies }, values) {
   body.set('category', values.category);
   body.set('body', values.body.trim());
   if (values.attachment?.size) body.set('attachment', values.attachment);
-  return toTicket(await apiRequest('/support/', { method: 'POST', body }, { cookies }));
+  /** @type {SupportTicket} */
+  const ticket = await apiRequest('/support/', { method: 'POST', body }, { cookies });
+  return toTicket(ticket);
 }
 
 /**
@@ -136,11 +151,11 @@ export async function replyToSupportTicket({ cookies }, id, values) {
   const body = new FormData();
   body.set('body', values.body.trim());
   if (values.attachment?.size) body.set('attachment', values.attachment);
-  return toTicket(
-    await apiRequest(
-      `/support/${encodeURIComponent(id)}/replies/`,
-      { method: 'POST', body },
-      { cookies }
-    )
+  /** @type {SupportTicket} */
+  const ticket = await apiRequest(
+    `/support/${encodeURIComponent(id)}/replies/`,
+    { method: 'POST', body },
+    { cookies }
   );
+  return toTicket(ticket);
 }

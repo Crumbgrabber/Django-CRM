@@ -9,7 +9,7 @@ import { getModules } from '#lib/server/v2/modules.js';
 import { isOn } from '#lib/v2/modules.js';
 import { readCustomFields, saveRefusal } from '#lib/server/v2/record-custom-fields.js';
 
-/** @type {any} */
+/** @type {{ results: never[] }} */
 const NONE = { results: [] };
 
 /** @type {import('./$types').PageServerLoad} */
@@ -24,54 +24,57 @@ export async function load(event) {
   ]);
   const [options, tickets, deals, leads, projects] = await Promise.allSettled([
     getTaskFormOptions(event),
-    when('tickets').then((on) =>
-      on ? listTickets(event, new URLSearchParams({ limit: '100' })) : NONE
+    when('tickets').then(async (on) =>
+      on ? await listTickets(event, new URLSearchParams({ limit: '100' })) : NONE
     ),
     // Open deals only, matching what this picker offered before `listDeals`
     // stopped assuming it: attaching a task to a deal you already closed is
     // an edge case the picker does not need to carry by default.
-    when('deals').then((on) =>
-      on ? listDeals(event, new URLSearchParams({ open: 'true', limit: '100' })) : NONE
+    when('deals').then(async (on) =>
+      on ? await listDeals(event, new URLSearchParams({ open: 'true', limit: '100' })) : NONE
     ),
-    when('leads').then((on) =>
-      on ? listLeads(event, new URLSearchParams({ limit: '100' })) : NONE
+    when('leads').then(async (on) =>
+      on ? await listLeads(event, new URLSearchParams({ limit: '100' })) : NONE
     ),
     when('projects').then((on) => (on ? projectChoices(event) : []))
   ]);
   const settled = options.status === 'fulfilled' ? options.value : { owners: [], accounts: [] };
+
+  /** @type {Record<string, { id: string, name: string }[]>} */
+  const parents = {
+    // The task's own project stays an option when it is past the first 200.
+    project: projectOptions(
+      projects.status === 'fulfilled' ? projects.value : [],
+      task.related?.kind === 'project' ? { id: task.related.id, name: task.related.name } : null
+    ),
+    account: settled.accounts ?? [],
+    opportunity:
+      deals.status === 'fulfilled'
+        ? deals.value.results.map((d) => ({ id: d.id, name: d.name }))
+        : [],
+    case:
+      tickets.status === 'fulfilled'
+        ? tickets.value.results.map((t) => ({ id: t.id, name: t.name }))
+        : [],
+    lead:
+      leads.status === 'fulfilled'
+        ? leads.value.results.map((l) => ({
+            id: l.id,
+            name:
+              `${l.first_name} ${l.last_name}`.trim() ||
+              l.company_name ||
+              l.email ||
+              '(unnamed lead)'
+          }))
+        : []
+  };
 
   return {
     modules: answer?.modules ?? null,
     task,
     customFields: customFieldInputs,
     owners: settled.owners,
-    parents: {
-      // The task's own project stays an option when it is past the first 200.
-      project: projectOptions(
-        projects.status === 'fulfilled' ? projects.value : [],
-        task.related?.kind === 'project' ? { id: task.related.id, name: task.related.name } : null
-      ),
-      account: settled.accounts ?? [],
-      opportunity:
-        deals.status === 'fulfilled'
-          ? deals.value.results.map((/** @type {any} */ d) => ({ id: d.id, name: d.name }))
-          : [],
-      case:
-        tickets.status === 'fulfilled'
-          ? tickets.value.results.map((/** @type {any} */ t) => ({ id: t.id, name: t.name }))
-          : [],
-      lead:
-        leads.status === 'fulfilled'
-          ? leads.value.results.map((/** @type {any} */ l) => ({
-              id: l.id,
-              name:
-                `${l.first_name} ${l.last_name}`.trim() ||
-                l.company_name ||
-                l.email ||
-                '(unnamed lead)'
-            }))
-          : []
-    },
+    parents,
     form: {
       title: task.title,
       status: task.status,
@@ -98,7 +101,7 @@ export const actions = {
   save: async (event) => {
     const form = await event.request.formData();
 
-    /** @type {Record<string, any>} */
+    /** @type {import('#lib/server/v2/tasks.js').TaskValues} */
     const values = {
       title: form.get('title')?.toString().trim() ?? '',
       status: form.get('status')?.toString() || 'New',
@@ -144,7 +147,7 @@ export const actions = {
 
     try {
       await updateTask(event, event.params.id, values);
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       return fail(400, {
         values: { ...values, parent_kind: kind, parent_id: id },
         ...saveRefusal(err, custom.definitions, 'Could not save this task.')

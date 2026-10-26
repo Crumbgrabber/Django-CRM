@@ -69,14 +69,14 @@ describe('module logic', () => {
       ['/(app)/timesheet', { all: ['timesheet'] }],
       ['/(app)/documents', { all: ['documents'] }],
       ['/(app)/accounts/[id]/statement', { all: ['invoices'] }],
-      ['/(app)/invoices/products', { any: ['invoices', 'deals'] }],
+      ['/(app)/invoices/products', { anyOf: ['invoices', 'deals'] }],
       ['/(app)/invoices/estimates', { all: ['invoices'] }],
       ['/(app)/profile/calendar-feed', { all: ['tasks'] }],
       ['/(app)/accounts/[id]', null],
       ['/(app)/profile', null],
       ['/(app)/settings/web-forms', null],
       ['/(app)/settings/lead-sources', null],
-      ['/(app)/settings/inbound-email', { any: ['tickets', 'leads'] }],
+      ['/(app)/settings/inbound-email', { anyOf: ['tickets', 'leads'] }],
       ['/(app)/pipelinex', null]
     ];
     for (const [id, want] of table) expect(requirementFor(id), id).toEqual(want);

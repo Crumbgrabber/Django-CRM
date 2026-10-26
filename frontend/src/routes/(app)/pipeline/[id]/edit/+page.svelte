@@ -57,7 +57,7 @@
   import { sourceOptions } from '#lib/v2/lead-sources.js';
   import { ChevronRight, TriangleAlert, Lock } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form: result } = $props();
 
   /* Read once, on purpose. `originalStage` has to stay the stage this form
@@ -68,9 +68,12 @@
     server: data.server,
     originalStage: data.deal.stage,
     originalPipeline: data.deal.pipeline,
-    pipelines: /** @type {any[]} */ (data.pipelines)
+    pipelines: data.pipelines
   }));
 
+  /** @typedef {import('./$types').PageData['form']} LoadedForm */
+  // The inputs write strings back into the numbers the load sent.
+  /** @type {Omit<LoadedForm, 'amount' | 'probability'> & { amount: number | string, probability: number | string }} */
   let form = $state(untrack(() => ({ ...data.form })));
   let touched = $state(/** @type {Record<string, boolean>} */ ({}));
   let submitted = $state(false);
@@ -78,10 +81,8 @@
 
   const amountIsCalculated = server.amount_source === 'CALCULATED';
 
-  let stages = $derived(
-    pipelines.find((p) => p.id === form.pipeline)?.stages ?? /** @type {any[]} */ ([])
-  );
-  let chosen = $derived(stages.find((/** @type {any} */ s) => s.code === form.stage));
+  let stages = $derived(pipelines.find((p) => p.id === form.pipeline)?.stages ?? []);
+  let chosen = $derived(stages.find((s) => s.code === form.stage));
   let isClosed = $derived(chosen?.kind === 'won' || chosen?.kind === 'lost');
   let isClosedWon = $derived(chosen?.kind === 'won');
   let stageChanged = $derived(form.stage !== originalStage || form.pipeline !== originalPipeline);
@@ -95,7 +96,7 @@
    */
   function pipelineChanged(pipelineId) {
     const next = pipelines.find((p) => p.id === pipelineId)?.stages ?? [];
-    form.stage = next.find((/** @type {any} */ s) => s.kind === 'open')?.code ?? '';
+    form.stage = next.find((s) => s.kind === 'open')?.code ?? '';
   }
 
   let errors = $derived.by(() => {

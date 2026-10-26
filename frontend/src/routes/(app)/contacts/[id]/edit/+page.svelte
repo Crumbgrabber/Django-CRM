@@ -25,7 +25,7 @@
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
   import { ChevronRight, TriangleAlert } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form: result } = $props();
 
   const { contact, server } = untrack(() => ({ contact: data.contact, server: data.server }));

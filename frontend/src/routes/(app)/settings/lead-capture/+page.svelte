@@ -22,10 +22,10 @@
   import { Plus, ShieldAlert } from '@lucide/svelte';
   import KeyOnce from './KeyOnce.svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
-  let intakes = $derived(/** @type {any[]} */ (data.intakes));
+  let intakes = $derived(data.intakes);
   let canAddIntake = $derived(data.intakesState === 'ok');
   let creating = $state(false);
   let busy = $state(false);
@@ -35,9 +35,10 @@
   let pickedSource = $state(/** @type {string | null} */ (null));
   let createSource = $derived(pickedSource ?? presetSource(createPreset, data.sources));
 
+  /** @type {import('./$types').SubmitFunction} */
   const createSubmit = () => {
     busy = true;
-    return async (/** @type {any} */ { update, result }) => {
+    return async ({ update, result }) => {
       await update({ reset: false });
       busy = false;
       if (result?.type === 'success' && result?.data?.created) {

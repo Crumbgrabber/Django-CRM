@@ -9,8 +9,13 @@
  * write: it drops keys with no active definition and coerces each value.
  */
 import { apiRequest } from '#lib/api-helpers.js';
+import { apiErrorBody } from '#lib/api-errors.js';
 import { collectFromForm, pairForDisplay, pairForEdit } from '#lib/server/v2/record-fields.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+/** @typedef {Schemas['CustomFieldDefinitionRow']} DefinitionRow */
+/** @typedef {import('#lib/server/v2/record-fields.js').FieldDefinition & { display_order?: number }} Definition */
 
 /**
  * Active definitions for one target, in display order. A failure answers []:
@@ -18,7 +23,7 @@ import { readableError } from '#lib/server/v2/form-errors.js';
  *
  * @param {import('@sveltejs/kit').Cookies} cookies
  * @param {string} target the API's `target_model`, such as `Contact`
- * @returns {Promise<any[]>}
+ * @returns {Promise<DefinitionRow[]>}
  */
 export async function fieldDefinitions(cookies, target) {
   try {
@@ -34,6 +39,7 @@ async function loadDefinitions(
   /** @type {string} */ target
 ) {
   // Without include_counts=false the endpoint counts missing values per field over the whole table.
+  /** @type {Schemas['CustomFieldDefinitionListResponse']} */
   const response = await apiRequest(
     `/custom-fields/?target_model=${encodeURIComponent(target)}&active_only=true&include_counts=false`,
     {},
@@ -42,7 +48,11 @@ async function loadDefinitions(
   return sortDefinitions(response?.definitions ?? []);
 }
 
-/** @param {any[]} definitions */
+/**
+ * @template {{ display_order?: number, label?: string }} D
+ * @param {D[]} definitions
+ * @returns {D[]}
+ */
 function sortDefinitions(definitions) {
   return [...definitions].sort(
     (a, b) =>
@@ -62,26 +72,40 @@ export async function fieldsForNew(cookies, target) {
 }
 
 /**
+ * A record's `custom_fields` (a JSON field, so `unknown` in the schema) as the
+ * key-to-value object it is, or null.
+ *
+ * @param {unknown} values
+ */
+const asRecord = (values) =>
+  values && typeof values === 'object' && !Array.isArray(values)
+    ? /** @type {Record<string, unknown>} */ (values)
+    : null;
+
+/**
  * The detail page's block: every active field, filled or not. Empty when the
  * org has no active fields for this record type, so the page shows no block;
  * a value kept under a turned-off field has no definition in the response to
  * label it, and stays hidden as the admin chose.
  *
- * @param {any} response the detail response
- * @param {Record<string, any> | null | undefined} values the record's `custom_fields`
+ * @param {{ custom_field_definitions?: Definition[] } | null | undefined} response the detail response
+ * @param {unknown} values the record's `custom_fields`
  */
 export function fieldsForDetail(response, values) {
-  return pairForDisplay(sortDefinitions(response?.custom_field_definitions ?? []), values);
+  return pairForDisplay(
+    sortDefinitions(response?.custom_field_definitions ?? []),
+    asRecord(values)
+  );
 }
 
 /**
  * The edit page's inputs, from the same detail response.
  *
- * @param {any} response
- * @param {Record<string, any> | null | undefined} values
+ * @param {{ custom_field_definitions?: Definition[] } | null | undefined} response
+ * @param {unknown} values
  */
 export function fieldsForEdit(response, values) {
-  return pairForEdit(sortDefinitions(response?.custom_field_definitions ?? []), values);
+  return pairForEdit(sortDefinitions(response?.custom_field_definitions ?? []), asRecord(values));
 }
 
 export const FIELDS_UNREADABLE =
@@ -100,12 +124,12 @@ export const FIELDS_UNREADABLE =
  * @param {import('@sveltejs/kit').Cookies} cookies
  * @param {string} target
  * @param {FormData} form
- * @returns {Promise<{ values: Record<string, any> | undefined, definitions: any[], refusal?: { error: string, fieldErrors: Record<string, string> } }>}
+ * @returns {Promise<{ values: Record<string, string | boolean | null> | undefined, definitions: DefinitionRow[], refusal?: { error: string, fieldErrors: Record<string, string> } }>}
  */
 export async function readCustomFields(cookies, target, form) {
   const rendered = new Set((form.get('cf__rendered')?.toString() ?? '').split(',').filter(Boolean));
   if (rendered.size === 0) return { values: undefined, definitions: [] };
-  /** @type {any[]} */
+  /** @type {DefinitionRow[]} */
   let all;
   try {
     all = await loadDefinitions(cookies, target);
@@ -126,13 +150,17 @@ export async function readCustomFields(cookies, target, form) {
  * `errors.custom_fields.<key>`, placed beside their inputs, and one sentence
  * for the top of the form.
  *
- * @param {any} err the error `apiRequest` threw
- * @param {any[]} definitions labels for the messages
+ * @param {unknown} err the error `apiRequest` threw
+ * @param {{ key: string, label: string }[]} definitions labels for the messages
  * @param {string} fallback
  * @returns {{ error: string, fieldErrors: Record<string, string> }}
  */
 export function saveRefusal(err, definitions, fallback) {
-  const raw = err?.body?.errors?.custom_fields;
+  const errors = apiErrorBody(err)?.errors;
+  const raw =
+    errors && typeof errors === 'object'
+      ? /** @type {{ custom_fields?: unknown }} */ (errors).custom_fields
+      : undefined;
   /** @type {Record<string, string>} */
   const fieldErrors = {};
   if (raw && typeof raw === 'object' && !Array.isArray(raw)) {

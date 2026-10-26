@@ -18,6 +18,8 @@
 import { apiRequest } from '#lib/api-helpers.js';
 import { canMoveCard } from '#lib/v2/board-drag.js';
 
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+
 const GREY = '#6B7280';
 
 /**
@@ -37,7 +39,7 @@ function swatch(value) {
   return typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value) ? value : GREY;
 }
 
-/** @param {any} row */
+/** @param {Schemas['CaseKanbanCard']} row */
 function toCard(row) {
   const owner = row.assigned_to?.[0];
   const breached = Boolean(row.is_sla_breached);
@@ -56,7 +58,7 @@ function toCard(row) {
   };
 }
 
-/** @param {any} column */
+/** @param {Schemas['CaseKanbanColumn']} column */
 function toLane(column) {
   const rows = (column.cases ?? []).map(toCard);
   const total = column.case_count ?? rows.length;
@@ -81,20 +83,22 @@ function toLane(column) {
  * @param {string | null} [pipelineId]
  */
 export async function getTicketBoard({ cookies }, pipelineId = null) {
+  /** @type {Schemas['CasePipelineListResponse']} */
   const listed = await apiRequest('/cases/pipelines/', {}, { cookies });
-  const pipelines = (listed.pipelines ?? []).map((/** @type {any} */ p) => ({
+  const pipelines = (listed.pipelines ?? []).map((p) => ({
     id: p.id,
     name: p.name
   }));
-  const active = pipelines.find((/** @type {any} */ p) => p.id === pipelineId) ?? null;
+  const active = pipelines.find((p) => p.id === pipelineId) ?? null;
 
   const endpoint = active
     ? `/cases/kanban/?${new URLSearchParams({ pipeline_id: active.id })}`
     : '/cases/kanban/';
+  /** @type {Schemas['CaseKanbanResponse']} */
   const board = await apiRequest(endpoint, {}, { cookies });
 
   const lanes = [...(board.columns ?? [])]
-    .filter((/** @type {any} */ c) => !(c.is_status_column && c.id === DUPLICATE))
+    .filter((c) => !(c.is_status_column && c.id === DUPLICATE))
     .sort((a, b) => a.order - b.order)
     .map(toLane);
 
@@ -114,6 +118,7 @@ export async function getTicketBoard({ cookies }, pipelineId = null) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
  * @param {{ mode: string, laneId: string, aboveId?: string, belowId?: string }} target
+ * @returns {Promise<Schemas['CaseMoveResponse']>}
  */
 export async function moveTicket({ cookies }, id, { mode, laneId, aboveId, belowId }) {
   return await apiRequest(

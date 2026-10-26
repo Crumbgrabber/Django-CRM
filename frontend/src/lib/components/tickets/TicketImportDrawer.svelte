@@ -23,7 +23,22 @@
   let dragOver = $state(false);
   let busy = $state(false);
 
-  /** @type {{ summary: { total: number, valid: number, invalid: number }, valid: any[], errors: { row: number, field: string, message: string }[], header_error: string | null } | null} */
+  /** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+  /**
+   * What the import actions answer (`forwardCsvImport`), deserialized.
+   *
+   * @typedef {{
+   *   type: 'success' | 'failure' | 'redirect' | 'error',
+   *   data?: {
+   *     importPreview?: Schemas['CaseImportPreviewResponse'],
+   *     importCommit?: Schemas['CaseImportCommitResponse'],
+   *     importError?: string,
+   *     importErrors?: Schemas['CaseImportRowError'][]
+   *   }
+   * }} ImportAnswer
+   */
+
+  /** @type {Schemas['CaseImportPreviewResponse'] | null} */
   let preview = $state(null);
   /** @type {string | null} */
   let formError = $state(null);
@@ -112,6 +127,7 @@
    * deploy sets it; the image sets 6M) with a plain-text 413 before the
    * action runs, which `deserialize` cannot parse.
    * @param {Response} res
+   * @returns {Promise<ImportAnswer>}
    */
   async function readResult(res) {
     if (res.status === 413) {
@@ -120,7 +136,7 @@
         data: { importError: 'This file is too large to upload. Split it into smaller files.' }
       };
     }
-    return /** @type {any} */ (deserialize(await res.text()));
+    return /** @type {ImportAnswer} */ (deserialize(await res.text()));
   }
 
   async function submitPreview() {

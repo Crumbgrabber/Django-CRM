@@ -112,7 +112,7 @@ describe('getStatement', () => {
       cancelled: 0,
       closing_balance: 150
     });
-    expect(usd.entries.map((/** @type {any} */ e) => [e.kind, e.amount, e.balance])).toEqual([
+    expect(usd?.entries.map((e) => [e.kind, e.amount, e.balance])).toEqual([
       ['invoice', 250, 310],
       ['payment', -100, 210]
     ]);

@@ -15,10 +15,16 @@
  */
 import { apiRequest } from '#lib/api-helpers.js';
 
-/** A `{ id, email }` profile object (or null) → a display string. */
-const label = (/** @type {any} */ p) => (p && typeof p === 'object' ? p.email || '' : p || '');
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
 
-function toRow(/** @type {any} */ a) {
+/**
+ * A `{ id, email }` profile object (or null) → a display string.
+ * @param {Schemas['ApprovalProfileLabel'] | string | null | undefined} p
+ */
+const label = (p) => (p && typeof p === 'object' ? p.email || '' : p || '');
+
+/** @param {Schemas['Approval']} a */
+function toRow(a) {
   const cs = a.case_summary || {};
   const rs = a.rule_summary || {};
   return {
@@ -49,7 +55,10 @@ function toRow(/** @type {any} */ a) {
   };
 }
 
-function toRuleRow(/** @type {any} */ r, /** @type {Record<string, number>} */ pendingByRule) {
+function toRuleRow(
+  /** @type {Schemas['ApprovalRuleListRow']} */ r,
+  /** @type {Record<string, number>} */ pendingByRule
+) {
   return {
     id: r.id,
     name: r.name,
@@ -63,7 +72,7 @@ function toRuleRow(/** @type {any} */ r, /** @type {Record<string, number>} */ p
   };
 }
 
-function computeTotals(/** @type {any[]} */ rows) {
+function computeTotals(/** @type {ReturnType<typeof toRow>[]} */ rows) {
   const now = Date.now();
   const pending = rows.filter((r) => r.state === 'pending');
   const oldest = pending.reduce((max, r) => {
@@ -89,10 +98,11 @@ function computeTotals(/** @type {any[]} */ rows) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  */
 export async function listApprovals({ cookies }) {
-  const [inbox, rulesResp] = await Promise.all([
-    apiRequest('/cases/approvals/?state=all', {}, { cookies }),
-    apiRequest('/cases/approval-rules/', {}, { cookies })
-  ]);
+  /** @type {Promise<Schemas['ApprovalInboxResponse']>} */
+  const inboxRead = apiRequest('/cases/approvals/?state=all', {}, { cookies });
+  /** @type {Promise<Schemas['ApprovalRuleListResponse']>} */
+  const rulesRead = apiRequest('/cases/approval-rules/', {}, { cookies });
+  const [inbox, rulesResp] = await Promise.all([inboxRead, rulesRead]);
 
   const raw = inbox.approvals || [];
   const rows = raw.map(toRow);
@@ -104,7 +114,7 @@ export async function listApprovals({ cookies }) {
       pendingByRule[a.rule_summary.id] = (pendingByRule[a.rule_summary.id] || 0) + 1;
     }
   }
-  const rules = (rulesResp.rules || []).map((/** @type {any} */ r) => toRuleRow(r, pendingByRule));
+  const rules = (rulesResp.rules || []).map((r) => toRuleRow(r, pendingByRule));
 
   return { approvals: rows, totals: computeTotals(rows), rules };
 }
@@ -116,6 +126,7 @@ export async function listApprovals({ cookies }) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  */
 export async function countAwaitingApprovals({ cookies }) {
+  /** @type {Schemas['ApprovalInboxResponse']} */
   const resp = await apiRequest('/cases/approvals/?mine=true&state=pending', {}, { cookies });
   return (resp.approvals || []).length;
 }
@@ -130,6 +141,7 @@ export async function countAwaitingApprovals({ cookies }) {
  */
 export async function listTicketApprovals({ cookies }, caseId) {
   const query = new URLSearchParams({ case: caseId, state: 'all' });
+  /** @type {Schemas['ApprovalInboxResponse']} */
   const inbox = await apiRequest(`/cases/approvals/?${query}`, {}, { cookies });
   return (inbox.approvals || []).map(toRow);
 }
@@ -142,6 +154,7 @@ export async function listTicketApprovals({ cookies }, caseId) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} caseId
  * @param {string} note
+ * @returns {Promise<Schemas['Approval']>}
  */
 export async function requestApproval({ cookies }, caseId, note) {
   return apiRequest(
@@ -151,7 +164,10 @@ export async function requestApproval({ cookies }, caseId, note) {
   );
 }
 
-/** @param {{ cookies: import('@sveltejs/kit').Cookies }} event */
+/**
+ * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
+ * @returns {Promise<Schemas['Approval']>}
+ */
 export async function approveApproval(
   { cookies },
   /** @type {string} */ id,
@@ -164,7 +180,10 @@ export async function approveApproval(
   );
 }
 
-/** @param {{ cookies: import('@sveltejs/kit').Cookies }} event */
+/**
+ * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
+ * @returns {Promise<Schemas['Approval']>}
+ */
 export async function rejectApproval(
   { cookies },
   /** @type {string} */ id,
@@ -177,7 +196,10 @@ export async function rejectApproval(
   );
 }
 
-/** @param {{ cookies: import('@sveltejs/kit').Cookies }} event */
+/**
+ * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
+ * @returns {Promise<Schemas['Approval']>}
+ */
 export async function cancelApproval({ cookies }, /** @type {string} */ id) {
   return apiRequest(`/cases/approvals/${id}/cancel/`, { method: 'POST', body: {} }, { cookies });
 }

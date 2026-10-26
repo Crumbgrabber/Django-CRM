@@ -40,7 +40,7 @@ export async function load({ cookies, locals, url }) {
     // From the JWT's own claim, so it costs no round trip. It decides which
     // buttons render and nothing else; `assert_solution_release_access` is
     // the control, and it answers 403 whatever this says.
-    canRelease: isOrgAdmin(/** @type {any} */ (locals).profile)
+    canRelease: isOrgAdmin(locals.profile)
   };
 }
 
@@ -59,7 +59,7 @@ export const actions = {
 
     try {
       await setPublished({ cookies }, id, true);
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       return fail(400, { error: readableError(err, 'Could not publish this article.') });
     }
     return { published: true };

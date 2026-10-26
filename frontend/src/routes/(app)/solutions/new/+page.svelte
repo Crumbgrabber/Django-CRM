@@ -38,7 +38,7 @@
   import { untrack } from 'svelte';
   import { ChevronLeft, Eye, EyeOff } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   // `untrack` so a revalidation cannot overwrite what somebody has typed.

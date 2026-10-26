@@ -21,7 +21,7 @@ export const actions = {
      * Only fields the form actually submitted. A disabled input sends nothing,
      * and PATCH reads absent as "leave this alone", which is exactly right
      * for the amount on a deal whose line items own it.
-     * @type {Record<string, any>}
+     * @type {import('#lib/server/v2/deals.js').DealFormValues}
      */
     const values = {};
     for (const field of EDITABLE_FIELDS) {
@@ -51,7 +51,7 @@ export const actions = {
 
     try {
       await updateDeal(event, event.params.id, values);
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       // The API's field errors are the ones that count: this form's own
       // checks are a UX hint and the serializer is the rule.
       return fail(400, {

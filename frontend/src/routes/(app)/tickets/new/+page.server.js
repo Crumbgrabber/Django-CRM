@@ -20,9 +20,11 @@ export const actions = {
   create: async ({ cookies, request }) => {
     const form = await request.formData();
 
-    /** @type {Record<string, any>} */
+    /** @type {import('#lib/server/v2/tickets.js').TicketValues} */
     const values = {};
-    for (const field of ['name', 'status', 'priority', 'case_type', 'description', 'account']) {
+    /** @type {import('#lib/server/v2/tickets.js').TicketField[]} */
+    const fields = ['name', 'status', 'priority', 'case_type', 'description', 'account'];
+    for (const field of fields) {
       values[field] = form.get(field)?.toString().trim() ?? '';
     }
 
@@ -36,14 +38,16 @@ export const actions = {
     if (custom.values) values.custom_fields = custom.values;
 
     if (!values.name) {
-      return fail(400, { values, error: 'A ticket needs a subject.' });
+      /** @type {{ values: typeof values, error: string, fieldErrors?: Record<string, string> }} */
+      const missing = { values, error: 'A ticket needs a subject.' };
+      return fail(400, missing);
     }
 
-    /** @type {any} */
+    /** @type {import('#lib/api-schema.js').components['schemas']['CaseCreateResponse']} */
     let created;
     try {
       created = await createTicket({ cookies }, values);
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       return fail(400, {
         values,
         ...saveRefusal(err, custom.definitions, 'Could not raise this ticket.')

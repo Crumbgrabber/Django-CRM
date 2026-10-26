@@ -98,7 +98,7 @@ describe('the time totals on the ticket', () => {
 
     const { ticket } = await getTicket(event, 'c1');
 
-    expect(ticket.time_summary.total_minutes).toBe(105);
+    expect(ticket.time_summary?.total_minutes).toBe(105);
   });
 
   it('is null on a row from the list endpoint, which does not carry it', async () => {

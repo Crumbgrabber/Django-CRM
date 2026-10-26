@@ -65,7 +65,17 @@ class CaseMergeTargetsView(APIView):
             200: inline_serializer(
                 name="CaseMergeTargetsResponse",
                 fields={
-                    "results": serializers.ListField(child=serializers.DictField())
+                    "results": inline_serializer(
+                        name="CaseMergeTarget",
+                        fields={
+                            "id": serializers.CharField(),
+                            "name": serializers.CharField(),
+                            "status": serializers.CharField(),
+                            "priority": serializers.CharField(),
+                            "account_name": serializers.CharField(allow_null=True),
+                        },
+                        many=True,
+                    )
                 },
             )
         },
@@ -123,6 +133,7 @@ class CaseMergeView(APIView):
 
     @extend_schema(
         operation_id="cases_merge",
+        request=None,
         tags=["Cases"],
         responses={
             200: inline_serializer(

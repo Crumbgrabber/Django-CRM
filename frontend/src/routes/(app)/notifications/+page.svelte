@@ -52,17 +52,18 @@
     Gauge
   } from '@lucide/svelte';
 
-  /** @type {{ data: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data } = $props();
+
+  /** @typedef {import('./$types').PageData['results'][number]} Row */
 
   let emptyText = $derived(notificationsEmptyText(data.modules));
 
   /* Local copy: marking read is a real state change in this page's terms even
      though nothing is persisted yet. It is not derived from `data`, or every
      revalidation would resurrect what you just cleared. */
-  // Feed rows have no schema (see `getNotifications`), so they stay untyped.
-  /** @type {any[]} */
-  let rows = $state(untrack(() => data.results.map((/** @type {any} */ n) => ({ ...n }))));
+  /** @type {Row[]} */
+  let rows = $state(untrack(() => data.results.map((n) => ({ ...n }))));
   let filter = $state(/** @type {'unread' | 'all'} */ ('unread'));
 
   let unread = $derived(rows.filter((n) => n.read_at === null));
@@ -86,7 +87,7 @@
    * fallback for the ones that do not. `case.sla_breached` becomes
    * "sla breached" and not `case.sla_breached`.
    *
-   * @param {any} n
+   * @param {Row} n
    */
   function verbPhrase(n) {
     if (n.verb === 'case.mentioned') return 'mentioned you on';
@@ -96,17 +97,17 @@
     return `${n.verb.replace(/^[^.]+\./, '').replace(/_/g, ' ')}, `;
   }
 
-  /** @param {any} n */
+  /** @param {Row} n */
   function isAutomation(n) {
     return n.verb?.startsWith('automation.');
   }
 
-  /** @param {any} n */
+  /** @param {Row} n */
   function isTicketVerb(n) {
     return n.verb?.startsWith('case.') || n.verb?.startsWith('support.');
   }
 
-  /** @param {any} n */
+  /** @param {Row} n */
   function isSupportNotification(n) {
     return n.verb?.startsWith('support.');
   }
@@ -122,7 +123,7 @@
   /* Marking read is optimistic, the dot clears immediately, then persisted.
      If the API refuses (or the network fails) the change is put back, so the
      page never shows a state the server did not accept. */
-  async function markRead(/** @type {any} */ n) {
+  async function markRead(/** @type {Row} */ n) {
     if (n.read_at !== null) return;
     n.read_at = new Date().toISOString();
     const body = new FormData();

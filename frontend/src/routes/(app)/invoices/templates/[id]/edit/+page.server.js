@@ -1,6 +1,7 @@
 import { fail, redirect, error } from '@sveltejs/kit';
 import { getInvoiceTemplateForEdit, updateInvoiceTemplate } from '#lib/server/v2/templates.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 /**
  * Editing an invoice template.
@@ -19,8 +20,8 @@ import { readableError } from '#lib/server/v2/form-errors.js';
 export async function load(event) {
   try {
     return await getInvoiceTemplateForEdit(event, event.params.id);
-  } catch (/** @type {any} */ err) {
-    if (err?.status === 404) error(404, 'Template not found');
+  } catch (err) {
+    if (apiStatus(err) === 404) error(404, 'Template not found');
     throw err;
   }
 }
@@ -62,14 +63,14 @@ export const actions = {
 
     try {
       await updateInvoiceTemplate(event, event.params.id, values, logoFile);
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, {
           values,
           error: 'Only an administrator can change invoice templates.'
         });
       }
-      if (err?.status === 404) error(404, 'Template not found');
+      if (apiStatus(err) === 404) error(404, 'Template not found');
       return fail(400, { values, error: readableError(err, 'Could not save this template.') });
     }
 

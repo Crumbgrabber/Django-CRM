@@ -723,11 +723,57 @@ class InboundCatchAllView(APIView):
         )
 
 
+class InboundMailboxListRowSerializer(InboundMailboxSerializer):
+    """Schema only: a mailbox as the list returns it, with its 30-day numbers.
+    `drops_last_30d` carries a category only once an email was dropped in it."""
+
+    cases_last_30d = serializers.IntegerField(read_only=True)
+    last_received_at = serializers.DateTimeField(read_only=True, allow_null=True)
+    drops_last_30d = inline_serializer(
+        name="InboundMailboxDropsResponse",
+        fields={
+            category: serializers.IntegerField(required=False)
+            for category in sorted({*DROP_CATEGORIES.values(), "other"})
+        },
+        read_only=True,
+    )
+    dropped_last_30d = serializers.IntegerField(read_only=True)
+    limit_reached = serializers.BooleanField(read_only=True)
+
+    class Meta(InboundMailboxSerializer.Meta):
+        fields = (
+            *InboundMailboxSerializer.Meta.fields,
+            "cases_last_30d",
+            "last_received_at",
+            "drops_last_30d",
+            "dropped_last_30d",
+            "limit_reached",
+        )
+
+
 class InboundMailboxListCreateView(APIView):
     permission_classes = (IsAuthenticated, HasOrgContext)
 
     @extend_schema(
-        tags=["InboundEmail"], responses={200: InboundMailboxSerializer(many=True)}
+        tags=["InboundEmail"],
+        responses={
+            200: inline_serializer(
+                name="InboundMailboxListResponse",
+                fields={
+                    "mailboxes": InboundMailboxListRowSerializer(many=True),
+                    "totals": inline_serializer(
+                        name="InboundMailboxListTotals",
+                        fields={
+                            "count": serializers.IntegerField(),
+                            "active": serializers.IntegerField(),
+                            "cases_last_30d": serializers.IntegerField(),
+                        },
+                    ),
+                    "generated_domain": serializers.CharField(allow_null=True),
+                    "daily_limit": serializers.IntegerField(),
+                },
+            )
+        },
     )
     def get(self, request, *args, **kwargs):
         org = request.profile.org

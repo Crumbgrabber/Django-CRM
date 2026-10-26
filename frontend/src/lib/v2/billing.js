@@ -8,10 +8,17 @@ import { isOrgAdmin } from '#lib/admin.js';
 export const BILLING_HREF = '/settings/billing';
 
 /**
+ * @typedef {{
+ *   is_organization_admin?: boolean,
+ *   billing?: import('#lib/server/v2/billing.js').Billing | null
+ * } | null | undefined} BillingFacts
+ */
+
+/**
  * Where an admin goes to lift a plan limit, or null for a member and on an
  * install without billing, where a refusal shows the server's sentence only.
  *
- * @param {any} data layout data carrying `is_organization_admin` and `billing`
+ * @param {BillingFacts} data layout data carrying `is_organization_admin` and `billing`
  * @returns {string | null}
  */
 export function billingHref(data) {
@@ -22,13 +29,13 @@ export function billingHref(data) {
  * The shell's notice for an admin while a payment is failing. Left off the
  * Billing page, which shows the same notice beside the button that fixes it.
  *
- * @param {any} data
+ * @param {BillingFacts} data
  * @param {string} pathname
  * @returns {string | null}
  */
 export function shellNotice(data, pathname) {
   if (!billingHref(data) || pathname === BILLING_HREF) return null;
-  return data.billing.notice?.sentence ?? null;
+  return data?.billing?.notice?.sentence ?? null;
 }
 
 /**

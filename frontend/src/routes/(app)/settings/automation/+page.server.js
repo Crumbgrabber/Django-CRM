@@ -6,7 +6,7 @@ import { readableError } from '#lib/server/v2/form-errors.js';
 /** @type {import('./$types').PageServerLoad} */
 export async function load({ cookies }) {
   const answer = await listRules({ cookies });
-  if (answer.forbidden) return { forbidden: true };
+  if (answer.forbidden) return { forbidden: /** @type {const} */ (true) };
   return {
     summary: answer.summary,
     rules: answer.rules,
@@ -27,13 +27,13 @@ export const actions = {
       const answer = await listRules(event);
       if (answer.forbidden) return fail(403, { error: 'Only an admin can reorder rules.' });
       const next = moveRule(
-        (answer.rules ?? []).map((/** @type {any} */ r) => r.id),
+        (answer.rules ?? []).map((r) => r.id),
         id,
         direction
       );
       if (!next) return fail(400, { error: 'That rule could not be moved.' });
       await reorderRules(event, next);
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       return fail(400, { error: readableError(err, 'Could not reorder the rules.') });
     }
     return { moved: true };

@@ -8,7 +8,7 @@
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
   import { isOn } from '#lib/v2/modules.js';
 
-  /** @type {{ data: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data } = $props();
 
   /** @type {'contacts' | 'leads'} */

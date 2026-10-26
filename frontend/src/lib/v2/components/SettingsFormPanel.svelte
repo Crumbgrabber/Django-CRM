@@ -43,7 +43,7 @@
     {action}
     use:enhance={() => {
       busy = true;
-      return async (/** @type {any} */ { result, update }) => {
+      return async ({ result, update }) => {
         await update();
         busy = false;
         // Close only on success. A rejected submit has to leave the panel

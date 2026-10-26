@@ -4,6 +4,7 @@ import { invoiceListQuery } from '#lib/server/v2/list-queries.js';
 import { listAccountsPicker } from '#lib/server/v2/accounts.js';
 import { getOrgPeopleAndTeams, resolveMe } from '#lib/server/v2/org-people.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiStatus } from '#lib/api-errors.js';
 import { loadSavedViews, savedViewActions } from '#lib/server/v2/saved-views.js';
 
 /**
@@ -43,7 +44,7 @@ export async function load({ cookies, url, locals }) {
     people: orgPeople.people,
     accounts: accountList.accounts ?? [],
     savedViews,
-    meId: resolveMe(orgPeople.people, /** @type {any} */ (locals).user?.email)
+    meId: resolveMe(orgPeople.people, locals.user?.email)
   };
 }
 
@@ -63,8 +64,8 @@ export const actions = {
 
     try {
       await sendInvoice({ cookies }, id);
-    } catch (/** @type {any} */ err) {
-      return fail(err?.status === 404 ? 404 : 400, {
+    } catch (err) {
+      return fail(apiStatus(err) === 404 ? 404 : 400, {
         error: readableError(err, 'Could not send that invoice.')
       });
     }

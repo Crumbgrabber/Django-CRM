@@ -27,8 +27,10 @@
   import { count } from '#lib/v2/format.js';
   import { ArrowDown, ArrowUp, Plus } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
+
+  /** @typedef {NonNullable<import('./$types').PageData['pipeline']>['stages'][number]} Stage */
 
   /** `workflow.STAGE_KINDS`. */
   const KINDS = /** @type {const} */ ([
@@ -47,7 +49,7 @@
 
   // `null` closed, `'new'` adding a stage, or the stage being edited. One
   // panel, so two stages can never be open for edit at once.
-  let editing = $state(/** @type {any} */ (null));
+  let editing = $state(/** @type {null | 'new' | Stage} */ (null));
   let addingPipeline = $state(false);
   let renaming = $state(false);
   // The kind picked in the open stage form: rotting days only apply to open.
@@ -63,12 +65,12 @@
     addingPipeline = false;
   });
 
-  function edit(/** @type {any} */ stage) {
+  function edit(/** @type {'new' | Stage} */ stage) {
     editing = stage;
     editingKind = stage === 'new' ? 'open' : stage.kind;
   }
 
-  /** @param {any} s */
+  /** @param {Stage} s */
   function rotting(s) {
     if (s.kind !== 'open') return 'Closed, does not age';
     if (!s.expected_days) return 'Never';
@@ -141,7 +143,7 @@
             method="POST"
             action="?/renamePipeline"
             use:enhance={() =>
-              async (/** @type {any} */ { result, update }) => {
+              async ({ result, update }) => {
                 await update();
                 if (result.type === 'success') renaming = false;
               }}
@@ -202,6 +204,8 @@
       {/if}
 
       {#if editing}
+        <!-- The snippet below loses the `if` narrowing; a const keeps it. -->
+        {@const current = editing}
         <SettingsFormPanel
           title={editing === 'new' ? 'New stage' : `Edit ${editing.label}`}
           action={editing === 'new' ? '?/createStage' : '?/updateStage'}
@@ -211,10 +215,10 @@
           ondone={() => (editing = null)}
         >
           {#snippet fields()}
-            {#if editing === 'new'}
+            {#if current === 'new'}
               <input type="hidden" name="pipeline_id" value={pipeline.id} />
             {:else}
-              <input type="hidden" name="id" value={editing.id} />
+              <input type="hidden" name="id" value={current.id} />
             {/if}
             <div class="v2-field">
               <label for="s-label">Name</label>
@@ -224,7 +228,7 @@
                 name="label"
                 maxlength="100"
                 required
-                value={editing === 'new' ? '' : editing.label}
+                value={current === 'new' ? '' : current.label}
               />
             </div>
             <div class="v2-field">
@@ -250,7 +254,7 @@
                   max="3650"
                   step="1"
                   inputmode="numeric"
-                  value={editing === 'new' ? '' : (editing.expected_days ?? '')}
+                  value={current === 'new' ? '' : (current.expected_days ?? '')}
                 />
                 <p class="v2-hint">
                   A deal past this many days in the stage reads Past expected, and Stalled at one
@@ -268,7 +272,7 @@
                   max="3650"
                   step="1"
                   inputmode="numeric"
-                  value={editing === 'new' ? '' : (editing.warning_days ?? '')}
+                  value={current === 'new' ? '' : (current.warning_days ?? '')}
                 />
                 <p class="v2-hint">Optional. An earlier Past expected, before the rotting day.</p>
               </div>

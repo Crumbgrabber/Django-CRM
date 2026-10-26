@@ -16,6 +16,15 @@
 import * as env from '$app/env/public';
 import { relayHeaders } from '#lib/server/relay.js';
 
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+
+/**
+ * A portal error reply: `{ error }` from the portal views, `{ detail }` from
+ * DRF's auth and throttle answers, or a serializer's field errors.
+ *
+ * @typedef {{ error?: string, detail?: string, [field: string]: string | string[] | undefined }} PortalErrorBody
+ */
+
 const API_BASE_URL = `${env.PUBLIC_DJANGO_API_URL}/api/portal`;
 
 export const ACCESS_COOKIE = 'portal_access';
@@ -36,7 +45,7 @@ export const ORG_MAX_AGE = 60 * 60 * 24 * 365;
 export class PortalError extends Error {
   /**
    * @param {number} status
-   * @param {any} data
+   * @param {PortalErrorBody} data
    */
   constructor(status, data) {
     super(`portal request failed with ${status}`);
@@ -46,8 +55,10 @@ export class PortalError extends Error {
 }
 
 /**
+ * @template [T=unknown]
  * @param {string} path
  * @param {{ method?: string, token?: string, body?: unknown, headers?: Record<string, string> }} [options]
+ * @returns {Promise<T>}
  */
 async function call(path, { method = 'GET', token, body, headers = {} } = {}) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -61,9 +72,10 @@ async function call(path, { method = 'GET', token, body, headers = {} } = {}) {
   });
 
   const text = await response.text();
+  /** @type {unknown} */
   const data = text ? JSON.parse(text) : {};
-  if (!response.ok) throw new PortalError(response.status, data);
-  return data;
+  if (!response.ok) throw new PortalError(response.status, /** @type {PortalErrorBody} */ (data));
+  return /** @type {T} */ (data);
 }
 
 /**
@@ -73,6 +85,7 @@ async function call(path, { method = 'GET', token, body, headers = {} } = {}) {
  * @param {string} org
  * @param {string} email
  * @param {{ getClientAddress: () => string, request: Request }} event
+ * @returns {Promise<Schemas['PortalLoginCodeSentResponse']>}
  */
 export const requestLogin = (org, email, event) =>
   call(`/login/${org}/request/`, {
@@ -85,6 +98,7 @@ export const requestLogin = (org, email, event) =>
  * @param {string} org
  * @param {string} email
  * @param {string} code
+ * @returns {Promise<Schemas['PortalLoginVerifyResponse']>}
  */
 export const verifyLogin = (org, email, code) =>
   call(`/login/${org}/verify/`, { method: 'POST', body: { email, code } });
@@ -92,6 +106,7 @@ export const verifyLogin = (org, email, code) =>
 /**
  * @param {string} token
  * @param {string} [status]
+ * @returns {Promise<Schemas['PortalCaseListResponse']>}
  */
 export const listCases = (token, status) =>
   call(`/cases/${status ? `?status=${encodeURIComponent(status)}` : ''}`, { token });
@@ -99,12 +114,14 @@ export const listCases = (token, status) =>
 /**
  * @param {string} token
  * @param {string} id
+ * @returns {Promise<Schemas['PortalCaseDetailResponse']>}
  */
 export const getCase = (token, id) => call(`/cases/${id}/`, { token });
 
 /**
  * @param {string} token
  * @param {{ name: string, description: string, priority: string }} body
+ * @returns {Promise<Schemas['PortalCaseCreateResponse']>}
  */
 export const createCase = (token, body) => call('/cases/', { method: 'POST', token, body });
 
@@ -112,6 +129,7 @@ export const createCase = (token, body) => call('/cases/', { method: 'POST', tok
  * @param {string} token
  * @param {string} id
  * @param {string} comment
+ * @returns {Promise<Schemas['PortalCommentCreateResponse']>}
  */
 export const postReply = (token, id, comment) =>
   call(`/cases/${id}/comment/`, { method: 'POST', token, body: { comment } });
@@ -119,6 +137,7 @@ export const postReply = (token, id, comment) =>
 /**
  * @param {string} token
  * @param {string} [search]
+ * @returns {Promise<Schemas['PortalArticleListResponse']>}
  */
 export const listArticles = (token, search) =>
   call(`/articles/${search ? `?search=${encodeURIComponent(search)}` : ''}`, { token });
@@ -126,12 +145,14 @@ export const listArticles = (token, search) =>
 /**
  * @param {string} token
  * @param {string} id
+ * @returns {Promise<Schemas['PortalArticleDetailResponse']>}
  */
 export const getArticle = (token, id) => call(`/articles/${id}/`, { token });
 
 /**
  * @param {string} token
  * @param {string} q
+ * @returns {Promise<Schemas['PortalArticleSuggestResponse']>}
  */
 export const suggestArticles = (token, q) =>
   call(`/articles/suggest/?q=${encodeURIComponent(q)}`, { token });

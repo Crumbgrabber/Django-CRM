@@ -11,7 +11,8 @@ export async function GET({ url, cookies }) {
   const q = url.searchParams.get('q') || '';
   try {
     return Response.json(await search({ cookies }, q));
-  } catch (/** @type {any} */ err) {
-    return Response.json({ results: [], error: err?.message || 'Search failed' }, { status: 400 });
+  } catch (err) {
+    const message = /** @type {{ message?: unknown } | null | undefined} */ (err)?.message;
+    return Response.json({ results: [], error: message || 'Search failed' }, { status: 400 });
   }
 }

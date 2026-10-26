@@ -121,6 +121,13 @@ def contact_list_queryset(profile, params):
     return matching, rows
 
 
+def _choice_pairs():
+    """A choices list such as COUNTRIES, sent as `[value, label]` pairs."""
+    return serializers.ListField(
+        child=serializers.ListField(child=serializers.CharField())
+    )
+
+
 class ContactsListView(APIView, LimitOffsetPagination):
     permission_classes = (IsAuthenticated, HasOrgContext)
     model = Contact
@@ -185,6 +192,17 @@ class ContactsListView(APIView, LimitOffsetPagination):
                     "contacts_count": serializers.IntegerField(),
                     "offset": serializers.IntegerField(allow_null=True),
                     "contact_obj_list": ContactSerializer(many=True),
+                    "active_count": serializers.IntegerField(),
+                    "inactive_count": serializers.IntegerField(),
+                    "countries": _choice_pairs(),
+                    "users": inline_serializer(
+                        name="ContactListUser",
+                        fields={
+                            "id": serializers.UUIDField(),
+                            "user__email": serializers.EmailField(),
+                        },
+                        many=True,
+                    ),
                 },
             )
         },
@@ -204,6 +222,7 @@ class ContactsListView(APIView, LimitOffsetPagination):
                 fields={
                     "error": serializers.BooleanField(),
                     "message": serializers.CharField(),
+                    "id": serializers.UUIDField(),
                 },
             )
         },
@@ -511,12 +530,93 @@ class ContactDetailView(APIView):
                 name="ContactDetailResponse",
                 fields={
                     "contact_obj": ContactSerializer(),
-                    "address_obj": serializers.DictField(),
+                    "address_obj": inline_serializer(
+                        name="ContactAddress",
+                        fields={
+                            name: serializers.CharField(allow_null=True)
+                            for name in (
+                                "address_line",
+                                "city",
+                                "state",
+                                "postcode",
+                                "country",
+                            )
+                        },
+                    ),
+                    "countries": _choice_pairs(),
                     "comments": CommentSerializer(many=True),
                     "attachments": AttachmentsSerializer(many=True),
-                    "assigned_data": serializers.ListField(),
+                    "assigned_data": inline_serializer(
+                        name="ContactAssignee",
+                        fields={
+                            "id": serializers.UUIDField(),
+                            "name": serializers.EmailField(),
+                        },
+                        many=True,
+                    ),
                     "tasks": TaskSerializer(many=True),
-                    "users_mention": serializers.ListField(),
+                    "users_mention": inline_serializer(
+                        name="ContactMentionUser",
+                        fields={"user__email": serializers.EmailField()},
+                        many=True,
+                    ),
+                    "opportunities": inline_serializer(
+                        name="ContactDeal",
+                        fields={
+                            "id": serializers.UUIDField(),
+                            "name": serializers.CharField(),
+                            "stage": serializers.CharField(),
+                            "stage_label": serializers.CharField(),
+                            "stage_kind": serializers.CharField(allow_null=True),
+                            # A Decimal through the JSON encoder: a number.
+                            "amount": serializers.FloatField(allow_null=True),
+                            "currency": serializers.CharField(),
+                            "closed_on": serializers.DateField(allow_null=True),
+                        },
+                        many=True,
+                    ),
+                    "open_deals": inline_serializer(
+                        name="ContactOpenDeals",
+                        fields={
+                            "amount": serializers.CharField(allow_null=True),
+                            "count": serializers.IntegerField(),
+                            "by_currency": inline_serializer(
+                                name="ContactOpenDealsCurrency",
+                                fields={
+                                    "currency": serializers.CharField(),
+                                    "count": serializers.IntegerField(),
+                                    "amount": serializers.CharField(),
+                                },
+                                many=True,
+                            ),
+                        },
+                    ),
+                    "opportunity_count": serializers.IntegerField(),
+                    "cases": inline_serializer(
+                        name="ContactCase",
+                        fields={
+                            "id": serializers.UUIDField(),
+                            "name": serializers.CharField(),
+                            "status": serializers.CharField(),
+                            "priority": serializers.CharField(),
+                            "created_at": serializers.DateTimeField(),
+                        },
+                        many=True,
+                    ),
+                    "colleagues": inline_serializer(
+                        name="ContactColleague",
+                        fields={
+                            "id": serializers.UUIDField(),
+                            "first_name": serializers.CharField(),
+                            "last_name": serializers.CharField(),
+                            "title": serializers.CharField(),
+                        },
+                        many=True,
+                    ),
+                    "custom_field_definitions": CustomFieldDefinitionSerializer(
+                        many=True
+                    ),
+                    "can_delete": serializers.BooleanField(),
                 },
             )
         },

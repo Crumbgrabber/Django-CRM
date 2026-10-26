@@ -15,22 +15,24 @@
    * WHEN: the object (chosen on a new rule, fixed after), created or updated,
    * and on an update the field and, if asked, the value it moves into.
    *
-   * @type {{ catalogue: any, draft: any, fixed?: boolean, error?: string | null }}
+   * @type {{
+   *   catalogue: import('#lib/v2/automation.js').Catalogue,
+   *   draft: import('#lib/v2/automation.js').RuleDraft,
+   *   fixed?: boolean,
+   *   error?: string | null
+   * }}
    */
   let { catalogue, draft = $bindable(), fixed = false, error = null } = $props();
 
   let object = $derived(objectOf(catalogue, draft.object_key));
   let field = $derived(draft.trigger.field ? fieldOf(object, draft.trigger.field) : null);
   let objects = $derived([
-    ...(catalogue?.objects ?? []).filter((/** @type {any} */ o) => !o.key.startsWith('obj:')),
-    ...(catalogue?.objects ?? []).filter((/** @type {any} */ o) => o.key.startsWith('obj:'))
+    ...(catalogue?.objects ?? []).filter((o) => !o.key.startsWith('obj:')),
+    ...(catalogue?.objects ?? []).filter((o) => o.key.startsWith('obj:'))
   ]);
   let fields = $derived(
     withStored(
-      triggerFields(object).map((/** @type {import('#lib/v2/automation.js').Field} */ f) => ({
-        value: f.key,
-        label: f.label
-      })),
+      triggerFields(object).map((f) => ({ value: f.key, label: f.label })),
       draft.trigger.field
     )
   );
@@ -65,7 +67,7 @@
     if (!on) delete draft.trigger.to;
   }
 
-  /** An empty "changes to" is no "changes to". @param {any} value */
+  /** An empty "changes to" is no "changes to". @param {import('#lib/v2/automation.js').RuleValue | undefined} value */
   function setTo(value) {
     const empty = value === null || value === undefined || value === '' || Number.isNaN(value);
     if (empty) delete draft.trigger.to;

@@ -5,6 +5,7 @@ import {
   setPublished,
   updateArticle
 } from '#lib/server/v2/solutions.js';
+import { apiStatus } from '#lib/api-errors.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
 import { isOrgAdmin } from '#lib/admin.js';
 
@@ -14,7 +15,7 @@ export async function load({ cookies, locals, params }) {
   return {
     ...article,
     // See the list loader: this decides what renders, never what is allowed.
-    canRelease: isOrgAdmin(/** @type {any} */ (locals).profile)
+    canRelease: isOrgAdmin(locals.profile)
   };
 }
 
@@ -34,7 +35,7 @@ export const actions = {
 
     try {
       await updateArticle({ cookies }, params.id, { status });
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       return fail(400, { error: readableError(err, 'Could not change the status.') });
     }
     return { status };
@@ -53,7 +54,7 @@ export const actions = {
 
     try {
       await setPublished({ cookies }, params.id, published);
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       return fail(400, {
         error: readableError(
           err,
@@ -71,8 +72,9 @@ export const actions = {
   delete: async ({ cookies, params }) => {
     try {
       await deleteArticle({ cookies }, params.id);
-    } catch (/** @type {any} */ err) {
-      const code = err?.status >= 400 && err?.status < 500 ? err.status : 400;
+    } catch (err) {
+      const status = apiStatus(err);
+      const code = status !== undefined && status >= 400 && status < 500 ? status : 400;
       return fail(code, { error: readableError(err, 'Could not delete this article.') });
     }
     redirect(303, '/solutions');

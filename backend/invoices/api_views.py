@@ -12,8 +12,8 @@ from django.db.models import Count, Q, Sum
 from django.http import HttpResponse
 from django.utils import timezone
 from django.utils.decorators import method_decorator
-from drf_spectacular.utils import extend_schema
-from rest_framework import status
+from drf_spectacular.utils import extend_schema, inline_serializer
+from rest_framework import serializers, status
 from rest_framework.exceptions import ValidationError
 from rest_framework.pagination import LimitOffsetPagination
 from rest_framework.permissions import IsAuthenticated
@@ -95,6 +95,221 @@ from invoices.statements import build_statement, statement_period
 from invoices.tasks import create_invoice_history, send_email, send_invoice_to_client
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# RESPONSE SCHEMAS
+# =============================================================================
+
+
+def _money(**kwargs):
+    # No max_digits: a figure summed over many documents can outgrow one.
+    return serializers.DecimalField(max_digits=None, decimal_places=2, **kwargs)
+
+
+def _currency_block(name, money=(), counts=(), extra=None, many=False):
+    """The schema of a ``common.money.currency_block`` with these fields."""
+    row = inline_serializer(
+        f"{name}Currency",
+        {
+            "currency": serializers.CharField(),
+            **{f: serializers.IntegerField() for f in counts},
+            **{f: _money() for f in money},
+        },
+        many=True,
+    )
+    return inline_serializer(
+        name,
+        {
+            **{f: _money(allow_null=True) for f in money},
+            **{f: serializers.IntegerField() for f in counts},
+            **(extra or {}),
+            "by_currency": row,
+        },
+        many=many,
+    )
+
+
+def _page(name, results, extra=None):
+    """A ``LimitOffsetPagination`` envelope around ``results``."""
+    return inline_serializer(
+        name,
+        {
+            "count": serializers.IntegerField(),
+            "next": serializers.URLField(allow_null=True),
+            "previous": serializers.URLField(allow_null=True),
+            "results": results,
+            **(extra or {}),
+        },
+    )
+
+
+def _saved(name, key, record):
+    """``{error, message, <key>: record}``, the answer to most writes here."""
+    return inline_serializer(
+        name,
+        {
+            "error": serializers.BooleanField(),
+            "message": serializers.CharField(),
+            key: record,
+        },
+    )
+
+
+_MESSAGE = inline_serializer(
+    "InvoicesMessage",
+    {"error": serializers.BooleanField(), "message": serializers.CharField()},
+)
+_INVOICE_SAVED = _saved("InvoiceSaved", "invoice", InvoiceSerializer())
+_INVOICE_TOTALS = _currency_block(
+    "InvoiceTotals",
+    money=("outstanding", "overdue", "due_this_month", "paid_this_quarter", "draft"),
+    counts=("count", "action_needed"),
+)
+_INVOICE_DETAIL = inline_serializer(
+    "InvoiceDetail",
+    {
+        "invoice": InvoiceSerializer(),
+        "attachments": AttachmentsSerializer(many=True),
+        "comments": CommentSerializer(many=True),
+        "history": InvoiceHistorySerializer(many=True),
+        "custom_field_definitions": CustomFieldDefinitionSerializer(many=True),
+    },
+)
+_LINE_ITEM_SAVED = _saved(
+    "InvoiceLineItemSaved", "line_item", InvoiceLineItemSerializer()
+)
+_PAYMENT_SAVED = inline_serializer(
+    "PaymentSaved",
+    {
+        "error": serializers.BooleanField(),
+        "message": serializers.CharField(),
+        "payment": PaymentSerializer(),
+        "invoice": InvoiceListSerializer(),
+    },
+)
+_PRODUCT_SAVED = _saved("ProductSaved", "product", ProductSerializer())
+_ESTIMATE_SAVED = _saved("EstimateSaved", "estimate", EstimateSerializer())
+_ESTIMATE_DETAIL = inline_serializer(
+    "EstimateDetail",
+    {
+        "estimate": EstimateSerializer(),
+        "custom_field_definitions": CustomFieldDefinitionSerializer(many=True),
+    },
+)
+_RECURRING_SAVED = _saved(
+    "RecurringInvoiceSaved", "recurring_invoice", RecurringInvoiceSerializer()
+)
+_RECURRING_DETAIL = inline_serializer(
+    "RecurringInvoiceDetail",
+    {
+        "recurring_invoice": RecurringInvoiceSerializer(),
+        "custom_field_definitions": CustomFieldDefinitionSerializer(many=True),
+    },
+)
+_COMMENT_SAVED = _saved("InvoiceCommentSaved", "comment", CommentSerializer())
+_DASHBOARD = inline_serializer(
+    "InvoiceDashboard",
+    {
+        "summary": _currency_block(
+            "InvoiceDashboardSummary",
+            money=("total_invoiced", "total_paid", "total_due"),
+        ),
+        "invoice_count": serializers.IntegerField(),
+        "average_days_to_pay": serializers.IntegerField(),
+        "status_counts": serializers.DictField(child=serializers.IntegerField()),
+        "overdue": _currency_block(
+            "InvoiceDashboardOverdue", money=("amount",), counts=("count",)
+        ),
+        "recent_activity": _currency_block(
+            "InvoiceDashboardRecent",
+            money=("revenue_30d", "invoiced_30d"),
+            extra={
+                "invoices_created_30d": serializers.IntegerField(),
+                "invoices_paid_30d": serializers.IntegerField(),
+            },
+        ),
+        "estimates": inline_serializer(
+            "InvoiceDashboardEstimates",
+            {
+                "pending": serializers.IntegerField(),
+                "accepted": serializers.IntegerField(),
+                "declined": serializers.IntegerField(),
+            },
+        ),
+    },
+)
+_REVENUE_SERIES = {"money": ("invoiced", "revenue"), "counts": ("count",)}
+_REVENUE_REPORT = inline_serializer(
+    "RevenueReport",
+    {
+        "start_date": serializers.DateField(),
+        "end_date": serializers.DateField(),
+        "group_by": serializers.CharField(),
+        "data": _currency_block(
+            "RevenuePeriod",
+            **_REVENUE_SERIES,
+            extra={"period": serializers.DateField(allow_null=True)},
+            many=True,
+        ),
+        "total": _currency_block("RevenueTotals", **_REVENUE_SERIES),
+    },
+)
+_AGING_TALLY = {"money": ("amount",), "counts": ("count",)}
+
+
+# Factories, not shared instances: one field instance under several keys of a
+# serializer is bound once, so the schema would keep only the last key.
+def _aging_total():
+    return _currency_block("AgingTally", **_AGING_TALLY)
+
+
+def _aging_bucket():
+    return _currency_block(
+        "AgingBucket",
+        **_AGING_TALLY,
+        extra={
+            "invoices": inline_serializer(
+                "AgingInvoice",
+                {
+                    "id": serializers.UUIDField(),
+                    "invoice_number": serializers.CharField(allow_null=True),
+                    "client_name": serializers.CharField(allow_null=True),
+                    "due_date": serializers.DateField(allow_null=True),
+                    "amount_due": _money(),
+                    "currency": serializers.CharField(),
+                    "days_overdue": serializers.IntegerField(),
+                },
+                many=True,
+            )
+        },
+    )
+
+
+_AGING_REPORT = inline_serializer(
+    "AgingReport",
+    {
+        "current": _aging_bucket(),
+        "1_30_days": _aging_bucket(),
+        "31_60_days": _aging_bucket(),
+        "61_90_days": _aging_bucket(),
+        "over_90_days": _aging_bucket(),
+        "overdue": _aging_total(),
+        "by_account": inline_serializer(
+            "AgingAccount",
+            {
+                "id": serializers.UUIDField(allow_null=True),
+                "currency": serializers.CharField(),
+                "name": serializers.CharField(),
+                "count": serializers.IntegerField(),
+                "oldest_days": serializers.IntegerField(),
+                "amount": _money(),
+            },
+            many=True,
+        ),
+        "total": _aging_total(),
+    },
+)
 
 
 # =============================================================================
@@ -188,7 +403,13 @@ class InvoiceListView(APIView, LimitOffsetPagination):
             .prefetch_related("line_items", "payments", "assigned_to")
         )
 
-    @extend_schema(tags=["Invoices"], operation_id="invoices_list")
+    @extend_schema(
+        tags=["Invoices"],
+        operation_id="invoices_list",
+        responses=_page(
+            "InvoicePage", InvoiceListSerializer(many=True), {"totals": _INVOICE_TOTALS}
+        ),
+    )
     def get(self, request, *args, **kwargs):
         base = self.get_queryset()
         queryset = filter_invoices(base, request.query_params)
@@ -255,7 +476,11 @@ class InvoiceListView(APIView, LimitOffsetPagination):
             counts=("count", "action_needed"),
         )
 
-    @extend_schema(tags=["Invoices"], operation_id="invoices_create")
+    @extend_schema(
+        tags=["Invoices"],
+        operation_id="invoices_create",
+        responses={201: _INVOICE_SAVED},
+    )
     def post(self, request, *args, **kwargs):
         cf_payload = request.data.get("custom_fields")
         if isinstance(cf_payload, str):
@@ -322,7 +547,11 @@ class InvoiceDetailView(APIView):
     def get_object(self, pk):
         return self.model.objects.filter(id=pk, org=self.request.profile.org).first()
 
-    @extend_schema(tags=["Invoices"], operation_id="invoices_retrieve")
+    @extend_schema(
+        tags=["Invoices"],
+        operation_id="invoices_retrieve",
+        responses=_INVOICE_DETAIL,
+    )
     def get(self, request, pk, format=None):
         invoice, error = get_invoice_or_error(request, pk)
         if error:
@@ -361,7 +590,11 @@ class InvoiceDetailView(APIView):
             }
         )
 
-    @extend_schema(tags=["Invoices"], operation_id="invoices_update")
+    @extend_schema(
+        tags=["Invoices"],
+        operation_id="invoices_update",
+        responses=_INVOICE_SAVED,
+    )
     def put(self, request, pk, format=None):
         with transaction.atomic():
             response, invoice = self._update(request, pk)
@@ -435,7 +668,11 @@ class InvoiceSendView(APIView):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
-    @extend_schema(tags=["Invoices"], operation_id="invoices_send")
+    @extend_schema(
+        tags=["Invoices"],
+        operation_id="invoices_send",
+        responses=_MESSAGE,
+    )
     def post(self, request, pk):
         with transaction.atomic():
             # Locked, so this full save cannot write back a copy read before
@@ -480,7 +717,11 @@ class InvoiceMarkPaidView(APIView):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
-    @extend_schema(tags=["Invoices"], operation_id="invoices_mark_paid")
+    @extend_schema(
+        tags=["Invoices"],
+        operation_id="invoices_mark_paid",
+        responses=_INVOICE_SAVED,
+    )
     @method_decorator(transaction.atomic)
     def post(self, request, pk):
         # Locked, as in PaymentListView.post: the default amount and the
@@ -527,7 +768,11 @@ class InvoiceDuplicateView(APIView):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
-    @extend_schema(tags=["Invoices"], operation_id="invoices_duplicate")
+    @extend_schema(
+        tags=["Invoices"],
+        operation_id="invoices_duplicate",
+        responses={201: _INVOICE_SAVED},
+    )
     def post(self, request, pk):
         original, error = get_invoice_or_error(request, pk)
         if error:
@@ -606,7 +851,11 @@ class InvoiceCancelView(APIView):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
-    @extend_schema(tags=["Invoices"], operation_id="invoices_cancel")
+    @extend_schema(
+        tags=["Invoices"],
+        operation_id="invoices_cancel",
+        responses=_INVOICE_SAVED,
+    )
     @method_decorator(transaction.atomic)
     def post(self, request, pk):
         # Locked, so the Paid check below sees a payment that commits first
@@ -713,7 +962,11 @@ class InvoiceLineItemListView(APIView):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
-    @extend_schema(tags=["Invoice Line Items"], operation_id="line_items_list")
+    @extend_schema(
+        tags=["Invoice Line Items"],
+        operation_id="line_items_list",
+        responses=InvoiceLineItemSerializer(many=True),
+    )
     def get(self, request, invoice_id):
         invoice, error = get_invoice_or_error(request, invoice_id)
         if error:
@@ -722,7 +975,11 @@ class InvoiceLineItemListView(APIView):
         line_items = invoice.line_items.all().order_by("order")
         return Response(InvoiceLineItemSerializer(line_items, many=True).data)
 
-    @extend_schema(tags=["Invoice Line Items"], operation_id="line_items_create")
+    @extend_schema(
+        tags=["Invoice Line Items"],
+        operation_id="line_items_create",
+        responses={201: _LINE_ITEM_SAVED},
+    )
     @method_decorator(transaction.atomic)
     def post(self, request, invoice_id):
         # Locked from the read to the save: the issued-document check sees the
@@ -771,7 +1028,11 @@ class InvoiceLineItemDetailView(APIView):
             id=pk, invoice_id=invoice_id, org=self.request.profile.org
         ).first()
 
-    @extend_schema(tags=["Invoice Line Items"], operation_id="line_items_update")
+    @extend_schema(
+        tags=["Invoice Line Items"],
+        operation_id="line_items_update",
+        responses=_LINE_ITEM_SAVED,
+    )
     @method_decorator(transaction.atomic)
     def put(self, request, invoice_id, pk):
         # Locked from the read to the save: the issued-document check sees the
@@ -815,7 +1076,11 @@ class InvoiceLineItemDetailView(APIView):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    @extend_schema(tags=["Invoice Line Items"], operation_id="line_items_destroy")
+    @extend_schema(
+        tags=["Invoice Line Items"],
+        operation_id="line_items_destroy",
+        responses={200: _MESSAGE},
+    )
     @method_decorator(transaction.atomic)
     def delete(self, request, invoice_id, pk):
         # Locked from the read to the save: the issued-document check sees the
@@ -858,7 +1123,11 @@ class PaymentListView(APIView, LimitOffsetPagination):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
-    @extend_schema(tags=["Payments"], operation_id="payments_list")
+    @extend_schema(
+        tags=["Payments"],
+        operation_id="payments_list",
+        responses=PaymentSerializer(many=True),
+    )
     def get(self, request, invoice_id):
         invoice, error = get_invoice_or_error(request, invoice_id)
         if error:
@@ -867,7 +1136,11 @@ class PaymentListView(APIView, LimitOffsetPagination):
         payments = invoice.payments.all().order_by("-payment_date")
         return Response(PaymentSerializer(payments, many=True).data)
 
-    @extend_schema(tags=["Payments"], operation_id="payments_create")
+    @extend_schema(
+        tags=["Payments"],
+        operation_id="payments_create",
+        responses={201: _PAYMENT_SAVED},
+    )
     @method_decorator(transaction.atomic)
     def post(self, request, invoice_id):
         # Locked, so the cancelled and amount-due checks in the serializer
@@ -907,7 +1180,11 @@ class PaymentDetailView(APIView):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
-    @extend_schema(tags=["Payments"], operation_id="payments_destroy")
+    @extend_schema(
+        tags=["Payments"],
+        operation_id="payments_destroy",
+        responses={200: _MESSAGE},
+    )
     def delete(self, request, invoice_id, pk):
         _, error = get_invoice_or_error(request, invoice_id)
         if error:
@@ -943,7 +1220,11 @@ class ProductListView(APIView, LimitOffsetPagination):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
-    @extend_schema(tags=["Products"], operation_id="products_list")
+    @extend_schema(
+        tags=["Products"],
+        operation_id="products_list",
+        responses=_page("ProductPage", ProductSerializer(many=True)),
+    )
     def get(self, request):
         queryset = Product.objects.filter(org=request.profile.org)
 
@@ -983,7 +1264,11 @@ class ProductListView(APIView, LimitOffsetPagination):
             }
         )
 
-    @extend_schema(tags=["Products"], operation_id="products_create")
+    @extend_schema(
+        tags=["Products"],
+        operation_id="products_create",
+        responses={201: _PRODUCT_SAVED},
+    )
     def post(self, request):
         # The catalogue is org-wide config: its list prices flow onto every
         # rep's invoices and estimates. Reading it is open to any member (they
@@ -1027,7 +1312,11 @@ class ProductDetailView(APIView):
     def get_object(self, pk):
         return Product.objects.filter(id=pk, org=self.request.profile.org).first()
 
-    @extend_schema(tags=["Products"], operation_id="products_retrieve")
+    @extend_schema(
+        tags=["Products"],
+        operation_id="products_retrieve",
+        responses=ProductSerializer,
+    )
     def get(self, request, pk):
         product = self.get_object(pk)
         if not product:
@@ -1049,7 +1338,11 @@ class ProductDetailView(APIView):
             )
         return None
 
-    @extend_schema(tags=["Products"], operation_id="products_update")
+    @extend_schema(
+        tags=["Products"],
+        operation_id="products_update",
+        responses=_PRODUCT_SAVED,
+    )
     def put(self, request, pk):
         product = self.get_object(pk)
         if not product:
@@ -1080,7 +1373,11 @@ class ProductDetailView(APIView):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    @extend_schema(tags=["Products"], operation_id="products_destroy")
+    @extend_schema(
+        tags=["Products"],
+        operation_id="products_destroy",
+        responses={200: _MESSAGE},
+    )
     def delete(self, request, pk):
         product = self.get_object(pk)
         if not product:
@@ -1116,7 +1413,11 @@ class EstimateListView(APIView, LimitOffsetPagination):
             "account", "contact", "opportunity", "created_by", "converted_to_invoice"
         )
 
-    @extend_schema(tags=["Estimates"], operation_id="estimates_list")
+    @extend_schema(
+        tags=["Estimates"],
+        operation_id="estimates_list",
+        responses=_page("EstimatePage", EstimateListSerializer(many=True)),
+    )
     def get(self, request):
         queryset = self.get_queryset()
 
@@ -1158,7 +1459,11 @@ class EstimateListView(APIView, LimitOffsetPagination):
             }
         )
 
-    @extend_schema(tags=["Estimates"], operation_id="estimates_create")
+    @extend_schema(
+        tags=["Estimates"],
+        operation_id="estimates_create",
+        responses={201: _ESTIMATE_SAVED},
+    )
     def post(self, request):
         cf_payload = request.data.get("custom_fields")
         if isinstance(cf_payload, str):
@@ -1200,7 +1505,11 @@ class EstimateDetailView(APIView):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
-    @extend_schema(tags=["Estimates"], operation_id="estimates_retrieve")
+    @extend_schema(
+        tags=["Estimates"],
+        operation_id="estimates_retrieve",
+        responses=_ESTIMATE_DETAIL,
+    )
     def get(self, request, pk):
         estimate, error = get_estimate_or_error(request, pk)
         if error:
@@ -1219,7 +1528,11 @@ class EstimateDetailView(APIView):
             }
         )
 
-    @extend_schema(tags=["Estimates"], operation_id="estimates_update")
+    @extend_schema(
+        tags=["Estimates"],
+        operation_id="estimates_update",
+        responses=_ESTIMATE_SAVED,
+    )
     @method_decorator(transaction.atomic)
     def put(self, request, pk):
         # Locked from the read to the save: the issued-document check sees the
@@ -1273,7 +1586,11 @@ class EstimateDetailView(APIView):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    @extend_schema(tags=["Estimates"], operation_id="estimates_destroy")
+    @extend_schema(
+        tags=["Estimates"],
+        operation_id="estimates_destroy",
+        responses={200: _MESSAGE},
+    )
     def delete(self, request, pk):
         estimate, error = get_estimate_or_error(request, pk)
         if error:
@@ -1291,7 +1608,11 @@ class EstimateConvertView(APIView):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
-    @extend_schema(tags=["Estimates"], operation_id="estimates_convert")
+    @extend_schema(
+        tags=["Estimates"],
+        operation_id="estimates_convert",
+        responses={201: _INVOICE_SAVED},
+    )
     @method_decorator(transaction.atomic)
     def post(self, request, pk):
         # Locked, so two converts at once cannot both pass the check below and
@@ -1376,7 +1697,11 @@ class EstimateSendView(APIView):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
-    @extend_schema(tags=["Estimates"], operation_id="estimates_send")
+    @extend_schema(
+        tags=["Estimates"],
+        operation_id="estimates_send",
+        responses=_MESSAGE,
+    )
     def post(self, request, pk):
         with transaction.atomic():
             refused = self._mark_sent(request, pk)
@@ -1472,7 +1797,13 @@ class RecurringInvoiceListView(APIView, LimitOffsetPagination):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
-    @extend_schema(tags=["Recurring Invoices"], operation_id="recurring_list")
+    @extend_schema(
+        tags=["Recurring Invoices"],
+        operation_id="recurring_list",
+        responses=_page(
+            "RecurringInvoicePage", RecurringInvoiceListSerializer(many=True)
+        ),
+    )
     def get(self, request):
         # Non-admins see only schedules they created or are assigned to, the
         # same rule as the invoice and estimate lists.
@@ -1507,7 +1838,11 @@ class RecurringInvoiceListView(APIView, LimitOffsetPagination):
             }
         )
 
-    @extend_schema(tags=["Recurring Invoices"], operation_id="recurring_create")
+    @extend_schema(
+        tags=["Recurring Invoices"],
+        operation_id="recurring_create",
+        responses={201: _RECURRING_SAVED},
+    )
     def post(self, request):
         cf_payload = request.data.get("custom_fields")
         if isinstance(cf_payload, str):
@@ -1549,7 +1884,11 @@ class RecurringInvoiceDetailView(APIView):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
-    @extend_schema(tags=["Recurring Invoices"], operation_id="recurring_retrieve")
+    @extend_schema(
+        tags=["Recurring Invoices"],
+        operation_id="recurring_retrieve",
+        responses=_RECURRING_DETAIL,
+    )
     def get(self, request, pk):
         recurring, error = get_recurring_or_error(request, pk)
         if error:
@@ -1568,7 +1907,11 @@ class RecurringInvoiceDetailView(APIView):
             }
         )
 
-    @extend_schema(tags=["Recurring Invoices"], operation_id="recurring_update")
+    @extend_schema(
+        tags=["Recurring Invoices"],
+        operation_id="recurring_update",
+        responses=_RECURRING_SAVED,
+    )
     @method_decorator(transaction.atomic)
     def put(self, request, pk):
         # Locked from the read to the full save, so a generation run that
@@ -1623,7 +1966,11 @@ class RecurringInvoiceDetailView(APIView):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    @extend_schema(tags=["Recurring Invoices"], operation_id="recurring_destroy")
+    @extend_schema(
+        tags=["Recurring Invoices"],
+        operation_id="recurring_destroy",
+        responses={200: _MESSAGE},
+    )
     def delete(self, request, pk):
         recurring, error = get_recurring_or_error(request, pk)
         if error:
@@ -1641,7 +1988,15 @@ class RecurringInvoicePauseView(APIView):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
-    @extend_schema(tags=["Recurring Invoices"], operation_id="recurring_toggle")
+    @extend_schema(
+        tags=["Recurring Invoices"],
+        operation_id="recurring_toggle",
+        responses=_saved(
+            "RecurringInvoiceToggled",
+            "recurring_invoice",
+            RecurringInvoiceListSerializer(),
+        ),
+    )
     @method_decorator(transaction.atomic)
     def post(self, request, pk):
         # Locked, so the flip reads the stored flag; narrow, so it writes
@@ -1695,12 +2050,23 @@ def _forbid_non_admin_template(
     return None
 
 
+_TEMPLATE_SAVED = _saved(
+    "InvoiceTemplateSaved", "template", InvoiceTemplateListSerializer()
+)
+
+
 class InvoiceTemplateListView(APIView, LimitOffsetPagination):
     """List and create invoice templates"""
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
-    @extend_schema(tags=["Invoice Templates"], operation_id="templates_list")
+    @extend_schema(
+        tags=["Invoice Templates"],
+        operation_id="templates_list",
+        responses=_page(
+            "InvoiceTemplatePage", InvoiceTemplateListSerializer(many=True)
+        ),
+    )
     def get(self, request):
         queryset = (
             InvoiceTemplate.objects.filter(org=request.profile.org)
@@ -1718,7 +2084,11 @@ class InvoiceTemplateListView(APIView, LimitOffsetPagination):
             }
         )
 
-    @extend_schema(tags=["Invoice Templates"], operation_id="templates_create")
+    @extend_schema(
+        tags=["Invoice Templates"],
+        operation_id="templates_create",
+        responses={201: _TEMPLATE_SAVED},
+    )
     def post(self, request):
         denied = _forbid_non_admin_template(request)
         if denied:
@@ -1754,7 +2124,11 @@ class InvoiceTemplateDetailView(APIView):
             id=pk, org=self.request.profile.org
         ).first()
 
-    @extend_schema(tags=["Invoice Templates"], operation_id="templates_retrieve")
+    @extend_schema(
+        tags=["Invoice Templates"],
+        operation_id="templates_retrieve",
+        responses=InvoiceTemplateListSerializer,
+    )
     def get(self, request, pk):
         template = self.get_object(pk)
         if not template:
@@ -1765,7 +2139,11 @@ class InvoiceTemplateDetailView(APIView):
         # Safe serializer only, never returns the raw template_html/css.
         return Response(InvoiceTemplateListSerializer(template).data)
 
-    @extend_schema(tags=["Invoice Templates"], operation_id="templates_update")
+    @extend_schema(
+        tags=["Invoice Templates"],
+        operation_id="templates_update",
+        responses=_TEMPLATE_SAVED,
+    )
     def put(self, request, pk):
         denied = _forbid_non_admin_template(request)
         if denied:
@@ -1796,7 +2174,11 @@ class InvoiceTemplateDetailView(APIView):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    @extend_schema(tags=["Invoice Templates"], operation_id="templates_destroy")
+    @extend_schema(
+        tags=["Invoice Templates"],
+        operation_id="templates_destroy",
+        responses={200: _MESSAGE},
+    )
     def delete(self, request, pk):
         denied = _forbid_non_admin_template(request)
         if denied:
@@ -1835,7 +2217,11 @@ class InvoiceTemplateEditorView(APIView):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
-    @extend_schema(tags=["Invoice Templates"], operation_id="templates_editor_retrieve")
+    @extend_schema(
+        tags=["Invoice Templates"],
+        operation_id="templates_editor_retrieve",
+        responses=InvoiceTemplateSerializer,
+    )
     def get(self, request, pk):
         # Role first, so the 403 does not depend on whether the id exists.
         denied = _forbid_non_admin_template(
@@ -1867,7 +2253,11 @@ class InvoiceCommentView(APIView):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
-    @extend_schema(tags=["Invoice Comments"], operation_id="comments_create")
+    @extend_schema(
+        tags=["Invoice Comments"],
+        operation_id="comments_create",
+        responses={201: _COMMENT_SAVED},
+    )
     def post(self, request, invoice_id):
         invoice, error = get_invoice_or_error(request, invoice_id)
         if error:
@@ -1930,7 +2320,11 @@ class InvoiceCommentDetailView(APIView):
             )
         return comment, None
 
-    @extend_schema(tags=["Invoice Comments"], operation_id="comments_update")
+    @extend_schema(
+        tags=["Invoice Comments"],
+        operation_id="comments_update",
+        responses=_COMMENT_SAVED,
+    )
     def put(self, request, pk):
         comment, error = self._resolve(request, pk)
         if error:
@@ -1954,7 +2348,11 @@ class InvoiceCommentDetailView(APIView):
             }
         )
 
-    @extend_schema(tags=["Invoice Comments"], operation_id="comments_destroy")
+    @extend_schema(
+        tags=["Invoice Comments"],
+        operation_id="comments_destroy",
+        responses={200: _MESSAGE},
+    )
     def delete(self, request, pk):
         comment, error = self._resolve(request, pk)
         if error:
@@ -1972,7 +2370,13 @@ class InvoiceAttachmentView(APIView):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
-    @extend_schema(tags=["Invoice Attachments"], operation_id="attachments_create")
+    @extend_schema(
+        tags=["Invoice Attachments"],
+        operation_id="attachments_create",
+        responses={
+            201: _saved("InvoiceAttachmentSaved", "attachment", AttachmentsSerializer())
+        },
+    )
     def post(self, request, invoice_id):
         invoice, error = get_invoice_or_error(request, invoice_id)
         if error:
@@ -2011,7 +2415,11 @@ class InvoiceAttachmentDetailView(APIView):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
-    @extend_schema(tags=["Invoice Attachments"], operation_id="attachments_destroy")
+    @extend_schema(
+        tags=["Invoice Attachments"],
+        operation_id="attachments_destroy",
+        responses={200: _MESSAGE},
+    )
     def delete(self, request, pk):
         attachment = get_on_visible_record_or_404(
             Attachments,
@@ -2085,7 +2493,11 @@ class InvoiceDashboardView(APIView):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
-    @extend_schema(tags=["Reports"], operation_id="dashboard")
+    @extend_schema(
+        tags=["Reports"],
+        operation_id="dashboard",
+        responses=_DASHBOARD,
+    )
     def get(self, request):
         denied = _forbid_non_admin_reports(request)
         if denied:
@@ -2181,7 +2593,11 @@ class RevenueReportView(APIView):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
-    @extend_schema(tags=["Reports"], operation_id="revenue_report")
+    @extend_schema(
+        tags=["Reports"],
+        operation_id="revenue_report",
+        responses=_REVENUE_REPORT,
+    )
     def get(self, request):
         denied = _forbid_non_admin_reports(request)
         if denied:
@@ -2282,7 +2698,11 @@ class AgingReportView(APIView):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
-    @extend_schema(tags=["Reports"], operation_id="aging_report")
+    @extend_schema(
+        tags=["Reports"],
+        operation_id="aging_report",
+        responses=_AGING_REPORT,
+    )
     def get(self, request):
         denied = _forbid_non_admin_reports(request)
         if denied:
@@ -2500,7 +2920,7 @@ class InvoiceFromOpportunityView(APIView):
         tags=["Invoices"],
         description="Create an invoice from a won opportunity with line items",
         responses={
-            201: InvoiceSerializer(),
+            201: _INVOICE_SAVED,
             400: {"description": "Bad request - opportunity not won or no line items"},
             404: {"description": "Opportunity not found"},
         },
@@ -2662,6 +3082,23 @@ class InvoiceFromTimeEntriesView(APIView):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
+    @extend_schema(
+        responses={
+            201: inline_serializer(
+                "InvoiceFromTimeEntries",
+                {
+                    "error": serializers.BooleanField(),
+                    "message": serializers.CharField(),
+                    "invoice_id": serializers.UUIDField(),
+                    "invoice_number": serializers.CharField(),
+                    "currency": serializers.CharField(),
+                    "line_count": serializers.IntegerField(),
+                    "entry_ids": serializers.ListField(child=serializers.UUIDField()),
+                    "project_id": serializers.UUIDField(allow_null=True),
+                },
+            )
+        },
+    )
     def post(self, request, *args, **kwargs):
         from cases.models import TimeEntry
         from cases.services.billing import (

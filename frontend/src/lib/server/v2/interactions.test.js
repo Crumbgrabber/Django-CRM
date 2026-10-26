@@ -22,6 +22,7 @@ const IX = '5d1e2f3a-4b5c-4d6e-8f70-819a2b3c4d5e';
 const status = (/** @type {number} */ n, /** @type {any} */ body = {}) =>
   Object.assign(new Error('failed'), { status: n, body });
 
+/** @type {any} */
 const CALL = {
   id: IX,
   kind: 'call',
@@ -46,6 +47,7 @@ const CALL = {
   created_at: '2026-10-24T09:13:00Z',
   can_edit: true
 };
+/** @type {any} */
 const ENQUIRY = {
   ...CALL,
   id: '6e2f3a4b-5c6d-4e7f-8a91-92ab3c4d5e6f',
@@ -157,7 +159,7 @@ describe('interactionEvents and withInteractions', () => {
       'created-1'
     ]);
     expect(merged[2].body).toBe('Enquiry via web form');
-    expect(merged[2].by).toBeNull();
+    expect(/** @type {any} */ (merged[2]).by).toBeNull();
   });
 });
 

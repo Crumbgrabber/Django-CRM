@@ -37,6 +37,8 @@ import { apiRequest } from '#lib/api-helpers.js';
 import { viewerIsAdmin } from './organization.js';
 import { getOrgPeopleAndTeams } from './org-people.js';
 
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+
 /** The three goal kinds the backend accepts (common/utils.py GOAL_TYPES). */
 export const GOAL_TYPES = ['REVENUE', 'DEALS_CLOSED', 'ACTIVITIES'];
 
@@ -76,10 +78,26 @@ export function weightsFromForm(form) {
 }
 
 /**
+ * A text field the goal form submits: the write serializer's scalars, plus the
+ * single `target` picker that stands in for assigned_to/team.
+ *
+ * @typedef {'name' | 'goal_type' | 'target_value' | 'currency' | 'period_type' | 'period_start' | 'period_end' | 'target'} GoalFormField
+ */
+
+/**
+ * What the create and edit actions collect: each submitted text field trimmed,
+ * the edit page's `is_active` switch, and the deal type weights.
+ *
+ * @typedef {Partial<Record<GoalFormField, string>> & { is_active?: boolean, type_weights?: Record<string, number | string> }} GoalValues
+ */
+
+/**
  * Plain scalar fields the write serializer accepts. `assigned_to`/`team` are
  * handled apart, through the single `target` picker, so the form can never send
  * both. `org` and `created_by` are set by the view from `request.profile` and
  * are not serializer fields. They cannot be assigned from the body.
+ *
+ * @type {Exclude<GoalFormField, 'target'>[]}
  */
 export const EDITABLE_FIELDS = [
   'name',
@@ -101,11 +119,11 @@ const LEADERBOARD_PERIOD = 'MONTHLY';
 /**
  * A person's display name from a nested ProfileSerializer row.
  *
- * @param {any} detail
+ * @param {Schemas['Profile']} detail
  */
 function personName(detail) {
-  const d = detail?.user_details ?? {};
-  return d.name || d.email || 'Unnamed';
+  const d = detail.user_details;
+  return d?.name || d?.email || 'Unnamed';
 }
 
 /**
@@ -116,7 +134,7 @@ function personName(detail) {
  * and never recomputed here; that recomputation is the aggregate bug the v2
  * redesign exists to kill.
  *
- * @param {any} g
+ * @param {Schemas['SalesGoal']} g
  */
 function toGoal(g) {
   return {
@@ -153,7 +171,7 @@ function toGoal(g) {
  * has none) and no longer sends `email` at all, so there is nothing left to
  * fall back to here.
  *
- * @param {any} r
+ * @param {Schemas['SalesGoalLeaderboardRow']} r
  */
 function toLeaderRow(r) {
   return {
@@ -223,7 +241,9 @@ function computeTotals(goals) {
   const behindPace = (/** @type {ReturnType<typeof toGoal>} */ g) =>
     g.status === 'behind' && g.period_end >= today;
   const revenue = active.filter((g) => g.goal_type === 'REVENUE');
-  const currencies = [...new Set(revenue.map((g) => g.currency))].sort();
+  // `SalesGoal.save` fills a blank currency from the org's, so every stored
+  // goal has one; the column is merely nullable.
+  const currencies = [...new Set(revenue.flatMap((g) => (g.currency ? [g.currency] : [])))].sort();
   const perCurrency = (/** @type {'target_value' | 'progress_value'} */ field) =>
     currencies.map((currency) => ({
       currency,
@@ -254,14 +274,15 @@ export async function listGoals({ cookies, url }) {
   if (filters.window === 'current') query.set('current', 'true');
   if (filters.window === 'active') query.set('active', 'true');
 
-  const [listResp, boardResp] = await Promise.all([
-    apiRequest(`/opportunities/goals/?${query}`, {}, { cookies }),
-    apiRequest(
-      `/opportunities/goals/leaderboard/?period_type=${LEADERBOARD_PERIOD}`,
-      {},
-      { cookies }
-    )
-  ]);
+  /** @type {Promise<Schemas['SalesGoalListResponse']>} */
+  const list = apiRequest(`/opportunities/goals/?${query}`, {}, { cookies });
+  /** @type {Promise<Schemas['SalesGoalLeaderboard']>} */
+  const board = apiRequest(
+    `/opportunities/goals/leaderboard/?period_type=${LEADERBOARD_PERIOD}`,
+    {},
+    { cookies }
+  );
+  const [listResp, boardResp] = await Promise.all([list, board]);
 
   const goals = (listResp?.goals ?? []).map(toGoal).sort(byUrgency);
   const leaderboard = (boardResp?.leaderboard ?? []).map(toLeaderRow);
@@ -317,6 +338,7 @@ function readFilters(url) {
  */
 export async function getCurrentGoals({ cookies }, limit = 3) {
   try {
+    /** @type {Schemas['SalesGoalListResponse']} */
     const resp = await apiRequest(
       `/opportunities/goals/?current=true&active=true&limit=${limit}`,
       {},
@@ -338,7 +360,7 @@ export async function getCurrentGoals({ cookies }, limit = 3) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  */
 export async function getGoalHistory({ cookies }) {
-  /** @type {{ history?: any[] }} */
+  /** @type {Schemas['SalesGoalHistory']} */
   const resp = await apiRequest('/opportunities/goals/history/', {}, { cookies });
   return {
     history: (resp?.history ?? []).map((period) => ({
@@ -382,12 +404,12 @@ export async function getGoalFormOptions({ cookies }) {
  * @param {string} id
  */
 export async function getGoalForEdit({ cookies }, id) {
-  if (!viewerIsAdmin(cookies)) return { can_edit: false };
+  // Literal flags, so a page's `{#if !data.can_edit}` narrows `data.goal`.
+  if (!viewerIsAdmin(cookies)) return { can_edit: /** @type {const} */ (false) };
 
-  const [raw, { people, teams }] = await Promise.all([
-    apiRequest(`/opportunities/goals/${id}/`, {}, { cookies }),
-    getOrgPeopleAndTeams(cookies)
-  ]);
+  /** @type {Promise<Schemas['SalesGoal']>} */
+  const goal = apiRequest(`/opportunities/goals/${id}/`, {}, { cookies });
+  const [raw, { people, teams }] = await Promise.all([goal, getOrgPeopleAndTeams(cookies)]);
 
   const target = raw.assigned_to
     ? `profile:${raw.assigned_to}`
@@ -396,7 +418,7 @@ export async function getGoalForEdit({ cookies }, id) {
       : 'org';
 
   return {
-    can_edit: true,
+    can_edit: /** @type {const} */ (true),
     people,
     teams,
     goal: {
@@ -420,10 +442,10 @@ export async function getGoalForEdit({ cookies }, id) {
  * exactly one of assigned_to / team (or neither for a whole-org goal), so the
  * two can never both be set from the UI.
  *
- * @param {Record<string, any>} values
+ * @param {GoalValues} values
  */
 function writeBody(values) {
-  /** @type {Record<string, any>} */
+  /** @type {Record<string, unknown>} */
   const body = {};
   for (const field of EDITABLE_FIELDS) {
     if (field in values) body[field] = values[field];
@@ -453,7 +475,8 @@ function writeBody(values) {
 /**
  * `POST /api/opportunities/goals/`. Admin-only server-side.
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
- * @param {Record<string, any>} values
+ * @param {GoalValues} values
+ * @returns {Promise<Schemas['SalesGoalMessage']>}
  */
 export function createGoal({ cookies }, values) {
   return apiRequest(
@@ -468,7 +491,8 @@ export function createGoal({ cookies }, values) {
  * (and therefore the org check) with create.
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
- * @param {Record<string, any>} values
+ * @param {GoalValues} values
+ * @returns {Promise<Schemas['SalesGoalMessage']>}
  */
 export function updateGoal({ cookies }, id, values) {
   return apiRequest(
@@ -482,6 +506,7 @@ export function updateGoal({ cookies }, id, values) {
  * `DELETE /api/opportunities/goals/<id>/`. Admin-only.
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
+ * @returns {Promise<Schemas['SalesGoalMessage']>}
  */
 export function deleteGoal({ cookies }, id) {
   return apiRequest(`/opportunities/goals/${id}/`, { method: 'DELETE' }, { cookies });

@@ -15,9 +15,17 @@
   import { ChevronRight, Lock, Trash2 } from '@lucide/svelte';
   import { isOn } from '#lib/v2/modules.js';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
+  /**
+   * What the form is filled from: the echoed values of a refused save, else
+   * the stored product.
+   *
+   * @typedef {{ name?: string, sku?: string, price?: string | number, currency?: string | null, category?: string, description?: string, is_active?: boolean }} ProductValues
+   */
+
+  /** @type {ProductValues} */
   let values = $derived(form?.values ?? data.product ?? {});
   let invoicesOn = $derived(isOn(data.modules, 'invoices'));
   let usedOn = $derived(data.product?.used_on ?? 0);

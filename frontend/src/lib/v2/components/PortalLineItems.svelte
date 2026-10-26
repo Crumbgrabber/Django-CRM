@@ -27,16 +27,16 @@
 
   /**
    * @type {{
-   *   items: Array<{name: string, description: string, quantity: number, unit_price: number, amount: number}>,
+   *   items: Array<{name: string, description: string, quantity: import('#lib/v2/line-items.js').Figure, unit_price: import('#lib/v2/line-items.js').Figure, amount: import('#lib/v2/line-items.js').Figure}>,
    *   currency: string,
-   *   subtotal: number,
-   *   discountAmount?: number,
+   *   subtotal: import('#lib/v2/line-items.js').Figure,
+   *   discountAmount?: import('#lib/v2/line-items.js').Figure,
    *   discountType?: string,
-   *   discountValue?: number,
-   *   taxRate?: number,
-   *   taxAmount?: number,
-   *   shippingAmount?: number,
-   *   total: number
+   *   discountValue?: import('#lib/v2/line-items.js').Figure,
+   *   taxRate?: import('#lib/v2/line-items.js').Figure,
+   *   taxAmount?: import('#lib/v2/line-items.js').Figure,
+   *   shippingAmount?: import('#lib/v2/line-items.js').Figure,
+   *   total: import('#lib/v2/line-items.js').Figure
    * }}
    */
   let {
@@ -98,21 +98,21 @@
       <dd class="v2-num">{money(subtotal, currency)}</dd>
     </div>
 
-    {#if discountAmount}
+    {#if Number(discountAmount)}
       <div>
         <dt>{discountLabel}</dt>
         <dd class="v2-num">−{money(discountAmount, currency)}</dd>
       </div>
     {/if}
 
-    {#if taxAmount}
+    {#if Number(taxAmount)}
       <div>
         <dt>Tax ({taxRate}%)</dt>
         <dd class="v2-num">{money(taxAmount, currency)}</dd>
       </div>
     {/if}
 
-    {#if shippingAmount}
+    {#if Number(shippingAmount)}
       <div>
         <dt>Shipping</dt>
         <dd class="v2-num">{money(shippingAmount, currency)}</dd>

@@ -125,7 +125,9 @@ describe('collectAssignees', () => {
 
 describe('displayValue', () => {
   it('writes a date field out, and keeps what it cannot parse', () => {
-    expect(displayValue({ field_type: 'date' }, '2026-10-04')).toBe('4 October 2026');
-    expect(displayValue({ field_type: 'date' }, 'soon')).toBe('soon');
+    expect(displayValue({ key: 'd', label: 'D', field_type: 'date' }, '2026-10-04')).toBe(
+      '4 October 2026'
+    );
+    expect(displayValue({ key: 'd', label: 'D', field_type: 'date' }, 'soon')).toBe('soon');
   });
 });

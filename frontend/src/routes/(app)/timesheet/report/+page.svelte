@@ -20,7 +20,7 @@
   import { billableSharePercent } from '#lib/v2/time-entry.js';
   import { Download } from '@lucide/svelte';
 
-  /** @type {{ data: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data } = $props();
 
   let report = $derived(data.report);

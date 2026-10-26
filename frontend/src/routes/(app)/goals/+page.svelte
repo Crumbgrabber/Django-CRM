@@ -30,7 +30,7 @@
   } from '#lib/v2/enums.js';
   import { Plus, Target, Trophy, History } from '@lucide/svelte';
 
-  /** @type {{ data: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data } = $props();
 
   let totals = $derived(data.totals);

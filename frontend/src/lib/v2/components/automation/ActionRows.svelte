@@ -9,9 +9,9 @@
    * message for the row now shown at `i`; `errors.list` is about the list.
    *
    * @type {{
-   *   catalogue: any,
-   *   object: any,
-   *   actions: any[],
+   *   catalogue: import('#lib/v2/automation.js').Catalogue,
+   *   object: import('#lib/v2/automation.js').CatalogueObject | null,
+   *   actions: import('#lib/v2/automation.js').RuleAction[],
    *   errors?: { list?: string | null, rows?: (string | null)[] }
    * }}
    */

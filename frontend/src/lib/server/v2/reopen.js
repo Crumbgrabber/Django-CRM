@@ -22,9 +22,10 @@ import { REOPEN_TO_STATUSES } from '#lib/v2/enums.js';
 
 /**
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
- * @returns {Promise<{ policy: any, can_edit: boolean }>}
+ * @returns {Promise<{ policy: Schemas['ReopenPolicyWithStats'], can_edit: boolean }>}
  */
 export async function getReopenPolicy({ cookies }) {
+  /** @type {Schemas['ReopenPolicyWithStats']} */
   const policy = await apiRequest('/cases/reopen-policy/', {}, { cookies });
   return { policy, can_edit: viewerIsAdmin(cookies) };
 }
@@ -47,7 +48,7 @@ const EDITABLE_FIELDS = ['is_enabled', 'reopen_window_days', 'reopen_to_status',
  * them.
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
- * @param {{ [key: string]: any }} values callers may pass extra keys (a
+ * @param {Record<string, unknown>} values callers may pass extra keys (a
  *   computed metric read back off the page, a hostile `org`); the allow-list
  *   loop below is what stops them reaching the API.
  * @returns {Promise<Schemas['ReopenPolicy']>} the updated policy, the four fields only.
@@ -57,11 +58,12 @@ export async function updateReopenPolicy({ cookies }, values) {
   if (!Number.isInteger(days) || days < 1 || days > 365) {
     throw new Error('The reopen window must be a whole number of days between 1 and 365.');
   }
-  if (!REOPEN_TO_STATUSES.includes(values.reopen_to_status)) {
+  const status = values.reopen_to_status;
+  if (typeof status !== 'string' || !REOPEN_TO_STATUSES.includes(status)) {
     throw new Error('A reopened ticket has to come back as New, Assigned or Pending.');
   }
 
-  /** @type {Record<string, any>} */
+  /** @type {Record<string, unknown>} */
   const body = {};
   for (const field of EDITABLE_FIELDS) {
     body[field] = values[field];

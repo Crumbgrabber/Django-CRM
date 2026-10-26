@@ -32,7 +32,7 @@ export async function load(event) {
   const values = {
     status: 'active',
     billing_type: 'time_and_materials',
-    currency: /** @type {any} */ (locals).org_settings?.default_currency || 'USD',
+    currency: locals.org_settings?.default_currency || 'USD',
     assigned_to: [],
     rates: [],
     ...Object.fromEntries(Object.entries(fromDraft).filter(([, v]) => v !== '' && v !== null))
@@ -75,7 +75,7 @@ export const actions = {
     let created;
     try {
       created = await createProject(event, body);
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       return fail(400, {
         values,
         ...saveRefusal(err, custom.definitions, 'Could not create the project.')

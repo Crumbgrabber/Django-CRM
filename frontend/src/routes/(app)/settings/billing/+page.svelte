@@ -13,7 +13,7 @@
   import SettingsCrumb from '#lib/v2/components/SettingsCrumb.svelte';
   import { planButton } from '#lib/v2/billing.js';
 
-  /** @type {{ data: any, form?: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   /** @type {import('#lib/server/v2/billing.js').Billing} */
@@ -146,7 +146,7 @@
               </div>
             {/if}
             {#if refusedPlan === plan.key}
-              <p class="v2-error" role="alert">{form.error}</p>
+              <p class="v2-error" role="alert">{form?.error}</p>
             {/if}
           </section>
         {/each}

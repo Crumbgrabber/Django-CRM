@@ -140,12 +140,12 @@ export function rowBurn(burn) {
  * The sentence for a `project.budget` notification, or null for data of the
  * wrong shape (the row then keeps its generic copy).
  *
- * @param {any} data
+ * @param {unknown} data
  * @returns {string | null}
  */
 export function budgetNotificationText(data) {
   if (!data || typeof data !== 'object') return null;
-  const { kind, percent, project } = data;
+  const { kind, percent, project } = /** @type {Record<string, unknown>} */ (data);
   if (kind !== 'hours' && kind !== 'amount') return null;
   if (typeof project !== 'string' || !project.trim()) return null;
   if (typeof percent !== 'number' || !Number.isFinite(percent) || percent <= 0) return null;
@@ -175,18 +175,75 @@ const DECIMAL_LABEL = /** @type {Record<string, string>} */ ({
 });
 
 /**
+ * A project form's fields as `projectValues` reads them and `projectBody`
+ * takes them. A key the form did not render is absent.
+ *
+ * @typedef {{
+ *   name?: string,
+ *   account?: string,
+ *   deal?: string,
+ *   status?: string,
+ *   billing_type?: string,
+ *   currency?: string,
+ *   budget_hours?: string,
+ *   budget_amount?: string,
+ *   hourly_rate?: string,
+ *   start_date?: string,
+ *   due_date?: string,
+ *   description?: string,
+ *   assigned_to?: string[],
+ *   rates?: { profile: string, hourly_rate: string }[],
+ *   custom_fields?: Record<string, string | boolean | null>
+ * }} ProjectValues
+ */
+
+/**
+ * What a project form shows: a refused save's `ProjectValues`, or the stored
+ * record, whose money and hours the read gives as numbers.
+ *
+ * @typedef {Omit<ProjectValues, 'budget_hours' | 'budget_amount' | 'hourly_rate' | 'rates'> & {
+ *   budget_hours?: string | number | null,
+ *   budget_amount?: string | number | null,
+ *   hourly_rate?: string | number | null,
+ *   rates?: { profile: string, hourly_rate: string | number | null }[]
+ * }} ProjectFormValues
+ */
+
+/**
+ * The create or PATCH body `projectBody` builds.
+ *
+ * @typedef {{
+ *   name?: string,
+ *   account?: string | null,
+ *   deal?: string | null,
+ *   status?: string,
+ *   billing_type?: string,
+ *   currency?: string,
+ *   budget_hours?: string | null,
+ *   budget_amount?: string | null,
+ *   hourly_rate?: string | null,
+ *   start_date?: string | null,
+ *   due_date?: string | null,
+ *   description?: string,
+ *   assigned_to?: string[],
+ *   rates?: { profile: string, hourly_rate: string }[],
+ *   custom_fields?: Record<string, string | boolean | null>
+ * }} ProjectBody
+ */
+
+/**
  * The fields a project form submitted, read off its FormData. Only what the
  * form rendered is read: `assigned__rendered` and `rates__rendered` mark the
  * two lists, so a form that could not load its people sends no list rather
  * than an empty one that would clear them.
  *
- * @param {{ get(k: string): any, getAll(k: string): any[], has(k: string): boolean }} form
- * @returns {Record<string, any>}
+ * @param {{ get(k: string): FormDataEntryValue | null, getAll(k: string): FormDataEntryValue[], has(k: string): boolean }} form
+ * @returns {ProjectValues}
  */
 export function projectValues(form) {
-  /** @type {Record<string, any>} */
+  /** @type {ProjectValues} */
   const values = {};
-  const scalars = [
+  const scalars = /** @type {const} */ ([
     'name',
     'account',
     'deal',
@@ -199,7 +256,7 @@ export function projectValues(form) {
     'start_date',
     'due_date',
     'description'
-  ];
+  ]);
   for (const key of scalars) {
     if (form.has(key)) values[key] = String(form.get(key) ?? '').trim();
   }
@@ -224,11 +281,11 @@ export function projectValues(form) {
  * alone; blank optional fields are sent as null. A rate row with no person is
  * dropped as an unused row; one with a person and no valid rate is an error.
  *
- * @param {Record<string, any>} values
- * @returns {{ body: Record<string, any>, errors: string[] }}
+ * @param {ProjectValues} values
+ * @returns {{ body: ProjectBody, errors: string[] }}
  */
 export function projectBody(values) {
-  /** @type {Record<string, any>} */
+  /** @type {ProjectBody} */
   const body = {};
   /** @type {string[]} */
   const errors = [];
@@ -246,13 +303,13 @@ export function projectBody(values) {
   if ('billing_type' in values && values.billing_type) body.billing_type = values.billing_type;
   if ('currency' in values && values.currency) body.currency = values.currency;
 
-  for (const key of ['budget_hours', 'budget_amount', 'hourly_rate']) {
+  for (const key of /** @type {const} */ (['budget_hours', 'budget_amount', 'hourly_rate'])) {
     if (!(key in values)) continue;
     const parsed = decimalOrNull(values[key]);
     if (parsed === undefined) errors.push(`${DECIMAL_LABEL[key]} must be a number of 0 or more.`);
     else body[key] = parsed;
   }
-  for (const key of ['start_date', 'due_date']) {
+  for (const key of /** @type {const} */ (['start_date', 'due_date'])) {
     if (key in values) body[key] = isoDateOrNull(values[key]);
   }
   if (body.start_date && body.due_date && body.due_date < body.start_date) {
@@ -285,23 +342,26 @@ export function projectBody(values) {
   return { body, errors: [...new Set(errors)] };
 }
 
+/** An id, or the `{ id, name }` a read expands it to. @typedef {string | { id?: string | null, name?: string | null } | null | undefined} RefOrId */
+
 /**
  * The new-project form's values from a `from-deal` draft. Unknown or missing
  * keys fall back to the form's defaults.
  *
- * @param {any} draft
- * @returns {Record<string, any>}
+ * @param {{ name?: string | null, account?: RefOrId, deal?: RefOrId, currency?: string | null, assigned_to?: RefOrId[] | null, billing_type?: string | null, budget_amount?: string | null } | false | null | undefined} draft
+ * @returns {{ name?: string, account?: string, deal?: string, currency?: string, assigned_to?: string[], billing_type?: string, budget_amount?: string }}
  */
 export function draftValues(draft) {
   if (!draft || typeof draft !== 'object') return {};
-  const id = (/** @type {any} */ v) => (v && typeof v === 'object' ? (v.id ?? '') : (v ?? ''));
+  const id = (/** @type {RefOrId} */ v) => (v && typeof v === 'object' ? (v.id ?? '') : (v ?? ''));
   return {
     name: draft.name ?? '',
     account: id(draft.account),
     deal: id(draft.deal),
     currency: draft.currency ?? '',
     assigned_to: Array.isArray(draft.assigned_to) ? draft.assigned_to.map(id).filter(Boolean) : [],
-    billing_type: BILLING_TYPES.includes(draft.billing_type) ? draft.billing_type : '',
+    billing_type:
+      draft.billing_type && BILLING_TYPES.includes(draft.billing_type) ? draft.billing_type : '',
     budget_amount: draft.budget_amount ?? ''
   };
 }
@@ -347,8 +407,8 @@ export function invoiceAmountBody({ mode, value, description }, budgetAmount) {
 export function taskProject(value) {
   if (!value) return null;
   if (typeof value === 'string') return { id: value, name: '' };
-  if (typeof value === 'object' && typeof (/** @type {any} */ (value).id) === 'string') {
-    const v = /** @type {any} */ (value);
+  const v = /** @type {{ id?: unknown, name?: unknown }} */ (value);
+  if (typeof value === 'object' && typeof v.id === 'string') {
     return { id: v.id, name: typeof v.name === 'string' ? v.name : '' };
   }
   return null;

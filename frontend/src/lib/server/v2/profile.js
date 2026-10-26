@@ -19,7 +19,8 @@
  */
 import { apiRequest } from '#lib/api-helpers.js';
 
-/** @typedef {import('#lib/api-schema.js').components['schemas']['ProfileRoleEnum']} Role */
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+/** @typedef {Schemas['ProfileRoleEnum']} Role */
 /**
  * @typedef {{
  *   id: string,
@@ -48,7 +49,7 @@ function splitName(/** @type {string} */ name, /** @type {string} */ email) {
 }
 
 /** A personal access token is "active" when it is neither revoked nor expired. */
-function isActiveToken(/** @type {any} */ t) {
+function isActiveToken(/** @type {Schemas['PersonalAccessTokenList']} */ t) {
   if (t.revoked_at) return false;
   if (t.expires_at && new Date(t.expires_at).getTime() <= Date.now()) return false;
   return true;
@@ -63,17 +64,18 @@ function isActiveToken(/** @type {any} */ t) {
 export async function getProfile({ cookies }) {
   const currentOrgId = cookies.get('org') || '';
 
-  const [me, orgResp, tokenResp] = await Promise.all([
-    apiRequest('/profile/', {}, { cookies }),
-    apiRequest('/org/', {}, { cookies }),
-    apiRequest('/profile/tokens/', {}, { cookies })
-  ]);
+  /** @type {Promise<Schemas['ProfileViewResponse']>} */
+  const meCall = apiRequest('/profile/', {}, { cookies });
+  /** @type {Promise<Schemas['OrgListResponse']>} */
+  const orgCall = apiRequest('/org/', {}, { cookies });
+  /** @type {Promise<Schemas['AccessTokenListResponse']>} */
+  const tokenCall = apiRequest('/profile/tokens/', {}, { cookies });
+  const [me, orgResp, tokenResp] = await Promise.all([meCall, orgCall, tokenCall]);
 
-  const u = me.user_obj || {};
-  const ud = u.user_details || {};
+  const u = me.user_obj;
+  const ud = u.user_details;
   const name = splitName(ud.name, ud.email);
 
-  /** @type {any[]} */
   const memberships = orgResp.profile_org_list || [];
   const orgs = memberships
     .map((m) => ({

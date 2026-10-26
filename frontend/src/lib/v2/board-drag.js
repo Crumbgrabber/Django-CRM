@@ -33,9 +33,12 @@ export function canMoveCard(row) {
  * Capture-phase handler for a board zone's `mousedown`, `touchstart` and
  * `keydown`. Stops the event when it starts inside a `[data-locked]` card.
  *
- * @param {{ type: string, key?: string, target: any, stopPropagation: () => void }} event
+ * @param {{ type: string, key?: string, target: unknown, stopPropagation: () => void }} event
  */
 export function holdLockedCard(event) {
   if (event.type === 'keydown' && !DRAG_KEYS.has(event.key ?? '')) return;
-  if (event.target?.closest?.('[data-locked]')) event.stopPropagation();
+  const target = /** @type {{ closest?: (selector: string) => unknown } | null | undefined} */ (
+    event.target
+  );
+  if (target?.closest?.('[data-locked]')) event.stopPropagation();
 }

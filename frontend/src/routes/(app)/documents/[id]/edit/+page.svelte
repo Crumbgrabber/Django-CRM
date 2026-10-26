@@ -7,7 +7,7 @@
   import NextAction from '#lib/v2/components/NextAction.svelte';
   import { TriangleAlert, Users, Lock } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form: result } = $props();
 
   /**
@@ -27,13 +27,13 @@
   // subscribing the form fields to later `data` changes (there are none, an
   // edit page loads one document).
   const init = untrack(() => {
-    const prev = result?.values ?? {};
-    const doc = data.document ?? {};
+    const prev = result?.values;
+    const doc = data.document;
     return {
-      title: prev.title ?? doc.title ?? '',
-      status: prev.status ?? doc.status ?? 'active',
-      shared_to: (prev.shared_to ?? doc.shared_to ?? []).map(String),
-      teams: (prev.teams ?? doc.teams ?? []).map(String)
+      title: prev?.title ?? doc?.title ?? '',
+      status: prev?.status ?? doc?.status ?? 'active',
+      shared_to: (prev?.shared_to ?? doc?.shared_to ?? []).map(String),
+      teams: (prev?.teams ?? doc?.teams ?? []).map(String)
     };
   });
 
@@ -74,16 +74,12 @@
   // from "sharing changed" (a PUT). From the stored document, never from a
   // rejected submit's echo, so a retry still compares against the record.
   let originalShares = $derived.by(() => {
-    const active = new Set((data.people ?? []).map((/** @type {any} */ p) => String(p.id)));
-    return (data.document?.shared_to ?? [])
-      .map(String)
-      .filter((/** @type {string} */ id) => active.has(id));
+    const active = new Set((data.people ?? []).map((p) => String(p.id)));
+    return (data.document?.shared_to ?? []).map(String).filter((id) => active.has(id));
   });
   let originalTeams = $derived.by(() => {
-    const known = new Set((data.teams ?? []).map((/** @type {any} */ t) => String(t.id)));
-    return (data.document?.teams ?? [])
-      .map(String)
-      .filter((/** @type {string} */ id) => known.has(id));
+    const known = new Set((data.teams ?? []).map((t) => String(t.id)));
+    return (data.document?.teams ?? []).map(String).filter((id) => known.has(id));
   });
   // Shares with no checkbox (people deactivated since, as the picker lists
   // active people only) are posted back as both `shared_to` and

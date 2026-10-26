@@ -55,7 +55,7 @@
   } from '#lib/v2/line-items.js';
   import { Info } from '@lucide/svelte';
 
-  /** @type {{ data: { products: any[], accounts: any[], contacts: any[], numbering: Record<string, any> | null, customFields: any[], org: { currency: string, timezone: string } }, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   /* The estimate builder's list. The org's default currency to start, read
@@ -149,7 +149,7 @@
    * status is server-forced to Draft, so none are here.
    */
   let payload = $derived.by(() => {
-    /** @type {Record<string, any>} */
+    /** @type {Record<string, unknown>} */
     const body = {
       account_id: accountId,
       contact_id: contactId,

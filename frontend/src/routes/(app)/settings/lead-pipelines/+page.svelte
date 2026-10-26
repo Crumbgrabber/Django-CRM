@@ -22,8 +22,10 @@
   import { LEAD_STATUS_LABEL } from '#lib/v2/enums.js';
   import { ArrowDown, ArrowUp, Columns3, Plus } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
+
+  /** @typedef {NonNullable<import('./$types').PageData['pipeline']>['stages'][number]} Stage */
 
   /** `LeadStage.STAGE_TYPE_CHOICES`. */
   const STAGE_TYPES = /** @type {const} */ ([
@@ -54,7 +56,7 @@
 
   // `null` closed, `'new'` adding a stage, or the stage being edited. One
   // panel, so two stages can never be open for edit at once.
-  let editing = $state(/** @type {any} */ (null));
+  let editing = $state(/** @type {null | 'new' | Stage} */ (null));
   let addingPipeline = $state(false);
   let renaming = $state(false);
 
@@ -152,7 +154,7 @@
               method="POST"
               action="?/renamePipeline"
               use:enhance={() =>
-                async (/** @type {any} */ { result, update }) => {
+                async ({ result, update }) => {
                   await update();
                   if (result.type === 'success') renaming = false;
                 }}
@@ -207,6 +209,8 @@
         {/if}
 
         {#if editing}
+          <!-- The snippet below loses the `if` narrowing; a const keeps it. -->
+          {@const current = editing}
           <SettingsFormPanel
             title={editing === 'new' ? 'New stage' : `Edit ${editing.name}`}
             action={editing === 'new' ? '?/createStage' : '?/updateStage'}
@@ -216,10 +220,10 @@
             ondone={() => (editing = null)}
           >
             {#snippet fields()}
-              {#if editing === 'new'}
+              {#if current === 'new'}
                 <input type="hidden" name="pipeline_id" value={pipeline.id} />
               {:else}
-                <input type="hidden" name="id" value={editing.id} />
+                <input type="hidden" name="id" value={current.id} />
               {/if}
               <div class="v2-field">
                 <label for="s-name">Name</label>
@@ -229,7 +233,7 @@
                   name="name"
                   maxlength="100"
                   required
-                  value={editing === 'new' ? '' : editing.name}
+                  value={current === 'new' ? '' : current.name}
                 />
               </div>
               <div class="v2-field">
@@ -238,7 +242,7 @@
                   {#each STAGE_TYPES as [value, label] (value)}
                     <option
                       {value}
-                      selected={editing === 'new' ? value === 'open' : editing.stageType === value}
+                      selected={current === 'new' ? value === 'open' : current.stageType === value}
                       >{label}</option
                     >
                   {/each}
@@ -247,11 +251,11 @@
               <div class="v2-field">
                 <label for="s-status">Sets lead status to</label>
                 <select id="s-status" class="v2-input" name="maps_to_status">
-                  <option value="" selected={editing === 'new' || !editing.mapsToStatus}
+                  <option value="" selected={current === 'new' || !current.mapsToStatus}
                     >Leave it as it is</option
                   >
                   {#each stageOptions as s (s)}
-                    <option value={s} selected={editing !== 'new' && editing.mapsToStatus === s}
+                    <option value={s} selected={current !== 'new' && current.mapsToStatus === s}
                       >{statusLabel(s)}</option
                     >
                   {/each}
@@ -269,7 +273,7 @@
                   max="100"
                   step="1"
                   inputmode="numeric"
-                  value={editing === 'new' ? 0 : editing.winProbability}
+                  value={current === 'new' ? 0 : current.winProbability}
                 />
                 <p class="v2-hint">Given to a lead moved here that has no probability yet.</p>
               </div>

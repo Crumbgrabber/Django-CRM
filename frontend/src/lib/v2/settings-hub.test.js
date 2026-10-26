@@ -7,7 +7,10 @@ const row = (/** @type {string} */ key, /** @type {boolean} */ on = true) => ({
   available: on
 });
 
-/** @param {Record<string, any>} [more] */
+/**
+ * @param {Record<string, any>} [more]
+ * @returns {any}
+ */
 function data(more = {}) {
   return {
     org: { name: 'Acme', company_name: 'Acme Ltd' },

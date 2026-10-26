@@ -15,6 +15,7 @@ Routes (all under /api/business-hours/):
 from datetime import time
 
 from django.shortcuts import get_object_or_404
+from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -67,10 +68,16 @@ class BusinessCalendarView(APIView):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
+    @extend_schema(tags=["Business hours"], responses={200: BusinessCalendarSerializer})
     def get(self, request, *args, **kwargs):
         cal = _get_or_create_default(request.profile.org)
         return Response(BusinessCalendarSerializer(cal).data)
 
+    @extend_schema(
+        tags=["Business hours"],
+        request=BusinessCalendarSerializer,
+        responses={200: BusinessCalendarSerializer},
+    )
     def put(self, request, pk=None, *args, **kwargs):
         if not is_org_admin(request.profile):
             return Response(
@@ -94,6 +101,12 @@ class BusinessHolidayListView(APIView):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
+    @extend_schema(
+        tags=["Business hours"],
+        request=BusinessHolidaySerializer,
+        # 200 when the calendar already has a holiday on that date.
+        responses={201: BusinessHolidaySerializer, 200: BusinessHolidaySerializer},
+    )
     def post(self, request, pk, *args, **kwargs):
         if not is_org_admin(request.profile):
             return Response(
@@ -128,6 +141,7 @@ class BusinessHolidayDetailView(APIView):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
+    @extend_schema(tags=["Business hours"], responses={204: None})
     def delete(self, request, pk, hid, *args, **kwargs):
         if not is_org_admin(request.profile):
             return Response(

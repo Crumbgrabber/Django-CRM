@@ -15,8 +15,8 @@
 
   /**
    * @type {{
-   *   items: Array<{name: string, description: string, quantity: any, unit_price: any, product: string | null, discount_type?: string, discount_value?: any}>,
-   *   products: Array<{id: string, name: string, sku?: string, price: any}>,
+   *   items: import('#lib/v2/line-items.js').Line[],
+   *   products: Array<{id: string, name: string, sku?: string | null, price: import('#lib/v2/line-items.js').Figure}>,
    *   currency: string
    * }}
    */

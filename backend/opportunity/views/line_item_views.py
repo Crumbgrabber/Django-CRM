@@ -47,9 +47,8 @@ class OpportunityLineItemListView(APIView):
                 fields={
                     "line_items": OpportunityLineItemSerializer(many=True),
                     "products": ProductSerializer(many=True),
-                    "opportunity_amount": serializers.DecimalField(
-                        max_digits=12, decimal_places=2
-                    ),
+                    # The model's Decimal unserialized, so a JSON number.
+                    "opportunity_amount": serializers.FloatField(allow_null=True),
                     "opportunity_amount_source": serializers.CharField(),
                 },
             )
@@ -90,9 +89,7 @@ class OpportunityLineItemListView(APIView):
                     "error": serializers.BooleanField(),
                     "message": serializers.CharField(),
                     "line_item": OpportunityLineItemSerializer(),
-                    "opportunity_amount": serializers.DecimalField(
-                        max_digits=12, decimal_places=2
-                    ),
+                    "opportunity_amount": serializers.FloatField(allow_null=True),
                 },
             )
         },
@@ -180,9 +177,7 @@ class OpportunityLineItemDetailView(APIView):
                     "error": serializers.BooleanField(),
                     "message": serializers.CharField(),
                     "line_item": OpportunityLineItemSerializer(),
-                    "opportunity_amount": serializers.DecimalField(
-                        max_digits=12, decimal_places=2
-                    ),
+                    "opportunity_amount": serializers.FloatField(allow_null=True),
                 },
             )
         },
@@ -233,9 +228,7 @@ class OpportunityLineItemDetailView(APIView):
                 fields={
                     "error": serializers.BooleanField(),
                     "message": serializers.CharField(),
-                    "opportunity_amount": serializers.DecimalField(
-                        max_digits=12, decimal_places=2
-                    ),
+                    "opportunity_amount": serializers.FloatField(allow_null=True),
                 },
             )
         },

@@ -22,7 +22,7 @@ export const actions = {
   issue: async ({ cookies }) => {
     try {
       return { url: await issueCalendarFeed({ cookies }) };
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       return fail(400, { error: readableError(err, 'Could not create the calendar feed.') });
     }
   },
@@ -31,7 +31,7 @@ export const actions = {
   disable: async ({ cookies }) => {
     try {
       await disableCalendarFeed({ cookies });
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       return fail(400, { error: readableError(err, 'Could not turn the calendar feed off.') });
     }
     return { disabled: true };

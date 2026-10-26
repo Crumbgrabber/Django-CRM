@@ -17,11 +17,11 @@
    * `errors.rows[i]` is the server's message for the row now shown at `i`.
    *
    * @type {{
-   *   catalogue: any,
-   *   object: any,
+   *   catalogue: import('#lib/v2/automation.js').Catalogue,
+   *   object: import('#lib/v2/automation.js').CatalogueObject | null,
    *   event: string,
    *   match: string,
-   *   conditions: any[],
+   *   conditions: import('#lib/v2/automation.js').RuleCondition[],
    *   errors?: { match?: string | null, list?: string | null, rows?: (string | null)[] }
    * }}
    */
@@ -38,11 +38,13 @@
   let addButton = $state();
 
   let limit = $derived(catalogue?.limits?.conditions ?? Infinity);
-  let fields = $derived(
-    (object?.fields ?? []).map((/** @type {any} */ f) => ({ value: f.key, label: f.label }))
-  );
+  let fields = $derived((object?.fields ?? []).map((f) => ({ value: f.key, label: f.label })));
 
-  /** The operators offered, plus a stored one they no longer include. @param {any} cond @param {any} field */
+  /**
+   * The operators offered, plus a stored one they no longer include.
+   * @param {import('#lib/v2/automation.js').RuleCondition} cond
+   * @param {import('#lib/v2/automation.js').Field | null} field
+   */
   function operators(cond, field) {
     const offered = operatorsFor(catalogue, field, event).map((op) => ({
       value: op,
@@ -56,14 +58,14 @@
     return [...offered, { value: cond.op, label }];
   }
 
-  /** @param {any} cond @param {string} key */
+  /** @param {import('#lib/v2/automation.js').RuleCondition} cond @param {string} key */
   function chooseField(cond, key) {
     cond.field = key;
     cond.op = operatorsFor(catalogue, fieldOf(object, key), event)[0] ?? '';
     cond.value = null;
   }
 
-  /** @param {any} cond @param {string} op */
+  /** @param {import('#lib/v2/automation.js').RuleCondition} cond @param {string} op */
   function chooseOp(cond, op) {
     cond.value = keptValue(fieldOf(object, cond.field), cond.op, op, cond.value);
     cond.op = op;
@@ -82,7 +84,7 @@
     addButton?.focus();
   }
 
-  /** A stored value whose field is gone, as text. @param {any} value */
+  /** A stored value whose field is gone, as text. @param {import('#lib/v2/automation.js').RuleValue} value */
   const asText = (value) => (Array.isArray(value) ? value.join(', ') : String(value));
 </script>
 

@@ -62,7 +62,8 @@ class TestLeadListView:
         assert response.status_code == 200
         data = response.json()
         assert data["error"] is False
-        assert Lead.objects.filter(email="jane@example.com", org=org_a).exists()
+        lead = Lead.objects.get(email="jane@example.com", org=org_a)
+        assert data["id"] == str(lead.id)
 
     def test_create_lead_ignores_is_sample_in_payload(self, admin_client, org_a):
         """`is_sample` is server-set only (see leads/models.py) and it is the
@@ -1318,6 +1319,7 @@ class TestLeadCreateWithM2M:
         data = response.json()
         assert data["message"] == "Lead Converted Successfully"
         assert "account_id" in data
+        assert data["id"] == str(mock_convert.call_args.args[0].id)
         mock_convert.assert_called_once()
 
     @patch("leads.views.lead_views.send_email_to_assigned_user.delay")

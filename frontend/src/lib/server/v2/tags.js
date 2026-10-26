@@ -38,7 +38,7 @@ import { viewerIsAdmin } from './organization.js';
 
 /**
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
- * @returns {Promise<{ tags: any[], totals: any, can_edit: boolean }>}
+ * @returns {Promise<{ tags: Schemas['TagsListRow'][], totals: Schemas['TagsListTotals'], can_edit: boolean }>}
  */
 export async function getTags({ cookies }) {
   /** @type {Schemas['TagsListResponse']} */
@@ -74,12 +74,11 @@ export async function getTags({ cookies }) {
  * the tag they just made, so this one hands back the real thing.
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
- * @param {{ name?: string, [key: string]: any }} values callers may pass extra
+ * @param {{ name?: string, [key: string]: unknown }} values callers may pass extra
  *   keys (a hostile `org`, say); the index signature lets TypeScript accept
  *   the object literal without widening what this function actually reads,
  *   which stays just `name`.
- * @returns {Promise<any>} the created (or reactivated) tag record: `{ id, name,
- *   slug, color, description, is_active, created_at }`.
+ * @returns {Promise<Schemas['Tags']>} the created (or reactivated) tag record.
  */
 export async function createTag({ cookies }, values) {
   const name = (values.name ?? '').trim();
@@ -150,7 +149,7 @@ export async function restoreTag({ cookies }, id) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id the tag to empty out
  * @param {string} into the tag to keep
- * @returns {Promise<{ tag: any, moved: number }>} the surviving tag and how
+ * @returns {Promise<{ tag: Schemas['Tags'] | null, moved: number }>} the surviving tag and how
  *   many records changed hands, which is what the page reports back.
  */
 export async function mergeTags({ cookies }, id, into) {

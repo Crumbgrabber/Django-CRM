@@ -77,7 +77,7 @@ export async function load(event) {
   const { results, totals } = await listTasks(event, params);
 
   // Group by due date once, so each cell is a lookup rather than a scan.
-  /** @type {Record<string, any[]>} */
+  /** @type {Record<string, { id: string, title: string, priority: string, is_done: boolean, status: string, overdue: boolean, related: (typeof results)[number]['related'] }[]>} */
   const byDate = {};
   for (const task of results) {
     if (!task.due_date) continue;
@@ -92,7 +92,7 @@ export async function load(event) {
     });
   }
 
-  /** @type {any[][]} */
+  /** @type {{ date: string, day: number, inMonth: boolean, isToday: boolean, isWeekend: boolean, tasks: (typeof byDate)[string] }[][]} */
   const weeks = [];
   for (let i = 0; i < cellCount; i++) {
     const d = new Date(year, month, 1 - offset + i);
@@ -121,9 +121,7 @@ export async function load(event) {
   // cells can carry a day or two of the neighbouring months, and the header
   // says "July", so a spillover task must not inflate July's number.
   const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
-  const shown = results.filter(
-    (/** @type {any} */ t) => t.due_date && t.due_date.slice(0, 7) === monthKey
-  ).length;
+  const shown = results.filter((t) => t.due_date && t.due_date.slice(0, 7) === monthKey).length;
 
   return {
     year,

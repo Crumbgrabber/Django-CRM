@@ -48,7 +48,9 @@
 import { apiRequest } from '#lib/api-helpers.js';
 import { viewerIsAdmin } from '#lib/server/v2/organization.js';
 
-const num = (/** @type {any} */ value) => {
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+
+const num = (/** @type {unknown} */ value) => {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
 };
@@ -58,7 +60,7 @@ const num = (/** @type {any} */ value) => {
  * raw `template_html`/`template_css` are not on the wire, and this makes sure
  * nothing downstream can start depending on them if that ever regresses.
  *
- * @param {any} row
+ * @param {Schemas['InvoiceTemplateList']} row
  */
 function toRow(row) {
   return {
@@ -82,7 +84,7 @@ function toRow(row) {
 /**
  * The two header figures, derived from the visible rows.
  *
- * @param {any[]} rows
+ * @param {ReturnType<typeof toRow>[]} rows
  * @param {number | undefined} count
  */
 function computeTotals(rows, count) {
@@ -104,6 +106,7 @@ export async function listInvoiceTemplates({ cookies }) {
   // One page covers every real org; the derived totals need the whole set.
   query.set('limit', '1000');
 
+  /** @type {Schemas['InvoiceTemplatePage']} */
   const response = await apiRequest(`/invoices/templates/?${query.toString()}`, {}, { cookies });
   const rows = (response.results ?? []).map(toRow);
 
@@ -117,6 +120,7 @@ export async function listInvoiceTemplates({ cookies }) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
+ * @returns {Promise<Schemas['InvoiceTemplateSaved']>}
  */
 export async function setDefaultTemplate({ cookies }, id) {
   return apiRequest(
@@ -127,6 +131,8 @@ export async function setDefaultTemplate({ cookies }, id) {
 }
 
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
+
+/** @typedef {Record<string, string | boolean>} TemplateValues A form's text fields, and `is_default`. */
 
 /**
  * Every field the create form is allowed to write.
@@ -204,12 +210,12 @@ export const UPDATE_FIELDS = [
  * backend's response shape degrades to the raw envelope rather than throwing.
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
- * @param {Record<string, any>} values
+ * @param {TemplateValues} values
  * @param {File | null} [logoFile]
- * @returns {Promise<any>}
+ * @returns {Promise<Schemas['InvoiceTemplateList'] | Schemas['InvoiceTemplateSaved']>}
  */
 export async function createInvoiceTemplate({ cookies }, values, logoFile = null) {
-  const name = (values.name ?? '').toString().trim();
+  const name = String(values.name ?? '').trim();
   if (!name) throw new Error('Give the template a name.');
 
   for (const key of ['primary_color', 'secondary_color']) {
@@ -219,7 +225,7 @@ export async function createInvoiceTemplate({ cookies }, values, logoFile = null
     }
   }
 
-  /** @type {Record<string, any>} */
+  /** @type {TemplateValues} */
   const fields = {};
   for (const key of CREATE_FIELDS) {
     if (values[key] === undefined) continue;
@@ -238,10 +244,12 @@ export async function createInvoiceTemplate({ cookies }, values, logoFile = null
       body.append(key, typeof value === 'boolean' ? String(value) : value);
     }
     body.append('logo', logoFile);
+    /** @type {Schemas['InvoiceTemplateSaved']} */
     const resp = await apiRequest('/invoices/templates/', { method: 'POST', body }, { cookies });
     return resp.template ?? resp;
   }
 
+  /** @type {Schemas['InvoiceTemplateSaved']} */
   const resp = await apiRequest(
     '/invoices/templates/',
     { method: 'POST', body: fields },
@@ -272,6 +280,7 @@ export async function createInvoiceTemplate({ cookies }, values, logoFile = null
 export async function getInvoiceTemplateForEdit({ cookies }, id) {
   if (!viewerIsAdmin(cookies)) return { can_edit: false };
 
+  /** @type {Schemas['InvoiceTemplate']} */
   const t = await apiRequest(`/invoices/templates/${id}/editor/`, {}, { cookies });
   return {
     can_edit: true,
@@ -303,11 +312,12 @@ export async function getInvoiceTemplateForEdit({ cookies }, id) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
- * @param {Record<string, any>} values
+ * @param {TemplateValues} values
  * @param {File | null} [logoFile]
+ * @returns {Promise<Schemas['InvoiceTemplateList'] | Schemas['InvoiceTemplateSaved']>}
  */
 export async function updateInvoiceTemplate({ cookies }, id, values, logoFile = null) {
-  const name = (values.name ?? '').toString().trim();
+  const name = String(values.name ?? '').trim();
   if (!name) throw new Error('Give the template a name.');
 
   for (const key of ['primary_color', 'secondary_color']) {
@@ -317,7 +327,7 @@ export async function updateInvoiceTemplate({ cookies }, id, values, logoFile = 
     }
   }
 
-  /** @type {Record<string, any>} */
+  /** @type {TemplateValues} */
   const fields = {};
   for (const key of UPDATE_FIELDS) {
     if (values[key] === undefined) continue;
@@ -331,6 +341,7 @@ export async function updateInvoiceTemplate({ cookies }, id, values, logoFile = 
       body.append(key, typeof value === 'boolean' ? String(value) : value);
     }
     body.append('logo', logoFile);
+    /** @type {Schemas['InvoiceTemplateSaved']} */
     const resp = await apiRequest(
       `/invoices/templates/${id}/`,
       { method: 'PUT', body },
@@ -339,6 +350,7 @@ export async function updateInvoiceTemplate({ cookies }, id, values, logoFile = 
     return resp.template ?? resp;
   }
 
+  /** @type {Schemas['InvoiceTemplateSaved']} */
   const resp = await apiRequest(
     `/invoices/templates/${id}/`,
     { method: 'PUT', body: fields },

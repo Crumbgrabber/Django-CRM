@@ -7,6 +7,24 @@ import { longDate } from '#lib/v2/format.js';
 import { sameIds } from '#lib/v2/pickers.js';
 
 /**
+ * A field definition as these helpers read it: an org's custom field
+ * (`CustomFieldDefinition`) or a custom object's field. A non-dropdown may
+ * store `{}` as its options.
+ *
+ * @typedef {{ value: string, label: string }} FieldOption
+ * @typedef {{
+ *   key: string,
+ *   label: string,
+ *   field_type: string,
+ *   options?: FieldOption[] | Record<string, never> | null,
+ *   is_required?: boolean
+ * }} FieldDefinition
+ */
+
+/** @param {FieldDefinition} definition */
+const optionsOf = (definition) => (Array.isArray(definition.options) ? definition.options : []);
+
+/**
  * Render one stored value for reading.
  *
  * Values arrive already coerced by `_coerce_value`: number as a JSON number,
@@ -15,8 +33,8 @@ import { sameIds } from '#lib/v2/pickers.js';
  * lives on the definition, so it is looked up here instead of showing the raw
  * key.
  *
- * @param {any} definition
- * @param {any} value
+ * @param {FieldDefinition} definition
+ * @param {unknown} value
  * @returns {string}
  */
 export function displayValue(definition, value) {
@@ -26,13 +44,13 @@ export function displayValue(definition, value) {
     case 'checkbox':
       return value ? 'Yes' : 'No';
     case 'date': {
-      const text = longDate(value);
+      const text = longDate(/** @type {string} */ (value));
       return text === '—' ? String(value) : text;
     }
     case 'number':
       return typeof value === 'number' ? value.toLocaleString() : String(value);
     case 'dropdown': {
-      const match = (definition.options ?? []).find((/** @type {any} */ o) => o.value === value);
+      const match = optionsOf(definition).find((o) => o.value === value);
       return match?.label ?? String(value);
     }
     default:
@@ -48,8 +66,8 @@ export function displayValue(definition, value) {
  * unfilled fields hides what the org decided it tracks. `filled` lets the page
  * decide whether the block is worth showing at all.
  *
- * @param {any[]} definitions
- * @param {Record<string, any> | null | undefined} values
+ * @param {FieldDefinition[]} definitions
+ * @param {Record<string, unknown> | null | undefined} values
  */
 export function pairForDisplay(definitions, values) {
   const stored = values ?? {};
@@ -73,23 +91,25 @@ export function pairForDisplay(definitions, values) {
  * input renders empty and submits empty, which `_coerce_value` maps back to
  * `None`, so clearing a field works without a separate "remove" control.
  *
- * @param {any[]} definitions
- * @param {Record<string, any> | null | undefined} values
+ * @param {FieldDefinition[]} definitions
+ * @param {Record<string, unknown> | null | undefined} values
  */
 export function pairForEdit(definitions, values) {
   const stored = values ?? {};
   return definitions.map((d) => {
     const raw = stored[d.key];
-    let options = d.options ?? [];
+    let options = optionsOf(d);
     // A select with no option for the stored value submits nothing and clears it.
     if (
       d.field_type === 'dropdown' &&
       raw !== null &&
       raw !== undefined &&
       raw !== '' &&
-      !options.some((/** @type {any} */ o) => o.value === raw)
+      !options.some((o) => o.value === raw)
     ) {
-      options = [...options, { value: raw, label: `${raw} (no longer an option)` }];
+      // A dropdown's stored value is the option's string `value`.
+      const value = /** @type {string} */ (raw);
+      options = [...options, { value, label: `${value} (no longer an option)` }];
     }
     return {
       key: d.key,
@@ -117,11 +137,11 @@ export function pairForEdit(definitions, values) {
  * ticked but never unticked.
  *
  * @param {FormData} form
- * @param {any[]} definitions
- * @returns {Record<string, any>}
+ * @param {FieldDefinition[]} definitions
+ * @returns {Record<string, string | boolean | null>}
  */
 export function collectFromForm(form, definitions) {
-  /** @type {Record<string, any>} */
+  /** @type {Record<string, string | boolean | null>} */
   const out = {};
   for (const d of definitions) {
     const field = `cf_${d.key}`;
@@ -141,8 +161,8 @@ export function collectFromForm(form, definitions) {
  * A one-record field held by a link the caller cannot open is read-only: the
  * server refuses a write to it, so the form shows no input.
  *
- * @param {any[]} fields
- * @param {Record<string, any> | null | undefined} links
+ * @param {Array<FieldDefinition & { target?: string | null, many?: boolean | null }>} fields
+ * @param {Record<string, { records?: { id: string, name: string }[], hidden?: number }> | null | undefined} links
  */
 export function linkFieldsForEdit(fields, links) {
   const held = links ?? {};
@@ -157,7 +177,7 @@ export function linkFieldsForEdit(fields, links) {
         label: f.label,
         target: f.target,
         many,
-        records: /** @type {{ id: string, name: string }[]} */ (entry.records ?? []),
+        records: entry.records ?? [],
         hidden,
         readOnly: !many && hidden > 0
       };

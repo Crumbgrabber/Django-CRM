@@ -19,18 +19,21 @@
 
   const TYPE_LABEL = /** @type {Record<string, string>} */ ({ ...FIELD_TYPE_LABEL, link: 'Link' });
 
-  /** @type {{ data: any, form: any }} */
+  /** @typedef {import('#lib/server/v2/custom-objects.js').ObjectField} ObjectField */
+
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   let def = $derived(data.definition);
   let plan = $derived(data.customObjects?.has_custom_objects === true);
   let canWrite = $derived(data.can_edit && plan);
   let plansHref = $derived(billingHref(data));
-  let linkTargets = $derived(/** @type {any[]} */ (data.customObjects?.link_targets ?? []));
+  /** @type {import('#lib/server/v2/custom-objects.js').ObjectRef[]} */
+  let linkTargets = $derived(data.customObjects?.link_targets ?? []);
 
   let editingObject = $state(false);
   // `null` when closed, `'new'` when adding, or the field being edited.
-  let editing = $state(/** @type {any} */ (null));
+  let editing = $state(/** @type {'new' | ObjectField | null} */ (null));
   let fieldType = $state('text');
   let optionRows = $state(/** @type {{ value: string, label: string }[]} */ ([]));
 
@@ -40,22 +43,24 @@
     optionRows = [];
   }
 
-  /** @param {any} f */
+  /** @param {ObjectField} f */
   function openEditField(f) {
     editing = f;
     fieldType = f.field_type;
-    optionRows = (f.options ?? []).map((/** @type {any} */ o) => ({
+    optionRows = (f.options ?? []).map((o) => ({
       value: o.value,
       label: o.label
     }));
   }
 
-  /** @param {string} target */
+  /** @param {string | null} target */
   const targetLabel = (target) => linkTargets.find((t) => t.key === target)?.label_plural ?? target;
 
+  // `fieldOff` and `fieldOn` are `true` after a success and `{ error }` after a refusal.
   let rowErrors = $derived(
-    [form?.fieldOff?.error, form?.fieldOn?.error, form?.restore?.error, form?.archive?.error]
-      .concat([form?.destroy?.error])
+    [form?.fieldOff, form?.fieldOn]
+      .map((outcome) => (typeof outcome === 'object' ? outcome.error : undefined))
+      .concat([form?.restore?.error, form?.archive?.error, form?.destroy?.error])
       .filter(Boolean)
   );
 </script>
@@ -225,18 +230,19 @@
     </div>
 
     {#if editing && canWrite}
+      {@const current = editing}
       <SettingsFormPanel
-        title={editing === 'new' ? 'New field' : `Edit ${editing.label}`}
-        action={editing === 'new' ? '?/createField' : '?/updateField'}
-        error={editing === 'new' ? form?.createField?.error : form?.updateField?.error}
-        submitLabel={editing === 'new' ? 'Add field' : 'Save field'}
+        title={current === 'new' ? 'New field' : `Edit ${current.label}`}
+        action={current === 'new' ? '?/createField' : '?/updateField'}
+        error={current === 'new' ? form?.createField?.error : form?.updateField?.error}
+        submitLabel={current === 'new' ? 'Add field' : 'Save field'}
         oncancel={() => (editing = null)}
         ondone={() => (editing = null)}
       >
         {#snippet fields()}
-          {#if editing !== 'new'}
-            <input type="hidden" name="field_key" value={editing.key} />
-            <input type="hidden" name="field_type" value={editing.field_type} />
+          {#if current !== 'new'}
+            <input type="hidden" name="field_key" value={current.key} />
+            <input type="hidden" name="field_type" value={current.field_type} />
           {/if}
 
           <div class="v2-field">
@@ -247,13 +253,13 @@
               name="label"
               maxlength="128"
               required
-              value={editing === 'new' ? '' : editing.label}
+              value={current === 'new' ? '' : current.label}
             />
           </div>
 
           <div class="v2-field">
             <label for="f-key">Key</label>
-            {#if editing === 'new'}
+            {#if current === 'new'}
               <input
                 id="f-key"
                 class="v2-input"
@@ -268,27 +274,27 @@
                 changed later.
               </p>
             {:else}
-              <code class="o-key">{editing.key}</code>
+              <code class="o-key">{current.key}</code>
               <p class="v2-hint">Fixed after creation.</p>
             {/if}
           </div>
 
           <div class="v2-field">
             <label for="f-type">Type</label>
-            {#if editing === 'new'}
+            {#if current === 'new'}
               <select id="f-type" class="v2-input" name="field_type" bind:value={fieldType}>
                 {#each Object.entries(TYPE_LABEL) as [value, label] (value)}
                   <option {value}>{label}</option>
                 {/each}
               </select>
             {:else}
-              <div style="font-size:13px">{TYPE_LABEL[editing.field_type]}</div>
+              <div style="font-size:13px">{TYPE_LABEL[current.field_type]}</div>
               <p class="v2-hint">Fixed after creation.</p>
             {/if}
           </div>
 
           {#if fieldType === 'link'}
-            {#if editing === 'new'}
+            {#if current === 'new'}
               <div class="v2-field">
                 <label for="f-target">Links to</label>
                 <select id="f-target" class="v2-input" name="target" required>
@@ -308,7 +314,7 @@
               <div class="v2-field">
                 <label for="f-linked">Links to</label>
                 <div id="f-linked" style="font-size:13px">
-                  {targetLabel(editing.target)}, {editing.many ? 'several records' : 'one record'}
+                  {targetLabel(current.target)}, {current.many ? 'several records' : 'one record'}
                 </div>
                 <p class="v2-hint">Fixed after creation.</p>
               </div>
@@ -356,7 +362,7 @@
               type="number"
               name="display_order"
               min="0"
-              value={editing === 'new' ? '' : editing.display_order}
+              value={current === 'new' ? '' : current.display_order}
             />
           </div>
 
@@ -369,7 +375,7 @@
                   type="checkbox"
                   name="is_required"
                   value="true"
-                  checked={editing !== 'new' && editing.is_required}
+                  checked={current !== 'new' && current.is_required}
                 />
                 A record cannot be saved without a value.
               </label>
@@ -399,7 +405,7 @@
                   · {targetLabel(f.target)}, {f.many ? 'several' : 'one'}
                 {/if}
                 {#if f.options}
-                  · {f.options.map((/** @type {any} */ o) => o.label).join(', ')}
+                  · {f.options.map((o) => o.label).join(', ')}
                 {/if}
               </span>
             </div>

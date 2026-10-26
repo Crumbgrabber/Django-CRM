@@ -1,5 +1,6 @@
 from django.db import IntegrityError, transaction
 from django.db.models import Count, Manager, Max, Q, Sum
+from drf_spectacular.utils import extend_schema_field, inline_serializer
 from rest_framework import serializers
 
 from accounts.access import has_account_access
@@ -100,6 +101,31 @@ def _no_time():
     }
 
 
+class CaseTimeByProfileSerializer(serializers.Serializer):
+    profile_id = serializers.CharField()
+    name = serializers.CharField()
+    minutes = serializers.IntegerField()
+
+
+class CaseTimeSummarySerializer(serializers.Serializer):
+    """Schema only: what `time_summaries` and `_no_time` return for a case."""
+
+    total_minutes = serializers.IntegerField()
+    billable_minutes = serializers.IntegerField()
+    last_entry_at = serializers.DateTimeField(allow_null=True)
+    by_profile = CaseTimeByProfileSerializer(many=True)
+
+
+class CaseParentSummarySerializer(serializers.Serializer):
+    """Schema only: `CaseSerializer.parent_summary`; a restricted parent has
+    a null name and status."""
+
+    id = serializers.CharField()
+    name = serializers.CharField(allow_null=True)
+    status = serializers.CharField(allow_null=True)
+    restricted = serializers.BooleanField()
+
+
 def time_summaries(cases):
     """Each case's stopped time, keyed by case id, in two queries for any
     number of cases. A case with no stopped entry is absent.
@@ -185,17 +211,19 @@ class CaseRowsListSerializer(SharedCalendarListSerializer):
 class CaseSerializer(serializers.ModelSerializer):
     # `{id, name}` only. Seeing this record is not access to its account, and
     # both clients read only these two; the rest is on `/api/accounts/<id>/`.
-    account = AccountPickerSerializer(read_only=True)
+    account = AccountPickerSerializer(read_only=True, allow_null=True)
     # Name and email only; see `ContactLinkSerializer`.
     contacts = ContactLinkSerializer(read_only=True, many=True)
     assigned_to = ProfileSerializer(read_only=True, many=True)
-    created_by = UserSerializer(read_only=True)
+    created_by = UserSerializer(read_only=True, allow_null=True)
     teams = TeamsSerializer(read_only=True, many=True)
     tags = TagsSerializer(read_only=True, many=True)
     org = OrganizationSerializer()
 
-    first_response_sla_deadline = serializers.DateTimeField(read_only=True)
-    resolution_sla_deadline = serializers.DateTimeField(read_only=True)
+    first_response_sla_deadline = serializers.DateTimeField(
+        read_only=True, allow_null=True
+    )
+    resolution_sla_deadline = serializers.DateTimeField(read_only=True, allow_null=True)
     is_sla_first_response_breached = serializers.BooleanField(read_only=True)
     is_sla_resolution_breached = serializers.BooleanField(read_only=True)
     is_sla_first_response_at_risk = serializers.BooleanField(read_only=True)
@@ -208,6 +236,7 @@ class CaseSerializer(serializers.ModelSerializer):
     # Tier 3 time-tracking
     time_summary = serializers.SerializerMethodField()
 
+    @extend_schema_field(CaseParentSummarySerializer(allow_null=True))
     def get_parent_summary(self, obj):
         """The parent's name and status, or only its id when the viewer may
         not open it.
@@ -237,12 +266,13 @@ class CaseSerializer(serializers.ModelSerializer):
             "restricted": False,
         }
 
-    def get_child_count(self, obj):
+    def get_child_count(self, obj) -> int:
         # Set for a whole page by `CaseRowsListSerializer`.
         if hasattr(obj, "_child_count"):
             return obj._child_count
         return obj.children.count()
 
+    @extend_schema_field(CaseTimeSummarySerializer(allow_null=True))
     def get_time_summary(self, obj):
         # Set for a whole page by `CaseRowsListSerializer`; one ticket asks
         # the same function for itself. Null while the timesheet is off.
@@ -547,7 +577,7 @@ class CaseStageSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(DUPLICATE_BY_MERGE_ONLY)
         return value
 
-    def get_case_count(self, obj):
+    def get_case_count(self, obj) -> int:
         return _visible_case_count(self, stage=obj)
 
 
@@ -578,10 +608,10 @@ class CasePipelineSerializer(serializers.ModelSerializer):
         # skipped that refusal.
         read_only_fields = ("id", "is_active", "created_at", "updated_at", "org")
 
-    def get_stage_count(self, obj):
+    def get_stage_count(self, obj) -> int:
         return obj.stages.count()
 
-    def get_case_count(self, obj):
+    def get_case_count(self, obj) -> int:
         return _visible_case_count(self, stage__pipeline=obj)
 
 
@@ -622,10 +652,10 @@ class CasePipelineListSerializer(serializers.ModelSerializer):
             ),
         )
 
-    def get_stage_count(self, obj):
+    def get_stage_count(self, obj) -> int:
         return obj.stage_count
 
-    def get_case_count(self, obj):
+    def get_case_count(self, obj) -> int:
         return obj.case_count
 
 
@@ -661,7 +691,7 @@ class CaseKanbanCardSerializer(serializers.ModelSerializer):
             "created_at",
         ]
 
-    def get_account_name(self, obj):
+    def get_account_name(self, obj) -> str | None:
         return obj.account.name if obj.account else None
 
     def get_can_move(self, obj) -> bool:
@@ -677,11 +707,11 @@ class CaseKanbanCardSerializer(serializers.ModelSerializer):
             return False
         return has_case_write_access(request.profile, obj)
 
-    def get_is_sla_breached(self, obj):
+    def get_is_sla_breached(self, obj) -> bool:
         """Return True if any SLA is breached."""
         return obj.is_sla_first_response_breached or obj.is_sla_resolution_breached
 
-    def get_is_sla_at_risk(self, obj):
+    def get_is_sla_at_risk(self, obj) -> bool:
         """Return True if either SLA is inside the warning band.
 
         Card rendering treats this as the amber step below `is_sla_breached`,
@@ -720,12 +750,28 @@ class ReopenPolicySerializer(serializers.ModelSerializer):
         return value
 
 
+class ReopenPolicyWithStatsSerializer(ReopenPolicySerializer):
+    """`GET /api/cases/reopen-policy/`: the policy plus `_reopen_analytics`."""
+
+    reopened_last_30d = serializers.IntegerField(read_only=True)
+    replies_after_window_30d = serializers.IntegerField(read_only=True)
+    median_days_to_reply = serializers.FloatField(read_only=True)
+
+    class Meta(ReopenPolicySerializer.Meta):
+        fields = (
+            *ReopenPolicySerializer.Meta.fields,
+            "reopened_last_30d",
+            "replies_after_window_30d",
+            "median_days_to_reply",
+        )
+
+
 class EscalationPolicySerializer(serializers.ModelSerializer):
     """Per-org, per-priority escalation policy. See docs/cases/tier1/escalation.md."""
 
-    first_response_target = ProfileSerializer(read_only=True)
-    resolution_target = ProfileSerializer(read_only=True)
-    notify_team = TeamsSerializer(read_only=True)
+    first_response_target = ProfileSerializer(read_only=True, allow_null=True)
+    resolution_target = ProfileSerializer(read_only=True, allow_null=True)
+    notify_team = TeamsSerializer(read_only=True, allow_null=True)
     # `*_id` write-only relational fields are scoped to the request's org in
     # __init__ (a class-level queryset would leak cross-tenant rows in the
     # browsable API). DRF requires a non-None placeholder here.
@@ -807,7 +853,7 @@ class EscalationPolicySerializer(serializers.ModelSerializer):
 class InboundMailboxSerializer(serializers.ModelSerializer):
     """Per-org inbound mailbox config. See docs/cases/tier1/email-to-ticket.md."""
 
-    default_assignee = ProfileSerializer(read_only=True)
+    default_assignee = ProfileSerializer(read_only=True, allow_null=True)
     default_assignee_id = serializers.PrimaryKeyRelatedField(
         source="default_assignee",
         queryset=Profile.objects.none(),
@@ -1077,11 +1123,31 @@ class EmailMessageSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+@extend_schema_field(
+    {
+        "type": "array",
+        "items": {
+            "type": "object",
+            "properties": {
+                "field": {"type": "string"},
+                "op": {"type": "string"},
+                "value": {},
+            },
+            "required": ["field", "value"],
+        },
+    }
+)
+class RoutingConditionsField(serializers.JSONField):
+    """`RoutingRule.conditions` with its shape in the schema. `op` may be
+    absent, since `validate_conditions` accepts that as `eq`."""
+
+
 class RoutingRuleSerializer(serializers.ModelSerializer):
     """Per-org auto-routing rule. See docs/cases/tier1/auto-routing.md."""
 
+    conditions = RoutingConditionsField(required=False)
     target_assignees = ProfileSerializer(read_only=True, many=True)
-    target_team = TeamsSerializer(read_only=True)
+    target_team = TeamsSerializer(read_only=True, allow_null=True)
     target_assignee_ids = serializers.PrimaryKeyRelatedField(
         source="target_assignees",
         queryset=Profile.objects.none(),
@@ -1420,12 +1486,26 @@ class ApprovalRuleSerializer(serializers.ModelSerializer):
             "updated_at",
         )
 
+    @extend_schema_field(
+        inline_serializer(
+            name="ApprovalRuleApprover",
+            fields={"id": serializers.CharField(), "email": serializers.CharField()},
+            many=True,
+        )
+    )
     def get_approvers(self, obj):
         return [
             {"id": str(p.id), "email": getattr(p.user, "email", "") or ""}
             for p in obj.approvers.all().select_related("user")
         ]
 
+    @extend_schema_field(
+        inline_serializer(
+            name="ApprovalRuleTeam",
+            fields={"id": serializers.CharField(), "name": serializers.CharField()},
+            allow_null=True,
+        )
+    )
     def get_match_team(self, obj):
         if not obj.match_team_id:
             return None
@@ -1449,6 +1529,27 @@ class ApprovalRuleSerializer(serializers.ModelSerializer):
                 "approver_ids"
             ].child_relation.queryset = Profile.objects.filter(org=org)
             self.fields["match_team_id"].queryset = Teams.objects.filter(org=org)
+
+
+class ApprovalProfileLabelSerializer(serializers.Serializer):
+    id = serializers.CharField()
+    email = serializers.CharField()
+
+
+class ApprovalCaseSummarySerializer(serializers.Serializer):
+    id = serializers.CharField()
+    name = serializers.CharField()
+    status = serializers.CharField()
+    priority = serializers.CharField()
+    account = AccountPickerSerializer(allow_null=True)
+
+
+class ApprovalRuleSummarySerializer(serializers.Serializer):
+    id = serializers.CharField()
+    name = serializers.CharField()
+    trigger_event = serializers.CharField()
+    approver_role = serializers.CharField()
+    approvers = ApprovalProfileLabelSerializer(many=True)
 
 
 class ApprovalSerializer(serializers.ModelSerializer):
@@ -1487,6 +1588,7 @@ class ApprovalSerializer(serializers.ModelSerializer):
             "updated_at",
         )
 
+    @extend_schema_field(ApprovalCaseSummarySerializer)
     def get_case_summary(self, obj):
         c = obj.case
         account = None
@@ -1500,6 +1602,7 @@ class ApprovalSerializer(serializers.ModelSerializer):
             "account": account,
         }
 
+    @extend_schema_field(ApprovalRuleSummarySerializer)
     def get_rule_summary(self, obj):
         r = obj.rule
         return {
@@ -1519,9 +1622,11 @@ class ApprovalSerializer(serializers.ModelSerializer):
         email = getattr(profile.user, "email", "") if profile.user_id else ""
         return {"id": str(profile.id), "email": email or ""}
 
+    @extend_schema_field(ApprovalProfileLabelSerializer)
     def get_requested_by(self, obj):
         return self._profile_label(obj.requested_by)
 
+    @extend_schema_field(ApprovalProfileLabelSerializer(allow_null=True))
     def get_approver(self, obj):
         return self._profile_label(obj.approver)
 
@@ -1529,7 +1634,7 @@ class ApprovalSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         return getattr(request, "profile", None) if request else None
 
-    def get_can_act(self, obj):
+    def get_can_act(self, obj) -> bool:
         """True when the viewer may approve/reject this row right now.
 
         Mirrors ``ApprovalApproveView`` exactly: still pending, the viewer is in
@@ -1544,7 +1649,7 @@ class ApprovalSerializer(serializers.ModelSerializer):
             return False
         return obj.can_be_acted_on_by(profile)
 
-    def get_can_cancel(self, obj):
+    def get_can_cancel(self, obj) -> bool:
         """True when the viewer may withdraw this row right now: still pending,
         and `Approval.can_be_cancelled_by` (the requester or an org admin), the
         rule `ApprovalCancelView` enforces."""
@@ -1553,7 +1658,7 @@ class ApprovalSerializer(serializers.ModelSerializer):
             profile and obj.state == "pending" and obj.can_be_cancelled_by(profile)
         )
 
-    def get_is_own_request(self, obj):
+    def get_is_own_request(self, obj) -> bool:
         profile = self._viewer_profile()
         return bool(profile and obj.requested_by_id == profile.id)
 

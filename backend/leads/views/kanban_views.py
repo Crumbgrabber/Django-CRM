@@ -6,7 +6,7 @@ Supports both status-based (default) and custom pipeline-based kanban boards.
 from django.db import transaction
 from django.db.models import Max, Q
 from django.shortcuts import get_object_or_404
-from drf_spectacular.utils import OpenApiParameter, extend_schema
+from drf_spectacular.utils import OpenApiParameter, extend_schema, inline_serializer
 from rest_framework import serializers, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -37,6 +37,23 @@ def _board_leads(leads):
     counting either refused a delete the admin had no way to satisfy.
     """
     return leads.filter(is_active=True).exclude(status__in=IRREVERSIBLE_STATUSES)
+
+
+class LeadKanbanColumnSerializer(serializers.Serializer):
+    """Schema only: one column of `LeadKanbanView`, a status or a stage."""
+
+    id = serializers.CharField()
+    name = serializers.CharField()
+    order = serializers.IntegerField()
+    color = serializers.CharField()
+    stage_type = serializers.CharField()
+    is_status_column = serializers.BooleanField()
+    wip_limit = serializers.IntegerField(allow_null=True)
+    # Stage columns only.
+    win_probability = serializers.IntegerField(required=False)
+    maps_to_status = serializers.CharField(required=False, allow_null=True)
+    lead_count = serializers.IntegerField()
+    leads = LeadKanbanCardSerializer(many=True)
 
 
 class LeadKanbanView(APIView):
@@ -80,6 +97,27 @@ class LeadKanbanView(APIView):
                 type=str,
             ),
         ],
+        responses={
+            200: inline_serializer(
+                name="LeadKanbanResponse",
+                fields={
+                    # "status", or "pipeline" with `pipeline_id`.
+                    "mode": serializers.CharField(),
+                    "pipeline": LeadPipelineListSerializer(allow_null=True),
+                    "columns": LeadKanbanColumnSerializer(many=True),
+                    "total_leads": serializers.IntegerField(),
+                    # Pipeline mode only.
+                    "unstaged": inline_serializer(
+                        name="LeadKanbanUnstaged",
+                        fields={
+                            "lead_count": serializers.IntegerField(),
+                            "leads": LeadKanbanCardSerializer(many=True),
+                        },
+                        required=False,
+                    ),
+                },
+            )
+        },
     )
     def get(self, request):
         """Get kanban board data."""
@@ -249,6 +287,16 @@ class LeadMoveView(APIView):
         tags=["Leads Kanban"],
         operation_id="lead_move",
         request=LeadMoveSerializer,
+        responses={
+            200: inline_serializer(
+                name="LeadMoveResponse",
+                fields={
+                    "error": serializers.BooleanField(),
+                    "message": serializers.CharField(),
+                    "lead": LeadKanbanCardSerializer(),
+                },
+            )
+        },
     )
     @transaction.atomic
     def patch(self, request, pk):
@@ -420,7 +468,13 @@ class LeadPipelineListCreateView(APIView):
     permission_classes = (IsAuthenticated, HasOrgContext)
 
     @extend_schema(
-        tags=["Lead Pipelines"], responses={200: LeadPipelineListSerializer(many=True)}
+        tags=["Lead Pipelines"],
+        responses={
+            200: inline_serializer(
+                "LeadPipelineListResponse",
+                {"pipelines": LeadPipelineListSerializer(many=True)},
+            )
+        },
     )
     def get(self, request):
         """List all pipelines for the organization."""
@@ -715,6 +769,11 @@ class LeadStageReorderView(APIView):
     @extend_schema(
         tags=["Lead Stages"],
         request=LeadStageReorderSerializer,
+        responses={
+            200: inline_serializer(
+                "LeadStageReorderResponse", {"message": serializers.CharField()}
+            )
+        },
     )
     @transaction.atomic
     def post(self, request, pipeline_pk):

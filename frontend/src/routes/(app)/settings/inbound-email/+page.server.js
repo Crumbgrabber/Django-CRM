@@ -10,6 +10,7 @@ import {
 } from '#lib/server/v2/inbound-email.js';
 import { getOrgPeopleAndTeams } from '#lib/server/v2/org-people.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiStatus } from '#lib/api-errors.js';
 import { getLeadSources } from '#lib/server/v2/lead-sources.js';
 
 // The mailbox list and the create/edit form's assignee picker are two
@@ -48,7 +49,7 @@ export async function load({ cookies }) {
  * @param {FormData} form
  */
 function readValues(form) {
-  /** @type {Record<string, any>} */
+  /** @type {Record<string, unknown>} */
   const values = {
     // Absent when the server generates the address, or for a generated one,
     // whose address and provider are the server's.
@@ -83,8 +84,8 @@ export const actions = {
     };
     try {
       await createMailbox(event, values);
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, { create: { error: 'Only an admin can change inbound mailboxes.' } });
       }
       return fail(400, { create: { error: readableError(err, 'Could not add the address.') } });
@@ -98,8 +99,8 @@ export const actions = {
     const values = readValues(form);
     try {
       await updateMailbox(event, id, values);
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, { update: { error: 'Only an admin can change inbound mailboxes.' } });
       }
       return fail(400, { update: { error: readableError(err, 'Could not save the address.') } });
@@ -112,8 +113,8 @@ export const actions = {
     const id = form.get('id')?.toString() ?? '';
     try {
       await updateMailbox(event, id, { is_active: false });
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, { deactivate: { error: 'Only an admin can change inbound mailboxes.' } });
       }
       return fail(400, {
@@ -136,8 +137,8 @@ export const actions = {
     const id = form.get('id')?.toString() ?? '';
     try {
       await updateMailbox(event, id, { is_active: true });
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, { activate: { error: 'Only an admin can change inbound mailboxes.' } });
       }
       return fail(400, {
@@ -156,8 +157,8 @@ export const actions = {
     const id = form.get('id')?.toString() ?? '';
     try {
       await deleteMailbox(event, id);
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, { remove: { error: 'Only an admin can change inbound mailboxes.' } });
       }
       return fail(400, { remove: { error: readableError(err, 'Could not delete the address.') } });

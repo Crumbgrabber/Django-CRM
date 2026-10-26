@@ -16,6 +16,7 @@ from datetime import timedelta
 from django.contrib.auth.hashers import check_password, make_password
 from django.db import transaction
 from django.utils import timezone
+from drf_spectacular.utils import extend_schema, inline_serializer
 from rest_framework import serializers, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -67,6 +68,15 @@ class PortalLoginRequestView(FirstRefusalThrottleMixin, APIView):
     authentication_classes = []
     throttle_classes = [PortalLoginIPThrottle, PortalLoginOrgThrottle]
 
+    @extend_schema(
+        request=PortalLoginRequestSerializer,
+        responses={
+            200: inline_serializer(
+                name="PortalLoginCodeSentResponse",
+                fields={"message": serializers.CharField()},
+            )
+        },
+    )
     def post(self, request, org_id):
         generic = Response({"message": GENERIC_MESSAGE}, status=status.HTTP_200_OK)
 
@@ -175,6 +185,32 @@ class PortalLoginVerifyView(APIView):
 
         return token_obj
 
+    @extend_schema(
+        request=PortalLoginVerifySerializer,
+        responses={
+            200: inline_serializer(
+                name="PortalLoginVerifyResponse",
+                fields={
+                    "access_token": serializers.CharField(),
+                    "contact": inline_serializer(
+                        name="PortalLoginContact",
+                        fields={
+                            "id": serializers.CharField(),
+                            "name": serializers.CharField(),
+                            "email": serializers.CharField(),
+                        },
+                    ),
+                    "org": inline_serializer(
+                        name="PortalLoginOrg",
+                        fields={
+                            "id": serializers.CharField(),
+                            "name": serializers.CharField(),
+                        },
+                    ),
+                },
+            )
+        },
+    )
     def post(self, request, org_id):
         invalid = Response(
             {"error": "That code is not valid any more. Request a new one."},

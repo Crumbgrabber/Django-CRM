@@ -60,7 +60,10 @@
   } from '#lib/v2/webform-fields.js';
   import { ChevronUp, ChevronDown, GripVertical, Plus, Trash2, Copy, Check } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+  /** @typedef {{ key: number, source: string, lead_field: string, ticket_field: string, custom_field: string | null, label: string, placeholder: string, is_required: boolean }} Row */
+
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   let wf = $derived(data.form);
@@ -82,7 +85,10 @@
   let fields = $state(untrack(() => seed(data.form.fields ?? [])));
   let nextKey = $state(1000);
 
-  /** @param {any[]} rows */
+  /**
+   * @param {Schemas['WebFormField'][]} rows
+   * @returns {Row[]}
+   */
   function seed(rows) {
     return rows.map((row, index) => ({
       key: index,
@@ -148,9 +154,10 @@
     return null;
   });
 
+  /** @type {import('./$types').SubmitFunction} */
   const working = () => {
     busy = true;
-    return async (/** @type {any} */ { update }) => {
+    return async ({ update }) => {
       await update();
       busy = false;
     };
@@ -158,9 +165,10 @@
 
   /** Save also reseeds the editor from whatever came back, so a row the
    *  server rejected or normalised does not linger in the browser's copy. */
+  /** @type {import('./$types').SubmitFunction} */
   const saveSubmit = () => {
     busy = true;
-    return async (/** @type {any} */ { update, result }) => {
+    return async ({ update, result }) => {
       await update({ reset: false });
       busy = false;
       if (result?.type === 'success') fields = seed(data.form.fields ?? []);
@@ -197,8 +205,8 @@
    * @param {string} value
    */
   function pickBuiltinField(index, value) {
-    const row = /** @type {any} */ (fields[index]);
-    const key = builtin.key;
+    const row = fields[index];
+    const key = builtin.key === 'ticket_field' ? 'ticket_field' : 'lead_field';
     const wasSuggested = !row.label.trim() || row.label === builtinFieldLabel(wf.target, row[key]);
     row[key] = value;
     row.custom_field = null;
@@ -211,12 +219,12 @@
    */
   function pickCustomField(index, value) {
     const row = fields[index];
-    const previous = data.customFields.find((/** @type {any} */ c) => c.id === row.custom_field);
+    const previous = data.customFields.find((c) => c.id === row.custom_field);
     const wasSuggested = !row.label.trim() || row.label === previous?.label;
     row.custom_field = value || null;
     row.lead_field = '';
     row.ticket_field = '';
-    const picked = data.customFields.find((/** @type {any} */ c) => c.id === value);
+    const picked = data.customFields.find((c) => c.id === value);
     if (wasSuggested && picked) row.label = picked.label;
   }
 

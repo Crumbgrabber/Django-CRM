@@ -3,6 +3,7 @@ import { createObject, listObjectsForSettings } from '#lib/server/v2/custom-obje
 import { readableError } from '#lib/server/v2/form-errors.js';
 import { readObjectForm } from '#lib/server/v2/object-settings.js';
 import { viewerIsAdmin } from '#lib/server/v2/organization.js';
+import { apiErrorBody, apiStatus } from '#lib/api-errors.js';
 
 /** @type {import('./$types').PageServerLoad} */
 export async function load({ cookies }) {
@@ -20,10 +21,10 @@ export const actions = {
     const body = readObjectForm(form, { creating: true });
     try {
       await createObject(event, body);
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, {
-          create: { error: err?.body?.detail ?? 'Only an admin can add custom objects.' }
+          create: { error: apiErrorBody(err)?.detail ?? 'Only an admin can add custom objects.' }
         });
       }
       return fail(400, {

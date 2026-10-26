@@ -29,7 +29,8 @@ Rules:
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
-from rest_framework import status
+from drf_spectacular.utils import extend_schema, inline_serializer
+from rest_framework import serializers, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -70,6 +71,18 @@ class NotificationListView(APIView):
 
     permission_classes = (IsAuthenticated,)
 
+    @extend_schema(
+        responses={
+            200: inline_serializer(
+                name="NotificationListResponse",
+                fields={
+                    "count": serializers.IntegerField(),
+                    "unread_count": serializers.IntegerField(),
+                    "results": NotificationSerializer(many=True),
+                },
+            )
+        }
+    )
     def get(self, request, *args, **kwargs):
         params = request.query_params
         qs = _user_qs(request)
@@ -101,6 +114,7 @@ class NotificationReadView(APIView):
 
     permission_classes = (IsAuthenticated,)
 
+    @extend_schema(request=None, responses={204: None})
     def post(self, request, pk, *args, **kwargs):
         notif = get_object_or_404(_user_qs(request), pk=pk)
         if notif.read_at is None:
@@ -114,6 +128,13 @@ class NotificationReadAllView(APIView):
 
     permission_classes = (IsAuthenticated,)
 
+    @extend_schema(
+        request=inline_serializer(
+            name="NotificationReadAllRequest",
+            fields={"before": serializers.DateTimeField(required=False)},
+        ),
+        responses={204: None},
+    )
     def post(self, request, *args, **kwargs):
         before = request.data.get("before") if isinstance(request.data, dict) else None
         cutoff = parse_datetime(before) if before else timezone.now()
@@ -130,6 +151,7 @@ class NotificationDetailView(APIView):
 
     permission_classes = (IsAuthenticated,)
 
+    @extend_schema(request=None, responses={204: None})
     def delete(self, request, pk, *args, **kwargs):
         notif = get_object_or_404(_user_qs(request), pk=pk)
         notif.delete()

@@ -33,6 +33,7 @@ from projects.serializer import (
     ProjectBodySerializer,
     ProjectDetailSerializer,
     ProjectListSerializer,
+    ProjectRefSerializer,
     ProjectWriteSerializer,
     _decoded,
     active_members,
@@ -305,8 +306,8 @@ class ProjectFromDealView(APIView):
             "ProjectDraft",
             {
                 "name": serializers.CharField(),
-                "account": serializers.DictField(allow_null=True),
-                "deal": serializers.DictField(),
+                "account": ProjectRefSerializer(allow_null=True),
+                "deal": ProjectRefSerializer(),
                 "currency": serializers.CharField(),
                 "assigned_to": serializers.ListField(child=serializers.UUIDField()),
                 "billing_type": serializers.CharField(),

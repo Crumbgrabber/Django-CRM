@@ -9,6 +9,7 @@ import {
   syncCheckout
 } from '#lib/server/v2/billing.js';
 import { BILLING_HREF } from '#lib/v2/billing.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 const NO_PAYMENT_PAGE = 'The payment page could not be opened. Try again.';
 const NO_PORTAL = 'The billing portal could not be opened. Try again.';
@@ -30,9 +31,13 @@ export async function load(event) {
   return { answer: await readBilling(event) };
 }
 
-/** @param {any} err */
-const statusOf = (err) =>
-  Number.isInteger(err?.status) && err.status >= 400 && err.status < 600 ? err.status : 400;
+/** @param {unknown} err */
+const statusOf = (err) => {
+  const status = apiStatus(err);
+  return status !== undefined && Number.isInteger(status) && status >= 400 && status < 600
+    ? status
+    : 400;
+};
 
 /**
  * Both actions leave for an address the server returns, or come back with a

@@ -6,6 +6,7 @@ import {
   deactivateCustomField
 } from '#lib/server/v2/custom-fields.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 /** @type {import('./$types').PageServerLoad} */
 export async function load({ cookies }) {
@@ -52,8 +53,8 @@ export const actions = {
     const values = readValues(form);
     try {
       await createCustomField(event, values);
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, { create: { error: 'Only an admin can add custom fields.' } });
       }
       return fail(400, { create: { error: readableError(err, 'Could not add the field.') } });
@@ -67,8 +68,8 @@ export const actions = {
     const values = readValues(form);
     try {
       await updateCustomField(event, id, values);
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, { update: { error: 'Only an admin can change custom fields.' } });
       }
       return fail(400, { update: { error: readableError(err, 'Could not save the field.') } });
@@ -81,8 +82,8 @@ export const actions = {
     const id = form.get('id')?.toString() ?? '';
     try {
       await deactivateCustomField(event, id);
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, { deactivate: { error: 'Only an admin can turn custom fields off.' } });
       }
       return fail(400, {
@@ -106,8 +107,8 @@ export const actions = {
     const id = form.get('id')?.toString() ?? '';
     try {
       await updateCustomField(event, id, { is_active: true });
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, { activate: { error: 'Only an admin can turn custom fields on.' } });
       }
       return fail(400, {

@@ -10,7 +10,7 @@
   import { t } from '#lib/terminology.js';
   import { Target } from '@lucide/svelte';
 
-  /** @type {{ data: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data } = $props();
 
   /** @type {Record<string, string>} */
@@ -56,7 +56,7 @@
   // Leads nobody has answered yet. The Today queue does not hold them, so the
   // card sits above it, and neither the header nor the all-clear may say
   // nothing is waiting while it shows.
-  let waiting = $derived(data.unanswered?.count > 0 ? data.unanswered : null);
+  let waiting = $derived((data.unanswered?.count ?? 0) > 0 ? data.unanswered : null);
   let terms = $derived(data.org?.terminology);
   let waitingTitle = $derived(
     waiting

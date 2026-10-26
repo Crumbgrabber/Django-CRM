@@ -6,6 +6,7 @@ import {
   STATUS_CHOICES
 } from '#lib/server/v2/documents.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiStatus } from '#lib/api-errors.js';
 import { sameIds } from '#lib/v2/pickers.js';
 
 /**
@@ -23,8 +24,8 @@ import { sameIds } from '#lib/v2/pickers.js';
 export async function load(event) {
   try {
     return await getDocumentForEdit(event, event.params.id);
-  } catch (/** @type {any} */ err) {
-    if (err?.status === 404) {
+  } catch (err) {
+    if (apiStatus(err) === 404) {
       error(404, 'That document does not exist, or it belongs to another org.');
     }
     throw err;
@@ -70,8 +71,8 @@ export const actions = {
         event.params.id,
         sharingChanged ? { ...values, file } : { title, status, file }
       );
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, { values, error: 'Only the owner or an admin can change this document.' });
       }
       return fail(400, {
@@ -86,12 +87,12 @@ export const actions = {
   delete: async (event) => {
     try {
       await deleteDocument(event, event.params.id);
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, { error: 'Only the owner or an admin can delete this document.' });
       }
       // Already gone is the outcome the caller wanted; treat 404 as done.
-      if (err?.status === 404) redirect(303, '/documents');
+      if (apiStatus(err) === 404) redirect(303, '/documents');
       return fail(400, { error: readableError(err, 'Could not delete this document.') });
     }
 

@@ -7,8 +7,8 @@ own scope as well as `interactions:*`.
 
 from django.http import Http404
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import OpenApiParameter, extend_schema
-from rest_framework import status
+from drf_spectacular.utils import OpenApiParameter, extend_schema, inline_serializer
+from rest_framework import serializers, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -105,6 +105,15 @@ class InteractionListView(APIView):
         tags=["Interactions"],
         operation_id="interactions_list",
         parameters=RECORD_PARAMS,
+        responses={
+            200: inline_serializer(
+                name="InteractionListResponse",
+                fields={
+                    "interactions": InteractionSerializer(many=True),
+                    "count": serializers.IntegerField(),
+                },
+            )
+        },
     )
     def get(self, request):
         profile = request.profile

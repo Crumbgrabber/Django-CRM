@@ -18,7 +18,7 @@
   import DuplicateNotice from '#lib/v2/components/DuplicateNotice.svelte';
   import { ChevronRight, TriangleAlert } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form: result } = $props();
 
   // `untrack` so a re-render after a failed save does not throw away what the
@@ -74,9 +74,7 @@
     }
   };
 
-  let chosenAccount = $derived(
-    data.accounts.find((/** @type {any} */ a) => a.id === form.account) ?? null
-  );
+  let chosenAccount = $derived(data.accounts.find((a) => a.id === form.account) ?? null);
 </script>
 
 <PageHeader title="New contact" center>

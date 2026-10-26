@@ -13,7 +13,7 @@
   import { runTime } from '#lib/v2/format.js';
   import { ChevronLeft, ChevronDown } from '@lucide/svelte';
 
-  /** @type {{ data: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data } = $props();
 
   const RUN = /** @type {Record<string, {label: string, tone: 'moss'|'rust'|'slate'}>} */ ({
@@ -29,8 +29,9 @@
   });
 
   let runs = $derived(data.runs ?? []);
-  let hasNewer = $derived(data.offset > 0);
-  let hasOlder = $derived(data.offset + data.pageSize < data.count);
+  // A member's page has no runs, and shows none of this.
+  let hasNewer = $derived((data.offset ?? 0) > 0);
+  let hasOlder = $derived((data.offset ?? 0) + (data.pageSize ?? 0) < (data.count ?? 0));
   let rulePath = $derived(
     data.rule ? `/settings/automation/${data.rule.id}` : '/settings/automation'
   );

@@ -2,6 +2,7 @@
   import { Dialog as DialogPrimitive } from 'bits-ui';
   import { cn } from '#lib/utils.js';
 
+  /** @type {import('bits-ui').DialogOverlayProps} */
   let { ref = $bindable(null), class: className, ...restProps } = $props();
 </script>
 

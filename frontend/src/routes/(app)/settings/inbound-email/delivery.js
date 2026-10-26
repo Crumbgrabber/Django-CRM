@@ -38,9 +38,14 @@ export const SUPPORTED_PROVIDERS = ['ses', 'mailgun', 'postmark'];
 export const SECRET_PROVIDERS = ['mailgun', 'postmark'];
 
 /**
+ * The mailbox fields delivery is read from.
+ * @typedef {{ is_active?: boolean, provider?: string, has_topic_arn?: boolean, has_webhook_secret?: boolean, is_generated?: boolean }} DeliveryMailbox
+ */
+
+/**
  * The first gate mail to this address would fail, or `'live'`.
  *
- * @param {{ is_active?: boolean, provider?: string, has_topic_arn?: boolean, has_webhook_secret?: boolean, is_generated?: boolean } | null | undefined} mailbox
+ * @param {DeliveryMailbox | null | undefined} mailbox
  * @returns {'off' | 'unsupported' | 'unconfirmed' | 'live'}
  */
 export function deliveryState(mailbox) {
@@ -122,7 +127,7 @@ export function deliveryExplanation(state, providerLabel, creates = 'tickets', p
  * every mailbox in the org unfiltered and unpaginated, so this counts the same
  * set the total does, and answers the question the header asks.
  *
- * @param {any[] | undefined} mailboxes
+ * @param {DeliveryMailbox[] | undefined} mailboxes
  */
 export function deliveringCount(mailboxes) {
   return (mailboxes ?? []).filter((m) => deliveryState(m) === 'live').length;
@@ -134,7 +139,9 @@ export function deliveringCount(mailboxes) {
  * An off address is left out on purpose. Somebody chose that, and it is the
  * one state of the three the row already reads correctly.
  *
- * @param {any[] | undefined} mailboxes
+ * @template {DeliveryMailbox} M
+ * @param {M[] | undefined} mailboxes
+ * @returns {M[]}
  */
 export function silentMailboxes(mailboxes) {
   return (mailboxes ?? []).filter((m) => {

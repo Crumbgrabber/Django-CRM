@@ -14,6 +14,8 @@
  */
 import { apiRequest } from '#lib/api-helpers.js';
 
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+
 const ENDPOINT = '/profile/calendar-feed/';
 
 /**
@@ -21,6 +23,7 @@ const ENDPOINT = '/profile/calendar-feed/';
  * @returns {Promise<{ enabled: boolean, created_at: string | null, last_used_at: string | null }>}
  */
 export async function getCalendarFeed({ cookies }) {
+  /** @type {Schemas['CalendarFeedStateResponse']} */
   const resp = await apiRequest(ENDPOINT, {}, { cookies });
   return {
     enabled: Boolean(resp?.enabled),
@@ -36,12 +39,14 @@ export async function getCalendarFeed({ cookies }) {
  * @returns {Promise<string>}
  */
 export async function issueCalendarFeed({ cookies }) {
+  /** @type {Schemas['CalendarFeedIssuedResponse']} */
   const resp = await apiRequest(ENDPOINT, { method: 'POST' }, { cookies });
   return resp.url;
 }
 
 /**
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
+ * @returns {Promise<Schemas['CalendarFeedStateResponse']>}
  */
 export function disableCalendarFeed({ cookies }) {
   return apiRequest(ENDPOINT, { method: 'DELETE' }, { cookies });

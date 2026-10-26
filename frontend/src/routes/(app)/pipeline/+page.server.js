@@ -8,6 +8,7 @@ import {
   BOARD_PRESETS
 } from '#lib/server/v2/deals.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiStatus } from '#lib/api-errors.js';
 import { dealListQuery } from '#lib/server/v2/list-queries.js';
 import { getOrgPeopleAndTeams, resolveMe } from '#lib/server/v2/org-people.js';
 import { getTags } from '#lib/server/v2/tags.js';
@@ -70,7 +71,7 @@ export async function load(event) {
     // so the filter is left out there rather than offering ones that match nothing.
     sources: sources.live ? sources.sources : [],
     savedViews,
-    meId: resolveMe(orgPeople.people, /** @type {any} */ (locals).user?.email),
+    meId: resolveMe(orgPeople.people, locals.user?.email),
     // Handed to the page even in list mode, so the List<->Board toggle can
     // build a board-safe link without a `.svelte` file importing anything
     // from this `.server.js` module (SvelteKit forbids that, the same
@@ -138,7 +139,7 @@ export const actions = {
       await moveDeal({ cookies }, id, { columnId, aboveId, belowId });
       return { success: true };
     } catch (err) {
-      const status = /** @type {any} */ (err)?.status === 404 ? 404 : 400;
+      const status = apiStatus(err) === 404 ? 404 : 400;
       return fail(status, { error: readableError(err, 'Could not move the deal.') });
     }
   }

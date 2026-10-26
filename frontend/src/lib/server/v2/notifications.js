@@ -18,6 +18,8 @@
  * and a correctly-produced `/tickets/` link is not left pointing at the v1 route.
  */
 import { apiRequest } from '#lib/api-helpers.js';
+
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
 import { UUID, OBJECT_KEY } from '#lib/v2/custom-objects.js';
 
 /** Verbs the backend actually dispatches. Everything else has no copy and is
@@ -65,7 +67,7 @@ function automationLink(/** @type {string} */ link) {
 }
 
 /** One API notification → the row shape the page renders. */
-function toRow(/** @type {any} */ n) {
+function toRow(/** @type {Schemas['Notification']} */ n) {
   return {
     ...n,
     known_verb: PRODUCED_VERBS.includes(n.verb),
@@ -81,9 +83,8 @@ const FEED_LIMIT = 50;
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  */
 export async function getNotifications({ cookies }) {
+  /** @type {Schemas['NotificationListResponse']} */
   const resp = await apiRequest(`/notifications/?limit=${FEED_LIMIT}`, {}, { cookies });
-  // The feed has no schema, so its rows stay untyped API data.
-  /** @type {any[]} */
   const results = (resp.results || []).map(toRow);
   return {
     results,
@@ -107,6 +108,7 @@ export async function getNotifications({ cookies }) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  */
 export async function countUnread({ cookies }) {
+  /** @type {Schemas['NotificationListResponse']} */
   const resp = await apiRequest('/notifications/?limit=1', {}, { cookies });
   return resp.unread_count ?? 0;
 }

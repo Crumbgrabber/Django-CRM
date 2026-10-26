@@ -1,8 +1,23 @@
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from common.modules import available_modules, module_off_message
 from webhooks import events, ssrf
 from webhooks.models import WebhookDelivery, WebhookEndpoint
+
+
+@extend_schema_field(serializers.ListField(child=serializers.CharField()))
+class _EventNamesField(serializers.JSONField):
+    """The model's JSONField as ModelSerializer builds it, typed in the schema
+    as the event-name list `validate_events` stores."""
+
+
+class WebhookCreatorSerializer(serializers.Serializer):
+    """Response-only: `WebhookEndpointSerializer.created_by`."""
+
+    id = serializers.CharField()
+    name = serializers.CharField()
+    email = serializers.CharField()
 
 
 class WebhookEndpointSerializer(serializers.ModelSerializer):
@@ -13,6 +28,7 @@ class WebhookEndpointSerializer(serializers.ModelSerializer):
     # Who answers for the endpoint: whoever added it, or the admin who last
     # turned it back on after a pause. Never taken from a request body.
     created_by = serializers.SerializerMethodField()
+    events = _EventNamesField(required=False, style={"base_template": "textarea.html"})
 
     class Meta:
         model = WebhookEndpoint
@@ -31,6 +47,7 @@ class WebhookEndpointSerializer(serializers.ModelSerializer):
         )
         read_only_fields = ("id", "disabled_reason", "created_at", "updated_at")
 
+    @extend_schema_field(WebhookCreatorSerializer(allow_null=True))
     def get_created_by(self, obj):
         user = obj.created_by
         if user is None:
@@ -95,6 +112,15 @@ class WebhookEndpointSerializer(serializers.ModelSerializer):
         if validated_data.get("is_active") and not instance.is_active:
             instance.disabled_reason = ""
         return super().update(instance, validated_data)
+
+
+class WebhookEndpointCreatedSerializer(WebhookEndpointSerializer):
+    """Response-only: the create reply, the one read that carries the secret."""
+
+    secret = serializers.CharField(read_only=True)
+
+    class Meta(WebhookEndpointSerializer.Meta):
+        fields = (*WebhookEndpointSerializer.Meta.fields, "secret")
 
 
 class WebhookDeliverySerializer(serializers.ModelSerializer):

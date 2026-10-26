@@ -22,7 +22,7 @@
   import { ChevronRight, TriangleAlert } from '@lucide/svelte';
 
   /** @typedef {{ id: string, name: string, can_delete: boolean, fields: Array<{ label: string, value: string }> }} Side */
-  /** @type {{ data: { module: 'leads' | 'contacts' | 'accounts', singular: string, current: Side, other: Side }, form: any }} */
+  /** @type {{ data: { module: 'leads' | 'contacts' | 'accounts', singular: string, current: Side, other: Side }, form: { error?: string } | null | undefined }} */
   let { data, form } = $props();
 
   let { module, singular, current, other } = $derived(data);

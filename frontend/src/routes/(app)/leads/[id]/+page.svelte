@@ -49,7 +49,9 @@
   import { relatedView } from '#lib/v2/custom-objects.js';
   import { isOn } from '#lib/v2/modules.js';
 
-  /** @type {{ data: any, form: any }} */
+  /** @typedef {import('./$types').PageData['activity'][number]} ActivityEvent */
+
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
   let dealsOn = $derived(isOn(data.modules, 'deals'));
   let related = $derived(relatedView(data.related));
@@ -101,19 +103,15 @@
   // appears once there are two of the first three to choose between.
   let filter = $state(/** @type {'all'|'note'|'interaction'|'file'} */ ('all'));
   let kinds = $derived(
-    ['note', 'interaction', 'file'].filter((k) =>
-      activity.some((/** @type {any} */ e) => e.type === k)
-    )
+    ['note', 'interaction', 'file'].filter((k) => activity.some((e) => e.type === k))
   );
-  let shown = $derived(
-    filter === 'all' ? activity : activity.filter((/** @type {any} */ e) => e.type === filter)
-  );
+  let shown = $derived(filter === 'all' ? activity : activity.filter((e) => e.type === filter));
   let newestId = $derived(shown[0]?.id ?? null);
 
   /**
    * The line under an event: "Attached" for a file, the author where known, then
    * how long ago, joined so no separator dangles when a part is missing.
-   * @param {{type:string,by:string|null,at:string}} e
+   * @param {{type:string,by:string|null,at:string|null}} e
    */
   function metaFor(e) {
     const parts = [];
@@ -123,7 +121,7 @@
     return parts.join(' · ');
   }
 
-  /** @param {string} iso */
+  /** @param {string | null} iso */
   function dayGroup(iso) {
     const n = daysSince(iso);
     if (n === 0) return 'Today';
@@ -133,7 +131,7 @@
 
   // Interleave day headers so each date is announced once, in order.
   let feed = $derived.by(() => {
-    /** @type {Array<{kind:'day',id:string,label:string}|{kind:'event',id:string,event:any}>} */
+    /** @type {Array<{kind:'day',id:string,label:string}|{kind:'event',id:string,event:ActivityEvent}>} */
     const out = [];
     let last = null;
     for (const e of shown) {
@@ -524,7 +522,7 @@
                     <div class="tl-text" class:note={e.type === 'note'}>{e.body}</div>
                   {/if}
                   <div class="tl-meta">{metaFor(e)}</div>
-                  {#if e.canDelete}
+                  {#if e.type === 'interaction' && e.canDelete}
                     <div class="tl-act">
                       <ConfirmAction
                         action="?/deleteActivity"

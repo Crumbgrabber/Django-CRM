@@ -9,7 +9,7 @@
   import { sourceOptions } from '#lib/v2/lead-sources.js';
   import { ChevronDown, ChevronRight, TriangleAlert } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form: result } = $props();
 
   /**
@@ -54,14 +54,11 @@
     }))
   );
 
-  /** @type {any[]} */
   const pipelines = untrack(() => data.pipelines);
   /* A new deal cannot start closed, so only the chosen pipeline's open
      stages are offered. */
   let openStages = $derived(
-    (pipelines.find((p) => p.id === form.pipeline)?.stages ?? []).filter(
-      (/** @type {any} */ s) => s.kind === 'open'
-    )
+    (pipelines.find((p) => p.id === form.pipeline)?.stages ?? []).filter((s) => s.kind === 'open')
   );
 
   /**
@@ -72,7 +69,7 @@
    */
   function pipelineChanged(pipelineId) {
     const next = pipelines.find((p) => p.id === pipelineId)?.stages ?? [];
-    form.stage = next.find((/** @type {any} */ s) => s.kind === 'open')?.code ?? '';
+    form.stage = next.find((s) => s.kind === 'open')?.code ?? '';
   }
 
   let more = $state(false);

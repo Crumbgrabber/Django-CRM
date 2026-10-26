@@ -114,6 +114,7 @@ describe('modules API', () => {
       event
     );
     apiRequest.mockRejectedValueOnce(failure(400));
+    /** @type {any} */
     let thrown;
     try {
       await putModules(event, { off: [], order: [] });

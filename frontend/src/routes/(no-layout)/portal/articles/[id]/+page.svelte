@@ -11,6 +11,7 @@
   import { resolve } from '$app/paths';
   import PortalShell from '#lib/v2/components/PortalShell.svelte';
 
+  /** @type {import('./$types').PageProps} */
   let { data } = $props();
 
   /** @param {string | null | undefined} value */

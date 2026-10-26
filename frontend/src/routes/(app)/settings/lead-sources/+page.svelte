@@ -12,21 +12,24 @@
   import NextAction from '#lib/v2/components/NextAction.svelte';
   import { count } from '#lib/v2/format.js';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
-  let sources = $derived(/** @type {any[]} */ (data.sources));
+  let sources = $derived(data.sources);
   let active = $derived(sources.filter((s) => s.is_active).length);
   let renaming = $state(/** @type {string | null} */ (null));
   let busy = $state(false);
 
   /** The refusal for a row, whichever action it came from. */
-  let rowError = $derived(form?.rename ?? form?.retire ?? form?.move ?? /** @type {any} */ (null));
+  let rowError = $derived(form?.rename ?? form?.retire ?? form?.move ?? null);
 
-  /** @param {{ reset?: boolean }} [opts] */
+  /**
+   * @param {{ reset?: boolean }} [opts]
+   * @returns {ReturnType<import('./$types').SubmitFunction>}
+   */
   const working = (opts = {}) => {
     busy = true;
-    return async (/** @type {any} */ { update, result }) => {
+    return async ({ update, result }) => {
       await update({ reset: opts.reset ?? false });
       busy = false;
       if (result?.type === 'success') renaming = null;
@@ -60,7 +63,7 @@
             maxlength="64"
             required
             placeholder="e.g. Spring fair"
-            value={form?.add?.label ?? ''}
+            value={form?.add && 'label' in form.add ? form.add.label : ''}
           />
         </div>
         <button class="v2-btn v2-btn-primary ls-tap" disabled={busy}><Plus />Add</button>

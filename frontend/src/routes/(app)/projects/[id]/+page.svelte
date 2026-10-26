@@ -34,7 +34,7 @@
   import { isBilled } from '#lib/v2/time-entry.js';
   import { ChevronRight, Play, Plus, Square, Trash2 } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   let project = $derived(data.project);
@@ -46,12 +46,10 @@
   let isAdmin = $derived(isOrgAdmin(data));
   /** Rates kept for someone no longer on the project, listed after the team. */
   let offTeamRates = $derived(
-    project.rates.filter(
-      (/** @type {any} */ r) =>
-        !project.assigned_to.some((/** @type {any} */ p) => p.id === r.profile.id)
-    )
+    project.rates.filter((r) => !project.assigned_to.some((p) => p.id === r.profile.id))
   );
 
+  /** @type {{ key: string, label: string, on: 'tasks' | 'timesheet' | 'invoices' | null }[]} */
   const TABS = [
     { key: 'overview', label: 'Overview', on: null },
     { key: 'tasks', label: 'Tasks', on: 'tasks' },
@@ -89,12 +87,13 @@
     }, 30000);
     return () => clearInterval(id);
   });
-  /** @param {any} entry */
+  /** @typedef {import('#lib/api-schema.js').components['schemas']['TimeEntry']} TimeEntry */
+  /** @param {TimeEntry} entry */
   const runningMinutes = (entry) =>
     Math.floor((Date.parse(data.time.now) - Date.parse(entry.started_at)) / 60000) + sinceLoad;
-  /** @param {any} entry */
+  /** @param {TimeEntry} entry */
   const isMine = (entry) => entry.profile?.user_details?.id === data.time.viewerUserId;
-  let myTimer = $derived((entries ?? []).find((/** @type {any} */ e) => !e.ended_at && isMine(e)));
+  let myTimer = $derived((entries ?? []).find((e) => !e.ended_at && isMine(e)));
   let timeBusy = $state(false);
   let confirmDelete = $state('');
 
@@ -108,9 +107,7 @@
   };
 
   /** Task titles by id, for the time rows and the log form. */
-  let taskTitles = $derived(
-    new Map((data.tasks ?? []).map((/** @type {any} */ t) => [t.id, t.title]))
-  );
+  let taskTitles = $derived(new Map((data.tasks ?? []).map((t) => [t.id, t.title])));
   let tasksView = $state('list');
 
   let amountMode = $state('amount');
@@ -432,7 +429,7 @@
         <div>
           <div class="v2-label section-head">People</div>
           {#each project.assigned_to as p (p.id)}
-            {@const rate = project.rates.find((/** @type {any} */ r) => r.profile.id === p.id)}
+            {@const rate = project.rates.find((r) => r.profile.id === p.id)}
             <div class="person">
               <Avatar name={p.name} size={24} />
               <span class="person-name">{p.name}</span>
@@ -529,7 +526,7 @@
       {:else}
         <div class="lanes">
           {#each TASK_STATUS as status (status)}
-            {@const lane = data.tasks.filter((/** @type {any} */ t) => t.status === status)}
+            {@const lane = data.tasks.filter((t) => t.status === status)}
             <section class="lane">
               <div class="v2-lane-head">
                 <span class="v2-label">{status}</span>

@@ -1,3 +1,4 @@
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from automation.models import AutomationRule, AutomationRun
@@ -6,6 +7,34 @@ from automation.validation import new_task_step_errors, validate_rule
 
 # What `validate_rule` reads; a partial update is checked with the rest of the rule.
 RULE_KEYS = ("object_key", "trigger", "match", "conditions", "actions")
+
+
+class RuleOwnerSerializer(serializers.Serializer):
+    """Response-only: `RuleSerializer.owner`."""
+
+    id = serializers.CharField()
+    name = serializers.CharField()
+
+
+class AutomationStepSerializer(serializers.Serializer):
+    """Response-only: one step of a run or of a try (`engine._step`)."""
+
+    action = serializers.IntegerField()
+    type = serializers.CharField(allow_null=True)
+    status = serializers.CharField(help_text="planned, done, undone, failed or skipped")
+    text = serializers.CharField()
+
+
+@extend_schema_field(AutomationStepSerializer(many=True))
+class _StepsField(serializers.JSONField):
+    """`AutomationRun.steps` as ModelSerializer builds it, typed in the schema."""
+
+
+class RunTriggeredBySerializer(serializers.Serializer):
+    """Response-only: `RunSerializer.triggered_by`."""
+
+    id = serializers.CharField()
+    rule_name = serializers.CharField()
 
 
 class RuleSerializer(serializers.ModelSerializer):
@@ -43,6 +72,7 @@ class RuleSerializer(serializers.ModelSerializer):
             "updated_at",
         )
 
+    @extend_schema_field(RuleOwnerSerializer(allow_null=True))
     def get_owner(self, rule) -> dict | None:
         owner = rule.owner
         if owner is None:
@@ -88,10 +118,31 @@ class RuleSerializer(serializers.ModelSerializer):
         return super().create({**validated_data, "org": self.context["org"]})
 
 
+class RuleRowSerializer(RuleSerializer):
+    """Response-only: one row of the rule list, a rule with its status."""
+
+    status = serializers.CharField(
+        read_only=True, help_text="off, paused, over_limit, needs_attention or on"
+    )
+    status_text = serializers.CharField(read_only=True)
+    failures_7d = serializers.IntegerField(read_only=True)
+    runs_7d = serializers.IntegerField(read_only=True)
+
+    class Meta(RuleSerializer.Meta):
+        fields = (
+            *RuleSerializer.Meta.fields,
+            "status",
+            "status_text",
+            "failures_7d",
+            "runs_7d",
+        )
+
+
 class RunSerializer(serializers.ModelSerializer):
     """One run as the rule's history shows it. Read only."""
 
     triggered_by = serializers.SerializerMethodField()
+    steps = _StepsField(read_only=True, style={"base_template": "textarea.html"})
 
     class Meta:
         model = AutomationRun
@@ -110,6 +161,7 @@ class RunSerializer(serializers.ModelSerializer):
         )
         read_only_fields = fields[:-1]
 
+    @extend_schema_field(RunTriggeredBySerializer(allow_null=True))
     def get_triggered_by(self, run) -> dict | None:
         cause = run.triggered_by
         if cause is None:

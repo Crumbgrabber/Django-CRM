@@ -32,7 +32,7 @@ export const actions = {
     // absent all the way to the PATCH, where absent means "leave it alone",
     // which is how the disabled status select on a converted lead avoids
     // sending a value that `validate_status` would reject.
-    /** @type {Record<string, any>} */
+    /** @type {import('#lib/server/v2/leads.js').LeadFormValues} */
     const values = {};
     for (const field of EDITABLE_FIELDS) {
       if (form.has(field)) values[field] = form.get(field)?.toString().trim() ?? '';
@@ -63,11 +63,11 @@ export const actions = {
       });
     }
 
-    /** @type {any} */
+    /** @type {Awaited<ReturnType<typeof updateLead>>} */
     let result;
     try {
       result = await updateLead({ cookies }, params.id, values);
-    } catch (/** @type {any} */ err) {
+    } catch (err) {
       const { error, fieldErrors } = saveRefusal(
         err,
         custom.definitions,

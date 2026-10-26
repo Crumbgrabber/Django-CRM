@@ -40,8 +40,11 @@
  */
 import { error } from '@sveltejs/kit';
 import { apiRequest } from '#lib/api-helpers.js';
+import { apiStatus } from '#lib/api-errors.js';
 import { fieldsForDetail, fieldsForEdit } from '#lib/server/v2/record-custom-fields.js';
 import { rethrowModuleOff } from '#lib/server/v2/modules.js';
+
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
 
 /** `invoices.models.INVOICE_STATUS`. Underscore on the wire; never shown raw. */
 export const INVOICE_STATUSES = [
@@ -72,7 +75,7 @@ const SETTLED = ['Paid', 'Cancelled'];
  */
 export const FILTER_FIELDS = ['status', 'account', 'assigned_to', 'due_date_gte', 'due_date_lte'];
 
-const num = (/** @type {any} */ value) => {
+const num = (/** @type {unknown} */ value) => {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
 };
@@ -84,7 +87,7 @@ const num = (/** @type {any} */ value) => {
  * `account_name`; the pages want the nested `{ id, name }` the mock had, so it
  * is rebuilt here once rather than in every template.
  *
- * @param {any} row
+ * @param {Schemas['InvoiceList']} row
  */
 function toRow(row) {
   return {
@@ -109,7 +112,7 @@ function toRow(row) {
  * `net_amount`: quantity x unit price less the line's own discount, which is
  * what the lines add up to in the subtotal. The page does not recompute it.
  *
- * @param {any} item
+ * @param {Schemas['InvoiceLineItem']} item
  */
 function toLineItem(item) {
   return {
@@ -127,16 +130,16 @@ function toLineItem(item) {
  * The full invoice the detail page reads. Financial figures come straight from
  * the serializer (server-computed) rather than being re-derived in the browser.
  *
- * @param {any} inv
+ * @param {Schemas['Invoice']} inv
  */
 function toDetail(inv) {
-  const account = inv.account ?? {};
+  const account = inv.account;
   return {
     id: inv.id,
     invoice_number: inv.invoice_number ?? '',
     invoice_title: inv.invoice_title ?? '',
     status: inv.status,
-    account: { id: account.id ?? null, name: account.name ?? '(no account)' },
+    account: { id: account?.id ?? null, name: account?.name ?? '(no account)' },
     currency: inv.currency ?? 'USD',
     issued_date: inv.issue_date ?? null,
     due_date: inv.due_date ?? null,
@@ -163,7 +166,7 @@ function toDetail(inv) {
 /**
  * One currency's header amounts, as numbers.
  *
- * @param {any} row
+ * @param {Partial<Schemas['InvoiceTotalsCurrency']>} row
  */
 const moneyTotals = (row) => ({
   outstanding: num(row.outstanding),
@@ -207,7 +210,9 @@ export async function listInvoices({ cookies }, params) {
   // Most overdue first; the backend understands due_date sort.
   if (!query.has('sort')) query.set('sort', 'due_date');
 
+  /** @type {Schemas['InvoicePage']} */
   const response = await apiRequest(`/invoices/?${query.toString()}`, {}, { cookies });
+  /** @type {Partial<Schemas['InvoiceTotals']>} */
   const totals = response.totals ?? {};
   const rows = totals.by_currency ?? [];
   return {
@@ -215,10 +220,8 @@ export async function listInvoices({ cookies }, params) {
     totals: {
       count: totals.count ?? response.count ?? 0,
       action_needed: totals.action_needed ?? 0,
-      currencies: rows.map((/** @type {any} */ r) => r.currency),
-      byCurrency: Object.fromEntries(
-        rows.map((/** @type {any} */ r) => [r.currency, moneyTotals(r)])
-      ),
+      currencies: rows.map((r) => r.currency),
+      byCurrency: Object.fromEntries(rows.map((r) => [r.currency, moneyTotals(r)])),
       blank: moneyTotals({})
     }
   };
@@ -235,12 +238,13 @@ export async function listInvoices({ cookies }, params) {
  * @param {string} id
  */
 export async function getInvoice({ cookies }, id) {
+  /** @type {Schemas['InvoiceDetail']} */
   let response;
   try {
     response = await apiRequest(`/invoices/${id}/`, {}, { cookies });
-  } catch (/** @type {any} */ err) {
+  } catch (err) {
     rethrowModuleOff(err);
-    if (err?.status === 404) {
+    if (apiStatus(err) === 404) {
       error(404, 'That invoice does not exist, or you do not have access to it.');
     }
     throw err;
@@ -260,7 +264,8 @@ export async function getInvoice({ cookies }, id) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
- * @param {Record<string, any>} customFields
+ * @param {Record<string, unknown>} customFields
+ * @returns {Promise<Schemas['InvoiceSaved']>}
  */
 export async function updateInvoiceFields({ cookies }, id, customFields) {
   return apiRequest(
@@ -280,6 +285,7 @@ export async function updateInvoiceFields({ cookies }, id, customFields) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
+ * @returns {Promise<Schemas['InvoicesMessage']>}
  */
 export async function sendInvoice({ cookies }, id) {
   return apiRequest(`/invoices/${id}/send/`, { method: 'POST', body: {} }, { cookies });
@@ -293,6 +299,7 @@ export async function sendInvoice({ cookies }, id) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
  * @param {{ amount?: string, payment_method?: string, reference_number?: string }} [payment]
+ * @returns {Promise<Schemas['InvoiceSaved']>}
  */
 export async function markInvoicePaid({ cookies }, id, payment = {}) {
   /** @type {Record<string, unknown>} */
@@ -307,6 +314,7 @@ export async function markInvoicePaid({ cookies }, id, payment = {}) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
+ * @returns {Promise<Schemas['InvoiceSaved']>}
  */
 export async function cancelInvoice({ cookies }, id) {
   return apiRequest(`/invoices/${id}/cancel/`, { method: 'POST', body: {} }, { cookies });
@@ -317,6 +325,7 @@ export async function cancelInvoice({ cookies }, id) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
+ * @returns {Promise<Schemas['InvoiceSaved']>}
  */
 export async function duplicateInvoice({ cookies }, id) {
   return apiRequest(`/invoices/${id}/duplicate/`, { method: 'POST', body: {} }, { cookies });
@@ -331,9 +340,10 @@ export async function duplicateInvoice({ cookies }, id) {
  * wraps the record as `{ invoice }`, so unwrap it for the caller's redirect.
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
- * @param {Record<string, any>} body
+ * @param {Record<string, unknown>} body
  */
 export async function createInvoice({ cookies }, body) {
+  /** @type {Schemas['InvoiceSaved']} */
   const response = await apiRequest('/invoices/', { method: 'POST', body }, { cookies });
   return response.invoice ?? response;
 }
@@ -348,6 +358,7 @@ export async function createInvoice({ cookies }, body) {
  * @param {string} dealId
  */
 export async function invoiceFromDeal({ cookies }, dealId) {
+  /** @type {Schemas['InvoiceSaved']} */
   const response = await apiRequest(
     `/invoices/from-opportunity/${dealId}/`,
     { method: 'POST', body: {} },
@@ -363,8 +374,8 @@ export async function invoiceFromDeal({ cookies }, dealId) {
  * optional `group_by`. Answers `{ invoice_id, invoice_number, ... }`.
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
- * @param {Record<string, any>} body
- * @returns {Promise<{ invoice_id?: string, invoice_number?: string }>}
+ * @param {Record<string, unknown>} body
+ * @returns {Promise<Schemas['InvoiceFromTimeEntries']>}
  */
 export async function invoiceFromTimeEntries({ cookies }, body) {
   return await apiRequest('/invoices/from-time-entries/', { method: 'POST', body }, { cookies });

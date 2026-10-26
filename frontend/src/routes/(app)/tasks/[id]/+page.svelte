@@ -38,7 +38,7 @@
   import RelatedRecords from '#lib/v2/components/RelatedRecords.svelte';
   import { relatedView } from '#lib/v2/custom-objects.js';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
   let related = $derived(relatedView(data.related));
 
@@ -102,13 +102,13 @@
   // ── activity feed ────────────────────────────────────────────────────────
   // Three real kinds (comment / file / created). The filter only appears once
   // there is a file to filter. With nothing but comments it would sort one pile.
-  let hasFiles = $derived(activity.some((/** @type {any} */ e) => e.type === 'file'));
+  let hasFiles = $derived(activity.some((e) => e.type === 'file'));
   let filter = $state(/** @type {'all'|'comments'|'files'} */ ('all'));
   let shown = $derived(
     filter === 'files'
-      ? activity.filter((/** @type {any} */ e) => e.type === 'file')
+      ? activity.filter((e) => e.type === 'file')
       : filter === 'comments'
-        ? activity.filter((/** @type {any} */ e) => e.type !== 'file')
+        ? activity.filter((e) => e.type !== 'file')
         : activity
   );
   let newestId = $derived(shown[0]?.id ?? null);
@@ -136,7 +136,7 @@
 
   // Interleave day headers so each date is announced once, in order.
   let feed = $derived.by(() => {
-    /** @type {Array<{kind:'day',id:string,label:string}|{kind:'event',id:string,event:any}>} */
+    /** @type {Array<{kind:'day',id:string,label:string}|{kind:'event',id:string,event:(typeof activity)[number]}>} */
     const out = [];
     let last = null;
     for (const e of shown) {

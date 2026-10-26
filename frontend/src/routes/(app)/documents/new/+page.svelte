@@ -6,7 +6,7 @@
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
   import { TriangleAlert, Upload, Users, Lock } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form: result } = $props();
 
   /**
@@ -24,16 +24,16 @@
    * it saves. An unshared upload is not an error. It is a document only the
    * uploader and admins can open, which the form says plainly.
    */
-  const previous = untrack(() => result?.values) ?? {};
+  const previous = untrack(() => result?.values);
 
-  let title = $state(previous.title ?? '');
+  let title = $state(previous?.title ?? '');
   // A rejected submit cannot re-fill a file input (browsers forbid it), so the
   // file is always chosen fresh. We only track whether one is currently picked.
   let fileName = $state('');
   // SvelteSet is reactive on mutation, so `.add()`/`.delete()` below re-render
   // the checkboxes and the reach line without reassigning the whole set.
-  let sharedTo = new SvelteSet((previous.shared_to ?? []).map(String));
-  let sharedTeams = new SvelteSet((previous.teams ?? []).map(String));
+  let sharedTo = new SvelteSet((previous?.shared_to ?? []).map(String));
+  let sharedTeams = new SvelteSet((previous?.teams ?? []).map(String));
 
   let touched = $state(/** @type {Record<string, boolean>} */ ({}));
   let submitted = $state(false);

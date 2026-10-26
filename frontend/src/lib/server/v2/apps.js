@@ -8,7 +8,10 @@
  * a bearer-only reader for the org it just created (`org/new/+page.server.js`).
  */
 import { apiRequest } from '#lib/api-helpers.js';
+import { apiStatus } from '#lib/api-errors.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
 
 /** @typedef {import('@sveltejs/kit').Cookies | { get: (name: string) => string | undefined }} CookieReader */
 
@@ -22,15 +25,18 @@ export function isAppId(id) {
   return typeof id === 'string' && APP_ID.test(id);
 }
 
-/** @param {unknown} action */
+/**
+ * @param {unknown} action
+ * @returns {action is (typeof APP_ACTIONS)[number]}
+ */
 export function isAppAction(action) {
-  return APP_ACTIONS.includes(/** @type {any} */ (action));
+  return APP_ACTIONS.some((known) => known === action);
 }
 
 /** @param {CookieReader} cookies */
 const auth = (cookies) => ({ cookies: /** @type {import('@sveltejs/kit').Cookies} */ (cookies) });
 
-/** @param {any} raw */
+/** @param {Schemas['IndustryApp']} raw */
 function toApp(raw) {
   const by = raw?.installed_by_details;
   return {
@@ -38,7 +44,7 @@ function toApp(raw) {
     name: String(raw?.name ?? raw?.id ?? ''),
     description: String(raw?.description ?? ''),
     version: raw?.version ?? null,
-    status: ['installed', 'removed'].includes(raw?.status) ? raw.status : 'not_installed',
+    status: raw?.status === 'installed' || raw?.status === 'removed' ? raw.status : 'not_installed',
     installedVersion: raw?.installed_version ?? null,
     updateAvailable: raw?.update_available === true,
     skippedModules: Array.isArray(raw?.skipped_modules) ? raw.skipped_modules.map(String) : [],
@@ -58,16 +64,16 @@ function toApp(raw) {
  */
 export async function listApps(cookies) {
   try {
+    /** @type {Schemas['AppListResponse']} */
     const resp = await apiRequest(
       '/apps/',
       { quietErrors: true, expectedStatuses: [404] },
       auth(cookies)
     );
-    /** @type {any[]} */
     const rows = Array.isArray(resp?.apps) ? resp.apps : [];
     return { state: 'ok', apps: rows.map(toApp).filter((a) => a.id) };
-  } catch (/** @type {any} */ err) {
-    return { state: err?.status === 404 ? 'absent' : 'failed', apps: [] };
+  } catch (err) {
+    return { state: apiStatus(err) === 404 ? 'absent' : 'failed', apps: [] };
   }
 }
 
@@ -106,16 +112,18 @@ const TARGETS = /** @type {Record<string, string>} */ ({
   recurring_invoice: 'recurring invoices'
 });
 
+/** @typedef {{ label: string, target: string, effect: string, effectLabel: string }} PreviewItem */
+
 /**
  * Preview items grouped by type, in a fixed order, each group keeping the
  * server's order. A type this client does not know is listed last under its
  * own name rather than dropped.
  *
- * @param {any[]} items
- * @returns {{ type: string, label: string, items: { label: string, target: string, effect: string, effectLabel: string }[] }[]}
+ * @param {Schemas['AppPreviewItem'][]} items
+ * @returns {{ type: string, label: string, items: PreviewItem[] }[]}
  */
 function groupPreview(items) {
-  /** @type {Map<string, any[]>} */
+  /** @type {Map<string, PreviewItem[]>} */
   const byType = new Map();
   for (const item of Array.isArray(items) ? items : []) {
     const type = String(item?.type ?? '');
@@ -151,19 +159,20 @@ function groupPreview(items) {
  * @param {string} action
  */
 export async function previewApp(cookies, id, action) {
+  /** @type {Schemas['AppPreviewResponse']} */
   const resp = await apiRequest(
     `/apps/${encodeURIComponent(id)}/preview/?action=${encodeURIComponent(action)}`,
     { quietErrors: true, expectedStatuses: [403, 404] },
     auth(cookies)
   );
-  const sample = resp?.sample_data ?? {};
+  const sample = resp?.sample_data;
   return {
     action: String(resp?.action ?? action),
     groups: groupPreview(resp?.items),
     sampleData: {
-      offered: sample.offered === true,
-      defaultOn: sample.default_on === true,
-      records: Number.isFinite(sample.records) ? sample.records : 0
+      offered: sample?.offered === true,
+      defaultOn: sample?.default_on === true,
+      records: sample && Number.isFinite(sample.records) ? sample.records : 0
     }
   };
 }
@@ -174,6 +183,7 @@ export async function previewApp(cookies, id, action) {
  * @param {boolean} sampleData sent on every install, true or false
  */
 export async function installApp(cookies, id, sampleData) {
+  /** @type {Schemas['AppActionResponse']} */
   const resp = await apiRequest(
     `/apps/${encodeURIComponent(id)}/install/`,
     { method: 'POST', body: { sample_data: sampleData === true } },
@@ -187,6 +197,7 @@ export async function installApp(cookies, id, sampleData) {
  * @param {string} id
  */
 export async function upgradeApp(cookies, id) {
+  /** @type {Schemas['AppActionResponse']} */
   const resp = await apiRequest(
     `/apps/${encodeURIComponent(id)}/upgrade/`,
     { method: 'POST', body: {} },
@@ -200,6 +211,7 @@ export async function upgradeApp(cookies, id) {
  * @param {string} id
  */
 export async function removeApp(cookies, id) {
+  /** @type {Schemas['AppActionResponse']} */
   const resp = await apiRequest(
     `/apps/${encodeURIComponent(id)}/remove/`,
     { method: 'POST', body: {} },
@@ -218,12 +230,12 @@ const VERB = /** @type {Record<string, string>} */ ({
  * A refused action as one sentence. A 409 carries the server's own reason
  * (nothing new to add, not installed).
  *
- * @param {any} err
+ * @param {unknown} err
  * @param {string} action
  */
 export function appRefusal(err, action) {
   const verb = VERB[action] ?? 'change';
-  if (err?.status === 403) return `Only an organization admin can ${verb} an app.`;
-  if (err?.status === 404) return 'That app is not in the catalogue.';
+  if (apiStatus(err) === 403) return `Only an organization admin can ${verb} an app.`;
+  if (apiStatus(err) === 404) return 'That app is not in the catalogue.';
   return readableError(err, `Could not ${verb} this app.`);
 }

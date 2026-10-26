@@ -36,6 +36,7 @@ import { leadSourcesSummary } from './lead-sources.js';
 import { intakesSummary } from './lead-intakes.js';
 import { moduleOffError } from './modules.js';
 import { isOn, mailboxesOn } from '#lib/v2/modules.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 /** @typedef {import('#lib/v2/modules.js').ModuleRow[] | null} ModuleList */
 
@@ -46,14 +47,22 @@ const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
  * page's `breachesGoingNowhere` does, so the hub's warning matches the page it
  * links to. A half is dead when the policy is off, reassigns to nobody, or
  * notifies nobody (no person and no team).
- * @param {any[]} policies
+ * @param {Array<{
+ *   is_active: boolean,
+ *   notify_team?: unknown,
+ *   first_response_action: string,
+ *   first_response_target?: unknown,
+ *   resolution_action: string,
+ *   resolution_target?: unknown,
+ *   breaches_last_30d?: { first_response?: number, resolution?: number } | null
+ * }>} policies
  */
 function escalationRollup(policies) {
   let active = 0;
   let breaches = 0;
   for (const p of policies) {
     if (p.is_active) active += 1;
-    /** @param {string} action @param {any} target */
+    /** @param {string} action @param {unknown} target */
     const halfDead = (action, target) => {
       if (!p.is_active) return true;
       if (action === 'reassign' && !target) return true;
@@ -74,7 +83,7 @@ function escalationRollup(policies) {
  * Mailboxes switched off that are still receiving mail, a customer ignored,
  * as opposed to an address deliberately retired. Matches the inbound page's
  * reasoning about which "off" is worth a warning.
- * @param {any[]} mailboxes @param {number} now
+ * @param {{ is_active: boolean, last_received_at?: string | null }[]} mailboxes @param {number} now
  */
 function silentlyDropping(mailboxes, now) {
   return mailboxes.filter(
@@ -88,13 +97,15 @@ function silentlyDropping(mailboxes, now) {
 /**
  * Reopen policy → its `policy`, or null when the caller is a member (the
  * endpoint is admin-only and throws 403). Any other error still propagates.
- * @param {Promise<any>} promise
+ * @template T
+ * @param {Promise<{ policy: T }>} promise
+ * @returns {Promise<T | null>}
  */
 async function reopenOrNull(promise) {
   try {
     return (await promise).policy;
-  } catch (/** @type {any} */ err) {
-    if (err?.status === 403) return null;
+  } catch (err) {
+    if (apiStatus(err) === 403) return null;
     throw err;
   }
 }

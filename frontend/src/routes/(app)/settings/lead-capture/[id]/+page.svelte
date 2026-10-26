@@ -28,17 +28,21 @@
   import KeyOnce from '../KeyOnce.svelte';
   import MappingEditor from './MappingEditor.svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   let busy = $state(false);
+  /** @type {import('./$types').SubmitFunction} */
   const working = () => {
     busy = true;
-    return async (/** @type {any} */ { update }) => {
+    return async ({ update }) => {
       await update({ reset: false });
       busy = false;
     };
   };
+
+  // `refused` computes its key, so its type puts `{ error }` under every name, this one too.
+  let replacedKey = $derived(form?.replaced && 'key' in form.replaced ? form.replaced.key : '');
 
   let actionError = $derived(
     form?.save?.error ??
@@ -72,17 +76,15 @@
           name: data.intake.assignee_name ?? 'A former member'
         })
   );
-  let activeTags = $derived(
-    data.forbidden ? [] : data.tags.filter((/** @type {any} */ t) => t.is_active !== false)
-  );
+  let activeTags = $derived(data.forbidden ? [] : data.tags.filter((t) => t.is_active !== false));
   let missingTags = $derived(
     data.forbidden
       ? []
       : missingOptions(
           activeTags,
-          data.intake.tags.map((/** @type {string} */ id) => ({
+          data.intake.tags.map((id) => ({
             id,
-            name: data.tags.find((/** @type {any} */ t) => t.id === id)?.name ?? 'A removed tag'
+            name: data.tags.find((t) => t.id === id)?.name ?? 'A removed tag'
           }))
         )
   );
@@ -112,8 +114,8 @@
 
   <div class="v2-scroll">
     <div class="v2-pad" style="padding-top:16px;padding-bottom:32px">
-      {#if form?.replaced?.key}
-        <KeyOnce title="Key replaced. Copy the new one now" secret={form.replaced.key} replaced />
+      {#if replacedKey}
+        <KeyOnce title="Key replaced. Copy the new one now" secret={replacedKey} replaced />
       {/if}
       {#if actionError}
         <div style="margin-bottom:16px">

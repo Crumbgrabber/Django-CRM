@@ -26,7 +26,7 @@ from django.db.models import Count, Max, Q
 from django.http import Http404
 from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import extend_schema, inline_serializer
 from rest_framework import serializers, status
 from rest_framework.pagination import LimitOffsetPagination
 from rest_framework.permissions import IsAuthenticated
@@ -41,7 +41,13 @@ from automation.models import DONE, FAILED, AutomationRule, AutomationRun
 from automation.objects import adapter_for, automatable, switched_off_module
 from automation.ownership import SENTENCES, owner_problem
 from automation.plan import may_switch_on, runnable
-from automation.serializers import RULE_KEYS, RuleSerializer, RunSerializer
+from automation.serializers import (
+    RULE_KEYS,
+    AutomationStepSerializer,
+    RuleRowSerializer,
+    RuleSerializer,
+    RunSerializer,
+)
 from automation.validation import active_people, offered_actions, validate_rule
 from common.lookups import get_scoped_or_404
 from common.modules import module_label
@@ -238,8 +244,84 @@ class AutomationView(APIView):
         return get_scoped_or_404(AutomationRule, pk, request.profile.org)
 
 
+class AutomationCatalogueChoiceSerializer(serializers.Serializer):
+    value = serializers.CharField()
+    label = serializers.CharField()
+    group = serializers.CharField()
+    settable = serializers.BooleanField()
+
+
+class AutomationCatalogueFieldSerializer(serializers.Serializer):
+    """Schema only: one field as ``_field`` builds it."""
+
+    key = serializers.CharField()
+    label = serializers.CharField()
+    type = serializers.CharField()
+    choices = AutomationCatalogueChoiceSerializer(many=True)
+    settable = serializers.BooleanField()
+
+
+class AutomationCatalogueParentSerializer(serializers.Serializer):
+    key = serializers.CharField()
+    label = serializers.CharField()
+
+
+class AutomationCatalogueLinkSerializer(serializers.Serializer):
+    id = serializers.CharField()
+    label = serializers.CharField()
+    object_key = serializers.CharField()
+
+
+class AutomationCatalogueObjectSerializer(serializers.Serializer):
+    """Schema only: one object as ``_object`` builds it."""
+
+    key = serializers.CharField()
+    label = serializers.CharField()
+    label_plural = serializers.CharField()
+    fields = AutomationCatalogueFieldSerializer(many=True)
+    parent = AutomationCatalogueParentSerializer(allow_null=True)
+    links = AutomationCatalogueLinkSerializer(many=True)
+
+
+class AutomationCataloguePersonSerializer(serializers.Serializer):
+    id = serializers.CharField()
+    name = serializers.CharField()
+
+
+class AutomationCatalogueEndpointSerializer(serializers.Serializer):
+    id = serializers.CharField()
+    # The URL's host when the endpoint has no description; null if it has none.
+    description = serializers.CharField(allow_null=True)
+
+
+class AutomationCatalogueLimitsSerializer(serializers.Serializer):
+    conditions = serializers.IntegerField()
+    actions = serializers.IntegerField()
+
+
 class CatalogueView(AutomationView):
-    @extend_schema(tags=TAGS, responses=OpenApiTypes.OBJECT)
+    @extend_schema(
+        tags=TAGS,
+        responses={
+            200: inline_serializer(
+                name="AutomationCatalogueResponse",
+                fields={
+                    "objects": AutomationCatalogueObjectSerializer(many=True),
+                    # Operator names by field type.
+                    "operators": serializers.DictField(
+                        child=serializers.ListField(child=serializers.CharField())
+                    ),
+                    "update_only_operators": serializers.ListField(
+                        child=serializers.CharField()
+                    ),
+                    "actions": serializers.ListField(child=serializers.CharField()),
+                    "people": AutomationCataloguePersonSerializer(many=True),
+                    "endpoints": AutomationCatalogueEndpointSerializer(many=True),
+                    "limits": AutomationCatalogueLimitsSerializer(),
+                },
+            )
+        },
+    )
     def get(self, request):
         org = request.profile.org
         pairs = automatable(org)
@@ -278,7 +360,17 @@ class CatalogueView(AutomationView):
 
 class RuleListCreateView(AutomationView):
     @extend_schema(
-        tags=TAGS, operation_id="automation_rules_list", responses=OpenApiTypes.OBJECT
+        tags=TAGS,
+        operation_id="automation_rules_list",
+        responses={
+            200: inline_serializer(
+                name="AutomationRuleListResponse",
+                fields={
+                    "summary": serializers.CharField(allow_null=True),
+                    "results": RuleRowSerializer(many=True),
+                },
+            )
+        },
     )
     def get(self, request):
         org = request.profile.org
@@ -303,7 +395,7 @@ class RuleListCreateView(AutomationView):
             )
         return Response({"summary": plan.summary, "results": results})
 
-    @extend_schema(tags=TAGS, request=RuleSerializer, responses=RuleSerializer)
+    @extend_schema(tags=TAGS, request=RuleSerializer, responses={201: RuleSerializer})
     def post(self, request):
         org = request.profile.org
         switching_on = _switches_on(None, request.data)
@@ -324,7 +416,14 @@ class RuleListCreateView(AutomationView):
 
 class RuleReorderView(AutomationView):
     @extend_schema(
-        tags=TAGS, request=OpenApiTypes.OBJECT, responses=OpenApiTypes.OBJECT
+        tags=TAGS,
+        request=OpenApiTypes.OBJECT,
+        responses={
+            200: inline_serializer(
+                name="AutomationRuleReorderResponse",
+                fields={"ids": serializers.ListField(child=serializers.CharField())},
+            )
+        },
     )
     def post(self, request):
         rules = list(AutomationRule.objects.filter(org=request.profile.org))
@@ -369,7 +468,14 @@ class RuleDetailView(AutomationView):
 
 class RuleTryView(AutomationView):
     @extend_schema(
-        tags=TAGS, request=OpenApiTypes.OBJECT, responses=OpenApiTypes.OBJECT
+        tags=TAGS,
+        request=OpenApiTypes.OBJECT,
+        responses={
+            200: inline_serializer(
+                name="AutomationRuleTryResponse",
+                fields={"steps": AutomationStepSerializer(many=True)},
+            )
+        },
     )
     def post(self, request, pk):
         org = request.profile.org
@@ -379,7 +485,18 @@ class RuleTryView(AutomationView):
 
 
 class RuleRunListView(AutomationView):
-    @extend_schema(tags=TAGS, responses=OpenApiTypes.OBJECT)
+    @extend_schema(
+        tags=TAGS,
+        responses={
+            200: inline_serializer(
+                name="AutomationRunListResponse",
+                fields={
+                    "count": serializers.IntegerField(),
+                    "results": RunSerializer(many=True),
+                },
+            )
+        },
+    )
     def get(self, request, pk):
         org = request.profile.org
         rule = self.get_rule(request, pk)

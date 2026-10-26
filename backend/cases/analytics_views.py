@@ -15,7 +15,8 @@ from typing import Optional
 from uuid import UUID
 
 from django.utils import timezone
-from drf_spectacular.utils import OpenApiParameter, extend_schema
+from drf_spectacular.utils import OpenApiParameter, extend_schema, inline_serializer
+from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -136,19 +137,207 @@ _FILTER_PARAMS = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# Response shapes, for the schema only (see `cases.analytics` for the figures)
+
+
+class AnalyticsMedianBucketSerializer(serializers.Serializer):
+    bucket = serializers.DateField()
+    median = serializers.FloatField(allow_null=True)
+    count = serializers.IntegerField()
+
+
+class AnalyticsNrtPrioritySerializer(serializers.Serializer):
+    priority = serializers.CharField()
+    target_hours = serializers.IntegerField()
+    median_hours = serializers.FloatField(allow_null=True)
+    met = serializers.IntegerField()
+    missed = serializers.IntegerField()
+
+
+class AnalyticsMttrPrioritySerializer(serializers.Serializer):
+    mean_hours = serializers.FloatField()
+    median_hours = serializers.FloatField()
+    p90_hours = serializers.FloatField()
+    count = serializers.IntegerField()
+
+
+class AnalyticsBacklogDaySerializer(serializers.Serializer):
+    date = serializers.DateField()
+    open_count = serializers.IntegerField()
+    urgent_count = serializers.IntegerField()
+
+
+class AnalyticsAgentSerializer(serializers.Serializer):
+    profile_id = serializers.UUIDField()
+    name = serializers.CharField()
+    email = serializers.CharField()
+    handled = serializers.IntegerField()
+    avg_frt_hours = serializers.FloatField(allow_null=True)
+    csat_avg = serializers.FloatField(allow_null=True)
+    breach_rate = serializers.FloatField()
+
+
+class AnalyticsSlaPrioritySerializer(serializers.Serializer):
+    total = serializers.IntegerField()
+    frt_breach_rate = serializers.FloatField()
+    resolution_breach_rate = serializers.FloatField()
+    nrt_breach_rate = serializers.FloatField()
+
+
+class ServiceTotalsSerializer(serializers.Serializer):
+    opened = serializers.IntegerField()
+    closed = serializers.IntegerField()
+    open_now = serializers.IntegerField()
+    median_resolution_hours = serializers.IntegerField()
+    window_days = serializers.IntegerField()
+    business_hours_applied = serializers.BooleanField()
+    calendar_name = serializers.CharField(allow_null=True)
+
+
+class ServiceVolumeDaySerializer(serializers.Serializer):
+    date = serializers.DateField()
+    opened = serializers.IntegerField()
+    closed = serializers.IntegerField()
+
+
+class ServiceFirstResponseSerializer(serializers.Serializer):
+    priority = serializers.CharField()
+    target_minutes = serializers.IntegerField()
+    median_minutes = serializers.IntegerField(allow_null=True)
+    met = serializers.IntegerField()
+    missed = serializers.IntegerField()
+
+
+class ServiceCaseTypeSerializer(serializers.Serializer):
+    case_type = serializers.CharField()
+    count = serializers.IntegerField()
+
+
+class ServiceAgentSerializer(serializers.Serializer):
+    # Null on the "Unassigned" row.
+    id = serializers.UUIDField(allow_null=True)
+    name = serializers.CharField()
+    open = serializers.IntegerField()
+    closed_this_week = serializers.IntegerField()
+    median_first_response_minutes = serializers.IntegerField(allow_null=True)
+    breached = serializers.IntegerField()
+
+
+def _case_ids():
+    # A new field per use: one instance shared by two keys binds to one name.
+    return serializers.ListField(child=serializers.UUIDField())
+
+
+FRT_RESPONSE = inline_serializer(
+    name="AnalyticsFrtResponse",
+    fields={
+        "median_hours": serializers.FloatField(allow_null=True),
+        "p90_hours": serializers.FloatField(allow_null=True),
+        "count": serializers.IntegerField(),
+        "breach_count": serializers.IntegerField(),
+        "series": AnalyticsMedianBucketSerializer(many=True),
+        "case_ids": _case_ids(),
+        "breach_case_ids": _case_ids(),
+    },
+)
+
+NRT_RESPONSE = inline_serializer(
+    name="AnalyticsNrtResponse",
+    fields={
+        "median_hours": serializers.FloatField(allow_null=True),
+        "p90_hours": serializers.FloatField(allow_null=True),
+        "count": serializers.IntegerField(),
+        "breach_count": serializers.IntegerField(),
+        "series": AnalyticsMedianBucketSerializer(many=True),
+        "by_priority": AnalyticsNrtPrioritySerializer(many=True),
+        "case_ids": _case_ids(),
+        "breach_case_ids": _case_ids(),
+    },
+)
+
+MTTR_RESPONSE = inline_serializer(
+    name="AnalyticsMttrResponse",
+    fields={
+        "mean_hours": serializers.FloatField(allow_null=True),
+        "median_hours": serializers.FloatField(allow_null=True),
+        "p90_hours": serializers.FloatField(allow_null=True),
+        "count": serializers.IntegerField(),
+        # Keyed by priority; only priorities with a resolved case appear.
+        "by_priority": serializers.DictField(child=AnalyticsMttrPrioritySerializer()),
+        "case_ids": _case_ids(),
+    },
+)
+
+BACKLOG_RESPONSE = inline_serializer(
+    name="AnalyticsBacklogResponse",
+    fields={"series": AnalyticsBacklogDaySerializer(many=True)},
+)
+
+AGENTS_RESPONSE = inline_serializer(
+    name="AnalyticsAgentsResponse",
+    fields={"results": AnalyticsAgentSerializer(many=True)},
+)
+
+SLA_RESPONSE = inline_serializer(
+    name="AnalyticsSlaResponse",
+    fields={
+        "total": serializers.IntegerField(),
+        "frt_breach_count": serializers.IntegerField(),
+        "resolution_breach_count": serializers.IntegerField(),
+        "nrt_breach_count": serializers.IntegerField(),
+        "frt_breach_rate": serializers.FloatField(allow_null=True),
+        "resolution_breach_rate": serializers.FloatField(allow_null=True),
+        "nrt_breach_rate": serializers.FloatField(allow_null=True),
+        # Keyed by priority; only priorities with a case in the window appear.
+        "by_priority": serializers.DictField(child=AnalyticsSlaPrioritySerializer()),
+        "frt_breach_case_ids": _case_ids(),
+        "resolution_breach_case_ids": _case_ids(),
+        "nrt_breach_case_ids": _case_ids(),
+    },
+)
+
+SERVICE_RESPONSE = inline_serializer(
+    name="AnalyticsServiceResponse",
+    fields={
+        "totals": ServiceTotalsSerializer(),
+        "volume": ServiceVolumeDaySerializer(many=True),
+        "first_response": ServiceFirstResponseSerializer(many=True),
+        "by_type": ServiceCaseTypeSerializer(many=True),
+        "by_agent": ServiceAgentSerializer(many=True),
+    },
+)
+
+DRILLDOWN_RESPONSE = inline_serializer(
+    name="AnalyticsDrilldownResponse",
+    fields={
+        "count": serializers.IntegerField(),
+        "results": CaseSerializer(many=True),
+    },
+)
+
+
 class _AnalyticsBaseView(APIView):
     permission_classes = (IsAuthenticated, HasOrgContext)
 
 
 class AnalyticsFrtView(_AnalyticsBaseView):
-    @extend_schema(tags=["cases-analytics"], parameters=_FILTER_PARAMS)
+    @extend_schema(
+        tags=["cases-analytics"],
+        parameters=_FILTER_PARAMS,
+        responses={200: FRT_RESPONSE},
+    )
     def get(self, request):
         qs, from_dt, to_dt = _filtered_qs(request)
         return Response(analytics.compute_frt(qs, from_dt, to_dt))
 
 
 class AnalyticsNrtView(_AnalyticsBaseView):
-    @extend_schema(tags=["cases-analytics"], parameters=_FILTER_PARAMS)
+    @extend_schema(
+        tags=["cases-analytics"],
+        parameters=_FILTER_PARAMS,
+        responses={200: NRT_RESPONSE},
+    )
     def get(self, request):
         qs, from_dt, to_dt = _filtered_qs(request)
         return Response(
@@ -157,28 +346,44 @@ class AnalyticsNrtView(_AnalyticsBaseView):
 
 
 class AnalyticsMttrView(_AnalyticsBaseView):
-    @extend_schema(tags=["cases-analytics"], parameters=_FILTER_PARAMS)
+    @extend_schema(
+        tags=["cases-analytics"],
+        parameters=_FILTER_PARAMS,
+        responses={200: MTTR_RESPONSE},
+    )
     def get(self, request):
         qs, from_dt, to_dt = _filtered_qs(request)
         return Response(analytics.compute_mttr(qs, from_dt, to_dt))
 
 
 class AnalyticsBacklogView(_AnalyticsBaseView):
-    @extend_schema(tags=["cases-analytics"], parameters=_FILTER_PARAMS)
+    @extend_schema(
+        tags=["cases-analytics"],
+        parameters=_FILTER_PARAMS,
+        responses={200: BACKLOG_RESPONSE},
+    )
     def get(self, request):
         qs, from_dt, to_dt = _filtered_qs(request)
         return Response(analytics.compute_backlog(qs, from_dt, to_dt))
 
 
 class AnalyticsAgentsView(_AnalyticsBaseView):
-    @extend_schema(tags=["cases-analytics"], parameters=_FILTER_PARAMS)
+    @extend_schema(
+        tags=["cases-analytics"],
+        parameters=_FILTER_PARAMS,
+        responses={200: AGENTS_RESPONSE},
+    )
     def get(self, request):
         qs, from_dt, to_dt = _filtered_qs(request)
         return Response({"results": analytics.compute_agents(qs, from_dt, to_dt)})
 
 
 class AnalyticsSlaView(_AnalyticsBaseView):
-    @extend_schema(tags=["cases-analytics"], parameters=_FILTER_PARAMS)
+    @extend_schema(
+        tags=["cases-analytics"],
+        parameters=_FILTER_PARAMS,
+        responses={200: SLA_RESPONSE},
+    )
     def get(self, request):
         qs, from_dt, to_dt = _filtered_qs(request)
         return Response(analytics.compute_sla(qs, from_dt, to_dt))
@@ -204,6 +409,7 @@ class AnalyticsServiceView(_AnalyticsBaseView):
                 description="Window length in whole days (default 14, max 90)",
             )
         ],
+        responses={200: SERVICE_RESPONSE},
     )
     def get(self, request):
         if not is_org_admin(request.profile):
@@ -234,6 +440,7 @@ class AnalyticsDrilldownView(_AnalyticsBaseView):
                 "bucket", str, description="Bucket selector (metric-specific)"
             ),
         ],
+        responses={200: DRILLDOWN_RESPONSE},
     )
     def get(self, request):
         metric = request.query_params.get("metric", "")

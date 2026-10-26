@@ -7,12 +7,11 @@
  * decides what this page offers, never what it is allowed to do.
  */
 import { apiRequest } from '#lib/api-helpers.js';
+import { apiErrorBody } from '#lib/api-errors.js';
 
 /**
- * Both verbs answer this. The schema's `HelpCenterSettings` has no `can_edit`
- * (the view adds it) and calls `public_url` a string where it is null until a
- * slug is set.
- * @typedef {{ help_center_enabled: boolean, help_center_slug: string | null, public_url: string | null, can_edit: boolean }} HelpCenterState
+ * Both verbs answer this.
+ * @typedef {import('#lib/api-schema.js').components['schemas']['HelpCenterSettingsRead']} HelpCenterState
  */
 
 /**
@@ -55,11 +54,11 @@ export async function updateHelpCenterSettings({ cookies }, { enabled, slug }) {
  * taken. Choose another.") rather than through `readableError`, which would
  * prefix it with the raw field name.
  *
- * @param {any} err the error `apiRequest` threw
- * @param {(err: any, fallback: string) => string} readableError
+ * @param {unknown} err the error `apiRequest` threw
+ * @param {(err: unknown, fallback: string) => string} readableError
  */
 export function saveErrorMessage(err, readableError) {
-  const slugErrors = err?.body?.help_center_slug;
+  const slugErrors = apiErrorBody(err)?.help_center_slug;
   if (Array.isArray(slugErrors) && slugErrors.length) return String(slugErrors[0]);
   return readableError(err, 'Could not save the help center.');
 }

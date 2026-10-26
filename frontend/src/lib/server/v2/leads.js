@@ -24,12 +24,21 @@
  */
 import { error } from '@sveltejs/kit';
 import { apiRequest } from '#lib/api-helpers.js';
+import { apiStatus } from '#lib/api-errors.js';
 import { rethrowModuleOff } from '#lib/server/v2/modules.js';
 import { attachmentHref } from '#lib/server/v2/files.js';
 import { recordDuplicates } from '#lib/server/v2/duplicates.js';
 import { fieldsForDetail, fieldsForEdit } from '#lib/server/v2/record-custom-fields.js';
 
 /** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+/** @typedef {Schemas['Lead']} ApiLead */
+/** @typedef {Record<string, string | boolean | null>} CustomFieldValues */
+/**
+ * What the create and edit actions collect: the submitted fields as strings,
+ * plus the typed custom values.
+ *
+ * @typedef {{ [field: string]: string | CustomFieldValues | undefined, custom_fields?: CustomFieldValues }} LeadFormValues
+ */
 
 /** See the note on FILTER_FIELDS in tickets.js. */
 export const FILTER_FIELDS = ['assigned_to', 'status', 'source', 'tags'];
@@ -39,19 +48,19 @@ export const FILTER_FIELDS = ['assigned_to', 'status', 'source', 'tags'];
  * show a single owner, so pick the first and fall back to the creator, which
  * is what the row means by "Owner": whoever is answerable for this lead.
  *
- * @param {any} lead
+ * @param {ApiLead} lead
  * @returns {string} A display name, or '' when the lead is unassigned.
  */
 function ownerName(lead) {
-  const assigned = lead.assigned_to?.[0];
-  const email = assigned?.user_details?.email || assigned?.user?.email;
+  const email = lead.assigned_to?.[0]?.user_details?.email;
   if (email) return email;
   return lead.created_by?.email || '';
 }
 
 /**
- * @param {any} lead
- * @returns {any} The subset of a Django lead the v2 pages read.
+ * The subset of a Django lead the v2 pages read.
+ *
+ * @param {ApiLead} lead
  */
 function toRow(lead) {
   return {
@@ -110,8 +119,8 @@ export async function listLeads({ cookies }, params) {
   const query = new URLSearchParams(params ?? undefined);
   if (!query.has('limit')) query.set('limit', '25');
 
+  /** @type {Schemas['LeadListResponse']} */
   const response = await apiRequest(`/leads/?${query}`, {}, { cookies });
-  /** @type {any[]} */
   const raw = response.open_leads?.open_leads ?? [];
   const rows = raw.map(toRow);
 
@@ -124,7 +133,7 @@ export async function listLeads({ cookies }, params) {
     // An API without response tracking ignores `?unanswered=true` rather than
     // answering 404, so its rows are the only tell: they lack the field. Null
     // when there is no row to read it from.
-    responseLive: raw.length ? raw.some((/** @type {any} */ l) => 'is_unanswered' in l) : null
+    responseLive: raw.length ? raw.some((l) => 'is_unanswered' in l) : null
   };
 }
 
@@ -133,7 +142,7 @@ function lastTouch(row) {
   return new Date(row.last_contacted ?? row.created_at).getTime();
 }
 
-/** Oldest wait first, the API's own order for the unanswered list. @param {any} row */
+/** Oldest wait first, the API's own order for the unanswered list. @param {{ waiting_since: string | null }} row */
 function waited(row) {
   return row.waiting_since ? new Date(row.waiting_since).getTime() : Infinity;
 }
@@ -167,20 +176,23 @@ export async function getResponseTimes({ cookies }, days) {
       { expectedStatuses: [404] },
       { cookies }
     );
-  } catch (/** @type {any} */ err) {
+  } catch (err) {
     rethrowModuleOff(err);
-    if (err?.status === 404) error(404, 'Response times are not available here.');
+    if (apiStatus(err) === 404) error(404, 'Response times are not available here.');
     throw err;
   }
-  /** @param {any} n */
-  const int = (n) => (Number.isFinite(n) ? n : 0);
+  /** @param {number | null | undefined} n */
+  const int = (n) => (typeof n === 'number' && Number.isFinite(n) ? n : 0);
   return {
     since: typeof resp?.since === 'string' ? resp.since : null,
     rows: (Array.isArray(resp?.rows) ? resp.rows : []).map((r) => ({
       profile: typeof r?.profile === 'string' ? r.profile : '',
       name: typeof r?.name === 'string' && r.name ? r.name : 'Unknown',
       answered: int(r?.answered),
-      median_seconds: Number.isFinite(r?.median_seconds) ? r.median_seconds : null,
+      median_seconds:
+        typeof r?.median_seconds === 'number' && Number.isFinite(r.median_seconds)
+          ? r.median_seconds
+          : null,
       within_5_minutes: int(r?.within_5_minutes),
       within_1_hour: int(r?.within_1_hour),
       unanswered_now: int(r?.unanswered_now)
@@ -265,15 +277,15 @@ export async function addLeadNote({ cookies }, id, comment, file = null) {
  * are not reconstructed here. Meetings, calls and emails as distinct types would
  * be the same fiction: there are no such records, so there are no such events.
  *
- * @param {any} response
+ * @param {Schemas['LeadDetailResponse']} response
  */
 function buildActivity(response) {
   /** @type {Array<{id:string,type:'note'|'file'|'status',at:string,by:string|null,body:string,href?:string|null}>} */
-  const events = (response.comments ?? []).map((/** @type {any} */ c) => ({
+  const events = (response.comments ?? []).map((c) => ({
     id: `note-${c.id}`,
     type: 'note',
     at: c.commented_on,
-    by: c.commented_by_user?.email || c.commented_by?.user_details?.email || null,
+    by: c.commented_by?.user_details?.email || null,
     body: c.comment
   }));
 
@@ -323,7 +335,7 @@ export const EDITABLE_FIELDS = [
  */
 const BLANK_NOT_NULL = ['source', 'source_detail', 'source_ref'];
 
-/** @param {string} field @param {any} value */
+/** @param {string} field @param {unknown} value */
 function emptyAs(field, value) {
   if (value !== '' && value !== undefined && value !== null) return value;
   return BLANK_NOT_NULL.includes(field) ? '' : null;
@@ -344,9 +356,9 @@ async function listOwners(cookies) {
   try {
     /** @type {Schemas['TeamsAndUsersResponse']} */
     const response = await apiRequest('/users/get-teams-and-users/', {}, { cookies });
-    return (response.profiles ?? []).map((/** @type {any} */ p) => ({
+    return (response.profiles ?? []).map((p) => ({
       id: p.id,
-      name: p.user_details?.email || p.user?.email || 'Unknown'
+      name: p.user_details?.email || 'Unknown'
     }));
   } catch {
     return [];
@@ -367,15 +379,26 @@ export async function getLeadForEdit({ cookies }, id) {
   const response = await fetchDetail(cookies, id);
   const lead = toRow(response.lead_obj);
 
-  /** @type {Record<string, any>} */
-  const form = {};
-  for (const field of EDITABLE_FIELDS) {
-    form[field] = lead[field] ?? response.lead_obj[field] ?? '';
-  }
-  form.opportunity_amount = lead.opportunity_amount ?? '';
-  // The select binds to a Profile id, not a display name. The mock bound it
-  // to a name, which reads the same on screen and cannot be saved.
-  form.assigned_to = response.lead_obj.assigned_to?.[0]?.id ?? '';
+  // Every key of EDITABLE_FIELDS. `description` is the one the row leaves out.
+  const form = {
+    first_name: lead.first_name,
+    last_name: lead.last_name,
+    job_title: lead.job_title,
+    company_name: lead.company_name,
+    email: lead.email,
+    phone: lead.phone,
+    website: lead.website,
+    status: lead.status,
+    source: lead.source,
+    source_detail: lead.source_detail,
+    source_ref: lead.source_ref,
+    industry: lead.industry,
+    opportunity_amount: lead.opportunity_amount ?? '',
+    description: response.lead_obj.description ?? '',
+    // The select binds to a Profile id, not a display name. The mock bound it
+    // to a name, which reads the same on screen and cannot be saved.
+    assigned_to: response.lead_obj.assigned_to?.[0]?.id ?? ''
+  };
 
   return {
     lead,
@@ -401,10 +424,11 @@ export async function getLeadForEdit({ cookies }, id) {
  */
 async function takenEmails(cookies, excludeId) {
   try {
+    /** @type {Schemas['LeadListResponse']} */
     const response = await apiRequest('/leads/?limit=200', {}, { cookies });
-    return (response.open_leads?.open_leads ?? [])
-      .filter((/** @type {any} */ l) => l.id !== excludeId && l.email)
-      .map((/** @type {any} */ l) => l.email.toLowerCase());
+    return (response.open_leads?.open_leads ?? []).flatMap((l) =>
+      l.id !== excludeId && l.email ? [l.email.toLowerCase()] : []
+    );
   } catch {
     return [];
   }
@@ -434,11 +458,11 @@ async function takenEmails(cookies, excludeId) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
- * @param {Record<string, any>} values
+ * @param {Record<string, unknown>} values
  * @returns {Promise<Schemas['LeadPatchResponse']>}
  */
 export async function updateLead({ cookies }, id, values) {
-  /** @type {Record<string, any>} */
+  /** @type {Record<string, unknown>} */
   const body = {};
   for (const field of EDITABLE_FIELDS) {
     if (!(field in values)) continue;
@@ -478,16 +502,17 @@ export async function updateLead({ cookies }, id, values) {
  *
  * @param {import('@sveltejs/kit').Cookies} cookies
  * @param {string} id
+ * @returns {Promise<Schemas['LeadDetailResponse']>}
  */
 async function fetchDetail(cookies, id) {
   try {
     return await apiRequest(`/leads/${id}/`, {}, { cookies });
-  } catch (/** @type {any} */ err) {
+  } catch (err) {
     rethrowModuleOff(err);
     // On the status, not on the wording. This read `message.includes('404')`,
     // and Django's message for a missing lead is "No Lead matches the given
     // query.", so opening a deleted lead answered 500. See `api-helpers.js`.
-    if (err?.status === 404) {
+    if (apiStatus(err) === 404) {
       error(404, 'That lead does not exist, or you do not have access to it.');
     }
     throw err;
@@ -521,17 +546,12 @@ export async function deleteLead({ cookies }, id) {
  * extra key in `values` cannot reach the request.
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
- * @param {Record<string, any>} values
- * @returns {Promise<Schemas['LeadCreateResponse']>} the `LeadListView.post` response body.
- *   Confirmed against the running backend: on success this is
- *   `{ error: false, message: "Lead Created Successfully" }`, with no `id` field. Unlike
- *   `createDeal`'s response, which does carry one (`OpportunityListView.post` adds it
- *   deliberately), a caller here cannot read `.id` off the result to open the record it just
- *   created. `+page.server.js` accounts for this and falls back to the list rather than
- *   assuming an id that is not there.
+ * @param {Record<string, unknown>} values
+ * @returns {Promise<Schemas['LeadCreateResponse']>} the `LeadListView.post` response body,
+ *   carrying the new lead's `id`.
  */
 export async function createLead({ cookies }, values) {
-  /** @type {Record<string, any>} */
+  /** @type {Record<string, unknown>} */
   const body = {};
   for (const field of EDITABLE_FIELDS) {
     body[field] = emptyAs(field, values[field]);

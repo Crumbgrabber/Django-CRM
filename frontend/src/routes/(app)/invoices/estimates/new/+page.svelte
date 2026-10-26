@@ -41,9 +41,7 @@
   import { numberPattern } from '#lib/v2/document-numbers.js';
   import { isOn } from '#lib/v2/modules.js';
 
-  /** @typedef {{ id: string, name: string, account_id: string | null }} AccountBound */
-
-  /** @type {{ data: { accounts: { id: string, name: string }[], contacts: (AccountBound & { account_name: string })[], deals: AccountBound[], [key: string]: any }, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   const CURRENCIES = CURRENCY_CODES.filter((c) => c.value);
@@ -137,7 +135,7 @@
 
   /** The builder as the API body; only what `EstimateCreateSerializer` accepts. */
   let payload = $derived.by(() => {
-    /** @type {Record<string, any>} */
+    /** @type {Record<string, unknown>} */
     const body = {
       title: title.trim(),
       account_id: accountId,

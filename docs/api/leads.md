@@ -83,16 +83,17 @@ The body is validated by `LeadCreateSerializer` (`leads/serializer.py:88-224`); 
 [Errors: Status codes](errors.md#status-codes)):
 
 ```json
-{"error": false, "message": "Lead Created Successfully"}
+{"error": false, "message": "Lead Created Successfully", "id": "<uuid>"}
 ```
 
-Sending `"status": "converted"` on create runs the lead straight through
+`id` is the new lead's. Sending `"status": "converted"` on create runs the lead straight through
 `leads.services.convert_lead_to_account` and returns a different shape instead:
 
 ```json
 {
   "error": false,
   "message": "Lead Converted Successfully",
+  "id": "<uuid>",
   "account_id": "<uuid>",
   "contact_id": "<uuid or null>",
   "opportunity_id": "<uuid or null>"

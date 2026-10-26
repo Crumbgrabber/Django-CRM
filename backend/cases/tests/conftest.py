@@ -25,7 +25,7 @@ def case_a(admin_user, org_a):
         name="Bug in login page",
         status="New",
         priority="High",
-        case_type="Bug",
+        case_type="Incident",
         description="Login page crashes on submit.",
         created_by=admin_user,
         org=org_a,

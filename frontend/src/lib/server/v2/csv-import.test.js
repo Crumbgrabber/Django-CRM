@@ -34,10 +34,12 @@ describe('forwardCsvImport', () => {
 
   it('forwards the mapping field with the file', async () => {
     apiRequest.mockResolvedValue({ columns: [] });
-    const out = await forwardCsvImport(
-      event({ file: sheet(), mapping: '{"0":"full_name","1":null}' }),
-      '/contacts/import/preview/',
-      'importPreview'
+    const out = /** @type {any} */ (
+      await forwardCsvImport(
+        event({ file: sheet(), mapping: '{"0":"full_name","1":null}' }),
+        '/contacts/import/preview/',
+        'importPreview'
+      )
     );
     expect(out).toEqual({ importPreview: { columns: [] } });
     const body = apiRequest.mock.calls[0][1].body;
@@ -52,10 +54,12 @@ describe('forwardCsvImport', () => {
   });
 
   it('asks for a file when none was chosen', async () => {
-    const out = await forwardCsvImport(
-      event({ mapping: 'auto' }),
-      '/contacts/import/preview/',
-      'importPreview'
+    const out = /** @type {any} */ (
+      await forwardCsvImport(
+        event({ mapping: 'auto' }),
+        '/contacts/import/preview/',
+        'importPreview'
+      )
     );
     expect(out.status).toBe(400);
     expect(out.data.importError).toBe('Choose a file.');
@@ -74,10 +78,12 @@ describe('forwardCsvImport', () => {
         created: 0
       })
     );
-    const out = await forwardCsvImport(
-      event({ file: sheet(), mapping: 'auto' }),
-      '/leads/import/commit/',
-      'importCommit'
+    const out = /** @type {any} */ (
+      await forwardCsvImport(
+        event({ file: sheet(), mapping: 'auto' }),
+        '/leads/import/commit/',
+        'importCommit'
+      )
     );
     expect(out.status).toBe(400);
     expect(out.data.importError).toBe('Nothing in this file can be imported.');
@@ -88,10 +94,12 @@ describe('forwardCsvImport', () => {
     apiRequest.mockRejectedValue(
       httpError(429, { detail: 'Request was throttled. Expected available in 20 seconds.' })
     );
-    const out = await forwardCsvImport(
-      event({ file: sheet(), mapping: 'auto' }),
-      '/contacts/import/preview/',
-      'importPreview'
+    const out = /** @type {any} */ (
+      await forwardCsvImport(
+        event({ file: sheet(), mapping: 'auto' }),
+        '/contacts/import/preview/',
+        'importPreview'
+      )
     );
     expect(out.status).toBe(429);
     expect(out.data.importError).toBe('Too many tries in a minute. Wait a moment, then try again.');
@@ -99,10 +107,12 @@ describe('forwardCsvImport', () => {
 
   it('keeps the permission sentence for a refused role', async () => {
     apiRequest.mockRejectedValue(httpError(403, { error: true, message: 'Permission denied' }));
-    const out = await forwardCsvImport(
-      event({ file: sheet(), mapping: 'auto' }),
-      '/contacts/import/preview/',
-      'importPreview'
+    const out = /** @type {any} */ (
+      await forwardCsvImport(
+        event({ file: sheet(), mapping: 'auto' }),
+        '/contacts/import/preview/',
+        'importPreview'
+      )
     );
     expect(out.status).toBe(403);
     expect(out.data.importError).toBe('Importing needs an admin, or a member with sales access.');
@@ -152,10 +162,12 @@ describe('import error logging', () => {
   });
 
   it("never logs a skipped row's cells, and still hands them to the client", async () => {
-    const out = await forwardCsvImport(
-      event({ file: sheet(), mapping: 'auto' }),
-      '/leads/import/commit/',
-      'importCommit'
+    const out = /** @type {any} */ (
+      await forwardCsvImport(
+        event({ file: sheet(), mapping: 'auto' }),
+        '/leads/import/commit/',
+        'importCommit'
+      )
     );
     expect(out.data.importSkipped[0].cells).toEqual(['Ada', CELL]);
     const log = logged.join('\n');

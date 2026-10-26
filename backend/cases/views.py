@@ -8,6 +8,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 from drf_spectacular.utils import (
+    PolymorphicProxySerializer,
     extend_schema,
     inline_serializer,
 )
@@ -40,6 +41,7 @@ from cases.serializer import (
     CaseSerializer,
     EmailMessageSerializer,
     ReopenPolicySerializer,
+    ReopenPolicyWithStatsSerializer,
     parent_access_context,
 )
 from cases.signals import route_after_relations
@@ -212,6 +214,31 @@ def case_list_queryset(profile, params):
     return apply_case_list_filters(queryset, params)
 
 
+def _choice_pairs():
+    """Schema only: a `(value, label)` choices tuple as JSON renders it."""
+    return serializers.ListField(
+        child=serializers.ListField(child=serializers.CharField())
+    )
+
+
+class CaseUserOptionSerializer(serializers.Serializer):
+    """Schema only: a row of `CaseListView`'s `users`."""
+
+    id = serializers.UUIDField()
+    user__email = serializers.EmailField()
+
+
+class CaseMergedSourceSerializer(serializers.Serializer):
+    """Schema only: a row of the detail's `merged_from_cases`. A source the
+    viewer may not open has a null name."""
+
+    id = serializers.UUIDField()
+    name = serializers.CharField(allow_null=True)
+    merged_at = serializers.DateTimeField(allow_null=True)
+    restricted = serializers.BooleanField()
+    can_unmerge = serializers.BooleanField()
+
+
 class CaseListView(APIView, LimitOffsetPagination):
     permission_classes = (IsAuthenticated, HasOrgContext)
     model = Case
@@ -297,14 +324,19 @@ class CaseListView(APIView, LimitOffsetPagination):
             200: inline_serializer(
                 name="CaseListResponse",
                 fields={
+                    "open_count": serializers.IntegerField(),
+                    "urgent_count": serializers.IntegerField(),
+                    "awaiting_first_reply": serializers.IntegerField(),
                     "cases_count": serializers.IntegerField(),
                     "offset": serializers.IntegerField(allow_null=True),
                     "cases": CaseSerializer(many=True),
-                    "status": serializers.ListField(),
-                    "priority": serializers.ListField(),
-                    "type_of_case": serializers.ListField(),
-                    "accounts_list": AccountPickerSerializer(many=True),
-                    "contacts_list": ContactPickerSerializer(many=True),
+                    "status": _choice_pairs(),
+                    "priority": _choice_pairs(),
+                    "type_of_case": _choice_pairs(),
+                    # Left out under `?slim=true`.
+                    "accounts_list": AccountPickerSerializer(many=True, required=False),
+                    "contacts_list": ContactPickerSerializer(many=True, required=False),
+                    "users": CaseUserOptionSerializer(many=True),
                 },
             )
         },
@@ -566,16 +598,56 @@ class CaseDetailView(APIView):
         tags=["Cases"],
         parameters=swagger_params.organization_params,
         responses={
-            200: inline_serializer(
-                name="CaseDetailResponse",
-                fields={
-                    "cases_obj": CaseSerializer(),
-                    "attachments": AttachmentsSerializer(many=True),
-                    "comments": CommentSerializer(many=True),
-                    "comment_permission": serializers.BooleanField(),
-                    "approval_rule": serializers.DictField(allow_null=True),
-                    "users_mention": serializers.ListField(),
-                },
+            # A merged duplicate answers 200 with only where to go instead.
+            200: PolymorphicProxySerializer(
+                component_name="CaseRetrieveResponse",
+                resource_type_field_name=None,
+                serializers=[
+                    inline_serializer(
+                        name="CaseDetailResponse",
+                        fields={
+                            "cases_obj": CaseSerializer(),
+                            "attachments": AttachmentsSerializer(many=True),
+                            "comments": CommentSerializer(many=True),
+                            "internal_notes": CommentSerializer(many=True),
+                            "contacts": ContactLinkSerializer(many=True),
+                            "solutions": SolutionSerializer(many=True),
+                            "activities": ActivitySerializer(many=True),
+                            "email_messages": EmailMessageSerializer(many=True),
+                            "merged_from_cases": CaseMergedSourceSerializer(many=True),
+                            "custom_field_definitions": CustomFieldDefinitionSerializer(
+                                many=True
+                            ),
+                            "status": _choice_pairs(),
+                            "priority": _choice_pairs(),
+                            "type_of_case": _choice_pairs(),
+                            "comment_permission": serializers.BooleanField(),
+                            "can_merge": serializers.BooleanField(),
+                            "approval_rule": inline_serializer(
+                                name="CaseApprovalRuleRef",
+                                fields={
+                                    "id": serializers.CharField(),
+                                    "name": serializers.CharField(),
+                                },
+                                allow_null=True,
+                            ),
+                            "users_mention": inline_serializer(
+                                name="CaseMentionUser",
+                                fields={"user__email": serializers.EmailField()},
+                                many=True,
+                            ),
+                        },
+                    ),
+                    inline_serializer(
+                        name="CaseMergedRedirectResponse",
+                        fields={
+                            "redirect_to": serializers.CharField(),
+                            "merged_into": serializers.CharField(),
+                            "source_case_id": serializers.CharField(),
+                            "source_case_name": serializers.CharField(),
+                        },
+                    ),
+                ],
             )
         },
     )
@@ -765,6 +837,7 @@ class CaseDetailView(APIView):
                     "cases_obj": CaseSerializer(),
                     "attachments": AttachmentsSerializer(many=True),
                     "comments": CommentSerializer(many=True),
+                    "internal_notes": CommentSerializer(many=True),
                 },
             )
         },
@@ -1062,6 +1135,11 @@ class CaseAttachmentView(APIView):
         )
 
 
+class CaseSolutionLinkResponseSerializer(serializers.Serializer):
+    error = serializers.BooleanField()
+    solution = SolutionSerializer()
+
+
 class CaseSolutionLinkView(APIView):
     """Link or unlink Solutions (Knowledge Base articles) to a Case."""
 
@@ -1080,6 +1158,11 @@ class CaseSolutionLinkView(APIView):
             name="CaseSolutionLinkRequest",
             fields={"solution_id": serializers.CharField()},
         ),
+        # 200 when it was already linked, 201 when this call linked it.
+        responses={
+            200: CaseSolutionLinkResponseSerializer,
+            201: CaseSolutionLinkResponseSerializer,
+        },
     )
     def post(self, request, pk, solution_pk=None):
         # This class is routed twice: `<pk>/solutions/` for POST and
@@ -1282,7 +1365,7 @@ class ReopenPolicyView(APIView):
     @extend_schema(
         tags=["Cases"],
         parameters=swagger_params.organization_params,
-        responses={200: ReopenPolicySerializer},
+        responses={200: ReopenPolicyWithStatsSerializer},
     )
     def get(self, request, format=None):
         if not is_org_admin(request.profile):

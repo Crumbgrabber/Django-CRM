@@ -72,6 +72,18 @@ def may_read_document(profile, document):
     return Document.objects.filter(pk=document.pk).filter(_visible_to(profile)).exists()
 
 
+def _document_page(status_name):
+    """One status's envelope in the document list (`get_context_data`)."""
+    return inline_serializer(
+        f"DocumentList{status_name.title()}",
+        {
+            f"documents_{status_name}_count": serializers.IntegerField(),
+            f"documents_{status_name}": DocumentSerializer(many=True),
+            "offset": serializers.IntegerField(allow_null=True),
+        },
+    )
+
+
 class DocumentListView(APIView, LimitOffsetPagination):
     permission_classes = (IsAuthenticated, HasOrgContext)
     model = Document
@@ -176,10 +188,12 @@ class DocumentListView(APIView, LimitOffsetPagination):
                 name="DocumentListResponse",
                 fields={
                     "search": serializers.BooleanField(),
-                    "documents_active": serializers.DictField(),
-                    "documents_inactive": serializers.DictField(),
+                    "documents_active": _document_page("active"),
+                    "documents_inactive": _document_page("inactive"),
                     "users": ProfileSerializer(many=True),
-                    "status_choices": serializers.ListField(),
+                    "status_choices": serializers.ListField(
+                        child=serializers.ListField(child=serializers.CharField())
+                    ),
                 },
             )
         },

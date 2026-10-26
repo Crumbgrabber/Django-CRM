@@ -3,6 +3,7 @@ import uuid
 from decimal import Decimal
 
 from django.contrib.contenttypes.models import ContentType
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from accounts.access import has_account_access
@@ -28,6 +29,49 @@ from projects.models import Project, ProjectRate
 
 def _ref(record):
     return {"id": str(record.pk), "name": record.name} if record else None
+
+
+def _money():
+    return serializers.DecimalField(max_digits=None, decimal_places=2)
+
+
+class ProjectRefSerializer(serializers.Serializer):
+    """`_ref`: a project's account or deal, for the schema."""
+
+    id = serializers.UUIDField()
+    name = serializers.CharField()
+
+
+class ProjectBurnSerializer(serializers.Serializer):
+    """`projects.burn.burn_for`: one project's burn, for the schema."""
+
+    logged_hours = _money()
+    billable_hours = _money()
+    billable_value = _money()
+    unbilled_value = _money()
+    invoiced_amount = serializers.DecimalField(
+        max_digits=None, decimal_places=2, allow_null=True
+    )
+    hours_percent = serializers.IntegerField(allow_null=True)
+    amount_percent = serializers.IntegerField(allow_null=True)
+
+
+class ProjectRateRowSerializer(serializers.Serializer):
+    """One `ProjectDetailSerializer.rates` entry, for the schema."""
+
+    profile = ProfileSerializer()
+    hourly_rate = _money()
+
+
+class ProjectInvoiceRowSerializer(serializers.Serializer):
+    """One `ProjectDetailSerializer.invoices` entry, for the schema."""
+
+    id = serializers.UUIDField()
+    invoice_number = serializers.CharField()
+    status = serializers.CharField()
+    total_amount = _money()
+    currency = serializers.CharField()
+    issue_date = serializers.DateField(allow_null=True)
 
 
 class ProjectListSerializer(serializers.ModelSerializer):
@@ -64,15 +108,18 @@ class ProjectListSerializer(serializers.ModelSerializer):
         )
         read_only_fields = fields
 
-    def get_account(self, obj) -> dict:
+    @extend_schema_field(ProjectRefSerializer)
+    def get_account(self, obj):
         return _ref(obj.account)
 
-    def get_deal(self, obj) -> dict | None:
+    @extend_schema_field(ProjectRefSerializer(allow_null=True))
+    def get_deal(self, obj):
         if obj.deal_id is None or not module_is_available(org_of(obj), "deals"):
             return None
         return _ref(obj.deal)
 
-    def get_burn(self, obj) -> dict:
+    @extend_schema_field(ProjectBurnSerializer)
+    def get_burn(self, obj):
         burn = self.context.get("burn")
         if burn is None or obj.pk not in burn:
             burn = burn_for([obj], self.context["profile"])
@@ -112,7 +159,8 @@ class ProjectDetailSerializer(ProjectListSerializer):
             org_id=obj.org_id,
         ).order_by("-id")
 
-    def get_rates(self, obj) -> list:
+    @extend_schema_field(ProjectRateRowSerializer(many=True))
+    def get_rates(self, obj):
         rows = obj.rates.select_related("profile__user").order_by("created_at")
         return [
             {
@@ -122,13 +170,16 @@ class ProjectDetailSerializer(ProjectListSerializer):
             for r in rows
         ]
 
-    def get_comments(self, obj) -> list:
+    @extend_schema_field(CommentSerializer(many=True))
+    def get_comments(self, obj):
         return CommentSerializer(self._attached(Comment, obj), many=True).data
 
-    def get_attachments(self, obj) -> list:
+    @extend_schema_field(AttachmentsSerializer(many=True))
+    def get_attachments(self, obj):
         return AttachmentsSerializer(self._attached(Attachments, obj), many=True).data
 
-    def get_invoices(self, obj) -> list:
+    @extend_schema_field(ProjectInvoiceRowSerializer(many=True))
+    def get_invoices(self, obj):
         profile = self.context["profile"]
         if not module_is_available(profile.org, "invoices"):
             return []

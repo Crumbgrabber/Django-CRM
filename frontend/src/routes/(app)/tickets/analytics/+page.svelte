@@ -27,21 +27,14 @@
   import { Clock } from '@lucide/svelte';
   import { isOn } from '#lib/v2/modules.js';
 
-  /** @type {{ data: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data } = $props();
 
   let canView = $derived(data.can_view);
   let totals = $derived(data.totals);
   // Floor at 1 so an empty or all-zero window scales cleanly to flat bars
   // rather than dividing by a zero (or -Infinity) peak.
-  let peak = $derived(
-    Math.max(
-      1,
-      ...data.volume.map((/** @type {{ opened: number, closed: number }} */ d) =>
-        Math.max(d.opened, d.closed)
-      )
-    )
-  );
+  let peak = $derived(Math.max(1, ...data.volume.map((d) => Math.max(d.opened, d.closed))));
 
   /**
    * Minutes → "41m" / "2h 20m" / "1d 3h" / "1d". A number of minutes is not a
@@ -84,6 +77,7 @@
     hours == null ? null : Math.round(hours * 60);
 
   // Best first, so the bars read down from the answer most tickets hope for.
+  /** @type {(5 | 4 | 3 | 2 | 1)[]} */
   const RATINGS = [5, 4, 3, 2, 1];
   const ratingShare = (/** @type {number} */ n) =>
     data.csat.count ? Math.round((n / data.csat.count) * 100) : 0;
@@ -219,12 +213,7 @@
           </p>
           {#each data.byType as t (t.case_type)}
             {@const share = Math.round(
-              (t.count /
-                data.byType.reduce(
-                  (/** @type {number} */ a, /** @type {{ count: number }} */ x) => a + x.count,
-                  0
-                )) *
-                100
+              (t.count / data.byType.reduce((a, x) => a + x.count, 0)) * 100
             )}
             <div style="margin-bottom:13px">
               <div style="display:flex;align-items:baseline;font-size:12.5px;margin-bottom:5px">
@@ -237,12 +226,10 @@
             </div>
           {/each}
 
-          {#if isOn(data.modules, 'knowledge_base') && data.byType.find((/** @type {{ case_type: string }} */ t) => t.case_type === 'Question')}
+          {#if isOn(data.modules, 'knowledge_base') && data.byType.find((t) => t.case_type === 'Question')}
             <p class="v2-sub" style="font-size:11.5px;margin:16px 0 0">
               <a href={resolve('solutions')} style="color:inherit">
-                {data.byType.find(
-                  (/** @type {{ case_type: string }} */ t) => t.case_type === 'Question'
-                ).count} questions in this window
+                {data.byType.find((t) => t.case_type === 'Question')?.count} questions in this window
               </a>. The ones that repeat belong in the knowledge base.
             </p>
           {/if}

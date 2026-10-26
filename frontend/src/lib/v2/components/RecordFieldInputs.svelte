@@ -12,12 +12,12 @@
 
   /**
    * @type {{
-   *   fields: any[],
-   *   linkFields?: { key: string, label: string, target: string, many: boolean, records: { id: string, name: string }[], hidden: number, readOnly: boolean }[],
+   *   fields: ReturnType<typeof import('#lib/server/v2/record-fields.js').pairForEdit>,
+   *   linkFields?: ReturnType<typeof import('#lib/server/v2/record-fields.js').linkFieldsForEdit>,
    *   people?: { id: string, name: string }[],
    *   assignees?: { id: string, name: string }[],
    *   edit?: boolean,
-   *   typed?: Record<string, any> | null,
+   *   typed?: unknown,
    *   errors?: Record<string, string> | null,
    *   heading?: string,
    *   form?: string
@@ -35,10 +35,14 @@
     form: formId = undefined
   } = $props();
 
+  // What a refused save carried: the `custom_fields` it sent, a key to value object.
+  let carried = $derived(
+    typed && typeof typed === 'object' ? /** @type {Record<string, unknown>} */ (typed) : null
+  );
   let shown = $derived(
     fields.map((f) => {
-      if (!typed || !(f.key in typed)) return f;
-      const v = typed[f.key];
+      if (!carried || !(f.key in carried)) return f;
+      const v = carried[f.key];
       return { ...f, value: f.field_type === 'checkbox' ? Boolean(v) : v == null ? '' : String(v) };
     })
   );
@@ -62,7 +66,7 @@
           type="checkbox"
           name="cf_{f.key}"
           form={formId}
-          checked={f.value}
+          checked={f.value === true}
           aria-invalid={problem ? 'true' : undefined}
         />
         <span>{f.label}</span>
@@ -131,7 +135,7 @@
       />
       <RecordPicker
         name="link_{l.key}"
-        target={l.target}
+        target={l.target ?? ''}
         multiple={l.many}
         selected={l.records}
         label={l.label}

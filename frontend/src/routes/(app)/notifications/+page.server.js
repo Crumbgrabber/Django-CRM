@@ -1,4 +1,5 @@
 import { fail } from '@sveltejs/kit';
+import { apiStatus } from '#lib/api-errors.js';
 import {
   getNotifications,
   markNotificationRead,
@@ -24,8 +25,8 @@ export const actions = {
 
     try {
       await markNotificationRead({ cookies }, id);
-    } catch (/** @type {any} */ err) {
-      return fail(err?.status === 404 ? 404 : 500, { error: 'Could not mark that read.' });
+    } catch (err) {
+      return fail(apiStatus(err) === 404 ? 404 : 500, { error: 'Could not mark that read.' });
     }
     return { ok: true };
   },

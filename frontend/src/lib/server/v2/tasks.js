@@ -40,10 +40,14 @@
  */
 import { error } from '@sveltejs/kit';
 import { apiRequest } from '#lib/api-helpers.js';
+import { apiStatus } from '#lib/api-errors.js';
 import { fieldsForDetail, fieldsForEdit } from '#lib/server/v2/record-custom-fields.js';
 import { rethrowModuleOff } from '#lib/server/v2/modules.js';
 import { attachmentHref } from '#lib/server/v2/files.js';
 import { taskProject } from '#lib/v2/projects.js';
+
+/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+/** @typedef {Schemas['TaskList'] | Schemas['Task']} TaskRecord */
 
 /** `Task.STATUS_CHOICES`. Note `Task` priority is Low/Medium/High. A Case's is not. */
 export const TASK_STATUSES = ['New', 'In Progress', 'Completed'];
@@ -58,7 +62,11 @@ export const FILTER_FIELDS = [
   'due_date__lte'
 ];
 
-/** The five parent columns, and where each one's record lives in v2. */
+/**
+ * The five parent columns, and where each one's record lives in v2.
+ *
+ * @type {{ field: 'account' | 'opportunity' | 'case' | 'lead' | 'project', kind: 'account' | 'deal' | 'ticket' | 'lead' | 'project', href: (id: string) => string }[]}
+ */
 const PARENTS = [
   { field: 'account', kind: 'account', href: (/** @type {string} */ id) => `/accounts/${id}` },
   {
@@ -79,7 +87,7 @@ const PARENTS = [
  * module, which is the only reason this can be a link at all. `project` may
  * arrive as a bare id, with no name to show.
  *
- * @param {any} row
+ * @param {TaskRecord} row
  */
 function toRelated(row) {
   for (const parent of PARENTS) {
@@ -97,23 +105,26 @@ function toRelated(row) {
 }
 
 /**
- * A profile as the pickers and avatars want it.
+ * A profile as the pickers and avatars want it: an assignee, a `users` option
+ * (`{id, user__email}`) or a comment's author.
  *
- * @param {any} profile
+ * @param {Schemas['Profile'] | Schemas['ProfileEmail'] | Schemas['CommentUser'] | null | undefined} profile
  */
 function toPerson(profile) {
-  const user = profile?.user_details ?? profile?.user ?? {};
+  /** @type {{ name?: string, email?: string } | null} */
+  const user = profile && 'user_details' in profile ? profile.user_details : null;
+  const listed = profile && 'user__email' in profile ? profile.user__email : '';
   return {
     id: profile?.id ?? '',
-    name: user.name || user.email || profile?.user__email || '',
-    email: user.email || profile?.user__email || ''
+    name: user?.name || user?.email || listed || '',
+    email: user?.email || listed || ''
   };
 }
 
 /**
  * The subset of a Django task the v2 pages read.
  *
- * @param {any} row
+ * @param {TaskRecord} row
  */
 function toRow(row) {
   /** @type {ReturnType<typeof toPerson>[]} */
@@ -124,14 +135,14 @@ function toRow(row) {
     status: row.status,
     priority: row.priority,
     due_date: row.due_date ?? null,
-    description: row.description ?? '',
+    description: ('description' in row ? row.description : null) ?? '',
     related: toRelated(row),
     assigned_to: assigned,
     // The list rows only ever render names; keeping both shapes here saves
     // every template from reaching through an object to get one.
     assigned_names: assigned.map((person) => person.name).filter(Boolean),
     assigned_ids: assigned.map((person) => person.id),
-    tags: (row.tags ?? []).map((/** @type {any} */ tag) => tag.name ?? tag),
+    tags: (row.tags ?? []).map((tag) => tag.name),
     created_at: row.created_at,
     // Derived once rather than in four templates. "Completed" is the only
     // status that means finished, and a finished task is never late.
@@ -158,9 +169,10 @@ export async function listTasks({ cookies }, params) {
   // pulls them costs 120 KB it never renders.
   if (!query.has('slim')) query.set('slim', 'true');
 
+  /** @type {Schemas['TaskListResponse']} */
   const response = await apiRequest(`/tasks/?${query}`, {}, { cookies });
-  /** @type {ReturnType<typeof toRow>[]} */
   const rows = (response.tasks ?? []).map(toRow);
+  /** @type {Partial<Schemas['TaskListTotals']>} */
   const totals = response.totals ?? {};
 
   return {
@@ -190,15 +202,16 @@ export async function listTasks({ cookies }, params) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  */
 export async function getTaskFormOptions({ cookies }) {
+  /** @type {Schemas['TaskListResponse']} */
   const response = await apiRequest('/tasks/?limit=1', {}, { cookies });
   return {
     owners: (response.users ?? []).map(toPerson),
-    accounts: (response.accounts_list ?? []).map((/** @type {any} */ row) => ({
+    accounts: (response.accounts_list ?? []).map((row) => ({
       id: row.id,
       name: row.name ?? ''
     })),
     // `ContactPickerSerializer`: the id and the name, no email.
-    contacts: (response.contacts_list ?? []).map((/** @type {any} */ row) => ({
+    contacts: (response.contacts_list ?? []).map((row) => ({
       id: row.id,
       name: [row.first_name, row.last_name].filter(Boolean).join(' ')
     }))
@@ -221,24 +234,24 @@ export async function getTaskFormOptions({ cookies }) {
  * @param {string} id
  */
 export async function getTask({ cookies }, id) {
-  /** @type {any} */
+  /** @type {Schemas['TaskDetailResponse']} */
   let response;
   try {
     response = await apiRequest(`/tasks/${id}/`, {}, { cookies });
-  } catch (/** @type {any} */ err) {
+  } catch (err) {
     rethrowModuleOff(err);
-    if (err?.status === 404) {
+    if (apiStatus(err) === 404) {
       error(404, 'That task does not exist, or it belongs to another team.');
     }
-    if (err?.status === 403) error(403);
+    if (apiStatus(err) === 403) error(403);
     throw err;
   }
 
-  const task = toRow(response.task_obj ?? {});
+  const task = toRow(response.task_obj);
   return {
     task,
     // `ContactLinkSerializer`: id, first_name, last_name and email.
-    contacts: (response.task_obj?.contacts ?? []).map((/** @type {any} */ row) => ({
+    contacts: (response.task_obj?.contacts ?? []).map((row) => ({
       id: row.id,
       name: [row.first_name, row.last_name].filter(Boolean).join(' ') || row.email || '',
       email: row.email ?? ''
@@ -268,11 +281,11 @@ export async function getTask({ cookies }, id) {
  * `created_by` is a bare user id, so a file is left unattributed rather than
  * printing an id.
  *
- * @param {any} response
+ * @param {Schemas['TaskDetailResponse']} response
  */
 function buildTaskActivity(response) {
   /** @type {Array<{id:string,type:'comment'|'file'|'status',at:string,by:string|null,body:string,href?:string|null}>} */
-  const events = (response.comments ?? []).map((/** @type {any} */ c) => ({
+  const events = (response.comments ?? []).map((c) => ({
     id: `comment-${c.id}`,
     type: 'comment',
     at: c.commented_on,
@@ -302,10 +315,7 @@ function buildTaskActivity(response) {
     });
   }
 
-  return events.sort(
-    (/** @type {any} */ a, /** @type {any} */ b) =>
-      new Date(b.at).getTime() - new Date(a.at).getTime()
-  );
+  return events.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
 }
 
 /**
@@ -325,6 +335,7 @@ function buildTaskActivity(response) {
  * @param {string} id
  * @param {string} comment
  * @param {File|null} [file]
+ * @returns {Promise<Schemas['TaskCommentAttachmentResponse']>}
  */
 export async function addTaskNote({ cookies }, id, comment, file = null) {
   if (file) {
@@ -335,6 +346,13 @@ export async function addTaskNote({ cookies }, id, comment, file = null) {
   }
   return await apiRequest(`/tasks/${id}/`, { method: 'POST', body: { comment } }, { cookies });
 }
+
+/**
+ * What the task forms send, and what a refused save hands back to the form. A
+ * parent column (`account`, `lead`, ...) is set to an id, or cleared to null.
+ *
+ * @typedef {{ title: string, status: string, priority: string, due_date: string | null, description: string, assigned_to: string[], custom_fields?: Record<string, string | boolean | null>, [parent: string]: string | string[] | null | Record<string, string | boolean | null> | undefined }} TaskValues
+ */
 
 /** Scalar fields the task forms own. Everything else is server-derived. */
 export const EDITABLE_FIELDS = [
@@ -360,10 +378,10 @@ export const EDITABLE_FIELDS = [
  * present, and the four parent columns are checked against each other, so
  * sending an untouched one back can trip the "one parent entity" rule.
  *
- * @param {Record<string, any>} values
+ * @param {Record<string, unknown>} values
  */
 function toBody(values) {
-  /** @type {Record<string, any>} */
+  /** @type {Record<string, unknown>} */
   const body = {};
   for (const field of EDITABLE_FIELDS) {
     if (!(field in values)) continue;
@@ -384,7 +402,8 @@ function toBody(values) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
- * @param {Record<string, any>} values
+ * @param {Record<string, unknown>} values
+ * @returns {Promise<Schemas['TaskPatchResponse']>}
  */
 export async function updateTask({ cookies }, id, values) {
   return await apiRequest(`/tasks/${id}/`, { method: 'PATCH', body: toBody(values) }, { cookies });
@@ -398,7 +417,8 @@ export async function updateTask({ cookies }, id, values) {
  * because it decides who may delete the task.
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
- * @param {Record<string, any>} values
+ * @param {Record<string, unknown>} values
+ * @returns {Promise<Schemas['TaskCreateResponse']>}
  */
 export async function createTask({ cookies }, values) {
   return await apiRequest('/tasks/', { method: 'POST', body: toBody(values) }, { cookies });
@@ -413,6 +433,7 @@ export async function createTask({ cookies }, values) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
  * @param {boolean} done
+ * @returns {Promise<Schemas['TaskPatchResponse']>}
  */
 export async function setTaskDone({ cookies }, id, done) {
   return await apiRequest(
@@ -430,6 +451,7 @@ export async function setTaskDone({ cookies }, id, done) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
+ * @returns {Promise<Schemas['TaskDeleteResponse']>}
  */
 export async function deleteTask({ cookies }, id) {
   return await apiRequest(`/tasks/${id}/`, { method: 'DELETE' }, { cookies });

@@ -291,7 +291,9 @@ describe('targets and recipients', () => {
     expect(recipientsFor(deal)[2].value).toBe('parent_assignees');
     expect(recipientsFor(deal)[4].value).toBe('linked:in:property.deal');
     expect(
-      recipientsFor({ key: 'task', label: 'Task', parent: null, links: [] }).map((x) => x.label)
+      recipientsFor(
+        /** @type {any} */ ({ key: 'task', label: 'Task', parent: null, links: [] })
+      ).map((x) => x.label)
     ).toEqual(['Its assignees', 'Who created it', "Its parent's assignees", 'All admins']);
     expect(recipientsFor(lead).map((x) => x.value)).toEqual([
       'record_assignees',
@@ -464,7 +466,7 @@ describe('the draft', () => {
     expect(Object.keys(d).sort()).toEqual(
       ['actions', 'conditions', 'match', 'name', 'object_key', 'trigger'].sort()
     );
-    d.actions[0].to.push('x');
+    /** @type {string[]} */ (d.actions[0].to).push('x');
     expect(saved.actions[0].to).toEqual(['admins']);
   });
 
@@ -876,12 +878,9 @@ describe('offersParent and taskAudience', () => {
       { value: 'owner', label: "The rule's owner" },
       { value: 'person', label: 'A chosen person' }
     ]);
-    expect(taskAudience({ key: 'task', parent: null }).map((o) => o.label)).toEqual([
-      'Its assignees',
-      "Its parent's assignees",
-      "The rule's owner",
-      'A chosen person'
-    ]);
+    expect(
+      taskAudience(/** @type {any} */ ({ key: 'task', parent: null })).map((o) => o.label)
+    ).toEqual(['Its assignees', "Its parent's assignees", "The rule's owner", 'A chosen person']);
     expect(taskAudience(lead).map((o) => o.value)).toEqual(['record', 'owner', 'person']);
   });
 });
@@ -1016,6 +1015,7 @@ describe('clear or unset', () => {
     expect(isClearing(a)).toBe(true);
     applyClear(a, false, before);
     expect(a.value).toBe('s2');
+    /** @type {import('#lib/v2/automation.js').RuleAction} */
     const b = { type: 'set_field', field: 'stage' };
     applyClear(b, true, undefined);
     applyClear(b, false, undefined);

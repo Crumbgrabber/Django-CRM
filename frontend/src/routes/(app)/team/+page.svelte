@@ -30,25 +30,27 @@
   import { enhance } from '$app/forms';
   import { UserPlus, KeyRound } from '@lucide/svelte';
 
-  /** @type {{ data: import('./$types').PageData, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   let inviting = $state(false);
   let busy = $state(false);
 
   /** A submit handler that flips `busy` while the action runs. */
+  /** @type {import('$app/forms').SubmitFunction} */
   const working = () => {
     busy = true;
-    return async (/** @type {any} */ { update }) => {
+    return async ({ update }) => {
       await update();
       busy = false;
     };
   };
 
   /** The invite form both submits and, on success, closes itself. */
+  /** @type {import('$app/forms').SubmitFunction} */
   const inviteSubmit = () => {
     busy = true;
-    return async (/** @type {any} */ { update, result }) => {
+    return async ({ update, result }) => {
       await update();
       busy = false;
       if (result?.type === 'success' && result?.data?.invited) inviting = false;

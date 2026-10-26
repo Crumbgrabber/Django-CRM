@@ -7,6 +7,7 @@ import {
   EDITABLE_FIELDS
 } from '#lib/server/v2/goals.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 /**
  * Editing a goal.
@@ -21,8 +22,8 @@ import { readableError } from '#lib/server/v2/form-errors.js';
 export async function load(event) {
   try {
     return await getGoalForEdit(event, event.params.id);
-  } catch (/** @type {any} */ err) {
-    if (err?.status === 404) {
+  } catch (err) {
+    if (apiStatus(err) === 404) {
       error(404, 'That goal does not exist, or you cannot see it.');
     }
     throw err;
@@ -34,9 +35,11 @@ export const actions = {
   save: async (event) => {
     const form = await event.request.formData();
 
-    /** @type {Record<string, any>} */
+    /** @type {import('#lib/server/v2/goals.js').GoalValues} */
     const values = {};
-    for (const field of [...EDITABLE_FIELDS, 'target']) {
+    /** @type {import('#lib/server/v2/goals.js').GoalFormField[]} */
+    const fields = [...EDITABLE_FIELDS, 'target'];
+    for (const field of fields) {
       if (form.has(field)) values[field] = form.get(field)?.toString().trim() ?? '';
     }
     // The one switch submits an explicit 'true'/'false', so "paused" is a real
@@ -49,8 +52,8 @@ export const actions = {
 
     try {
       await updateGoal(event, event.params.id, values);
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, { values, error: 'Only an admin can change goals.' });
       }
       return fail(400, {
@@ -65,12 +68,12 @@ export const actions = {
   delete: async (event) => {
     try {
       await deleteGoal(event, event.params.id);
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, { error: 'Only an admin can delete goals.' });
       }
       // Already gone is the outcome the caller wanted; treat 404 as done.
-      if (err?.status === 404) redirect(303, '/goals');
+      if (apiStatus(err) === 404) redirect(303, '/goals');
       return fail(400, { error: readableError(err, 'Could not delete this goal.') });
     }
 

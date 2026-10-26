@@ -6,6 +6,7 @@ import {
   removeHoliday as removeHolidayWrite
 } from '#lib/server/v2/business-hours.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 /** @type {import('./$types').PageServerLoad} */
 export async function load({ cookies }) {
@@ -72,8 +73,8 @@ export const actions = {
       // is nothing for a hand-crafted POST to redirect at another org's row.
       const { calendar } = await getBusinessHours(event);
       await updateBusinessHours(event, calendar.id, days, meta);
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, { updateHours: { error: FORBIDDEN } });
       }
       return fail(400, {
@@ -87,7 +88,7 @@ export const actions = {
     const form = await event.request.formData();
     const date = form.get('date')?.toString() ?? '';
     const name = form.get('name')?.toString().trim() ?? '';
-    /** @type {any} */
+    /** @type {import('#lib/api-schema.js').components['schemas']['BusinessHoliday'] | null} */
     let existing = null;
     try {
       const { calendar } = await getBusinessHours(event);
@@ -96,8 +97,8 @@ export const actions = {
       // not the same event as adding a holiday either: the typed name was
       // discarded, and reporting both as "added" is how a rename silently fails.
       existing = await addHolidayWrite(event, calendar.id, { date, name });
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, { addHoliday: { error: FORBIDDEN } });
       }
       return fail(400, { addHoliday: { error: readableError(err, 'Could not add the holiday.') } });
@@ -115,8 +116,8 @@ export const actions = {
     try {
       const { calendar } = await getBusinessHours(event);
       await removeHolidayWrite(event, calendar.id, holidayId);
-    } catch (/** @type {any} */ err) {
-      if (err?.status === 403) {
+    } catch (err) {
+      if (apiStatus(err) === 403) {
         return fail(403, { removeHoliday: { error: FORBIDDEN } });
       }
       return fail(400, {

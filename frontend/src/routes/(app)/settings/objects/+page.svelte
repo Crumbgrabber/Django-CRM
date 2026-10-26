@@ -16,7 +16,7 @@
   import { count } from '#lib/v2/format.js';
   import { Plus } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   let creating = $state(false);
@@ -25,7 +25,7 @@
   let keyEdited = $state(false);
 
   let objects = $derived(data.answer.objects);
-  let archived = $derived(objects.filter((/** @type {any} */ o) => !o.is_active).length);
+  let archived = $derived(objects.filter((o) => !o.is_active).length);
   let limit = $derived(objectLimit(data.answer));
   let canAdd = $derived(data.can_edit && data.answer.has_custom_objects);
   let plansHref = $derived(billingHref(data));

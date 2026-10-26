@@ -40,6 +40,7 @@
  */
 import { error } from '@sveltejs/kit';
 import { apiRequest } from '#lib/api-helpers.js';
+import { apiStatus } from '#lib/api-errors.js';
 import { rethrowModuleOff } from '#lib/server/v2/modules.js';
 
 /** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
@@ -59,7 +60,7 @@ export const FILTER_FIELDS = ['status', 'tags'];
 /**
  * The subset of a Django solution the v2 pages read.
  *
- * @param {any} row
+ * @param {Schemas['Solution'] | Schemas['SolutionDetail']} row
  */
 function toRow(row) {
   return {
@@ -74,7 +75,7 @@ function toRow(row) {
     author: row.author ?? '',
     // Agent-side only. The portal serializers do not carry tags at all, on
     // purpose: the vocabulary is shared with deals and reads like "At Risk".
-    tags: (row.tags ?? []).map((/** @type {any} */ t) => ({ id: t.id, name: t.name })),
+    tags: (row.tags ?? []).map((t) => ({ id: t.id, name: t.name })),
     created_at: row.created_at,
     updated_at: row.updated_at ?? row.created_at,
     // Derived here rather than in three templates: approved and unreleased is
@@ -101,7 +102,8 @@ export async function listArticles({ cookies }, params) {
   /** @type {Schemas['SolutionListResponse']} */
   const response = await apiRequest(`/cases/solutions/?${query}`, {}, { cookies });
   const rows = (response.results ?? []).map(toRow);
-  const totals = /** @type {Record<string, number | undefined>} */ (response.totals ?? {});
+  /** @type {Partial<Schemas['SolutionTotals']>} */
+  const totals = response.totals ?? {};
 
   return {
     results: rows,
@@ -135,18 +137,18 @@ export async function getArticle({ cookies }, id) {
   let response;
   try {
     response = await apiRequest(`/cases/solutions/${id}/`, {}, { cookies });
-  } catch (/** @type {any} */ err) {
+  } catch (err) {
     rethrowModuleOff(err);
     // On the status, not on the wording. Another org's article is a 404 and
     // not a 403, which would confirm the id exists.
-    if (err?.status === 404) {
+    if (apiStatus(err) === 404) {
       error(404, 'That article does not exist, or it belongs to another team.');
     }
     throw err;
   }
 
   const article = toRow(response);
-  const tickets = (response.linked_cases ?? []).map((/** @type {any} */ row) => ({
+  const tickets = (response.linked_cases ?? []).map((row) => ({
     id: row.id,
     name: row.name ?? '',
     status: row.status,
@@ -185,10 +187,10 @@ export const EDITABLE_FIELDS = ['title', 'description', 'status', 'is_published'
  * usual on this model, because `status` and `is_published` are gated
  * separately from the article's text.
  *
- * @param {Record<string, any>} values
+ * @param {Record<string, unknown>} values
  */
 function toBody(values) {
-  /** @type {Record<string, any>} */
+  /** @type {Record<string, unknown>} */
   const body = {};
   for (const field of EDITABLE_FIELDS) {
     if (!(field in values)) continue;
@@ -208,7 +210,7 @@ function toBody(values) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
- * @param {Record<string, any>} values
+ * @param {Record<string, unknown>} values
  * @returns {Promise<Schemas['Solution']>}
  */
 export async function updateArticle({ cookies }, id, values) {
@@ -226,7 +228,7 @@ export async function updateArticle({ cookies }, id, values) {
  * from `request.profile`.
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
- * @param {Record<string, any>} values
+ * @param {Record<string, unknown>} values
  * @returns {Promise<Schemas['Solution']>}
  */
 export async function createArticle({ cookies }, values) {
@@ -250,6 +252,7 @@ export async function createArticle({ cookies }, values) {
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
  * @param {boolean} published
+ * @returns {Promise<Schemas['Solution']>}
  */
 export async function setPublished({ cookies }, id, published) {
   const verb = published ? 'publish' : 'unpublish';
@@ -267,6 +270,7 @@ export async function setPublished({ cookies }, id, published) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
+ * @returns {Promise<unknown>} the 204's empty reply
  */
 export async function deleteArticle({ cookies }, id) {
   return await apiRequest(`/cases/solutions/${id}/`, { method: 'DELETE' }, { cookies });

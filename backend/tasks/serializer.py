@@ -10,8 +10,6 @@ from common.modules import (
     org_of,
 )
 from common.serializer import (
-    AttachmentsSerializer,
-    CommentSerializer,
     ProfileSerializer,
     TagsSerializer,
     TeamsSerializer,
@@ -29,6 +27,13 @@ from tasks.models import (
     TaskPipeline,
     TaskStage,
 )
+
+
+class RelatedEntitySerializer(serializers.Serializer):
+    """A linked record as `{id, name}`, on task rows, board cards and kanban cards."""
+
+    id = serializers.UUIDField()
+    name = serializers.CharField()
 
 
 class BoardMemberSerializer(serializers.ModelSerializer):
@@ -98,7 +103,7 @@ class BoardTaskSerializer(serializers.ModelSerializer):
             data["opportunity"] = None
         return data
 
-    @extend_schema_field(dict)
+    @extend_schema_field(RelatedEntitySerializer(allow_null=True))
     def get_account(self, obj):
         """Render the parent account as ``{id, name}`` for the card chip, or
         ``None``. Read-only: overriding the model FK with a method field also
@@ -197,7 +202,7 @@ class BoardListSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
 
-    @extend_schema_field(str)
+    @extend_schema_field(serializers.CharField(allow_null=True))
     def get_my_role(self, obj):
         """The requesting profile's role on this board (``owner``/``admin``/
         ``member``), or ``None`` when they have none.
@@ -235,6 +240,7 @@ class BoardListSerializer(serializers.ModelSerializer):
         return BoardTask.objects.filter(column__board=obj).count()
 
 
+@extend_schema_field(RelatedEntitySerializer(allow_null=True))
 class _MinimalAccountField(serializers.RelatedField):
     """Account FK rendered as `{id, name}` so list rows can show the parent
     entity without an extra round-trip. Falls back to id-only when the related
@@ -244,6 +250,7 @@ class _MinimalAccountField(serializers.RelatedField):
         return {"id": str(value.pk), "name": getattr(value, "name", "") or ""}
 
 
+@extend_schema_field(RelatedEntitySerializer(allow_null=True))
 class _ModuleLinkField(serializers.RelatedField):
     """A parent from another module: null while that module is off."""
 
@@ -266,6 +273,7 @@ class _MinimalCaseField(_ModuleLinkField):
     module = "tickets"
 
 
+@extend_schema_field(serializers.UUIDField(allow_null=True))
 class _ProjectIdField(serializers.RelatedField):
     """The project's id, as the task contract has it; null while Projects is off."""
 
@@ -317,14 +325,12 @@ class TaskListSerializer(serializers.ModelSerializer):
 
 
 class TaskSerializer(serializers.ModelSerializer):
-    created_by = UserSerializer()
+    created_by = UserSerializer(allow_null=True)
     assigned_to = ProfileSerializer(read_only=True, many=True)
     # Name and email only; see `ContactLinkSerializer`.
     contacts = ContactLinkSerializer(read_only=True, many=True)
     teams = TeamsSerializer(read_only=True, many=True)
     tags = TagsSerializer(read_only=True, many=True)
-    task_attachment = AttachmentsSerializer(read_only=True, many=True)
-    task_comments = CommentSerializer(read_only=True, many=True)
     account = _MinimalAccountField(read_only=True)
     opportunity = _MinimalOpportunityField(read_only=True)
     case = _MinimalCaseField(read_only=True)
@@ -351,8 +357,6 @@ class TaskSerializer(serializers.ModelSerializer):
             "teams",
             "assigned_to",
             "tags",
-            "task_attachment",
-            "task_comments",
             "custom_fields",
         )
 
@@ -633,11 +637,8 @@ class TaskPipelineListSerializer(serializers.ModelSerializer):
         return obj.task_count
 
 
-class RelatedEntitySerializer(serializers.Serializer):
-    """Minimal serializer for related entities on kanban cards."""
-
-    id = serializers.UUIDField()
-    name = serializers.CharField()
+class KanbanRelatedEntitySerializer(RelatedEntitySerializer):
+    type = serializers.ChoiceField(choices=["account", "lead", "opportunity", "case"])
 
 
 class TaskKanbanCardSerializer(serializers.ModelSerializer):
@@ -677,7 +678,7 @@ class TaskKanbanCardSerializer(serializers.ModelSerializer):
             return False
         return has_task_access(request.profile, obj)
 
-    @extend_schema_field(RelatedEntitySerializer(allow_null=True))
+    @extend_schema_field(KanbanRelatedEntitySerializer(allow_null=True))
     def get_related_entity(self, obj):
         """Return the related entity (account, lead, opportunity, or case) if
         any; null when its module is off."""

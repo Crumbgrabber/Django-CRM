@@ -28,7 +28,7 @@ export async function load(event) {
     end: url.searchParams.get('end') || undefined,
     group_by: url.searchParams.get('group_by') || undefined,
     billable: url.searchParams.get('billable') || undefined,
-    project: projectsOn && isUuid(project) ? /** @type {string} */ (project) : undefined
+    project: project && projectsOn && isUuid(project) ? project : undefined
   };
 
   const { report } = await getTimeReport({ cookies }, filters, { projectsOn });

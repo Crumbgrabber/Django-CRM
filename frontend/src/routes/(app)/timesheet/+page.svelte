@@ -24,16 +24,9 @@
   import { asInternalPath } from '#lib/utils/paths.js';
   import { ChevronLeft, ChevronRight, Square, Receipt } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
-  /**
-   * `GET /time-entries/timesheet/`, which has no schema, so its entries stay
-   * untyped API rows.
-   *
-   * @typedef {{ start: string, end: string, running_count: number, profile: { name: string }, days: { date: string, entries: any[] }[] }} Week
-   */
-  /** @type {Week} */
   let week = $derived(data.week);
 
   // Disables every "Stop timer" button while a stop is in flight. Without
@@ -41,9 +34,10 @@
   // second gets a 400 "Timer is already stopped." back, so a successful stop
   // reads as a failure.
   let busy = $state(false);
+  /** @type {import('$app/forms').SubmitFunction} */
   const stopping = () => {
     busy = true;
-    return async (/** @type {any} */ { update }) => {
+    return async ({ update }) => {
       await update();
       busy = false;
     };
@@ -59,8 +53,9 @@
     return () => clearInterval(id);
   });
 
-  const liveMinutes = (/** @type {any} */ e) =>
-    e.is_running ? e.live_duration_minutes + sinceLoad : e.duration_minutes;
+  /** @param {import('#lib/api-schema.js').components['schemas']['TimesheetEntry']} e */
+  const liveMinutes = (e) =>
+    e.is_running ? (e.live_duration_minutes ?? 0) + sinceLoad : e.duration_minutes;
 
   const WEEKDAY = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   // The org's day, so the column marked today is the one the API files today's entries under.
@@ -106,7 +101,7 @@
         a +
         d.entries
           .filter((e) => e.billable && e.hourly_rate)
-          .reduce((x, e) => x + (liveMinutes(e) / 60) * e.hourly_rate, 0),
+          .reduce((x, e) => x + (liveMinutes(e) / 60) * Number(e.hourly_rate), 0),
       0
     )
   );

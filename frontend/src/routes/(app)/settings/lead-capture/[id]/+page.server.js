@@ -11,6 +11,7 @@ import { getOrgPeopleAndTeams } from '#lib/server/v2/org-people.js';
 import { getTags } from '#lib/server/v2/tags.js';
 import { fieldDefinitions } from '#lib/server/v2/record-custom-fields.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiStatus } from '#lib/api-errors.js';
 
 /**
  * One webhook: where to post, its settings and mapping, and its newest
@@ -21,7 +22,7 @@ import { readableError } from '#lib/server/v2/form-errors.js';
  */
 export async function load(event) {
   const detail = await getIntake(event, event.params.id);
-  if (detail.forbidden) return { forbidden: true };
+  if (detail.forbidden) return detail;
   const [{ sources }, people, tags, definitions] = await Promise.all([
     getLeadSources(event),
     getOrgPeopleAndTeams(event.cookies),
@@ -35,8 +36,8 @@ export async function load(event) {
     ...detail,
     sources,
     people: people.people,
-    tags: tags.map((/** @type {any} */ t) => ({ id: t.id, name: t.name, is_active: t.is_active })),
-    customFields: definitions.map((/** @type {any} */ d) => ({ key: d.key, label: d.label }))
+    tags: tags.map((t) => ({ id: t.id, name: t.name, is_active: t.is_active })),
+    customFields: definitions.map((d) => ({ key: d.key, label: d.label }))
   };
 }
 
@@ -46,12 +47,13 @@ export async function load(event) {
  * input cannot wipe the stored mapping.
  *
  * @param {FormData} form
- * @returns {any[] | undefined}
+ * @returns {unknown[] | undefined}
  */
 function readMapping(form) {
   const raw = form.get('mapping')?.toString();
   if (!raw) return undefined;
   try {
+    /** @type {unknown} */
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : undefined;
   } catch {
@@ -61,13 +63,14 @@ function readMapping(form) {
 
 /**
  * Turn an API refusal into the sentence the page shows, under `key`.
- * @param {string} key @param {any} err @param {string} fallback
+ * @param {string} key @param {unknown} err @param {string} fallback
  */
 function refused(key, err, fallback) {
-  if (err?.status === 403) {
+  if (apiStatus(err) === 403) {
     return fail(403, { [key]: { error: 'Only an admin can change webhooks.' } });
   }
-  if (err?.status === 404) return fail(404, { [key]: { error: 'That webhook no longer exists.' } });
+  if (apiStatus(err) === 404)
+    return fail(404, { [key]: { error: 'That webhook no longer exists.' } });
   return fail(400, { [key]: { error: readableError(err, fallback) } });
 }
 
@@ -75,7 +78,7 @@ function refused(key, err, fallback) {
 export const actions = {
   async save(event) {
     const form = await event.request.formData();
-    /** @type {Record<string, any>} */
+    /** @type {{ name: string, default_source: string, source_detail: string, assignee: string | null, tags: string[], mapping?: unknown[] }} */
     const values = {
       name: form.get('name')?.toString() ?? '',
       default_source: form.get('default_source')?.toString() ?? '',

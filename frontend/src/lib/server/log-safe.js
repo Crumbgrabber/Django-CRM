@@ -22,19 +22,21 @@
 export function describeError(err) {
   if (err === null || err === undefined) return 'unknown error';
 
+  const failure =
+    /** @type {{ message?: unknown, status?: unknown, code?: unknown, response?: { status?: unknown } }} */ (
+      err
+    );
   const message =
-    typeof err === 'object' &&
-    err !== null &&
-    typeof (/** @type {any} */ (err).message) === 'string'
-      ? /** @type {any} */ (err).message
+    typeof err === 'object' && err !== null && typeof failure.message === 'string'
+      ? failure.message
       : String(err);
 
   const parts = [message];
 
-  const status = /** @type {any} */ (err)?.response?.status ?? /** @type {any} */ (err)?.status;
+  const status = failure?.response?.status ?? failure?.status;
   if (status !== undefined && status !== null) parts.push(`status=${status}`);
 
-  const code = /** @type {any} */ (err)?.code;
+  const code = failure?.code;
   if (typeof code === 'string' && code) parts.push(`code=${code}`);
 
   return parts.join(' ');

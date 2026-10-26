@@ -22,7 +22,7 @@
   import { count } from '#lib/v2/format.js';
   import { Plus, Merge, Tags as TagsIcon } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   // The "New tag" disclosure. Open while adding, closed on a successful
@@ -88,7 +88,7 @@
       .replace(/s$/, '');
 
   let duplicateGroups = $derived.by(() => {
-    /** @type {Map<string, any[]>} */
+    /** @type {Map<string, import('#lib/api-schema.js').components['schemas']['TagsListRow'][]>} */
     const groups = new SvelteMap();
     // Active tags only. The list itself is fetched with
     // `?include_archived=true` so an admin can see what has been turned off,
@@ -99,7 +99,7 @@
     // Merge was wired that got worse: the merge archives the tag it empties,
     // so the banner would come straight back offering to merge a tag that no
     // longer had any records.
-    for (const t of data.tags.filter((/** @type {any} */ t) => t.is_active)) {
+    for (const t of data.tags.filter((t) => t.is_active)) {
       const key = normalise(t.name);
       groups.set(key, [...(groups.get(key) ?? []), t]);
     }
@@ -131,7 +131,7 @@
           action="?/create"
           use:enhance={() => {
             busy = true;
-            return async (/** @type {any} */ { result, update }) => {
+            return async ({ result, update }) => {
               await update();
               busy = false;
               // Only close on success. A failed submit (the empty-name guard, a

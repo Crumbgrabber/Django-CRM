@@ -25,16 +25,18 @@
   } from '#lib/v2/automation.js';
   import { ArrowUp, ArrowDown, Plus } from '@lucide/svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   let rules = $derived(data.rules ?? []);
-  let paused = $derived(rules.filter((/** @type {any} */ r) => r.status === 'paused'));
+  let paused = $derived(rules.filter((r) => r.status === 'paused'));
 
-  /** @param {any} rule */
+  /** @param {import('#lib/api-schema.js').components['schemas']['RuleRow']} rule */
   function statusOf(rule) {
     return (
-      /** @type {Record<string, {label: string, tone: any}>} */ (STATUS)[rule.status] ?? {
+      /** @type {Record<string, { label: string, tone: import('#lib/v2/enums.js').Tone }>} */ (
+        STATUS
+      )[rule.status] ?? {
         label: rule.status,
         tone: 'slate'
       }

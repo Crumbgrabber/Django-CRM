@@ -407,11 +407,14 @@ class TestTimesheetEndpoint:
         self, admin_client, admin_user, admin_profile, org_a
     ):
         case = _make_case(org_a, admin_user)
+        # Start it now, not half an hour ago, so it is in this week even just
+        # after Monday midnight.
+        started = timezone.now()
         _entry(
             case,
             admin_profile,
-            started_at=timezone.now() - timedelta(minutes=30),
-            ended_at=timezone.now(),
+            started_at=started,
+            ended_at=started + timedelta(minutes=30),
         )
         resp = admin_client.get("/api/time-entries/timesheet/")
         assert resp.status_code == 200, resp.content
@@ -433,7 +436,7 @@ class TestTimesheetEndpoint:
         self, admin_client, admin_profile, admin_user, org_a
     ):
         case = _make_case(org_a, admin_user, name="SSO login loop")
-        _entry(
+        logged = _entry(
             case,
             admin_profile,
             started_at=timezone.now() - timedelta(minutes=45),
@@ -441,7 +444,10 @@ class TestTimesheetEndpoint:
             billable=True,
             hourly_rate=Decimal("145.00"),
         )
-        body = admin_client.get("/api/time-entries/timesheet/").json()
+        day = timezone.localdate(logged.started_at).isoformat()
+        body = admin_client.get(
+            "/api/time-entries/timesheet/", {"start": day, "end": day}
+        ).json()
 
         # The envelope names whose week this is, for the page header.
         assert body["profile"] == {
@@ -482,7 +488,10 @@ class TestTimesheetEndpoint:
         )
         TimeEntry.objects.filter(id=entry.id).update(invoice=invoice)
 
-        body = admin_client.get("/api/time-entries/timesheet/").json()
+        day = timezone.localdate(entry.started_at).isoformat()
+        body = admin_client.get(
+            "/api/time-entries/timesheet/", {"start": day, "end": day}
+        ).json()
         entries = [e for d in body["days"] for e in d["entries"]]
         assert len(entries) == 1
         # A billed entry expands to {id, invoice_number} so the row links to the

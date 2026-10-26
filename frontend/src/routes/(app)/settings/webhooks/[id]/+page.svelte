@@ -20,14 +20,15 @@
   import WebhookFields from '../WebhookFields.svelte';
   import SecretOnce from '../SecretOnce.svelte';
 
-  /** @type {{ data: any, form: any }} */
+  /** @type {import('./$types').PageProps} */
   let { data, form } = $props();
 
   let busy = $state(false);
 
+  /** @type {import('$app/forms').SubmitFunction} */
   const working = () => {
     busy = true;
-    return async (/** @type {any} */ { update }) => {
+    return async ({ update }) => {
       await update({ reset: false });
       busy = false;
     };
@@ -71,7 +72,7 @@
 
   <div class="v2-scroll">
     <div class="v2-pad" style="padding-top:16px;padding-bottom:32px">
-      {#if form?.rotated?.secret}
+      {#if form?.rotated && 'secret' in form.rotated && form.rotated.secret}
         <SecretOnce title="Secret rotated, copy the new one now" secret={form.rotated.secret} />
       {/if}
       {#if actionError}

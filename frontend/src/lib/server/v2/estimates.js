@@ -38,6 +38,7 @@
  * `estimateFromDeal` below.
  */
 import { apiRequest } from '#lib/api-helpers.js';
+import { apiStatus } from '#lib/api-errors.js';
 import { sumByCurrency } from '#lib/v2/format.js';
 
 /** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
@@ -59,7 +60,7 @@ const AWAITING = ['Sent', 'Viewed'];
  */
 export const FILTER_FIELDS = ['status', 'account'];
 
-const num = (/** @type {any} */ value) => {
+const num = (/** @type {unknown} */ value) => {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
 };
@@ -81,7 +82,7 @@ function daysUntil(/** @type {string | null} */ iso) {
  * shown as a plain name, and `converted_to_invoice` is renamed to the
  * `converted_invoice` the page reads.
  *
- * @param {any} row
+ * @param {Schemas['EstimateList']} row
  */
 function toRow(row) {
   const opp = row.opportunity;
@@ -104,8 +105,11 @@ function toRow(row) {
   };
 }
 
+/** @typedef {ReturnType<typeof toRow>} EstimateRow */
+
 /** Accepted and not yet billed. The row this whole page is built to surface. */
-const needsBilling = (/** @type {any} */ e) => e.status === 'Accepted' && !e.converted_invoice;
+const needsBilling = (/** @type {EstimateRow} */ e) =>
+  e.status === 'Accepted' && !e.converted_invoice;
 
 /**
  * The header figures, derived from the visible rows.
@@ -118,7 +122,7 @@ const needsBilling = (/** @type {any} */ e) => e.status === 'Accepted' && !e.con
  * estimate carries its own currency and there are no exchange rates, so they
  * are never added across currencies.
  *
- * @param {any[]} rows
+ * @param {EstimateRow[]} rows
  */
 function computeTotals(rows) {
   const awaiting = rows.filter((r) => AWAITING.includes(r.status));
@@ -154,7 +158,7 @@ export async function listEstimates({ cookies }, params) {
   // so anything past this ceiling would be uncounted. See the module note.
   if (!query.has('limit')) query.set('limit', '1000');
 
-  /** @type {{ results?: any[], count?: number }} */
+  /** @type {Schemas['EstimatePage']} */
   const response = await apiRequest(`/invoices/estimates/?${query.toString()}`, {}, { cookies });
   const rows = (response.results ?? []).map(toRow);
   // Bring the one row with an action to the top; the API already sorts the rest
@@ -179,6 +183,7 @@ export async function listEstimates({ cookies }, params) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
+ * @returns {Promise<Schemas['InvoiceSaved']>}
  */
 export async function convertEstimate({ cookies }, id) {
   return apiRequest(
@@ -195,6 +200,7 @@ export async function convertEstimate({ cookies }, id) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {string} id
+ * @returns {Promise<Schemas['InvoicesMessage']>}
  */
 export async function sendEstimate({ cookies }, id) {
   return apiRequest(`/invoices/estimates/${id}/send/`, { method: 'POST', body: {} }, { cookies });
@@ -208,9 +214,10 @@ export async function sendEstimate({ cookies }, id) {
  * cite the deal. The 201 wraps the record as `{ estimate }`.
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
- * @param {Record<string, any>} body
+ * @param {Record<string, unknown>} body
  */
 export async function createEstimate({ cookies }, body) {
+  /** @type {Schemas['EstimateSaved']} */
   const response = await apiRequest('/invoices/estimates/', { method: 'POST', body }, { cookies });
   return response.estimate ?? response;
 }
@@ -239,8 +246,9 @@ export async function estimateFromDeal({ cookies }, id) {
   let response;
   try {
     response = await apiRequest(`/opportunities/${id}/`, {}, { cookies });
-  } catch (/** @type {any} */ err) {
-    if (err?.status === 403 || err?.status === 404) return null;
+  } catch (err) {
+    const status = apiStatus(err);
+    if (status === 403 || status === 404) return null;
     throw err;
   }
   /** @type {Partial<Schemas['Opportunity']>} */

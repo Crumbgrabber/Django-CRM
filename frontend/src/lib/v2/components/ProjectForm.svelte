@@ -34,15 +34,15 @@
    * @type {{
    *   action: string,
    *   submitLabel: string,
-   *   values: Record<string, any>,
-   *   typed?: Record<string, any> | null,
+   *   values: import('#lib/v2/projects.js').ProjectFormValues,
+   *   typed?: import('#lib/v2/projects.js').ProjectValues | null,
    *   error?: string | null,
    *   accounts: { id: string, name: string }[],
    *   deals?: { id: string, name: string }[] | null,
    *   people: { id: string, name: string }[],
    *   peopleFailed?: boolean,
-   *   stored?: { account?: any, deal?: any, people?: any[] },
-   *   customFields?: any[],
+   *   stored?: { account?: { id: string, name: string } | null, deal?: { id: string, name: string } | null, people?: { id: string, name: string }[] },
+   *   customFields?: ReturnType<typeof import('#lib/server/v2/record-fields.js').pairForEdit>,
    *   fieldErrors?: Record<string, string> | null,
    *   edit?: boolean,
    *   isAdmin?: boolean,
@@ -75,7 +75,7 @@
   /** @type {{ key: number, profile: string, hourly_rate: string }[]} */
   let rates = $state(
     untrack(() =>
-      (typed?.rates ?? values.rates ?? []).map((/** @type {any} */ r, /** @type {number} */ i) => ({
+      (typed?.rates ?? values.rates ?? []).map((r, i) => ({
         key: i,
         profile: r.profile ?? '',
         hourly_rate: r.hourly_rate == null ? '' : String(r.hourly_rate)
@@ -260,7 +260,7 @@
       <span class="v2-label">Billing, set by an admin</span>
       <dl class="v2-kv pf-kv">
         <dt>Billing</dt>
-        <dd>{BILLING_TYPE_LABEL[v.billing_type] ?? ''}</dd>
+        <dd>{BILLING_TYPE_LABEL[v.billing_type ?? ''] ?? ''}</dd>
         <dt>Currency</dt>
         <dd>{v.currency ?? ''}</dd>
         <dt>Budget hours</dt>

@@ -54,6 +54,19 @@
    *   summary: { total: number, valid: number, skipped: number }
    * }} Preview
    */
+  /**
+   * What the import actions answer (`forwardCsvImport`), deserialized.
+   *
+   * @typedef {{
+   *   type: 'success' | 'failure' | 'redirect' | 'error',
+   *   data?: {
+   *     importPreview?: Preview,
+   *     importCommit?: { created: number, skipped?: Skipped[], dropped?: { field: string, count: number }[] },
+   *     importError?: string,
+   *     importSkipped?: Skipped[]
+   *   }
+   * }} ImportAnswer
+   */
 
   const DEBOUNCE_MS = 400;
   const SKIPPED_SHOWN = 50;
@@ -105,6 +118,7 @@
   /**
    * @param {'importPreview' | 'importCommit'} action
    * @param {string} mapping
+   * @returns {Promise<ImportAnswer>}
    */
   async function post(action, mapping) {
     const fd = new FormData();
@@ -118,10 +132,10 @@
     // the image sets 6M) with a plain-text
     // 413 before the action runs, which `deserialize` cannot parse.
     if (res.status === 413) return { type: 'failure', data: { importError: TOO_LARGE } };
-    return /** @type {any} */ (deserialize(await res.text()));
+    return /** @type {ImportAnswer} */ (deserialize(await res.text()));
   }
 
-  /** @param {any} out @param {string} fallback */
+  /** @param {ImportAnswer} out @param {string} fallback */
   function failureText(out, fallback) {
     return out?.type === 'failure' && out.data?.importError
       ? String(out.data.importError)

@@ -12,14 +12,25 @@ import { showObjectsSetting } from '#lib/v2/custom-objects.js';
 import { isOn, productsOn, wordsOn } from '#lib/v2/modules.js';
 
 /**
- * @param {any} data the hub load plus the shell's admin fact
+ * The hub load (`getSettingsHub`) plus the shell's facts.
+ *
+ * @typedef {Awaited<ReturnType<typeof import('#lib/server/v2/settings.js').getSettingsHub>> & {
+ *   modules: import('#lib/v2/modules.js').ModuleRow[] | null,
+ *   customObjects: import('#lib/server/v2/custom-objects.js').ObjectList | null,
+ *   billing: import('#lib/server/v2/billing.js').Billing | null,
+ *   is_organization_admin?: boolean
+ * }} HubData
+ */
+
+/**
+ * @param {HubData} data the hub load plus the shell's admin fact
  * @returns {{ label: string, items: { href: string, title: string, body: string, value: string | null, warn: boolean }[] }[]}
  */
 export function hubGroups(data) {
   const org = data.org;
   const ticketsOn = isOn(data.modules, 'tickets');
   const switchedOff = Array.isArray(data.modules)
-    ? data.modules.filter((/** @type {any} */ m) => !m.enabled).length
+    ? data.modules.filter((m) => !m.enabled).length
     : null;
 
   /**
@@ -30,12 +41,11 @@ export function hubGroups(data) {
    */
   const hoursSummary = (() => {
     if (!data.calendar) return '';
-    const open = data.calendar.days.filter((/** @type {any} */ d) => d.open);
+    /** @type {{ open: unknown, close: unknown }[]} */
+    const open = data.calendar.days.filter((/** @type {{ open: unknown }} */ d) => d.open);
     if (!open.length) return 'No open hours set';
     const first = open[0];
-    const uniform = open.every(
-      (/** @type {any} */ d) => d.open === first.open && d.close === first.close
-    );
+    const uniform = open.every((d) => d.open === first.open && d.close === first.close);
     return uniform
       ? `${open.length} days, ${first.open}-${first.close}`
       : `${open.length} days, hours vary`;
@@ -52,7 +62,7 @@ export function hubGroups(data) {
 
   /** An approval rule set to MANAGER with no named approvers matches nobody. */
   const stuckApprovalRules = (data.approvalRules ?? []).filter(
-    (/** @type {any} */ r) => r.is_active && r.approver_role === 'MANAGER' && !r.approvers.length
+    (r) => r.is_active && r.approver_role === 'MANAGER' && !r.approvers.length
   ).length;
 
   // Webhooks are admins' to see; a member's row says only what the page holds.
@@ -357,7 +367,7 @@ export function hubGroups(data) {
                 href: '/settings/objects',
                 title: 'Objects',
                 body: 'Record types this organisation defined.',
-                value: `${data.customObjects.objects.length} active`,
+                value: `${data.customObjects?.objects.length ?? 0} active`,
                 warn: false
               }
             ]

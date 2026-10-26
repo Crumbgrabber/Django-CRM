@@ -12,7 +12,8 @@ versioning, view counts, helpfulness feedback, slugs.
 from __future__ import annotations
 
 from django.db.models import Q
-from drf_spectacular.utils import OpenApiParameter, extend_schema
+from drf_spectacular.utils import OpenApiParameter, extend_schema, inline_serializer
+from rest_framework import serializers
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -63,6 +64,26 @@ class SolutionSuggestionsView(APIView):
                 "limit", int, description="Max results, default 5, capped at 20"
             ),
         ],
+        responses={
+            200: inline_serializer(
+                name="SolutionSuggestionsResponse",
+                fields={
+                    "results": inline_serializer(
+                        name="SolutionSuggestion",
+                        fields={
+                            "id": serializers.CharField(),
+                            "title": serializers.CharField(),
+                            "snippet": serializers.CharField(),
+                            "body": serializers.CharField(),
+                            "updated_at": serializers.CharField(allow_null=True),
+                        },
+                        many=True,
+                    ),
+                    "count": serializers.IntegerField(),
+                    "q": serializers.CharField(),
+                },
+            )
+        },
     )
     def get(self, request, pk):
         org = request.profile.org
