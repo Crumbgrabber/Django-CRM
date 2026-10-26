@@ -44,7 +44,7 @@
         class="v2-btn v2-btn-icon"
         href={resolve(`tasks/calendar?month=${data.prevMonth}`)}
         aria-label="Previous month"
-        data-sveltekit-noscroll
+        data-sveltekit-reset="false"
       >
         <ChevronLeft size={15} />
       </a>
@@ -52,14 +52,14 @@
         <a
           class="v2-btn v2-btn-sm"
           href={resolve(`tasks/calendar?month=${data.thisMonth}`)}
-          data-sveltekit-noscroll>Today</a
+          data-sveltekit-reset="false">Today</a
         >
       {/if}
       <a
         class="v2-btn v2-btn-icon"
         href={resolve(`tasks/calendar?month=${data.nextMonth}`)}
         aria-label="Next month"
-        data-sveltekit-noscroll
+        data-sveltekit-reset="false"
       >
         <ChevronRight size={15} />
       </a>

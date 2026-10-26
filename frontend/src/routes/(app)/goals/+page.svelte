@@ -144,7 +144,7 @@
     <StatCard label="Active goals" value={count(totals.active)} tone="slate" />
   </div>
 
-  <form class="filters" method="GET" data-sveltekit-keepfocus data-sveltekit-replacestate>
+  <form class="filters" method="GET" data-sveltekit-reset="false" data-sveltekit-replacestate>
     <input
       class="v2-input"
       type="search"

@@ -113,7 +113,7 @@
             class="color-swatch"
             type="color"
             name="primary_color"
-            value={values.primary_color || '#3B82F6'}
+            defaultValue={values.primary_color || '#3B82F6'}
           />
         </label>
         <label class="color-field">
@@ -122,7 +122,7 @@
             class="color-swatch"
             type="color"
             name="secondary_color"
-            value={values.secondary_color || '#1E40AF'}
+            defaultValue={values.secondary_color || '#1E40AF'}
           />
         </label>
       </div>
