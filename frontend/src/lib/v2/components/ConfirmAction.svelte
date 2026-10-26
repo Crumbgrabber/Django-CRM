@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * A destructive action that takes two clicks.
    *
@@ -13,14 +13,19 @@
    */
   import { enhance } from '$app/forms';
 
-  /** @type {{
-   *   action: string,
-   *   label?: string,
-   *   confirmLabel?: string,
-   *   explain?: string,
-   *   hidden?: Record<string, string>
-   * }} */
-  let { action, label = 'Delete', confirmLabel = 'Confirm', explain = '', hidden = {} } = $props();
+  let {
+    action,
+    label = 'Delete',
+    confirmLabel = 'Confirm',
+    explain = '',
+    hidden = {}
+  }: {
+    action: string;
+    label?: string;
+    confirmLabel?: string;
+    explain?: string;
+    hidden?: Record<string, string>;
+  } = $props();
 
   let armed = $state(false);
   let busy = $state(false);

@@ -1,9 +1,12 @@
-<script>
-  import { Dialog as DialogPrimitive } from 'bits-ui';
+<script lang="ts">
+  import { Dialog as DialogPrimitive, type DialogDescriptionProps } from 'bits-ui';
   import { cn } from '#lib/utils.js';
 
-  /** @type {import('bits-ui').DialogDescriptionProps} */
-  let { ref = $bindable(null), class: className = undefined, ...restProps } = $props();
+  let {
+    ref = $bindable(null),
+    class: className = undefined,
+    ...restProps
+  }: DialogDescriptionProps = $props();
 </script>
 
 <DialogPrimitive.Description

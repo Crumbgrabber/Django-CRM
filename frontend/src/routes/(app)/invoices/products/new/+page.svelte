@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   /**
    * A new catalogue product: a name, a list price, and where it sits.
@@ -11,18 +11,22 @@
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
   import { enhance } from '$app/forms';
   import { ChevronRight, Lock } from '@lucide/svelte';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
-  /**
-   * What the form is filled from: the echoed values of a refused save.
-   *
-   * @typedef {{ name?: string, sku?: string, price?: string | number, currency?: string | null, category?: string, description?: string, is_active?: boolean }} ProductValues
-   */
+  /** What the form is filled from: the echoed values of a refused save. */
+  type ProductValues = {
+    name?: string;
+    sku?: string;
+    price?: string | number;
+    currency?: string | null;
+    category?: string;
+    description?: string;
+    is_active?: boolean;
+  };
 
-  /** @type {ProductValues} */
-  let values = $derived(form?.values ?? {});
+  let values: ProductValues = $derived(form?.values ?? {});
 
   /* True from submit until the response lands, so a second press during a
      slow save cannot post the product again and create two catalogue rows. */

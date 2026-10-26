@@ -480,3 +480,11 @@ class TestEscalationBreachCounts:
         _case_with_sla(user_b, org_b, created_ago=timedelta(hours=5))
         row = _policy_row(admin_client.get(POLICIES_URL), "Urgent")
         assert row["breaches_last_30d"] == {"first_response": 0, "resolution": 0}
+
+
+@pytest.mark.django_db
+def test_reads_one_escalation_policy(admin_client, org_a):
+    policy = _make_policy(org_a, _make_target_profile(org_a))
+    res = admin_client.get(f"{POLICIES_URL}{policy.id}/")
+    assert res.status_code == 200
+    assert res.json()["id"] == str(policy.id)

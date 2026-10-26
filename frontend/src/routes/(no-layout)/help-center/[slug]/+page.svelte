@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * The front page of an org's public help center.
    *
@@ -13,17 +13,17 @@
    */
   import { resolve } from '$app/paths';
   import HelpCenterShell from '#lib/v2/components/HelpCenterShell.svelte';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data } = $props();
+  let { data }: PageProps = $props();
 
   let title = $derived(
     data.q ? `Search: ${data.q} | ${data.name} help center` : `${data.name} help center`
   );
   let description = $derived(`Answers and guides from ${data.name}.`);
 
-  /** The query string for page `n`, keeping the search. @param {number} n */
-  function pageQuery(n) {
+  /** The query string for page `n`, keeping the search. */
+  function pageQuery(n: number) {
     const parts = [];
     if (data.q) parts.push(`q=${encodeURIComponent(data.q)}`);
     if (n > 1) parts.push(`page=${n}`);

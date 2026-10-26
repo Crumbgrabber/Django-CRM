@@ -1,0 +1,35 @@
+import { apiStatus } from '#lib/api-errors.js';
+import { checkDuplicates } from '#lib/server/v2/duplicates.js';
+import type { RequestHandler } from './$types';
+
+/**
+ * The create forms' "possible duplicates" check. The form runs in the browser
+ * and the access token is an httpOnly cookie, so the check is proxied through
+ * here. A POST with a JSON body, like the API it calls, so the email and
+ * phone being typed never appear in a URL or an access log.
+ * `checkDuplicates` forwards only the module's own fields and answers 404 for
+ * any module but leads, contacts and accounts.
+ *
+ * A failed check answers an empty list: it is a hint beside a form, and the
+ * form must still save.
+ */
+export const POST: RequestHandler = async ({ params, request, cookies }) => {
+  let parsed: unknown;
+  try {
+    parsed = await request.json();
+  } catch {
+    return Response.json({ duplicates: [] }, { status: 400 });
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return Response.json({ duplicates: [] }, { status: 400 });
+  }
+  const criteria = parsed as Record<string, unknown>;
+  try {
+    return Response.json({
+      duplicates: await checkDuplicates({ cookies }, params.module, criteria)
+    });
+  } catch (err) {
+    if (apiStatus(err) === 404) throw err;
+    return Response.json({ duplicates: [] });
+  }
+};

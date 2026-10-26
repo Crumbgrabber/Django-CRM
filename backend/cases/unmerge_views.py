@@ -35,6 +35,7 @@ class CaseUnmergeView(APIView):
 
     @extend_schema(
         operation_id="cases_unmerge",
+        request=None,
         tags=["Cases"],
         responses={
             200: inline_serializer(

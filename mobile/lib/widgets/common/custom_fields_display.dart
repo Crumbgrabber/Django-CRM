@@ -66,7 +66,7 @@ class CustomFieldsDisplay extends StatelessWidget {
 ///
 /// The server stores values already coerced (a number as a number, a checkbox
 /// as a boolean, a date as YYYY-MM-DD), so this formats rather than parses.
-/// Twin of `displayValue` in `frontend/src/lib/server/v2/record-fields.js`.
+/// Twin of `displayValue` in `frontend/src/lib/server/v2/record-fields.ts`.
 String customFieldDisplayValue(CustomFieldDefinition def, Object? raw) {
   if (raw == null || (raw is String && raw.trim().isEmpty)) return '';
   switch (def.fieldType) {

@@ -3,7 +3,7 @@
 /// "Today" is the org's day, not UTC's and not the phone's: an invoice raised
 /// at 09:00 in Kolkata is dated that day, although UTC still reads yesterday,
 /// and a phone set to another zone does not move it. The web computes the same
-/// thing in `frontend/src/lib/v2/dates.js` (`todayIn`, `addDays`).
+/// thing in `frontend/src/lib/v2/dates.ts` (`todayIn`, `addDays`).
 ///
 /// The zone is the access token's `org_settings.timezone` claim. Login, org
 /// switch and token refresh each replace the token, so reading it on every

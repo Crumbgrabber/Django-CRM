@@ -129,8 +129,13 @@ class _GoalFormScreenState extends ConsumerState<GoalFormScreen> {
     _periodEnd = goal.periodEnd;
     _targetOwner = goalTargetValue(goal);
     _isActive = goal.isActive;
+    // Whole weights print without a ".0", as the target does: the wire type
+    // reads every weight as a double, so a stored 2 arrives as 2.0.
     for (final entry in goal.typeWeights.entries) {
-      _weights[entry.key]?.text = entry.value.toString();
+      final weight = entry.value;
+      _weights[entry.key]?.text = weight == weight.roundToDouble()
+          ? weight.round().toString()
+          : weight.toString();
     }
     // Open when the goal already carries weights, so an existing weighting is
     // visible rather than hidden behind a control nobody thought to tap.

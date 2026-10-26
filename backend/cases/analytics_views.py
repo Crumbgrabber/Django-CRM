@@ -15,6 +15,7 @@ from typing import Optional
 from uuid import UUID
 
 from django.utils import timezone
+from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema, inline_serializer
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
@@ -494,6 +495,7 @@ class AnalyticsExportView(_AnalyticsBaseView):
                 "`?format=` content-negotiation kwarg, which would 404 the endpoint.",
             ),
         ],
+        responses={(200, "text/csv"): OpenApiTypes.BINARY},
     )
     def get(self, request):
         metric = request.query_params.get("metric", "")

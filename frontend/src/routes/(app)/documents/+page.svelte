@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   /**
    * Documents: a model with a full API and, until now, no screen anywhere.
@@ -28,9 +28,9 @@
   import EmptyState from '#lib/v2/components/EmptyState.svelte';
   import { count, relativeDays } from '#lib/v2/format.js';
   import { FileText, FileSpreadsheet, File, Users, Upload, Lock, Pencil } from '@lucide/svelte';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data } = $props();
+  let { data }: PageProps = $props();
 
   let documents = $derived(data.results);
   let totals = $derived(data.totals);
@@ -38,13 +38,16 @@
   // the Upload button shows for everyone. Editing/deleting are the narrow writes
   //. Those are gated per row by `can_write` (creator or admin) below.
 
-  /** @type {Record<string, typeof File>} */
-  const ICON = { pdf: FileText, sheet: FileSpreadsheet, text: FileText };
-  const iconFor = (/** @type {string} */ kind) => ICON[kind] ?? File;
+  const ICON: Record<string, typeof File> = {
+    pdf: FileText,
+    sheet: FileSpreadsheet,
+    text: FileText
+  };
+  const iconFor = (kind: string) => ICON[kind] ?? File;
 
   /** kB and MB, never bytes. Nobody reads a file size in bytes. A missing file
       has no size the server could read, so it shows an em dash, not "0 kB". */
-  function fileSize(/** @type {number | null} */ bytes) {
+  function fileSize(bytes: number | null) {
     if (bytes == null) return '—';
     if (bytes >= 1_000_000) return `${(bytes / 1_000_000).toFixed(1)} MB`;
     return `${Math.round(bytes / 1000)} kB`;
@@ -58,10 +61,8 @@
    * and Ken" is checkable at a glance and "2 people" is not. Teams are named
    * separately below because "the Support team" is the thing that was chosen,
    * and flattening it to three names loses the reason.
-   *
-   * @param {{ shared_to: { name: string }[], teams: unknown[] }} d
    */
-  function reachLabel(d) {
+  function reachLabel(d: { shared_to: { name: string }[]; teams: unknown[] }) {
     const names = d.shared_to.map((p) => p.name.split(' ')[0]);
     if (!names.length) return d.teams.length ? '' : 'Nobody yet';
     if (names.length <= 2) return names.join(' and ');
@@ -166,7 +167,7 @@
                     <Users size={11} />
                     {d.teams
                       .map(
-                        (/** @type {{ name: string, member_count: number }} */ t) =>
+                        (t: { name: string; member_count: number }) =>
                           `${t.name} (${t.member_count})`
                       )
                       .join(', ')}

@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/api_config.dart';
-import '../data/api_envelope.dart';
+import '../data/api/schema.g.dart' as api;
 import '../data/models/project.dart';
 import '../data/models/task.dart';
 import '../data/models/time_entry.dart';
@@ -100,10 +100,14 @@ class ProjectsNotifier extends AsyncNotifier<ProjectsListData> {
     if (!response.success || data == null) {
       throw Exception(response.message ?? 'Could not load projects.');
     }
-    final rows = listFromEnvelope(data, const ['projects', 'results']);
+    final body = api.ProjectListResponse.fromJson(data);
+    final projects = [
+      for (final row in body.projects ?? const <api.ProjectList>[])
+        Project.fromJson(row.json),
+    ];
     return ProjectsListData(
-      projects: rows.map(Project.fromJson).toList(),
-      count: (data['count'] as num?)?.toInt() ?? rows.length,
+      projects: projects,
+      count: body.count ?? projects.length,
       filters: filters,
     );
   }
@@ -151,10 +155,7 @@ class ProjectsNotifier extends AsyncNotifier<ProjectsListData> {
       if (response.statusCode == 404) onNotFound?.call();
       return null;
     }
-    final body = data['project'] is Map<String, dynamic>
-        ? data['project'] as Map<String, dynamic>
-        : data;
-    return Project.fromJson(body);
+    return Project.fromJson(data);
   }
 
   Future<ProjectWrite> create(Map<String, dynamic> payload) async {
@@ -162,11 +163,8 @@ class ProjectsNotifier extends AsyncNotifier<ProjectsListData> {
     if (!response.success) {
       return (id: null, error: response.message ?? 'Could not save.');
     }
-    final data = response.data ?? const {};
-    final project = data['project'];
-    final id =
-        data['id']?.toString() ??
-        (project is Map ? project['id']?.toString() : null);
+    final saved = api.ProjectSaved.fromJson(response.data ?? {});
+    final id = saved.id ?? saved.project?.id;
     await refresh();
     return (id: id, error: null);
   }
@@ -248,10 +246,11 @@ class ProjectsNotifier extends AsyncNotifier<ProjectsListData> {
     final response = await _api.get(url);
     final data = response.data;
     if (!response.success || data == null) return null;
-    return listFromEnvelope(data, const [
-      'tasks',
-      'results',
-    ]).map(Task.fromJson).toList();
+    final body = api.TaskListResponse.fromJson(data);
+    return [
+      for (final row in body.tasks ?? const <api.TaskList>[])
+        Task.fromJson(row.json),
+    ];
   }
 
   /// Every entry on the project, newest first. A bare array, as on a ticket.
@@ -326,7 +325,8 @@ class ProjectsNotifier extends AsyncNotifier<ProjectsListData> {
     if (!response.success) {
       return (id: null, error: response.message ?? 'Could not invoice.');
     }
-    return (id: response.data?['invoice_id']?.toString(), error: null);
+    final drafted = api.ProjectInvoiceAmount.fromJson(response.data ?? {});
+    return (id: drafted.invoiceId, error: null);
   }
 }
 

@@ -1,0 +1,194 @@
+/**
+ * API Helper Functions
+ *
+ * Shared utilities for making API requests to Django backend.
+ * Used by SvelteKit server files during migration from Prisma to API.
+ */
+
+import type { Cookies } from '@sveltejs/kit';
+import * as env from '$app/env/public';
+import { apiErrorBody, apiStatus, type ApiError, type ApiErrorBody } from '#lib/api-errors.js';
+
+const API_BASE_URL = `${env.PUBLIC_DJANGO_API_URL}/api`;
+
+type RequestOptions = {
+  method?: string;
+  body?: Record<string, unknown> | FormData;
+  headers?: Record<string, string>;
+  quietErrors?: boolean;
+  expectedStatuses?: number[];
+};
+
+/**
+ * A body relayed from a form: field names from a request type
+ * (`FormBody<Schemas['LeadRequest']>`), values as the form gave them for the
+ * API to parse and validate. `scripts/api-contract.ts` checks that the
+ * endpoint takes every field the type names.
+ */
+export type FormBody<T> = { [K in keyof T]?: unknown };
+
+/**
+ * Make authenticated API request to Django backend
+ *
+ * This helper is designed for SvelteKit server-side use, where cookies
+ * are managed by hooks and locals contains the user and org context.
+ *
+ * @param endpoint API endpoint (e.g., '/accounts/', '/leads/123/')
+ * @param options Fetch options.
+ *   `quietErrors` logs a failed request's status and the server's `message`
+ *   only, never the response body: for replies that can quote the caller's
+ *   data, such as an import's skipped rows and their cells.
+ *   `expectedStatuses` lists statuses that are an answer rather than a failure
+ *   (a 404 from a route this install does not have): they are thrown as usual,
+ *   with `status` and `body`, but never logged.
+ * @param locals SvelteKit locals object or cookies directly
+ * @template T The reply's type, taken from the variable or return type it is
+ *   assigned to. Annotate with the generated schema type (`#lib/api-schema.js`).
+ * @throws {Error} If request fails
+ */
+export async function apiRequest<T = unknown>(
+  endpoint: string,
+  options: RequestOptions = {},
+  locals: { cookies?: Cookies; org?: { id: string } } | Cookies
+): Promise<T> {
+  const {
+    method = 'GET',
+    body,
+    headers = {},
+    quietErrors = false,
+    expectedStatuses = []
+  } = options;
+
+  // Get access token from cookies (server-side)
+  // In server load functions, cookies is passed directly
+  const cookies = ((locals as { cookies?: Cookies }).cookies || locals) as Cookies | undefined;
+  const accessToken = cookies?.get?.('jwt_access');
+
+  // A FormData body is a file upload (multipart). Do NOT set Content-Type for
+  // it: fetch has to add the multipart boundary itself, and a hand-set
+  // 'application/json' would make Django parse the parts as a JSON string and
+  // find neither the field nor the file. Plain-object bodies stay JSON, so every
+  // existing caller is unaffected.
+  const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
+
+  // Build request headers
+  const requestHeaders: Record<string, string> = {
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+    ...headers
+  };
+
+  // Add authentication
+  // Note: Organization context is now embedded in JWT token, not sent as header
+  if (accessToken) {
+    requestHeaders['Authorization'] = `Bearer ${accessToken}`;
+  }
+
+  // Build request options
+  const requestOptions: RequestInit = {
+    method,
+    headers: requestHeaders
+  };
+
+  // Add body for non-GET requests
+  if (body && method !== 'GET') {
+    requestOptions.body = isFormData ? body : JSON.stringify(body);
+  }
+
+  const url = `${API_BASE_URL}${endpoint}`;
+
+  try {
+    const response = await fetch(url, requestOptions);
+
+    // Handle error responses
+    if (!response.ok) {
+      const errorData = (await response.json().catch(() => ({}))) as ApiErrorBody;
+
+      // Extract meaningful error message from various Django error formats
+      let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+
+      if (errorData.detail) {
+        errorMessage = errorData.detail;
+      } else if (errorData.error && typeof errorData.error === 'string') {
+        errorMessage = errorData.error;
+      } else if (errorData.errors && typeof errorData.errors === 'object') {
+        // Handle field-level errors
+        const fieldErrors = Object.entries(errorData.errors)
+          .map(([field, msgs]) => `${field}: ${Array.isArray(msgs) ? msgs.join(', ') : msgs}`)
+          .join('; ');
+        errorMessage = fieldErrors || errorMessage;
+      } else if (errorData.non_field_errors) {
+        errorMessage = Array.isArray(errorData.non_field_errors)
+          ? errorData.non_field_errors.join(', ')
+          : String(errorData.non_field_errors);
+      } else if (typeof errorData === 'object' && Object.keys(errorData).length > 0) {
+        // Handle field-level validation errors from DRF serializers
+        const fieldErrors = Object.entries(errorData)
+          .filter(([key, value]) => key !== 'error' || typeof value === 'string')
+          .map(([field, msgs]) => {
+            if (Array.isArray(msgs)) {
+              return `${field}: ${msgs.join(', ')}`;
+            } else if (typeof msgs === 'string') {
+              return `${field}: ${msgs}`;
+            }
+            return null;
+          })
+          .filter(Boolean)
+          .join('; ');
+        if (fieldErrors) {
+          errorMessage = fieldErrors;
+        }
+      }
+
+      // A switched-off module's refusal is an answer: the page that asked
+      // becomes the module page, so it is not logged as a failure.
+      if (expectedStatuses.includes(response.status) || errorData?.code === 'module_off') {
+        // Thrown below, not logged.
+      } else if (quietErrors) {
+        console.error(
+          `API Error Response: ${method} ${endpoint} ${response.status}`,
+          typeof errorData.message === 'string' ? errorData.message : ''
+        );
+      } else {
+        console.error(`API Error Response:`, errorData);
+      }
+      /*
+       * The status travels with the error.
+       *
+       * Callers used to decide "is this a 404?" by searching the message for
+       * the string "404" or "not found", and Django's own message for a
+       * missing record is "No Lead matches the given query.", which contains
+       * neither. So a perfectly ordinary 404 rendered as a 500. Sniffing prose
+       * to recover a number that was right there is a bug waiting for the day
+       * somebody rewords an error.
+       */
+      const failure = new Error(errorMessage) as ApiError;
+      failure.status = response.status;
+      failure.body = errorData;
+      throw failure;
+    }
+
+    // Handle 204 No Content
+    if (response.status === 204) {
+      return null as T;
+    }
+
+    // The caller's annotation is the reply's type: generated from the schema.
+    return (await response.json()) as T;
+  } catch (error) {
+    const status = apiStatus(error);
+    const failedBody = apiErrorBody(error);
+    if (
+      (status !== undefined && expectedStatuses.includes(status)) ||
+      failedBody?.code === 'module_off'
+    ) {
+      // An expected answer, already left unlogged above.
+    } else if (!quietErrors) {
+      console.error(`API request failed: ${method} ${endpoint}`, error);
+    } else if (!status) {
+      // A network failure; an error reply was logged quietly above. The
+      // error object itself is not logged, since it carries the body.
+      console.error(`API request failed: ${method} ${endpoint}`, String(error));
+    }
+    throw error;
+  }
+}

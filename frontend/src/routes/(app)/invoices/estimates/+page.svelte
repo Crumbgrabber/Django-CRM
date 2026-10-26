@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   /**
    * Estimates, sorted so the one thing worth doing is at the top.
@@ -21,16 +21,16 @@
   import { ESTIMATE_STATUS_TONE } from '#lib/v2/enums.js';
   import { Plus, FileText } from '@lucide/svelte';
   import { isOn } from '#lib/v2/modules.js';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   let totals = $derived(data.totals);
 
   /** Only an estimate that can still be accepted has a meaningful validity. */
   const LIVE = ['Sent', 'Viewed'];
 
-  function validity(/** @type {{ status: string, valid_until: string | null }} */ e) {
+  function validity(e: { status: string; valid_until: string | null }) {
     if (!LIVE.includes(e.status)) return null;
     const n = daysSince(e.valid_until);
     if (n === null) return null;
@@ -39,15 +39,15 @@
     return { text: `${Math.abs(n)}d left`, urgent: Math.abs(n) <= 7 };
   }
 
-  const needsBilling = (/** @type {{ status: string, converted_invoice: unknown }} */ e) =>
+  const needsBilling = (e: { status: string; converted_invoice: unknown }) =>
     e.status === 'Accepted' && !e.converted_invoice;
 
   /** `EstimateSendView`: not settled, and not past its validity date. */
-  const canSend = (/** @type {{ status: string, is_expired: boolean }} */ e) =>
+  const canSend = (e: { status: string; is_expired: boolean }) =>
     ['Draft', 'Sent', 'Viewed'].includes(e.status) && !e.is_expired;
 
   /* Per currency, never added across: there are no exchange rates. */
-  const perCurrency = (/** @type {{ currency: string, amount: number }[]} */ list) =>
+  const perCurrency = (list: { currency: string; amount: number }[]) =>
     moneyEach(list) || money(0, data.org.currency);
 </script>
 

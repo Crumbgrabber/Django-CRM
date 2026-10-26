@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * An estimate, and the one irreversible thing a customer can do in this
    * product: accept it.
@@ -27,9 +27,9 @@
   import PortalLineItems from '#lib/v2/components/PortalLineItems.svelte';
   import { money, longDate } from '#lib/v2/format.js';
   import { Download, CheckCircle2, XCircle, AlertTriangle } from '@lucide/svelte';
+  import type { PageProps, SubmitFunction } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   let est = $derived(data.estimate);
   let token = $derived(data.token);
@@ -37,8 +37,7 @@
   /** null when there is no expiry date; negative once it has passed. */
   let daysToExpiry = $derived.by(() => {
     if (!est.expiry_date) return null;
-    const startOfDay = (/** @type {Date} */ d) =>
-      new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
     return Math.round((startOfDay(new Date(est.expiry_date)) - startOfDay(new Date())) / 86400000);
   });
 
@@ -63,17 +62,15 @@
   /**
    * Shared enhance handler: reload on completion, close the confirm step only
    * when the server accepted the submission.
-   *
-   * @type {import('./$types').SubmitFunction}
    */
-  function respond() {
+  const respond: SubmitFunction = () => {
     submitting = true;
     return async ({ result, update }) => {
       await update();
       submitting = false;
       if (result.type === 'success') confirming = false;
     };
-  }
+  };
 </script>
 
 <svelte:head>

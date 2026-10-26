@@ -37,6 +37,7 @@ from datetime import datetime, timedelta
 from django.db import IntegrityError, transaction
 from django.db.models import Q, Sum
 from django.utils import timezone
+from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema, inline_serializer
 from rest_framework import serializers, status
 from rest_framework.exceptions import ValidationError
@@ -431,6 +432,14 @@ class TimeSummaryView(APIView):
         )
 
 
+class TimeEntryUpdateBodySerializer(TimeEntryUpdateSerializer):
+    # The view checks `task` against the entry's project itself.
+    task = serializers.UUIDField(required=False, allow_null=True)
+
+    class Meta(TimeEntryUpdateSerializer.Meta):
+        fields = (*TimeEntryUpdateSerializer.Meta.fields, "task")
+
+
 class TimeEntryDetailView(APIView):
     """PUT/DELETE for a specific time entry. Owner or admin only."""
 
@@ -447,7 +456,10 @@ class TimeEntryDetailView(APIView):
             return False  # Sentinel: row exists but caller is not authorized.
         return entry
 
-    @extend_schema(responses=TimeEntrySerializer)
+    @extend_schema(
+        request=TimeEntryUpdateBodySerializer(partial=True),
+        responses=TimeEntrySerializer,
+    )
     @transaction.atomic
     def put(self, request, pk):
         entry = self._get_entry(request, pk)
@@ -491,6 +503,7 @@ class TimeEntryDetailView(APIView):
             check_budget_alerts(entry.project)
         return Response(TimeEntrySerializer(entry).data)
 
+    @extend_schema(responses={204: None})
     @transaction.atomic
     def delete(self, request, pk):
         entry = self._get_entry(request, pk)
@@ -515,7 +528,7 @@ class TimeEntryStopView(APIView):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
-    @extend_schema(responses=TimeEntrySerializer)
+    @extend_schema(request=None, responses=TimeEntrySerializer)
     @transaction.atomic
     def post(self, request, pk):
         entry = (
@@ -755,6 +768,7 @@ class TimeReportExportView(APIView):
     # for `Accept: text/csv` was answered 406 without this.
     renderer_classes = CSV_RENDERERS
 
+    @extend_schema(responses={(200, "text/csv"): OpenApiTypes.BINARY})
     def get(self, request):
         try:
             entries, start, end = _report_entries(request)

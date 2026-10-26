@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   import { asInternalPath } from '#lib/utils/paths.js';
   import '../../app.css';
@@ -22,9 +22,9 @@
     Menu
   } from '@lucide/svelte';
   import { tabBar, fabAction } from '#lib/v2/nav.js';
+  import type { LayoutProps } from './$types';
 
-  /** @type {import('./$types').LayoutProps} */
-  let { data, children } = $props();
+  let { data, children }: LayoutProps = $props();
 
   let paletteOpen = $state(false);
 
@@ -36,12 +36,19 @@
   afterNavigate(() => (menuOpen = false));
 
   /** Focus the panel on open so Escape reaches it and keyboard users land inside. */
-  function autofocus(/** @type {HTMLElement} */ node) {
+  function autofocus(node: HTMLElement) {
     node.focus();
   }
 
-  /** @type {Record<string, typeof Sun>} */
-  const ICONS = { Sun, Columns3, LifeBuoy, Receipt, Target, CircleCheck, Plus };
+  const ICONS: Record<string, typeof Sun> = {
+    Sun,
+    Columns3,
+    LifeBuoy,
+    Receipt,
+    Target,
+    CircleCheck,
+    Plus
+  };
 
   /** The tab bar and the button follow the org's switched-on modules. */
   let tabs = $derived(
@@ -50,11 +57,10 @@
   let fab = $derived(fabAction(data.modules));
   let billingNotice = $derived(shellNotice(data, page.url.pathname));
 
-  const isActive = (/** @type {string} */ href, /** @type {boolean | undefined} */ exact) =>
+  const isActive = (href: string, exact: boolean | undefined) =>
     exact ? page.url.pathname === href : page.url.pathname.startsWith(href);
 
-  /** @param {KeyboardEvent} e */
-  function onkeydown(e) {
+  function onkeydown(e: KeyboardEvent) {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault();
       paletteOpen = !paletteOpen;

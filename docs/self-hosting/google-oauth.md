@@ -9,7 +9,7 @@ instead, until you configure a Google OAuth client.
 
 Create an OAuth 2.0 Client ID of type "Web application" in the Google Cloud Console. The redirect
 URI it needs authorized is built by the frontend's login page
-(`frontend/src/routes/(no-layout)/login/+page.server.js`) as `${GOOGLE_LOGIN_DOMAIN}/login`;
+(`frontend/src/routes/(no-layout)/login/+page.server.ts`) as `${GOOGLE_LOGIN_DOMAIN}/login`;
 `GOOGLE_LOGIN_DOMAIN` is a **frontend** environment variable (`frontend/.env.example` defaults it to
 `http://localhost:5181`), so the value to register with Google is `http://localhost:5181/login` for
 local development, or `https://<your-frontend-host>/login` in production. There is no separate
@@ -47,7 +47,7 @@ inert; it was removed rather than documented.
 The web flow is the standard OAuth Authorization Code flow with PKCE, split across the frontend and
 `GoogleOAuthCallbackView`:
 
-1. `login/+page.server.js` generates a PKCE `code_verifier`/`code_challenge` pair and a random
+1. `login/+page.server.ts` generates a PKCE `code_verifier`/`code_challenge` pair and a random
    `state`, stores the verifier and state in short-lived httpOnly cookies, and redirects the browser
    to Google's authorization endpoint with the `code_challenge`.
 2. Google redirects back to `/login?code=...&state=...`. The frontend checks the returned `state`

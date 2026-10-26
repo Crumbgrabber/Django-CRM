@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import {
     Inbox,
     Mail,
@@ -9,8 +9,11 @@
     Users
   } from '@lucide/svelte';
 
-  /** @type {{ kind: string, direction?: string, size?: number }} */
-  let { kind, direction = 'outbound', size = 13 } = $props();
+  let {
+    kind,
+    direction = 'outbound',
+    size = 13
+  }: { kind: string; direction?: string; size?: number } = $props();
 </script>
 
 {#if kind === 'call'}

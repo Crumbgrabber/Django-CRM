@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
+import '../api/schema.g.dart' as api;
 import 'attachment.dart';
 import 'comment.dart';
 
@@ -221,29 +222,21 @@ class Lead {
   /// shows just "?".
   String get assignedToName {
     if (assignedTo == null || assignedTo!.isEmpty) return 'Unassigned';
-    final first = assignedTo!.first;
-    final details = first['user_details'];
-    if (details is Map<String, dynamic>) {
-      final name = (details['name'] as String?)?.trim() ?? '';
-      if (name.isNotEmpty) return name;
-      final email = (details['email'] as String?)?.trim() ?? '';
-      if (email.isNotEmpty) return email.split('@').first;
-    }
-    // Legacy / flat shapes some endpoints used to return.
-    final flatEmail = (first['user__email'] as String?)?.trim() ?? '';
-    if (flatEmail.isNotEmpty) return flatEmail.split('@').first;
+    final details = api.Profile.fromJson(assignedTo!.first).userDetails;
+    final name = details?.name?.trim() ?? '';
+    if (name.isNotEmpty) return name;
+    final email = details?.email?.trim() ?? '';
+    if (email.isNotEmpty) return email.split('@').first;
     return 'Unknown';
   }
 
   /// Profile picture URL of the first assignee, if any.
   String? get assignedToProfilePic {
     if (assignedTo == null || assignedTo!.isEmpty) return null;
-    final details = assignedTo!.first['user_details'];
-    if (details is Map<String, dynamic>) {
-      final pic = (details['profile_pic'] as String?)?.trim();
-      if (pic != null && pic.isNotEmpty) return pic;
-    }
-    return null;
+    final pic = api.Profile.fromJson(
+      assignedTo!.first,
+    ).userDetails?.profilePic?.trim();
+    return pic == null || pic.isEmpty ? null : pic;
   }
 
   /// Get lead initials for avatar fallback
@@ -260,131 +253,67 @@ class Lead {
     return '?';
   }
 
-  /// Factory constructor to create Lead from JSON
+  /// Reads a `Lead`, the row the list pages and the detail's `lead_obj`
+  /// share. Comments and attachments travel beside it in the detail answer,
+  /// and the provider adds them.
   factory Lead.fromJson(Map<String, dynamic> json) {
-    // Parse tags - both names and IDs
-    List<String> parsedTags = [];
-    List<String> parsedTagIds = [];
-    if (json['tags'] != null) {
-      final tagsList = json['tags'] as List<dynamic>;
-      for (final t in tagsList) {
-        if (t is Map<String, dynamic>) {
-          final name = t['name'] as String? ?? '';
-          final id = t['id']?.toString() ?? '';
-          if (name.isNotEmpty) parsedTags.add(name);
-          if (id.isNotEmpty) parsedTagIds.add(id);
-        } else if (t is String) {
-          parsedTags.add(t);
-        }
-      }
-    }
-
-    // Parse assigned_to - both full objects and IDs
-    List<Map<String, dynamic>>? parsedAssignedTo;
-    List<String> parsedAssignedToIds = [];
-    if (json['assigned_to'] != null) {
-      final assignedList = json['assigned_to'] as List<dynamic>;
-      parsedAssignedTo = [];
-      for (final a in assignedList) {
-        if (a is Map<String, dynamic>) {
-          parsedAssignedTo.add(a);
-          final id = a['id']?.toString() ?? '';
-          if (id.isNotEmpty) parsedAssignedToIds.add(id);
-        }
-      }
-    }
-
-    // Parse comments (lead_comments from backend)
-    List<Comment> parsedComments = [];
-    if (json['lead_comments'] != null) {
-      final commentsList = json['lead_comments'] as List<dynamic>;
-      parsedComments = commentsList
-          .map((c) => Comment.fromJson(c as Map<String, dynamic>))
-          .toList();
-    }
-
-    // Parse attachments. List backend uses `lead_attachment` inside the
-    // serialized lead object; the detail endpoint also returns a separate
-    // top-level `attachments` key, which is merged in by the provider.
-    List<Attachment> parsedAttachments = [];
-    final rawAttachments = json['lead_attachment'] ?? json['attachments'];
-    if (rawAttachments is List) {
-      parsedAttachments = rawAttachments
-          .whereType<Map<String, dynamic>>()
-          .map(Attachment.fromJson)
-          .toList();
-    }
-
-    // Custom fields, backend stores them as a single JSON dict on the
-    // lead row, keyed by the CustomFieldDefinition.key.
-    Map<String, dynamic> parsedCustomFields = const {};
-    final cf = json['custom_fields'];
-    if (cf is Map<String, dynamic>) {
-      parsedCustomFields = Map<String, dynamic>.from(cf);
-    }
-
+    final w = api.Lead.fromJson(json);
+    final tags = w.tags ?? const <api.Tags>[];
+    final assigned = w.assignedTo;
+    final customFields = w.customFields;
     return Lead(
-      id: json['id']?.toString() ?? '',
-      title: json['title'] as String?,
-      salutation: json['salutation'] as String?,
-      firstName: json['first_name'] as String? ?? '',
-      lastName: json['last_name'] as String? ?? '',
-      email: json['email'] as String? ?? '',
-      phone: json['phone'] as String?,
-      phoneE164: json['phone_e164']?.toString() ?? '',
-      jobTitle: json['job_title'] as String?,
-      website: json['website'] as String?,
-      linkedinUrl: json['linkedin_url'] as String?,
-      companyName: json['company_name'] as String? ?? '',
-      status: LeadStatus.fromString(json['status'] as String?),
-      source: json['source']?.toString() ?? '',
-      sourceDetail: json['source_detail']?.toString() ?? '',
-      sourceRef: json['source_ref']?.toString() ?? '',
-      rating: LeadRating.fromString(json['rating'] as String?),
-      industry: json['industry'] as String?,
-      opportunityAmount: json['opportunity_amount'] != null
-          ? double.tryParse(json['opportunity_amount'].toString())
-          : null,
-      currency: json['currency'] as String?,
-      probability: json['probability'] as int?,
-      closeDate: json['close_date'] != null
-          ? DateTime.tryParse(json['close_date'] as String)
-          : null,
-      addressLine: json['address_line'] as String?,
-      city: json['city'] as String?,
-      state: json['state'] as String?,
-      postcode: json['postcode'] as String?,
-      country: json['country'] as String?,
-      lastContacted: json['last_contacted'] != null
-          ? DateTime.tryParse(json['last_contacted'] as String)
-          : null,
-      nextFollowUp: json['next_follow_up'] != null
-          ? DateTime.tryParse(json['next_follow_up'] as String)
-          : null,
-      description: json['description'] as String?,
-      tags: parsedTags,
-      tagIds: parsedTagIds,
-      assignedTo: parsedAssignedTo,
-      assignedToIds: parsedAssignedToIds,
-      comments: parsedComments,
-      attachments: parsedAttachments,
-      customFieldValues: parsedCustomFields,
-      // `created_by` is a nested UserSerializer on the detail route and may be
-      // absent or a bare id on lighter payloads, so read it defensively.
-      createdByEmail: json['created_by'] is Map<String, dynamic>
-          ? (json['created_by'] as Map<String, dynamic>)['email'] as String?
-          : null,
-      createdAt: json['created_at'] != null
-          ? DateTime.tryParse(json['created_at'] as String) ?? DateTime.now()
-          : DateTime.now(),
-      updatedAt: json['updated_at'] != null
-          ? DateTime.tryParse(json['updated_at'] as String)
-          : null,
-      isActive: json['is_active'] as bool? ?? true,
-      isUnanswered: json['is_unanswered'] is bool
-          ? json['is_unanswered'] as bool
-          : null,
-      waitingSince: DateTime.tryParse(json['waiting_since']?.toString() ?? ''),
+      id: w.id ?? '',
+      title: w.title,
+      salutation: w.salutation,
+      firstName: w.firstName ?? '',
+      lastName: w.lastName ?? '',
+      email: w.email ?? '',
+      phone: w.phone,
+      phoneE164: w.phoneE164 ?? '',
+      jobTitle: w.jobTitle,
+      website: w.website,
+      linkedinUrl: w.linkedinUrl,
+      companyName: w.companyName ?? '',
+      status: LeadStatus.fromString(w.status),
+      source: w.source ?? '',
+      sourceDetail: w.sourceDetail ?? '',
+      sourceRef: w.sourceRef ?? '',
+      rating: LeadRating.fromString(w.rating),
+      industry: w.industry,
+      opportunityAmount: double.tryParse(w.opportunityAmount ?? ''),
+      currency: w.currency,
+      probability: w.probability,
+      closeDate: DateTime.tryParse(w.closeDate ?? ''),
+      addressLine: w.addressLine,
+      city: w.city,
+      state: w.state,
+      postcode: w.postcode,
+      country: w.country,
+      lastContacted: DateTime.tryParse(w.lastContacted ?? ''),
+      nextFollowUp: DateTime.tryParse(w.nextFollowUp ?? ''),
+      description: w.description,
+      tags: [
+        for (final t in tags)
+          if (t.name case final name? when name.isNotEmpty) name,
+      ],
+      tagIds: [
+        for (final t in tags)
+          if (t.id case final id? when id.isNotEmpty) id,
+      ],
+      assignedTo: assigned?.map((p) => p.json).toList(),
+      assignedToIds: [
+        for (final p in assigned ?? const <api.Profile>[])
+          if (p.id case final id? when id.isNotEmpty) id,
+      ],
+      customFieldValues: customFields is Map<String, dynamic>
+          ? Map<String, dynamic>.from(customFields)
+          : const {},
+      createdByEmail: w.createdBy?.email,
+      createdAt: DateTime.tryParse(w.createdAt ?? '') ?? DateTime.now(),
+      updatedAt: DateTime.tryParse(w.updatedAt ?? ''),
+      isActive: w.isActive ?? true,
+      isUnanswered: w.isUnanswered,
+      waitingSince: DateTime.tryParse(w.waitingSince ?? ''),
     );
   }
 

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/theme.dart';
+import '../../data/api/schema.g.dart' as api;
 import '../../data/models/interaction.dart';
 import '../../data/models/models.dart';
 import '../../data/models/lead_board.dart' show LeadStageRef;
@@ -784,14 +785,14 @@ class _LeadDetailScreenState extends ConsumerState<LeadDetailScreen>
   }
 
   Widget _buildAssigneeRow(Map<String, dynamic> a) {
-    final details = a['user_details'];
+    final details = api.Profile.fromJson(a).userDetails;
     String name = 'Unknown';
     String? email;
     String? pic;
-    if (details is Map<String, dynamic>) {
-      final n = (details['name'] as String?)?.trim();
-      email = (details['email'] as String?)?.trim();
-      pic = (details['profile_pic'] as String?)?.trim();
+    if (details != null) {
+      final n = details.name?.trim();
+      email = details.email?.trim();
+      pic = details.profilePic?.trim();
       if (n != null && n.isNotEmpty) {
         name = n;
       } else if (email != null && email.isNotEmpty) {
@@ -915,14 +916,15 @@ class _LeadDetailScreenState extends ConsumerState<LeadDetailScreen>
       return;
     }
 
-    final attachmentsData = result.data?['attachments'];
-    if (attachmentsData is List && _lead != null) {
+    final attachmentsData = api.LeadCommentAttachmentResponse.fromJson(
+      result.data ?? const {},
+    ).attachments;
+    if (attachmentsData != null && _lead != null) {
       setState(() {
         _lead = _lead!.copyWith(
-          attachments: attachmentsData
-              .whereType<Map<String, dynamic>>()
-              .map(Attachment.fromJson)
-              .toList(),
+          attachments: [
+            for (final a in attachmentsData) Attachment.fromJson(a.json),
+          ],
         );
       });
     } else {
@@ -1205,12 +1207,13 @@ class _LeadDetailScreenState extends ConsumerState<LeadDetailScreen>
     // of refetching. The previous refetch path could silently fail (provider
     // catches and returns null on any parse error), leaving the new comment
     // invisible even though the server saved it.
-    final commentsData = response.data?['comments'];
-    if (_lead != null && commentsData is List) {
-      final newComments = commentsData
-          .whereType<Map<String, dynamic>>()
-          .map(Comment.fromJson)
-          .toList();
+    final commentsData = api.LeadCommentAttachmentResponse.fromJson(
+      response.data ?? const {},
+    ).comments;
+    if (_lead != null && commentsData != null) {
+      final newComments = [
+        for (final c in commentsData) Comment.fromJson(c.json),
+      ];
       setState(() {
         _lead = _lead!.copyWith(comments: newComments);
       });

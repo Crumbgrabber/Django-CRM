@@ -1,0 +1,154 @@
+import { fail, redirect } from '@sveltejs/kit';
+import { getTask, getTaskFormOptions, updateTask, type TaskValues } from '#lib/server/v2/tasks.js';
+import { listTickets } from '#lib/server/v2/tickets.js';
+import { listDeals } from '#lib/server/v2/deals.js';
+import { listLeads } from '#lib/server/v2/leads.js';
+import { projectChoices } from '#lib/server/v2/projects.js';
+import { projectOptions } from '#lib/v2/projects.js';
+import { getModules } from '#lib/server/v2/modules.js';
+import { isOn } from '#lib/v2/modules.js';
+import { readCustomFields, saveRefusal } from '#lib/server/v2/record-custom-fields.js';
+import type { Actions, PageServerLoad } from './$types';
+
+const NONE: { results: never[] } = { results: [] };
+
+export const load: PageServerLoad = async (event) => {
+  // Asked directly: `parent()` would rerun the whole shell load.
+  const modulesP = getModules(event);
+  const when = (key: string) => modulesP.then((m) => isOn(m?.modules ?? null, key));
+  const [{ task, customFieldInputs }, answer] = await Promise.all([
+    getTask(event, event.params.id),
+    modulesP
+  ]);
+  const [options, tickets, deals, leads, projects] = await Promise.allSettled([
+    getTaskFormOptions(event),
+    when('tickets').then(async (on) =>
+      on ? await listTickets(event, new URLSearchParams({ limit: '100' })) : NONE
+    ),
+    // Open deals only, matching what this picker offered before `listDeals`
+    // stopped assuming it: attaching a task to a deal you already closed is
+    // an edge case the picker does not need to carry by default.
+    when('deals').then(async (on) =>
+      on ? await listDeals(event, new URLSearchParams({ open: 'true', limit: '100' })) : NONE
+    ),
+    when('leads').then(async (on) =>
+      on ? await listLeads(event, new URLSearchParams({ limit: '100' })) : NONE
+    ),
+    when('projects').then((on) => (on ? projectChoices(event) : []))
+  ]);
+  const settled = options.status === 'fulfilled' ? options.value : { owners: [], accounts: [] };
+
+  const parents: Record<string, { id: string; name: string }[]> = {
+    // The task's own project stays an option when it is past the first 200.
+    project: projectOptions(
+      projects.status === 'fulfilled' ? projects.value : [],
+      task.related?.kind === 'project' ? { id: task.related.id, name: task.related.name } : null
+    ),
+    account: settled.accounts ?? [],
+    opportunity:
+      deals.status === 'fulfilled'
+        ? deals.value.results.map((d) => ({ id: d.id, name: d.name }))
+        : [],
+    case:
+      tickets.status === 'fulfilled'
+        ? tickets.value.results.map((t) => ({ id: t.id, name: t.name }))
+        : [],
+    lead:
+      leads.status === 'fulfilled'
+        ? leads.value.results.map((l) => ({
+            id: l.id,
+            name:
+              `${l.first_name} ${l.last_name}`.trim() ||
+              l.company_name ||
+              l.email ||
+              '(unnamed lead)'
+          }))
+        : []
+  };
+
+  return {
+    modules: answer?.modules ?? null,
+    task,
+    customFields: customFieldInputs,
+    owners: settled.owners,
+    parents,
+    form: {
+      title: task.title,
+      status: task.status,
+      priority: task.priority,
+      due_date: task.due_date ?? '',
+      description: task.description,
+      // `related.kind` is the v2 word; the API columns are the others.
+      parent_kind: task.related
+        ? {
+            account: 'account',
+            deal: 'opportunity',
+            ticket: 'case',
+            lead: 'lead',
+            project: 'project'
+          }[task.related.kind]
+        : '',
+      parent_id: task.related?.id ?? ''
+    }
+  };
+};
+
+export const actions: Actions = {
+  save: async (event) => {
+    const form = await event.request.formData();
+
+    const values: TaskValues = {
+      title: form.get('title')?.toString().trim() ?? '',
+      status: form.get('status')?.toString() || 'New',
+      priority: form.get('priority')?.toString() || 'Medium',
+      due_date: form.get('due_date')?.toString() || null,
+      description: form.get('description')?.toString().trim() ?? '',
+      assigned_to: form
+        .getAll('assigned_to')
+        .map((v) => v.toString())
+        .filter(Boolean)
+    };
+
+    /*
+     * The parent is only sent when it actually moved.
+     *
+     * Same "absent means unchanged" marker as the other modules, and here it
+     * guards a validation rule rather than a relation: the API checks the
+     * payload's parents *against the ones already on the task*, so re-sending
+     * an unchanged account alongside nothing else is fine, but the moment the
+     * kind changes both columns have to travel together, the old one cleared
+     * to null in the same request as the new one is set. Sent one at a time
+     * they read as "a second parent" and are refused, which is the rule
+     * working.
+     */
+    const kind = form.get('parent_kind')?.toString() ?? '';
+    const id = kind ? (form.get(`parent_${kind}`)?.toString() ?? '') : '';
+    const kindWas = form.get('parent_kind_original')?.toString() ?? '';
+    const idWas = form.get('parent_id_original')?.toString() ?? '';
+
+    if (kind !== kindWas || id !== idWas) {
+      if (kindWas) values[kindWas] = null;
+      if (kind && id) values[kind] = id;
+    }
+
+    const custom = await readCustomFields(event.cookies, 'Task', form);
+    if (custom.refusal) {
+      return fail(503, {
+        values: { ...values, parent_kind: kind, parent_id: id },
+        ...custom.refusal
+      });
+    }
+    if (custom.values) values.custom_fields = custom.values;
+
+    try {
+      await updateTask(event, event.params.id, values);
+    } catch (err) {
+      return fail(400, {
+        values: { ...values, parent_kind: kind, parent_id: id },
+        ...saveRefusal(err, custom.definitions, 'Could not save this task.')
+      });
+    }
+
+    redirect(303, `/tasks/${event.params.id}`);
+  }
+};

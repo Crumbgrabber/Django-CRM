@@ -346,7 +346,29 @@ class UserDetailView(APIView):
                 name="UserDetailResponse",
                 fields={
                     "error": serializers.BooleanField(),
-                    "data": serializers.DictField(),
+                    "data": inline_serializer(
+                        name="UserDetailData",
+                        fields={
+                            "profile_obj": ProfileSerializer(),
+                            "opportunity_list": OpportunitySerializer(many=True),
+                            "contacts": ContactSerializer(many=True),
+                            "cases": CaseSerializer(many=True),
+                            "assigned_data": inline_serializer(
+                                name="UserDetailAssignee",
+                                fields={
+                                    "id": serializers.UUIDField(),
+                                    "user__email": serializers.EmailField(),
+                                },
+                                many=True,
+                            ),
+                            "comments": CommentSerializer(many=True),
+                            "countries": serializers.ListField(
+                                child=serializers.ListField(
+                                    child=serializers.CharField()
+                                )
+                            ),
+                        },
+                    ),
                 },
             )
         },

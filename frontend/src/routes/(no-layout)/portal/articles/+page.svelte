@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * Built for a 390px phone first, and a stack of cards for the same reason the
    * requests list is one: a customer reads a handful of these, not a table.
@@ -9,9 +9,9 @@
    */
   import { resolve } from '$app/paths';
   import PortalShell from '#lib/v2/components/PortalShell.svelte';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data } = $props();
+  let { data }: PageProps = $props();
 </script>
 
 <svelte:head>

@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * One web form: the editor.
    *
@@ -59,12 +59,22 @@
     builtinFieldLabel
   } from '#lib/v2/webform-fields.js';
   import { ChevronUp, ChevronDown, GripVertical, Plus, Trash2, Copy, Check } from '@lucide/svelte';
+  import type { PageProps, SubmitFunction } from './$types';
+  import type { components } from '#lib/api-schema.js';
 
-  /** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
-  /** @typedef {{ key: number, source: string, lead_field: string, ticket_field: string, custom_field: string | null, label: string, placeholder: string, is_required: boolean }} Row */
+  type Schemas = components['schemas'];
+  type Row = {
+    key: number;
+    source: string;
+    lead_field: string;
+    ticket_field: string;
+    custom_field: string | null;
+    label: string;
+    placeholder: string;
+    is_required: boolean;
+  };
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   let wf = $derived(data.form);
   let canManage = $derived(data.canManage);
@@ -85,11 +95,7 @@
   let fields = $state(untrack(() => seed(data.form.fields ?? [])));
   let nextKey = $state(1000);
 
-  /**
-   * @param {Schemas['WebFormField'][]} rows
-   * @returns {Row[]}
-   */
-  function seed(rows) {
+  function seed(rows: Schemas['WebFormField'][]): Row[] {
     return rows.map((row, index) => ({
       key: index,
       source: row.source,
@@ -154,8 +160,7 @@
     return null;
   });
 
-  /** @type {import('./$types').SubmitFunction} */
-  const working = () => {
+  const working: SubmitFunction = () => {
     busy = true;
     return async ({ update }) => {
       await update();
@@ -165,8 +170,7 @@
 
   /** Save also reseeds the editor from whatever came back, so a row the
    *  server rejected or normalised does not linger in the browser's copy. */
-  /** @type {import('./$types').SubmitFunction} */
-  const saveSubmit = () => {
+  const saveSubmit: SubmitFunction = () => {
     busy = true;
     return async ({ update, result }) => {
       await update({ reset: false });
@@ -191,8 +195,7 @@
     ];
   }
 
-  /** @param {number} index */
-  function removeField(index) {
+  function removeField(index: number) {
     fields = fields.filter((_, i) => i !== index);
   }
 
@@ -200,11 +203,8 @@
    * When a row's target changes and the label is still the one the previous
    * target suggested (or empty), follow it. A label the person actually typed
    * is never overwritten: guessing is a convenience, not a correction.
-   *
-   * @param {number} index
-   * @param {string} value
    */
-  function pickBuiltinField(index, value) {
+  function pickBuiltinField(index: number, value: string) {
     const row = fields[index];
     const key = builtin.key === 'ticket_field' ? 'ticket_field' : 'lead_field';
     const wasSuggested = !row.label.trim() || row.label === builtinFieldLabel(wf.target, row[key]);
@@ -213,11 +213,7 @@
     if (wasSuggested) row.label = builtinFieldLabel(wf.target, value);
   }
 
-  /**
-   * @param {number} index
-   * @param {string} value
-   */
-  function pickCustomField(index, value) {
+  function pickCustomField(index: number, value: string) {
     const row = fields[index];
     const previous = data.customFields.find((c) => c.id === row.custom_field);
     const wasSuggested = !row.label.trim() || row.label === previous?.label;
@@ -233,17 +229,15 @@
   // `dragging` holds the index being carried. It is set on dragstart and
   // cleared on dragend, so an interrupted drag (Escape, drop outside the list)
   // leaves no stuck state.
-  let dragging = $state(/** @type {number | null} */ (null));
+  let dragging = $state<number | null>(null);
 
-  /** @param {number} index */
-  function onDrop(index) {
+  function onDrop(index: number) {
     if (dragging === null || dragging === index) return;
     fields = moveField(fields, dragging, index - dragging);
     dragging = null;
   }
 
-  /** @param {string} text @param {string} which */
-  async function copy(text, which) {
+  async function copy(text: string, which: string) {
     try {
       await navigator.clipboard.writeText(text);
       copied = which;
@@ -266,12 +260,10 @@
   let submissions = $derived(data.submissions ?? []);
   let totals = $derived(data.analytics?.totals ?? null);
 
-  /** @param {string} status */
-  const statusTone = (status) =>
+  const statusTone = (status: string) =>
     status === 'accepted' || status === 'accepted_duplicate' ? 'moss' : 'slate';
 
-  /** @param {string} status */
-  const statusLabel = (status) =>
+  const statusLabel = (status: string) =>
     ({
       accepted: isTicket ? 'Ticket opened' : 'Lead created',
       accepted_duplicate: 'Merged into an existing lead',

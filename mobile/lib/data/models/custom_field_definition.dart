@@ -1,3 +1,5 @@
+import '../api/schema.g.dart' as api;
+
 /// Per-org schema row describing a single custom field on an entity.
 ///
 /// Mirrors `common.models.CustomFieldDefinition` on the backend. The form
@@ -43,8 +45,13 @@ class CustomFieldDefinition {
     this.recordsMissingValue = 0,
   });
 
+  /// Reads a `CustomFieldDefinitionRow`, the `/api/custom-fields/` row.
+  /// Detail responses send the plain `CustomFieldDefinition`, which is the
+  /// same without `records_missing_value`.
   factory CustomFieldDefinition.fromJson(Map<String, dynamic> json) {
-    final rawOptions = json['options'];
+    final w = api.CustomFieldDefinitionRow.fromJson(json);
+    // A list of `{value, label}`, or `{}` for a field that has none.
+    final rawOptions = w.options;
     final List<CustomFieldOption> parsedOptions = [];
     if (rawOptions is List) {
       for (final o in rawOptions) {
@@ -61,17 +68,17 @@ class CustomFieldDefinition {
       }
     }
     return CustomFieldDefinition(
-      id: json['id']?.toString() ?? '',
-      targetModel: json['target_model'] as String? ?? '',
-      key: json['key'] as String? ?? '',
-      label: json['label'] as String? ?? '',
-      fieldType: CustomFieldType.fromString(json['field_type'] as String?),
+      id: w.id ?? '',
+      targetModel: w.targetModel ?? '',
+      key: w.key ?? '',
+      label: w.label ?? '',
+      fieldType: CustomFieldType.fromString(w.fieldType),
       options: parsedOptions,
-      isRequired: json['is_required'] as bool? ?? false,
-      isFilterable: json['is_filterable'] as bool? ?? false,
-      displayOrder: json['display_order'] as int? ?? 0,
-      isActive: json['is_active'] as bool? ?? true,
-      recordsMissingValue: json['records_missing_value'] as int? ?? 0,
+      isRequired: w.isRequired ?? false,
+      isFilterable: w.isFilterable ?? false,
+      displayOrder: w.displayOrder ?? 0,
+      isActive: w.isActive ?? true,
+      recordsMissingValue: w.recordsMissingValue ?? 0,
     );
   }
 }
@@ -92,7 +99,7 @@ enum CustomFieldType {
 
   final String value;
 
-  /// Matches `FIELD_TYPE_LABEL` in `frontend/src/lib/v2/enums.js`, so the two
+  /// Matches `FIELD_TYPE_LABEL` in `frontend/src/lib/v2/enums.ts`, so the two
   /// clients name the same type the same way.
   final String label;
 
@@ -111,7 +118,7 @@ enum CustomFieldType {
 /// is a deal).
 ///
 /// Mirrors the custom-field targets in `backend/common/object_registry.py` and
-/// `TARGET_MODEL_LABEL` in `frontend/src/lib/v2/enums.js`.
+/// `TARGET_MODEL_LABEL` in `frontend/src/lib/v2/enums.ts`.
 /// `CustomFieldDefinitionSerializer` rejects anything outside this set, so
 /// offering a wider list would only produce a 400.
 const Map<String, String> customFieldTargets = {
@@ -127,7 +134,7 @@ const Map<String, String> customFieldTargets = {
 };
 
 /// The module that serves each target; Account and Contact are always on.
-/// Twin of `TARGET_MODULES` in `frontend/src/lib/v2/modules.js`.
+/// Twin of `TARGET_MODULES` in `frontend/src/lib/v2/modules.ts`.
 const Map<String, String> customFieldTargetModules = {
   'Lead': 'leads',
   'Opportunity': 'deals',
@@ -144,14 +151,17 @@ String customFieldTargetLabel(String targetModel) =>
 /// The `custom_field_definitions` a detail response carries beside its record:
 /// the active fields for that record type, in display order. Empty when the
 /// key is absent or malformed.
+///
+/// Nine detail components publish the key with the same type, so the body is
+/// read as `EstimateDetail`, the one that carries little else.
 List<CustomFieldDefinition> customFieldDefinitionsIn(
   Map<String, dynamic>? body,
 ) {
-  final rows = body?['custom_field_definitions'];
-  if (rows is! List) return const [];
+  if (body == null) return const [];
+  final rows = api.EstimateDetail.fromJson(body).customFieldDefinitions;
+  if (rows == null) return const [];
   return rows
-      .whereType<Map<String, dynamic>>()
-      .map(CustomFieldDefinition.fromJson)
+      .map((row) => CustomFieldDefinition.fromJson(row.json))
       .toList(growable: false);
 }
 
@@ -248,7 +258,7 @@ String suggestCustomFieldKey(String label) {
 ///
 /// An existing option's value is stored on every record that uses it, so a
 /// relabel must leave the value untouched. This mirrors `slugifyOptionValue`
-/// in `frontend/src/lib/server/v2/custom-fields.js`, hyphens included: option
+/// in `frontend/src/lib/server/v2/custom-fields.ts`, hyphens included: option
 /// values are free-form on the server and only the field `key` is slug-checked.
 String slugifyOptionValue(String label) => label
     .toLowerCase()

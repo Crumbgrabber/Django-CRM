@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { SvelteURLSearchParams } from 'svelte/reactivity';
   import { resolve } from '$app/paths';
   import { asInternalPath } from '#lib/utils/paths.js';
@@ -18,16 +18,16 @@
   import { sourceFilterOptions } from '#lib/v2/lead-sources.js';
   import { CalendarClock, Columns3, Download, List, Plus, TriangleAlert } from '@lucide/svelte';
   import { flip } from 'svelte/animate';
-  import { dndzone } from 'svelte-dnd-action';
+  import { dndzone, type DndEvent } from 'svelte-dnd-action';
   import { refreshAll } from '$app/navigation';
   import { deserialize } from '$app/forms';
   import { holdLockedCard } from '#lib/v2/board-drag.js';
+  import type { PageData, PageProps } from './$types';
 
-  /** @typedef {import('./$types').PageData['lanes'][number]} Lane */
-  /** @typedef {CustomEvent<import('svelte-dnd-action').DndEvent<Lane['rows'][number]>>} CardEvent */
+  type Lane = PageData['lanes'][number];
+  type CardEvent = CustomEvent<DndEvent<Lane['rows'][number]>>;
 
-  /** @type {import('./$types').PageProps} */
-  let { data } = $props();
+  let { data }: PageProps = $props();
 
   const FLIP_MS = 160;
 
@@ -57,8 +57,7 @@
     const pool = data.pipelineId
       ? data.pipelines.filter((p) => p.id === data.pipelineId)
       : data.pipelines;
-    /** @type {Record<string, string>} */
-    const byCode = {};
+    const byCode: Record<string, string> = {};
     for (const p of pool) {
       for (const s of p.stages) byCode[s.code] ??= s.label;
     }
@@ -69,8 +68,7 @@
      local copy. Rebuilt whenever the server sends new lanes, which is what
      makes a rejected move snap back: the action calls `refreshAll()` and
      this effect overwrites the optimistic arrangement with the stored one. */
-  /** @type {Lane[]} */
-  let boardLanes = $state([]);
+  let boardLanes: Lane[] = $state([]);
   $effect(() => {
     boardLanes = lanes.map((lane) => ({ ...lane, rows: [...lane.rows] }));
   });
@@ -80,23 +78,23 @@
   /* The header has to describe the cards under it after an optimistic move,
      not the count the server sent before it. A capped lane keeps the server's
      total, since its own rows are not the whole story either way. */
-  function laneCount(/** @type {Lane} */ lane) {
+  function laneCount(lane: Lane) {
     return lane.truncated ? lane.count : lane.rows.length;
   }
   /* Money per currency, never added across: there are no exchange rates.
      Nothing priced reads as zero in the org's own currency. */
-  function laneMoney(/** @type {Lane} */ lane) {
+  function laneMoney(lane: Lane) {
     return perCurrency(sumByCurrency(lane.rows));
   }
-  function perCurrency(/** @type {{ currency: string, amount: number }[]} */ list) {
+  function perCurrency(list: { currency: string; amount: number }[]) {
     return moneyEach(list) || money(0, data.org.currency);
   }
 
-  function onConsider(/** @type {Lane} */ lane, /** @type {CardEvent} */ e) {
+  function onConsider(lane: Lane, e: CardEvent) {
     lane.rows = e.detail.items;
   }
 
-  async function onFinalize(/** @type {Lane} */ lane, /** @type {CardEvent} */ e) {
+  async function onFinalize(lane: Lane, e: CardEvent) {
     lane.rows = e.detail.items;
     const movedId = e.detail.info?.id;
     const index = e.detail.items.findIndex((r) => r.id === movedId);
@@ -118,10 +116,10 @@
    * rather than to a position computed from a card that has moved on.
    */
   async function persistMove(
-    /** @type {string} */ id,
-    /** @type {string} */ columnId,
-    /** @type {string | undefined} */ aboveId,
-    /** @type {string | undefined} */ belowId
+    id: string,
+    columnId: string,
+    aboveId: string | undefined,
+    belowId: string | undefined
   ) {
     const body = new FormData();
     body.set('id', id);
@@ -165,7 +163,7 @@
    * can run everything the board could and more. List to Board keeps
    * `view=board` plus only the params the board offers
    * (`data.boardFields`, always returned by `load` regardless of the current
-   * view, see the note in `+page.server.js`); the rest are deliberately
+   * view, see the note in `+page.server.ts`); the rest are deliberately
    * dropped, and it is visible rather than silent, since the chips for them
    * disappear along with the params.
    */
@@ -173,7 +171,7 @@
   let boardHref = $derived.by(() => {
     const next = new SvelteURLSearchParams();
     next.set('view', 'board');
-    // `search` mirrors what `+page.server.js` forwards to the board itself
+    // `search` mirrors what `+page.server.ts` forwards to the board itself
     // (the kanban endpoint runs the deal list's filters, `search` among
     // them); it is not one of `boardFields`
     // because it is not a descriptor field, just like on the list view.
@@ -279,8 +277,8 @@
         <div
           class="v2-lane-body"
           use:dndzone={{ items: lane.rows, flipDurationMs: FLIP_MS }}
-          onconsider={(/** @type {CardEvent} */ e) => onConsider(lane, e)}
-          onfinalize={(/** @type {CardEvent} */ e) => onFinalize(lane, e)}
+          onconsider={(e: CardEvent) => onConsider(lane, e)}
+          onfinalize={(e: CardEvent) => onFinalize(lane, e)}
           onmousedowncapture={holdLockedCard}
           ontouchstartcapture={holdLockedCard}
           onkeydowncapture={holdLockedCard}

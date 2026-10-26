@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   /**
    * The kanban board.
@@ -20,7 +20,7 @@
    * target column and the membership), we reload and the card snaps back, so
    * the board never claims a move the backend didn't make.
    */
-  import { dndzone } from 'svelte-dnd-action';
+  import { dndzone, type DndEvent } from 'svelte-dnd-action';
   import { flip } from 'svelte/animate';
   import { refreshAll } from '$app/navigation';
   import { deserialize, enhance } from '$app/forms';
@@ -32,37 +32,27 @@
   import { count, shortDate, daysSince } from '#lib/v2/format.js';
   import { BOARD_PRIORITY_LABEL, BOARD_PRIORITY_TONE } from '#lib/v2/enums.js';
   import { Plus, ChevronDown, TriangleAlert } from '@lucide/svelte';
+  import type { PageData, PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data } = $props();
+  let { data }: PageProps = $props();
 
-  /** @typedef {import('./$types').PageData} Data */
-  /** @typedef {Data['tasks'][number]} Card */
-  /** @typedef {Data['columns'][number] & { cards: Card[] }} Lane */
-  /** @typedef {CustomEvent<import('svelte-dnd-action').DndEvent<Card>>} CardDrag */
+  type Data = PageData;
+  type Card = Data['tasks'][number];
+  type Lane = Data['columns'][number] & { cards: Card[] };
+  type CardDrag = CustomEvent<DndEvent<Card>>;
 
   const FLIP_MS = 160;
 
-  /**
-   * Join the flat `columns` + `tasks` into draggable lanes.
-   *
-   * @param {Data} d
-   * @returns {Lane[]}
-   */
-  function buildLanes(d) {
+  /** Join the flat `columns` + `tasks` into draggable lanes. */
+  function buildLanes(d: Data): Lane[] {
     return d.columns.map((c) => ({
       ...c,
       cards: d.tasks.filter((t) => t.column_id === c.id).sort((a, b) => a.order - b.order)
     }));
   }
 
-  /**
-   * The `error` a refused action returned, or `fallback`.
-   *
-   * @param {Record<string, unknown> | undefined} data
-   * @param {string} fallback
-   */
-  const failureMessage = (data, fallback) =>
+  /** The `error` a refused action returned, or `fallback`. */
+  const failureMessage = (data: Record<string, unknown> | undefined, fallback: string) =>
     (typeof data?.error === 'string' && data.error) || fallback;
 
   // Lanes are optimistic local state: dnd mutates them on drag, and we resync
@@ -70,8 +60,7 @@
   // optimistic move touches `lanes`, not `data`, so it is never clobbered.
   // svelte-ignore state_referenced_locally
   let lanes = $state(buildLanes(data));
-  /** @type {Data | undefined} */
-  let lastData;
+  let lastData: Data | undefined;
   $effect(() => {
     if (lastData !== undefined && data !== lastData) lanes = buildLanes(data);
     lastData = data;
@@ -83,7 +72,7 @@
   // column form opens once at the end. Both post to the page's actions and
   // reload on success, so the new record arrives from the API rather than being
   // guessed at. The same rule the drag follows.
-  let addingCardTo = $state(/** @type {string | null} */ (null));
+  let addingCardTo = $state<string | null>(null);
   let addCardBusy = $state(false);
   let addCardError = $state('');
   let showAddColumn = $state(false);
@@ -94,7 +83,7 @@
   let createBoardBusy = $state(false);
   let createBoardError = $state('');
 
-  function openCardForm(/** @type {string} */ columnId) {
+  function openCardForm(columnId: string) {
     addingCardTo = columnId;
     addCardError = '';
   }
@@ -103,12 +92,11 @@
     addCardError = '';
   }
 
-  /** @typedef {{ completed_at: string | null, due_date: string | null }} Dated */
-  const isDone = (/** @type {Dated} */ t) => t.completed_at !== null;
-  const isOverdue = (/** @type {Dated} */ t) =>
+  type Dated = { completed_at: string | null; due_date: string | null };
+  const isDone = (t: Dated) => t.completed_at !== null;
+  const isOverdue = (t: Dated) =>
     !isDone(t) && t.due_date !== null && new Date(t.due_date) < new Date();
-  const overCount = (/** @type {Lane} */ lane) =>
-    lane.limit !== null && lane.cards.length > lane.limit;
+  const overCount = (lane: Lane) => lane.limit !== null && lane.cards.length > lane.limit;
 
   // Counts follow the live lanes, so a drag updates them with no round-trip and
   // they still match the API on the next load.
@@ -125,11 +113,11 @@
     };
   });
 
-  function onConsider(/** @type {Lane} */ lane, /** @type {CardDrag} */ e) {
+  function onConsider(lane: Lane, e: CardDrag) {
     lane.cards = e.detail.items;
   }
 
-  async function onFinalize(/** @type {Lane} */ lane, /** @type {CardDrag} */ e) {
+  async function onFinalize(lane: Lane, e: CardDrag) {
     lane.cards = e.detail.items;
     const movedId = e.detail.info?.id;
     const index = e.detail.items.findIndex((c) => c.id === movedId);
@@ -139,11 +127,7 @@
     await persistMove(movedId, lane.id, index);
   }
 
-  async function persistMove(
-    /** @type {string} */ id,
-    /** @type {string} */ column,
-    /** @type {number} */ order
-  ) {
+  async function persistMove(id: string, column: string, order: number) {
     const body = new FormData();
     body.set('id', id);
     body.set('column', column);
@@ -310,8 +294,8 @@
         <div
           class="v2-lane-body"
           use:dndzone={{ items: lane.cards, flipDurationMs: FLIP_MS }}
-          onconsider={(/** @type {CardDrag} */ e) => onConsider(lane, e)}
-          onfinalize={(/** @type {CardDrag} */ e) => onFinalize(lane, e)}
+          onconsider={(e: CardDrag) => onConsider(lane, e)}
+          onfinalize={(e: CardDrag) => onFinalize(lane, e)}
         >
           {#each lane.cards as t (t.id)}
             {@const overdue = isOverdue(t)}

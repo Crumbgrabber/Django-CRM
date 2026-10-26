@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   /**
    * The organisation itself (read view).
@@ -33,9 +33,9 @@
   import { todayIn } from '#lib/v2/dates.js';
   import { FileText, ShieldAlert, Pencil } from '@lucide/svelte';
   import { isOn } from '#lib/v2/modules.js';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data } = $props();
+  let { data }: PageProps = $props();
 
   let org = $derived(data.org);
   let invoicesOn = $derived(isOn(data.modules, 'invoices'));

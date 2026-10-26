@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import {
     fieldOf,
     targetsFor,
@@ -14,29 +14,35 @@
     setActionValue,
     shownValue,
     recipientLabel,
-    replacePerson
+    replacePerson,
+    type Catalogue,
+    type CatalogueObject,
+    type RuleAction,
+    type RuleValue
   } from '#lib/v2/automation.js';
   import RuleValueInput from './RuleValueInput.svelte';
 
   /**
    * The fields of one action, by its type. A stored target, field, person,
    * recipient or endpoint the catalogue lost stays selected and marked.
-   *
-   * @type {{
-   *   catalogue: import('#lib/v2/automation.js').Catalogue,
-   *   object: import('#lib/v2/automation.js').CatalogueObject | null,
-   *   action: import('#lib/v2/automation.js').RuleAction,
-   *   errorId?: string
-   * }}
    */
-  let { catalogue, object, action = $bindable(), errorId = undefined } = $props();
+  let {
+    catalogue,
+    object,
+    action = $bindable(),
+    errorId = undefined
+  }: {
+    catalogue: Catalogue;
+    object: CatalogueObject | null;
+    action: RuleAction;
+    errorId?: string;
+  } = $props();
 
   const uid = $props.id();
   const people = $derived(catalogue?.people ?? []);
 
   // What the action held before "Clear it instead" was ticked.
-  /** @type {import('#lib/v2/automation.js').RuleValue | undefined} */
-  let previous = $state();
+  let previous: RuleValue | undefined = $state();
   let clear = $derived(isClearing(action));
 
   let targets = $derived(targetsFor(catalogue, object));
@@ -62,13 +68,12 @@
     (catalogue?.endpoints ?? []).map((e) => ({ value: e.id, label: e.description ?? '' }))
   );
 
-  /** The single person of a replace, as the list the API stores. @param {string} id */
-  function setOne(id) {
+  /** The single person of a replace, as the list the API stores. */
+  function setOne(id: string) {
     action.people = id ? [id] : [];
   }
 
-  /** @param {boolean} on */
-  function setClear(on) {
+  function setClear(on: boolean) {
     if (on) previous = action.value;
     applyClear(action, on, previous);
   }

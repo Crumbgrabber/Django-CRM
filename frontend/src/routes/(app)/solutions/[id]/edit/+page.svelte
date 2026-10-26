@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   /**
    * Editing an article is editing its words. The two decisions about it,
@@ -16,9 +16,9 @@
   import { untrack } from 'svelte';
   import { ChevronLeft } from '@lucide/svelte';
   import { isOn } from '#lib/v2/modules.js';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   let ticketsOn = $derived(isOn(data.modules, 'tickets'));
 
@@ -31,8 +31,9 @@
   // `includes` costs nothing, and Svelte's reactivity has no special case to
   // fall foul of. Seeded from the failed save first so a rejected submit comes
   // back with the same chips lit, then from the article's own tags.
-  /** @type {string[]} */
-  let picked = $state(untrack(() => (form?.values?.tags ?? data.form.tags ?? []).map(String)));
+  let picked: string[] = $state(
+    untrack(() => (form?.values?.tags ?? data.form.tags ?? []).map(String))
+  );
   let saving = $state(false);
 
   // The article's stored tags that have a box (active ones). Posted back so
@@ -40,11 +41,10 @@
   let tagsOriginal = $derived(
     (data.form.tags ?? [])
       .map(String)
-      .filter((/** @type {string} */ id) => data.tags.some((t) => String(t.id) === id))
+      .filter((id: string) => data.tags.some((t) => String(t.id) === id))
   );
 
-  /** @param {string} id */
-  function toggleTag(id) {
+  function toggleTag(id: string) {
     picked = picked.includes(id) ? picked.filter((x) => x !== id) : [...picked, id];
   }
 

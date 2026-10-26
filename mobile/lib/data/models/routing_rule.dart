@@ -6,6 +6,8 @@
 /// show the order shows a set of rules that look independent and are not.
 library;
 
+import '../api/schema.g.dart' as api;
+
 /// One `{field, op, value}` triple. AND across a rule's conditions; OR is
 /// modeled by writing a second rule.
 class RoutingCondition {
@@ -18,6 +20,8 @@ class RoutingCondition {
   /// loose on purpose: the type is the whole trap. See [routingConditionValue].
   final dynamic value;
 
+  /// Reads one of a rule's `conditions`. The schema types the triple inline,
+  /// so it has no wire class of its own and is read by key.
   factory RoutingCondition.fromJson(Map<String, dynamic> json) {
     return RoutingCondition(
       field: json['field']?.toString() ?? '',
@@ -39,23 +43,24 @@ class RoutingTarget {
   /// looks configured and assigns nothing, so the row flags it.
   final bool isActive;
 
+  /// Reads a `Profile`, one of a rule's `target_assignees`.
   factory RoutingTarget.person(Map<String, dynamic> json) {
-    final details = json['user_details'];
-    final name = details is Map ? details['name'] : null;
-    final email = details is Map ? details['email'] : null;
+    final w = api.Profile.fromJson(json);
+    final name = w.userDetails?.name;
     return RoutingTarget(
-      id: json['id']?.toString() ?? '',
-      name: (name as String?)?.trim().isNotEmpty == true
-          ? name as String
-          : (email as String?) ?? 'Unnamed',
-      isActive: json['is_active'] as bool? ?? true,
+      id: w.id ?? '',
+      name: name != null && name.trim().isNotEmpty
+          ? name
+          : w.userDetails?.email ?? 'Unnamed',
+      isActive: w.isActive ?? true,
     );
   }
 
-  factory RoutingTarget.team(Map<String, dynamic> json) => RoutingTarget(
-    id: json['id']?.toString() ?? '',
-    name: json['name'] as String? ?? '',
-  );
+  /// Reads a `Teams`, a rule's `target_team`.
+  factory RoutingTarget.team(Map<String, dynamic> json) {
+    final w = api.Teams.fromJson(json);
+    return RoutingTarget(id: w.id ?? '', name: w.name ?? '');
+  }
 }
 
 class RoutingRule {
@@ -149,37 +154,29 @@ class RoutingRule {
     return pool[(lastAssignedIndex ?? 0) % pool.length];
   }
 
+  /// Reads a `RoutingRuleListRow`, the list's `RoutingRule` plus its 30-day
+  /// match count and rotation `state`.
   factory RoutingRule.fromJson(Map<String, dynamic> json) {
-    final conditions = json['conditions'];
-    final assignees = json['target_assignees'];
-    final team = json['target_team'];
-    final state = json['state'];
+    final w = api.RoutingRuleListRow.fromJson(json);
+    final team = w.targetTeam;
     return RoutingRule(
-      id: json['id']?.toString() ?? '',
-      name: json['name'] as String? ?? '',
-      priorityOrder: json['priority_order'] as int? ?? 0,
-      isActive: json['is_active'] as bool? ?? true,
-      conditions: conditions is List
-          ? [
-              for (final c in conditions)
-                if (c is Map<String, dynamic>) RoutingCondition.fromJson(c),
-            ]
-          : const [],
-      strategy: json['strategy']?.toString() ?? strategyDirect,
-      stopProcessing: json['stop_processing'] as bool? ?? false,
-      targetAssignees: assignees is List
-          ? [
-              for (final p in assignees)
-                if (p is Map<String, dynamic>) RoutingTarget.person(p),
-            ]
-          : const [],
-      targetTeam: team is Map<String, dynamic>
-          ? RoutingTarget.team(team)
-          : null,
-      matchedLast30d: json['matched_last_30d'] as int? ?? 0,
-      lastAssignedIndex: state is Map
-          ? state['last_assigned_index'] as int?
-          : null,
+      id: w.id ?? '',
+      name: w.name ?? '',
+      priorityOrder: w.priorityOrder ?? 0,
+      isActive: w.isActive ?? true,
+      conditions: [
+        for (final c in w.conditions ?? const <Map<String, dynamic>>[])
+          RoutingCondition.fromJson(c),
+      ],
+      strategy: w.strategy ?? strategyDirect,
+      stopProcessing: w.stopProcessing ?? false,
+      targetAssignees: [
+        for (final p in w.targetAssignees ?? const <api.Profile>[])
+          RoutingTarget.person(p.json),
+      ],
+      targetTeam: team == null ? null : RoutingTarget.team(team.json),
+      matchedLast30d: w.matchedLast30d ?? 0,
+      lastAssignedIndex: w.state?.lastAssignedIndex,
     );
   }
 }

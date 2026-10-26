@@ -1,3 +1,5 @@
+import '../api/schema.g.dart' as api;
+
 /// A person in the org, as `/api/users/` returns them.
 ///
 /// Two ids, and they are not interchangeable. `id` is the Profile row, which
@@ -39,23 +41,23 @@ class TeamMember {
   /// Someone invited who has not signed in yet.
   bool get hasNeverSignedIn => lastLogin == null;
 
+  /// Reads a `UserListRow`.
   factory TeamMember.fromJson(Map<String, dynamic> json) {
-    final details = (json['user_details'] as Map<String, dynamic>?) ?? const {};
-    final email = (details['email'] as String?) ?? '';
-    final rawLogin = details['last_login'] as String?;
+    final w = api.UserListRow.fromJson(json);
+    final details = w.userDetails;
+    final email = details?.email ?? '';
+    final name = details?.name?.trim() ?? '';
     return TeamMember(
-      id: (json['id'] ?? '').toString(),
-      userId: (details['id'] ?? '').toString(),
+      id: w.id ?? '',
+      userId: details?.id ?? '',
       // An invited person has no name until they sign in, so the email is the
       // only thing there is to call them.
-      name: (details['name'] as String?)?.trim().isNotEmpty == true
-          ? (details['name'] as String).trim()
-          : (email.isNotEmpty ? email : 'Unnamed'),
+      name: name.isNotEmpty ? name : (email.isNotEmpty ? email : 'Unnamed'),
       email: email,
-      role: (json['role'] as String?) ?? 'USER',
-      isActive: json['is_active'] as bool? ?? true,
-      lastLogin: rawLogin == null ? null : DateTime.tryParse(rawLogin),
-      activeTokenCount: json['active_token_count'] as int? ?? 0,
+      role: w.role ?? 'USER',
+      isActive: w.isActive ?? true,
+      lastLogin: DateTime.tryParse(details?.lastLogin ?? ''),
+      activeTokenCount: w.activeTokenCount ?? 0,
     );
   }
 }

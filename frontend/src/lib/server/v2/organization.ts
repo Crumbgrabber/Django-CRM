@@ -1,0 +1,212 @@
+/**
+ * Organization settings: the eleventh v2 module wired to the real API.
+ *
+ * Lives under `#lib/server` like the ten before it: the JWT cookie stays
+ * server-side and org is a token claim, never a parameter. `GET/PATCH
+ * /api/org/settings/` always acts on `request.profile.org`. There is no org id
+ * in the URL, so a caller can only ever read or edit their OWN org. That is the
+ * tenant barrier; there is nothing to scope by hand.
+ *
+ * WHAT THE SETTINGS PAGE READS, AND WHAT IT CANNOT
+ * The company profile (printed on invoices), locale defaults, and two org-wide
+ * case-handling switches. It never touches the org API key: that credential
+ * authenticates as the org's first admin, so it is excluded from
+ * `OrgSettingsSerializer` entirely and rotated only through `OrgApiKeyView`.
+ * `is_active` (the org kill switch) is likewise not editable here.
+ *
+ * THE BACKEND GAP THIS WIRING CLOSED
+ * `csat_enabled` and `auto_close_children_on_parent_close` are real `Org`
+ * columns that had no write path through ANY serializer, the settings page
+ * displayed them but nothing could change them. They are now in the writable
+ * allow-list. (A second, older `OrgUpdateView` at `/api/org/<id>/` writes only
+ * `name` and silently drops every other field; this page deliberately uses
+ * `/api/org/settings/`, the serializer-based endpoint, and not that one.)
+ *
+ * ADMIN-ONLY EDIT, MEMBER-VISIBLE READ
+ * GET is open to any member. The company profile is not a secret, and members
+ * legitimately see their org's address and currency. PATCH is admin-only,
+ * enforced by the backend (403 for a non-admin). `can_edit` here is a display
+ * hint (`viewerIsAdmin` below); the server is what actually refuses.
+ */
+import { isOrgAdmin } from '#lib/admin.js';
+import { apiRequest, type FormBody } from '#lib/api-helpers.js';
+import type { Cookies } from '@sveltejs/kit';
+import type { components } from '#lib/api-schema.js';
+
+type Schemas = components['schemas'];
+
+/**
+ * The fields the edit form may submit. An allow-list, so a hand-crafted POST
+ * cannot smuggle in a field the page never offered, and so `org`, `api_key`,
+ * `is_active`, `id` and the read-only header fields are never sent from the
+ * client even if someone adds them to the request body.
+ */
+export const EDITABLE_FIELDS: (keyof Schemas['PatchedOrgSettingsRequest'])[] = [
+  'name',
+  'company_name',
+  'address_line',
+  'city',
+  'state',
+  'postcode',
+  'country',
+  'phone',
+  'email',
+  'website',
+  'tax_id',
+  'default_currency',
+  'default_country',
+  'timezone',
+  // Invoice and estimate numbering (#802). Sent as typed; the serializer
+  // parses the two numbers and enforces every format rule.
+  'invoice_number_prefix',
+  'estimate_number_prefix',
+  'number_date_part',
+  'number_padding',
+  'invoice_number_start'
+];
+
+/**
+ * The two org-wide behaviour switches. Kept separate from EDITABLE_FIELDS
+ * because they are booleans: the form always submits them as the strings
+ * 'true'/'false', and the action coerces them, so "unchecked" is a real value
+ * and not the "field absent → leave alone" convention the text fields use.
+ */
+export const BOOLEAN_FIELDS: (keyof Schemas['PatchedOrgSettingsRequest'])[] = [
+  'csat_enabled',
+  'auto_close_children_on_parent_close'
+];
+
+/**
+ * Whether the signed-in user administers the org, from the access token's
+ * `is_organization_admin` claim through `isOrgAdmin` (`#lib/admin.js`), the
+ * web app's one admin rule.
+ *
+ * A display hint only: it decides whether a page shows its edit affordances.
+ * It is never the authorization decision: the API re-derives the fact on every
+ * request and is the thing that actually refuses a non-admin. Decoded, not
+ * verified; verifying our own freshly-read cookie would buy nothing.
+ */
+export function viewerIsAdmin(cookies: Cookies): boolean {
+  return isOrgAdmin(accessClaims(cookies));
+}
+
+/**
+ * The access token's claims, decoded but not verified, the same as
+ * `viewerIsAdmin`; empty when there is no readable token.
+ */
+export function accessClaims(cookies: Cookies): Record<string, unknown> {
+  const token = cookies.get('jwt_access');
+  if (!token) return {};
+  try {
+    const payload = token.split('.')[1];
+    const claims: unknown = JSON.parse(Buffer.from(payload, 'base64url').toString('utf-8'));
+    return claims && typeof claims === 'object' ? (claims as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * The org as the settings page reads it. `/api/org/settings/` returns the bare
+ * serialized object (no envelope), so this passes it straight through and adds
+ * `can_edit`: the admin display hint.
+ */
+export async function getOrgSettings({ cookies }: { cookies: Cookies }) {
+  const org: Schemas['OrgSettings'] = await apiRequest('/org/settings/', {}, { cookies });
+  return { org, can_edit: viewerIsAdmin(cookies) };
+}
+
+/**
+ * Save org settings: `PATCH /api/org/settings/`. Admin-only and org-scoped
+ * server-side. Partial, only the fields in `body` are touched.
+ */
+export function updateOrgSettings(
+  { cookies }: { cookies: Cookies },
+  body: FormBody<Schemas['PatchedOrgSettingsRequest']>
+): Promise<Schemas['OrgSettings']> {
+  return apiRequest('/org/settings/', { method: 'PATCH', body }, { cookies });
+}
+
+/**
+ * The org's invoice and estimate numbering (#802), for the "Assigned on save"
+ * preview on the two create forms. Only these five fields leave the server
+ * layer. Null when the read fails: the form drops its preview rather than
+ * failing to open over one.
+ */
+export async function getNumbering({ cookies }: { cookies: Cookies }) {
+  try {
+    const org: Schemas['OrgSettings'] = await apiRequest('/org/settings/', {}, { cookies });
+    return {
+      invoice_number_prefix: org.invoice_number_prefix,
+      estimate_number_prefix: org.estimate_number_prefix,
+      number_date_part: org.number_date_part,
+      number_padding: org.number_padding,
+      invoice_number_start: org.invoice_number_start
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Vertical-pack label overrides for this org. Read via the same
+ * `/api/org/settings/` endpoint the settings page uses, not a second
+ * endpoint. `terminology` and `vertical` are `read_only_fields` on
+ * `OrgSettingsSerializer`: the pack applier writes them server-side, so
+ * there is nothing to validate or scope on the way out.
+ *
+ * Called from the `(app)` shell load on *every* page (see
+ * `routes/(app)/+layout.server.ts`), not just the settings page, so it must
+ * never be the reason the shell fails to render. Callers are expected to
+ * fold a rejection into an empty/undefined result the same way the shell's
+ * badge-count fetches already do, rather than let it propagate.
+ */
+export async function getOrgTerminology({
+  cookies
+}: {
+  cookies: Cookies;
+}): Promise<{ terminology?: Record<string, string>; vertical?: string }> {
+  const org: Schemas['OrgSettings'] = await apiRequest('/org/settings/', {}, { cookies });
+  return { terminology: org?.terminology, vertical: org?.vertical };
+}
+
+/**
+ * The IANA zone names a form may offer.
+ *
+ * From the API rather than the browser's `Intl.supportedValuesOf('timeZone')`,
+ * because the two disagree on aliases: a browser reports `Asia/Calcutta` where
+ * the server's database also carries `Asia/Kolkata`. A `<select>` built from one
+ * vocabulary cannot display a value stored in the other, and a select whose
+ * value matches no option submits its first entry instead, silently moving the
+ * org somewhere it never chose.
+ *
+ * `/api/org/timezones/` needs authentication but no org context, because its
+ * first caller is a user creating their very first organization.
+ *
+ * Each entry arrives as `{ name, offset_minutes }`; the offset becomes the
+ * "(UTC+05:30)" half of the label, which is what makes a 490-entry list
+ * readable.
+ */
+export async function listTimezones(cookies: Cookies): Promise<{ name: string; label: string }[]> {
+  const response: Schemas['TimezoneListResponse'] = await apiRequest(
+    '/org/timezones/',
+    {},
+    { cookies }
+  );
+  const zones = response?.timezones ?? [{ name: 'UTC', offset_minutes: 0 }];
+  return zones.map((zone) => ({
+    name: zone.name,
+    label: `${String(zone.name).replace(/_/g, ' ')} (${formatOffset(zone.offset_minutes)})`
+  }));
+}
+
+/** Minutes east of UTC as "UTC+05:30" / "UTC-04:00" / "UTC". */
+function formatOffset(minutes: number) {
+  const total = Number(minutes) || 0;
+  if (total === 0) return 'UTC';
+  const sign = total < 0 ? '-' : '+';
+  const abs = Math.abs(total);
+  const hh = String(Math.floor(abs / 60)).padStart(2, '0');
+  const mm = String(abs % 60).padStart(2, '0');
+  return `UTC${sign}${hh}:${mm}`;
+}

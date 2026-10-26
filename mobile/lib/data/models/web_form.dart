@@ -29,6 +29,7 @@
 /// omits `order` entirely.
 library;
 
+import '../api/schema.g.dart' as api;
 import 'lookup_models.dart';
 
 /// One built-in field a web form may collect (a Lead column, or a ticket
@@ -41,7 +42,7 @@ class WebFormFieldChoice {
 }
 
 /// Mirrored 1:1 from `backend/webforms/constants.py::LEAD_FIELD_CHOICES`, and
-/// matching `WEBFORM_LEAD_FIELDS` in `frontend/src/lib/v2/webform-fields.js`.
+/// matching `WEBFORM_LEAD_FIELDS` in `frontend/src/lib/v2/webform-fields.ts`.
 ///
 /// A whitelist rather than "any field on Lead": the person filling this in is
 /// an anonymous stranger, so which columns they can reach is a decision
@@ -181,7 +182,7 @@ class WebFormField {
   };
 
   /// Whether the row is complete enough to save. Mirrors `isFieldComplete` in
-  /// `frontend/src/lib/v2/webform-fields.js`, and behind both of them the
+  /// `frontend/src/lib/v2/webform-fields.ts`, and behind both of them the
   /// `web_form_field_exactly_one_target` constraint.
   bool get isComplete {
     if (label.trim().isEmpty) return false;
@@ -200,16 +201,18 @@ class WebFormField {
   /// mid-edit still reads as something.
   String get displayLabel => label.trim().isNotEmpty ? label : builtinLabel;
 
+  /// Reads a `WebFormField`.
   factory WebFormField.fromJson(Map<String, dynamic> json) {
+    final w = api.WebFormField.fromJson(json);
     return WebFormField(
-      id: json['id']?.toString(),
-      source: json['source']?.toString() ?? sourceLead,
-      leadField: json['lead_field']?.toString() ?? '',
-      ticketField: json['ticket_field']?.toString() ?? '',
-      customField: json['custom_field']?.toString(),
-      label: json['label'] as String? ?? '',
-      placeholder: json['placeholder'] as String? ?? '',
-      isRequired: json['is_required'] as bool? ?? false,
+      id: w.id,
+      source: w.source ?? sourceLead,
+      leadField: w.leadField ?? '',
+      ticketField: w.ticketField ?? '',
+      customField: w.customField,
+      label: w.label ?? '',
+      placeholder: w.placeholder ?? '',
+      isRequired: w.isRequired ?? false,
     );
   }
 
@@ -411,68 +414,54 @@ class WebForm {
     return null;
   }
 
-  static UserLookup? _profile(dynamic value) =>
-      value is Map ? UserLookup.fromJson(value.cast<String, dynamic>()) : null;
+  static UserLookup? _member(api.WebFormMember? member) =>
+      member == null ? null : UserLookup.fromJson(member.json);
 
-  static List<String> _stringList(dynamic value) {
-    if (value is! List) return const [];
-    return value.map((v) => v.toString()).toList(growable: false);
-  }
-
+  /// Reads a `WebFormDetail`. A list row is a `WebFormList`, a subset of it
+  /// plus the two counts, which are read from that shape.
   factory WebForm.fromJson(Map<String, dynamic> json) {
-    final rawFields = json['fields'];
-    final fields = <WebFormField>[];
-    if (rawFields is List) {
-      final rows = rawFields.whereType<Map<String, dynamic>>().toList();
-      // Sorted rather than trusted. The API orders by `order` already, so this
-      // is a no-op on every response it actually sends; it is here because the
-      // order IS the form, and a list that silently arrived shuffled would ask
-      // a visitor for their message before their email.
-      rows.sort((a, b) {
-        final left = a['order'];
-        final right = b['order'];
-        return (left is int ? left : 0).compareTo(right is int ? right : 0);
-      });
-      fields.addAll(rows.map(WebFormField.fromJson));
-    }
-
+    final w = api.WebFormDetail.fromJson(json);
+    final row = api.WebFormList.fromJson(json);
+    // The API serves the rows in `order` and sends no `order` key.
+    final fields = List<WebFormField>.unmodifiable([
+      for (final f in w.fields ?? const <api.WebFormField>[])
+        WebFormField.fromJson(f.json),
+    ]);
     return WebForm(
-      id: json['id']?.toString() ?? '',
-      name: json['name'] as String? ?? '',
-      target: json['target']?.toString() ?? targetLead,
-      isPublished: json['is_published'] as bool? ?? false,
-      allowedOrigins: _stringList(json['allowed_origins']),
-      submitButtonLabel: json['submit_button_label'] as String? ?? 'Submit',
-      successMode: json['success_mode']?.toString() ?? successMessage,
-      successMessageText: json['success_message'] as String? ?? '',
-      redirectUrl: json['redirect_url'] as String? ?? '',
-      assignmentMode: json['assignment_mode']?.toString() ?? assignPerson,
-      assignTo: json['assign_to']?.toString(),
-      storedAssignee: _profile(json['assign_to_details']),
-      rotationMembers: _stringList(json['rotation_members']),
-      storedRotationMembers: json['rotation_members_details'] is List
-          ? (json['rotation_members_details'] as List)
-                .map(_profile)
-                .whereType<UserLookup>()
-                .toList(growable: false)
-          : const [],
-      rotationCap: json['rotation_cap'] as int?,
-      rotationLastAssigned: _profile(json['rotation_last_assigned_details']),
-      notifyProfiles: _stringList(json['notify_profiles']),
-      leadSource: json['lead_source']?.toString() ?? '',
-      tags: _stringList(json['tags']),
-      ticketPriority: json['ticket_priority']?.toString() ?? 'Normal',
-      ticketType: json['ticket_type']?.toString() ?? '',
-      captchaProvider: json['captcha_provider']?.toString() ?? '',
-      captchaSiteKey: json['captcha_site_key'] as String? ?? '',
-      hasCaptchaSecret: json['has_captcha_secret'] as bool? ?? false,
-      rejectDisposableEmail: json['reject_disposable_email'] as bool? ?? true,
-      embedHtml: json['embed_html'] as String? ?? '',
-      embedJs: json['embed_js'] as String? ?? '',
-      fields: List.unmodifiable(fields),
-      submissionCount: json['submission_count'] as int? ?? 0,
-      fieldCount: json['field_count'] as int? ?? fields.length,
-      createdAt: DateTime.tryParse(json['created_at']?.toString() ?? ''),
+      id: w.id ?? '',
+      name: w.name ?? '',
+      target: w.target ?? targetLead,
+      isPublished: w.isPublished ?? false,
+      allowedOrigins: w.allowedOrigins ?? const [],
+      submitButtonLabel: w.submitButtonLabel ?? 'Submit',
+      successMode: w.successMode ?? successMessage,
+      successMessageText: w.successMessage ?? '',
+      redirectUrl: w.redirectUrl ?? '',
+      assignmentMode: w.assignmentMode ?? assignPerson,
+      assignTo: w.assignTo,
+      storedAssignee: _member(w.assignToDetails),
+      rotationMembers: w.rotationMembers ?? const [],
+      storedRotationMembers: [
+        for (final m in w.rotationMembersDetails ?? const <api.WebFormMember>[])
+          UserLookup.fromJson(m.json),
+      ],
+      rotationCap: w.rotationCap,
+      rotationLastAssigned: _member(w.rotationLastAssignedDetails),
+      notifyProfiles: w.notifyProfiles ?? const [],
+      leadSource: w.leadSource ?? '',
+      tags: w.tags ?? const [],
+      ticketPriority: w.ticketPriority ?? 'Normal',
+      ticketType: w.ticketType ?? '',
+      captchaProvider: w.captchaProvider ?? '',
+      captchaSiteKey: w.captchaSiteKey ?? '',
+      hasCaptchaSecret: w.hasCaptchaSecret ?? false,
+      rejectDisposableEmail: w.rejectDisposableEmail ?? true,
+      embedHtml: w.embedHtml ?? '',
+      embedJs: w.embedJs ?? '',
+      fields: fields,
+      submissionCount: row.submissionCount ?? 0,
+      fieldCount: row.fieldCount ?? fields.length,
+      createdAt: DateTime.tryParse(w.createdAt ?? ''),
     );
   }
 
@@ -619,19 +608,21 @@ class WebFormSubmission {
     _ => status,
   };
 
+  /// Reads a `WebFormSubmission`.
   factory WebFormSubmission.fromJson(Map<String, dynamic> json) {
-    final lead = json['lead']?.toString();
-    final ticket = json['case']?.toString();
+    final w = api.WebFormSubmission.fromJson(json);
+    final lead = w.lead ?? '';
+    final ticket = w.case_ ?? '';
     return WebFormSubmission(
-      id: json['id']?.toString() ?? '',
-      status: json['status']?.toString() ?? '',
-      leadId: (lead == null || lead.isEmpty) ? null : lead,
-      leadName: json['lead_name'] as String?,
-      caseId: (ticket == null || ticket.isEmpty) ? null : ticket,
-      caseName: json['case_name'] as String?,
-      submittedIp: json['submitted_ip'] as String?,
-      referer: json['referer'] as String? ?? '',
-      createdAt: DateTime.tryParse(json['created_at']?.toString() ?? ''),
+      id: w.id ?? '',
+      status: w.status ?? '',
+      leadId: lead.isEmpty ? null : lead,
+      leadName: w.leadName,
+      caseId: ticket.isEmpty ? null : ticket,
+      caseName: w.caseName,
+      submittedIp: w.submittedIp,
+      referer: w.referer ?? '',
+      createdAt: DateTime.tryParse(w.createdAt ?? ''),
     );
   }
 }
@@ -654,16 +645,16 @@ class WebFormAnalytics {
   final double conversionRate;
   final int windowDays;
 
+  /// Reads a `WebFormAnalyticsResponse`.
   factory WebFormAnalytics.fromJson(Map<String, dynamic> json) {
-    final totals = json['totals'];
-    final t = totals is Map<String, dynamic> ? totals : const {};
-    final rate = t['conversion_rate'];
+    final w = api.WebFormAnalyticsResponse.fromJson(json);
+    final t = w.totals;
     return WebFormAnalytics(
-      views: t['views'] as int? ?? 0,
-      submissions: t['submissions'] as int? ?? 0,
-      spam: t['spam'] as int? ?? 0,
-      conversionRate: rate is num ? rate.toDouble() : 0,
-      windowDays: json['window_days'] as int? ?? 30,
+      views: t?.views ?? 0,
+      submissions: t?.submissions ?? 0,
+      spam: t?.spam ?? 0,
+      conversionRate: t?.conversionRate ?? 0,
+      windowDays: w.windowDays ?? 30,
     );
   }
 }
@@ -688,13 +679,15 @@ class WebFormTotals {
 
   int get drafts => count - published < 0 ? 0 : count - published;
 
+  /// Reads a `WebFormTotals`, the list answer's `totals`.
   factory WebFormTotals.fromJson(Map<String, dynamic>? json) {
     if (json == null) return const WebFormTotals();
+    final w = api.WebFormTotals.fromJson(json);
     return WebFormTotals(
-      count: json['count'] as int? ?? 0,
-      published: json['published'] as int? ?? 0,
-      submissions30d: json['submissions_30d'] as int? ?? 0,
-      spam30d: json['spam_30d'] as int? ?? 0,
+      count: w.count ?? 0,
+      published: w.published ?? 0,
+      submissions30d: w.submissions30d ?? 0,
+      spam30d: w.spam30d ?? 0,
     );
   }
 }

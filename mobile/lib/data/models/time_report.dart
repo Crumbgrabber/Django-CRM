@@ -9,6 +9,8 @@
 /// once here rather than at every call site.
 library;
 
+import '../api/schema.g.dart' as api;
+
 /// One grouped row: an agent, a ticket, an account or a project.
 class TimeReportRow {
   const TimeReportRow({
@@ -42,17 +44,17 @@ class TimeReportRow {
     return share == null ? null : (share * 100).round();
   }
 
+  /// Reads a `TimeReportRow`.
   factory TimeReportRow.fromJson(Map<String, dynamic> json) {
+    final w = api.TimeReportRow.fromJson(json);
     return TimeReportRow(
-      key: json['key'] as String?,
-      name: json['name'] as String? ?? '',
-      totalMinutes: json['total_minutes'] as int? ?? 0,
-      billableMinutes: json['billable_minutes'] as int? ?? 0,
-      billableValue: _money(json['billable_value']),
-      entryCount: json['entry_count'] as int? ?? 0,
-      billableShare: json['billable_share'] == null
-          ? null
-          : double.tryParse(json['billable_share'].toString()),
+      key: w.key,
+      name: w.name ?? '',
+      totalMinutes: w.totalMinutes ?? 0,
+      billableMinutes: w.billableMinutes ?? 0,
+      billableValue: _money(w.billableValue),
+      entryCount: w.entryCount ?? 0,
+      billableShare: w.billableShare,
     );
   }
 }
@@ -99,23 +101,23 @@ class TimeReport {
   int get billableShare =>
       totalMinutes == 0 ? 0 : ((billableMinutes / totalMinutes) * 100).round();
 
+  /// Reads a `TimeReport`.
   factory TimeReport.fromJson(Map<String, dynamic> json) {
-    final totals = (json['totals'] as Map<String, dynamic>?) ?? const {};
+    final w = api.TimeReport.fromJson(json);
+    final totals = w.totals;
     return TimeReport(
-      start: _date(json['start']),
-      end: _date(json['end']),
-      groupBy: json['group_by'] as String? ?? 'agent',
-      rows: ((json['rows'] as List<dynamic>?) ?? const [])
-          .whereType<Map<String, dynamic>>()
-          .map(TimeReportRow.fromJson)
-          .toList(),
-      totalMinutes: totals['total_minutes'] as int? ?? 0,
-      billableMinutes: totals['billable_minutes'] as int? ?? 0,
-      billableValue: _money(totals['billable_value']),
-      entryCount: totals['entry_count'] as int? ?? 0,
-      currencies: ((json['currencies'] as List<dynamic>?) ?? const [])
-          .map((c) => c.toString())
-          .toList(),
+      start: _date(w.start),
+      end: _date(w.end),
+      groupBy: w.groupBy ?? 'agent',
+      rows: [
+        for (final r in w.rows ?? const <api.TimeReportRow>[])
+          TimeReportRow.fromJson(r.json),
+      ],
+      totalMinutes: totals?.totalMinutes ?? 0,
+      billableMinutes: totals?.billableMinutes ?? 0,
+      billableValue: _money(totals?.billableValue),
+      entryCount: totals?.entryCount ?? 0,
+      currencies: w.currencies ?? const [],
     );
   }
 }
@@ -123,8 +125,7 @@ class TimeReport {
 /// A decimal string from the API as a double. Absent or unparseable is 0,
 /// never null: a missing total is nothing logged, and every caller would
 /// otherwise write the same `?? 0`.
-double _money(dynamic value) =>
-    value == null ? 0 : (double.tryParse(value.toString()) ?? 0);
+double _money(String? value) => double.tryParse(value ?? '') ?? 0;
 
 /// A YYYY-MM-DD string as a local calendar date.
 ///
@@ -132,7 +133,5 @@ double _money(dynamic value) =>
 /// date, so it is local midnight and not UTC midnight: reading a UTC midnight
 /// in a zone behind Greenwich lands on the previous day and mislabels the
 /// window by one.
-DateTime _date(dynamic value) {
-  final text = value?.toString() ?? '';
-  return DateTime.tryParse('${text}T00:00:00') ?? DateTime.now();
-}
+DateTime _date(String? value) =>
+    DateTime.tryParse('${value ?? ''}T00:00:00') ?? DateTime.now();

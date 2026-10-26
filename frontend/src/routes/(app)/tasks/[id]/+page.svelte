@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   import { asInternalPath } from '#lib/utils/paths.js';
   /**
@@ -37,9 +37,9 @@
   } from '@lucide/svelte';
   import RelatedRecords from '#lib/v2/components/RelatedRecords.svelte';
   import { relatedView } from '#lib/v2/custom-objects.js';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
   let related = $derived(relatedView(data.related));
 
   let { task, activity, contacts, owners, canDelete } = $derived(data);
@@ -82,12 +82,10 @@
   // and clear it. `fileInput` is the element itself. A file input's value can
   // only be cleared through the DOM, not by rebinding.
   let fileName = $state('');
-  /** @type {HTMLInputElement | undefined} */
-  let fileInput;
+  let fileInput: HTMLInputElement | undefined;
 
-  /** @param {Event} e */
-  function pickFile(e) {
-    fileName = /** @type {HTMLInputElement} */ (e.currentTarget).files?.[0]?.name ?? '';
+  function pickFile(e: Event) {
+    fileName = (e.currentTarget as HTMLInputElement).files?.[0]?.name ?? '';
   }
   function clearFile() {
     if (fileInput) fileInput.value = '';
@@ -103,7 +101,7 @@
   // Three real kinds (comment / file / created). The filter only appears once
   // there is a file to filter. With nothing but comments it would sort one pile.
   let hasFiles = $derived(activity.some((e) => e.type === 'file'));
-  let filter = $state(/** @type {'all'|'comments'|'files'} */ ('all'));
+  let filter = $state<'all' | 'comments' | 'files'>('all');
   let shown = $derived(
     filter === 'files'
       ? activity.filter((e) => e.type === 'file')
@@ -116,9 +114,8 @@
   /**
    * The line under an event: "Attached" for a file, the author where known, then
    * how long ago, joined so no separator dangles when a part is missing.
-   * @param {{type:string,by:string|null,at:string}} e
    */
-  function metaFor(e) {
+  function metaFor(e: { type: string; by: string | null; at: string }) {
     const parts = [];
     if (e.type === 'file') parts.push('Attached');
     if (e.by) parts.push(e.by);
@@ -126,8 +123,7 @@
     return parts.join(' · ');
   }
 
-  /** @param {string} iso */
-  function dayGroup(iso) {
+  function dayGroup(iso: string) {
     const n = daysSince(iso);
     if (n === 0) return 'Today';
     if (n === 1) return 'Yesterday';
@@ -136,8 +132,10 @@
 
   // Interleave day headers so each date is announced once, in order.
   let feed = $derived.by(() => {
-    /** @type {Array<{kind:'day',id:string,label:string}|{kind:'event',id:string,event:(typeof activity)[number]}>} */
-    const out = [];
+    const out: Array<
+      | { kind: 'day'; id: string; label: string }
+      | { kind: 'event'; id: string; event: (typeof activity)[number] }
+    > = [];
     let last = null;
     for (const e of shown) {
       const g = dayGroup(e.at);

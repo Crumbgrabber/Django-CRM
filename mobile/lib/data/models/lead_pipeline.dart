@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart' show Color;
 
+import '../api/schema.g.dart' as api;
 import 'lead_board.dart' show leadStageSwatch;
 
 /// Lead pipelines as the settings screen administers them.
@@ -32,14 +33,17 @@ class LeadPipeline {
   /// The leads in this pipeline's stages that the caller may see.
   final int leadCount;
 
+  /// Reads a `LeadPipeline`. The list's `LeadPipelineList` rows are the same
+  /// without `stages`.
   factory LeadPipeline.fromJson(Map<String, dynamic> json) {
+    final w = api.LeadPipeline.fromJson(json);
     return LeadPipeline(
-      id: (json['id'] ?? '').toString(),
-      name: (json['name'] as String?) ?? 'Untitled pipeline',
-      description: (json['description'] as String?) ?? '',
-      isDefault: json['is_default'] == true,
-      stageCount: json['stage_count'] as int? ?? 0,
-      leadCount: json['lead_count'] as int? ?? 0,
+      id: w.id ?? '',
+      name: w.name ?? 'Untitled pipeline',
+      description: w.description ?? '',
+      isDefault: w.isDefault == true,
+      stageCount: w.stageCount ?? 0,
+      leadCount: w.leadCount ?? 0,
     );
   }
 }
@@ -72,17 +76,19 @@ class LeadStage {
 
   Color get swatch => leadStageSwatch(color);
 
+  /// Reads a `LeadStage`.
   factory LeadStage.fromJson(Map<String, dynamic> json) {
-    final status = json['maps_to_status'] as String?;
+    final w = api.LeadStage.fromJson(json);
+    final status = w.mapsToStatus;
     return LeadStage(
-      id: (json['id'] ?? '').toString(),
-      name: (json['name'] as String?) ?? 'Stage',
-      order: json['order'] as int? ?? 0,
-      color: (json['color'] as String?) ?? '',
-      stageType: (json['stage_type'] as String?) ?? 'open',
+      id: w.id ?? '',
+      name: w.name ?? 'Stage',
+      order: w.order ?? 0,
+      color: w.color ?? '',
+      stageType: w.stageType ?? 'open',
       mapsToStatus: (status == null || status.isEmpty) ? null : status,
-      winProbability: json['win_probability'] as int? ?? 0,
-      leadCount: json['lead_count'] as int? ?? 0,
+      winProbability: w.winProbability ?? 0,
+      leadCount: w.leadCount ?? 0,
     );
   }
 }
@@ -97,13 +103,13 @@ class LeadPipelineDetail {
   LeadPipelineDetail withStages(List<LeadStage> stages) =>
       LeadPipelineDetail(pipeline: pipeline, stages: stages);
 
+  /// Reads a `LeadPipeline` with its `stages`.
   factory LeadPipelineDetail.fromJson(Map<String, dynamic> json) {
-    final stages =
-        (json['stages'] as List? ?? const [])
-            .whereType<Map<String, dynamic>>()
-            .map(LeadStage.fromJson)
-            .toList()
-          ..sort((a, b) => a.order.compareTo(b.order));
+    final rows = api.LeadPipeline.fromJson(json).stages;
+    final stages = [
+      for (final row in rows ?? const <api.LeadStage>[])
+        LeadStage.fromJson(row.json),
+    ]..sort((a, b) => a.order.compareTo(b.order));
     return LeadPipelineDetail(
       pipeline: LeadPipeline.fromJson(json),
       stages: stages,

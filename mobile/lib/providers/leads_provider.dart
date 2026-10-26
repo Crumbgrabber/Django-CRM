@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../config/api_config.dart';
+import '../data/api/schema.g.dart' as api;
 import '../data/models/attachment.dart';
 import '../data/models/custom_field_definition.dart';
 import '../data/models/lead.dart';
@@ -43,20 +44,15 @@ class AssignableUser {
     this.profilePic,
   });
 
+  /// Reads a `Profile`, as the lead detail's `users` lists them.
   factory AssignableUser.fromJson(Map<String, dynamic> json) {
-    final details = json['user_details'];
-    String label = '';
-    String? pic;
-    if (details is Map<String, dynamic>) {
-      label = (details['name'] as String?)?.trim().isNotEmpty == true
-          ? details['name'] as String
-          : (details['email'] as String? ?? '');
-      pic = details['profile_pic'] as String?;
-    }
+    final w = api.Profile.fromJson(json);
+    final name = w.userDetails?.name?.trim() ?? '';
+    final label = name.isNotEmpty ? name : (w.userDetails?.email ?? '');
     return AssignableUser(
-      id: json['id']?.toString() ?? '',
+      id: w.id ?? '',
       label: label.isEmpty ? 'Unknown' : label,
-      profilePic: pic,
+      profilePic: w.userDetails?.profilePic,
     );
   }
 }
@@ -420,24 +416,14 @@ class LeadsNotifier extends AsyncNotifier<LeadsListData> {
       throw Exception(response.message ?? 'Failed to load leads');
     }
 
-    final data = response.data!;
-
-    // Backend returns open_leads + close_leads in two sub-objects.
-    final openLeadsData = data['open_leads'] as Map<String, dynamic>?;
-    final openLeadsList = openLeadsData?['open_leads'] as List<dynamic>? ?? [];
-    final openLeadsCount = openLeadsData?['leads_count'] as int? ?? 0;
-
-    final closeLeadsData = data['close_leads'] as Map<String, dynamic>?;
-    final closeLeadsList =
-        closeLeadsData?['close_leads'] as List<dynamic>? ?? [];
-
-    final allLeadsList = [...openLeadsList, ...closeLeadsList];
-    final newLeads = allLeadsList
-        .map((json) => Lead.fromJson(json as Map<String, dynamic>))
-        .toList();
-
-    final totalCount =
-        openLeadsCount + (closeLeadsData?['leads_count'] as int? ?? 0);
+    final data = api.LeadListResponse.fromJson(response.data!);
+    final open = data.openLeads;
+    final closed = data.closeLeads;
+    final newLeads = [
+      for (final row in [...?open?.openLeads, ...?closed?.closeLeads])
+        Lead.fromJson(row.json),
+    ];
+    final totalCount = (open?.leadsCount ?? 0) + (closed?.leadsCount ?? 0);
 
     return LeadsListData(
       leads: newLeads,
@@ -482,72 +468,41 @@ class LeadsNotifier extends AsyncNotifier<LeadsListData> {
         return null;
       }
 
-      final data = response.data!;
-      final leadData = data['lead_obj'] as Map<String, dynamic>?;
-      if (leadData == null) {
+      final data = api.LeadDetailResponse.fromJson(response.data!);
+      final leadObj = data.leadObj;
+      if (leadObj == null) {
         // ignore: avoid_print
         print('[leads_provider] getLeadDetail($id): missing lead_obj');
         return null;
       }
 
-      // Parse the lead itself. This is the only failure that should sink
-      // the whole detail load. Everything else is a soft-fail.
-      final Lead baseLead = Lead.fromJson(leadData);
-      Lead lead = baseLead;
-
-      // Backend returns comments at the top level. Prefer those over
-      // anything embedded on the lead since they're freshly queried.
-      try {
-        final commentsData = data['comments'] as List<dynamic>?;
-        if (commentsData != null && commentsData.isNotEmpty) {
-          lead = lead.copyWith(
-            comments: commentsData
-                .whereType<Map<String, dynamic>>()
-                .map(Comment.fromJson)
-                .toList(),
-          );
-        }
-      } catch (e, st) {
-        // ignore: avoid_print
-        print('[leads_provider] comments parse failed: $e\n$st');
+      // Comments and attachments come beside the lead, freshly queried.
+      var lead = Lead.fromJson(leadObj.json);
+      final comments = data.comments ?? const <api.LeadComment>[];
+      if (comments.isNotEmpty) {
+        lead = lead.copyWith(
+          comments: [for (final c in comments) Comment.fromJson(c.json)],
+        );
       }
-
-      try {
-        final attachmentsData = data['attachments'] as List<dynamic>?;
-        if (attachmentsData != null && attachmentsData.isNotEmpty) {
-          lead = lead.copyWith(
-            attachments: attachmentsData
-                .whereType<Map<String, dynamic>>()
-                .map(Attachment.fromJson)
-                .toList(),
-          );
-        }
-      } catch (e, st) {
-        // ignore: avoid_print
-        print('[leads_provider] attachments parse failed: $e\n$st');
-      }
-
-      final defs = customFieldDefinitionsIn(data);
-
-      List<AssignableUser> users = const [];
-      try {
-        final usersData = data['users'] as List<dynamic>?;
-        users = (usersData ?? const [])
-            .whereType<Map<String, dynamic>>()
-            .map(AssignableUser.fromJson)
-            .toList();
-      } catch (e, st) {
-        // ignore: avoid_print
-        print('[leads_provider] users parse failed: $e\n$st');
+      final attachments = data.attachments ?? const <api.Attachments>[];
+      if (attachments.isNotEmpty) {
+        lead = lead.copyWith(
+          attachments: [
+            for (final a in attachments) Attachment.fromJson(a.json),
+          ],
+        );
       }
 
       return LeadDetail(
         lead: lead,
-        customFieldDefinitions: defs,
-        assignableUsers: users,
+        customFieldDefinitions: customFieldDefinitionsIn(response.data!),
+        assignableUsers: [
+          for (final u in data.users ?? const <api.Profile>[])
+            AssignableUser.fromJson(u.json),
+        ],
         // `lead_obj.stage` is only an id; the names travel beside it.
-        stage: LeadStageRef.fromJson(data['pipeline_stage']),
-        canDelete: data['can_delete'] == true,
+        stage: LeadStageRef.fromJson(data.pipelineStage?.json),
+        canDelete: data.canDelete ?? false,
       );
     } catch (e, st) {
       // ignore: avoid_print

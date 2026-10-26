@@ -1,15 +1,14 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   import '../../../app.css';
   import '#lib/v2/styles/v2.css';
-  import { enhance } from '$app/forms';
+  import { enhance, type SubmitFunction } from '$app/forms';
 
   import imgGoogle from '#lib/assets/images/google.svg';
   import imgLogo from '#lib/assets/images/logo.png';
   import { Mail, Check } from '@lucide/svelte';
 
-  /** @type {{ data?: { google_url?: string | null } }} */
-  let { data = {} } = $props();
+  let { data = {} }: { data?: { google_url?: string | null } } = $props();
 
   let isLoading = $state(false);
   let email = $state('');
@@ -21,8 +20,7 @@
     isLoading = true;
   }
 
-  /** @type {import('$app/forms').SubmitFunction<Record<string, unknown>, { error?: string }>} */
-  function handleMagicLink() {
+  const handleMagicLink: SubmitFunction<Record<string, unknown>, { error?: string }> = () => {
     isSendingLink = true;
     magicLinkError = '';
     return async ({ result }) => {
@@ -35,7 +33,7 @@
         magicLinkError = 'Something went wrong. Please try again.';
       }
     };
-  }
+  };
 </script>
 
 <svelte:head>

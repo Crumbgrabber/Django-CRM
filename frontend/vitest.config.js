@@ -8,7 +8,7 @@ import path from 'node:path';
  * SvelteKit's virtual modules exist here by default. `#lib` needs nothing: it
  * is a subpath import declared in package.json, which Vite resolves on its
  * own. The two aliases below stand in for `$app/env/public` and
- * `$app/env/private`, which SvelteKit generates from `src/env.js` at build and
+ * `$app/env/private`, which SvelteKit generates from `src/env.ts` at build and
  * dev time, so a plain vitest run cannot resolve them without a stub. Server
  * modules such as `#lib/api-helpers.js` and `#lib/server/relay.js` import them
  * at module scope.
@@ -17,14 +17,14 @@ import path from 'node:path';
  * and `$app/env/private` and nothing else: `$app/forms`, `$app/navigation`
  * and the rest of `$app/*` are all still unresolvable here, and there is no
  * Svelte plugin, so `.svelte` files cannot be compiled at all.
- * `include: ['src/**\/*.test.js']` will happily pick up a test placed
+ * `include: ['src/**\/*.test.ts']` will happily pick up a test placed
  * anywhere under `src/`, including next to a route module or a component, but
  * importing either from a test run through this config fails with an opaque
  * "Failed to resolve import" rather than a clear "not supported here".
  *
  * This harness therefore covers server modules only (`#lib/server/v2/*.js`
  * and similar, functions over `apiRequest` with no SvelteKit runtime
- * dependency). Testing a route module (`+page.server.js`, which pulls in
+ * dependency). Testing a route module (`+page.server.ts`, which pulls in
  * `$app/forms` via its actions) or a `.svelte` component means moving
  * `test: {}` into the app's own `vite.config.js`, where the `sveltekit()`
  * plugin already provides `$app/*` and Svelte compilation for free. That is a
@@ -41,13 +41,13 @@ export default defineConfig({
     // Server modules only. They are plain functions over `apiRequest`, so they
     // need no DOM, and a node environment keeps the run fast.
     environment: 'node',
-    include: ['src/**/*.test.js'],
+    include: ['src/**/*.test.ts'],
     maxWorkers: '50%'
   },
   resolve: {
     alias: {
-      '$app/env/public': path.resolve('./test/stubs/app-env-public.js'),
-      '$app/env/private': path.resolve('./test/stubs/app-env-private.js')
+      '$app/env/public': path.resolve('./test/stubs/app-env-public.ts'),
+      '$app/env/private': path.resolve('./test/stubs/app-env-private.ts')
     }
   }
 });

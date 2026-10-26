@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import '../../../app.css';
   import '#lib/v2/styles/v2.css';
   import { onMount } from 'svelte';

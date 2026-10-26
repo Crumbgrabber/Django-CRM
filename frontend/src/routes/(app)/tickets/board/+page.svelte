@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
   import Pill from '#lib/v2/components/Pill.svelte';
@@ -8,23 +8,23 @@
   import { PRIORITY_TONE } from '#lib/v2/enums.js';
   import { Columns3, List, TriangleAlert } from '@lucide/svelte';
   import { flip } from 'svelte/animate';
-  import { dndzone } from 'svelte-dnd-action';
+  import { dndzone, type DndEvent } from 'svelte-dnd-action';
   import { refreshAll } from '$app/navigation';
   import { deserialize } from '$app/forms';
   import { holdLockedCard } from '#lib/v2/board-drag.js';
+  import type { PageData, PageProps } from './$types';
 
-  /** @typedef {import('./$types').PageData['lanes'][number]} Lane */
-  /** @typedef {Lane['rows'][number]} Card */
+  type Lane = PageData['lanes'][number];
+  type Card = Lane['rows'][number];
 
-  /** @type {import('./$types').PageProps} */
-  let { data } = $props();
+  let { data }: PageProps = $props();
 
   const FLIP_MS = 160;
 
   /* `dndzone` reorders the array it is handed, so the board renders from a
      local copy that is rebuilt whenever the server sends new lanes. That
      rebuild is what makes a refused move snap back. */
-  let boardLanes = $state(/** @type {Lane[]} */ ([]));
+  let boardLanes = $state<Lane[]>([]);
   $effect(() => {
     boardLanes = data.lanes.map((lane) => ({ ...lane, rows: [...lane.rows] }));
   });
@@ -34,21 +34,15 @@
 
   /* A capped lane keeps the server's total; otherwise the header follows the
      cards on screen, so an optimistic move updates it without a round-trip. */
-  function laneCount(/** @type {Lane} */ lane) {
+  function laneCount(lane: Lane) {
     return lane.truncated ? lane.count : lane.rows.length;
   }
 
-  function onConsider(
-    /** @type {Lane} */ lane,
-    /** @type {CustomEvent<import('svelte-dnd-action').DndEvent<Card>>} */ e
-  ) {
+  function onConsider(lane: Lane, e: CustomEvent<DndEvent<Card>>) {
     lane.rows = e.detail.items;
   }
 
-  async function onFinalize(
-    /** @type {Lane} */ lane,
-    /** @type {CustomEvent<import('svelte-dnd-action').DndEvent<Card>>} */ e
-  ) {
+  async function onFinalize(lane: Lane, e: CustomEvent<DndEvent<Card>>) {
     lane.rows = e.detail.items;
     const movedId = e.detail.info?.id;
     const index = e.detail.items.findIndex((r) => r.id === movedId);
@@ -70,10 +64,10 @@
    * the card back where the server still has it.
    */
   async function persistMove(
-    /** @type {string} */ id,
-    /** @type {string} */ laneId,
-    /** @type {string | undefined} */ aboveId,
-    /** @type {string | undefined} */ belowId
+    id: string,
+    laneId: string,
+    aboveId: string | undefined,
+    belowId: string | undefined
   ) {
     const body = new FormData();
     body.set('id', id);
@@ -104,8 +98,8 @@
    * cannot drag at all, so every card also carries this. It appends to the
    * column, then reloads so the card shows where the server put it.
    */
-  async function moveBySelect(/** @type {string} */ id, /** @type {Event} */ e) {
-    const select = /** @type {HTMLSelectElement} */ (e.currentTarget);
+  async function moveBySelect(id: string, e: Event) {
+    const select = e.currentTarget as HTMLSelectElement;
     const laneId = select.value;
     if (!laneId) return;
     busy = true;
@@ -189,10 +183,8 @@
         <div
           class="v2-lane-body tb-lane-body"
           use:dndzone={{ items: lane.rows, flipDurationMs: FLIP_MS, dragDisabled: busy }}
-          onconsider={(/** @type {CustomEvent<import('svelte-dnd-action').DndEvent<Card>>} */ e) =>
-            onConsider(lane, e)}
-          onfinalize={(/** @type {CustomEvent<import('svelte-dnd-action').DndEvent<Card>>} */ e) =>
-            onFinalize(lane, e)}
+          onconsider={(e: CustomEvent<DndEvent<Card>>) => onConsider(lane, e)}
+          onfinalize={(e: CustomEvent<DndEvent<Card>>) => onFinalize(lane, e)}
           onmousedowncapture={holdLockedCard}
           ontouchstartcapture={holdLockedCard}
           onkeydowncapture={holdLockedCard}

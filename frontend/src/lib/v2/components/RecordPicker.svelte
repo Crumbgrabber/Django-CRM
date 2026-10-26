@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * Picks records to link to. Chosen records are chips, each carrying a hidden
    * input named `name`; the search asks the pick proxy, which lists only what
@@ -9,7 +9,6 @@
   import { asInternalPath } from '#lib/utils/paths.js';
   import { X } from '@lucide/svelte';
 
-  /** @type {{ name: string, target: string, multiple?: boolean, selected?: { id: string, name: string }[], label: string, picked?: number, chosen?: { id: string, name: string }[], placeholder?: string }} */
   let {
     name,
     target,
@@ -19,12 +18,21 @@
     placeholder = undefined,
     picked = $bindable(0),
     chosen = $bindable(untrack(() => selected.map((r) => ({ id: r.id, name: r.name }))))
+  }: {
+    name: string;
+    target: string;
+    multiple?: boolean;
+    selected?: { id: string; name: string }[];
+    label: string;
+    picked?: number;
+    chosen?: { id: string; name: string }[];
+    placeholder?: string;
   } = $props();
   let text = $state('');
-  let matches = $state(/** @type {{ id: string, name: string }[]} */ ([]));
+  let matches = $state<{ id: string; name: string }[]>([]);
   let searched = $state(false);
   let failed = $state(false);
-  let timer = /** @type {ReturnType<typeof setTimeout> | undefined} */ (undefined);
+  let timer: ReturnType<typeof setTimeout> | undefined = undefined;
   let ticket = 0;
   const uid = $props.id();
 
@@ -34,15 +42,14 @@
 
   let offered = $derived(matches.filter((m) => !chosen.some((c) => c.id === m.id)));
 
-  /** @param {string} q */
-  async function search(q) {
+  async function search(q: string) {
     const mine = ++ticket;
     try {
       const url = `${resolve(asInternalPath('/api/objects/pick'))}?target=${encodeURIComponent(target)}&q=${encodeURIComponent(q)}`;
       const res = await fetch(url);
       if (mine !== ticket) return;
       failed = !res.ok;
-      matches = res.ok ? await res.json() : [];
+      matches = res.ok ? ((await res.json()) as { id: string; name: string }[]) : [];
     } catch {
       if (mine !== ticket) return;
       failed = true;
@@ -51,9 +58,8 @@
     searched = true;
   }
 
-  /** @param {Event} event */
-  function typed(event) {
-    text = /** @type {HTMLInputElement} */ (event.currentTarget).value;
+  function typed(event: Event) {
+    text = (event.currentTarget as HTMLInputElement).value;
     clearTimeout(timer);
     if (text.trim() === '') {
       ticket++;
@@ -65,16 +71,14 @@
     timer = setTimeout(() => search(text.trim()), 250);
   }
 
-  /** @param {{ id: string, name: string }} record */
-  function add(record) {
+  function add(record: { id: string; name: string }) {
     chosen = multiple ? [...chosen, record] : [record];
     text = '';
     matches = [];
     searched = false;
   }
 
-  /** @param {string} id */
-  function remove(id) {
+  function remove(id: string) {
     chosen = chosen.filter((c) => c.id !== id);
   }
 </script>

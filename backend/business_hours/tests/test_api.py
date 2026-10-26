@@ -1,5 +1,6 @@
 """REST API tests for /api/business-hours/."""
 
+import uuid
 from datetime import date, time
 
 import pytest
@@ -51,6 +52,16 @@ class TestGetCalendar:
     def test_user_can_read_calendar(self, user_client, calendar_a):
         r = user_client.get(CALENDAR_URL)
         assert r.status_code == 200
+
+    def test_reads_a_calendar_by_its_id(self, user_client, calendar_a):
+        r = user_client.get(_detail_url(calendar_a.id))
+        assert r.status_code == 200
+        assert r.json()["id"] == str(calendar_a.id)
+
+    def test_another_orgs_or_a_missing_calendar_is_a_404(self, admin_client, org_b):
+        other = BusinessCalendar.objects.create(org=org_b, is_default=True)
+        for pk in (other.id, uuid.uuid4()):
+            assert admin_client.get(_detail_url(pk)).status_code == 404
 
 
 @pytest.mark.django_db

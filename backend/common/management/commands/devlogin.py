@@ -99,7 +99,7 @@ class Command(BaseCommand):
             )
         self.stdout.write("")
         self.stdout.write(self.style.SUCCESS("=== Paste into browser devtools ==="))
-        # Cookies, not localStorage. `frontend/src/hooks.server.js` reads
+        # Cookies, not localStorage. `frontend/src/hooks.server.ts` reads
         # `jwt_access`, `jwt_refresh` and `org` off the request cookies and
         # redirects to /login when they are absent; nothing server-side can
         # see localStorage, so the snippet this used to print looked like it

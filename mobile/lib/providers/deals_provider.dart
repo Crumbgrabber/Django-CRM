@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../config/api_config.dart';
+import '../data/api/schema.g.dart' as api;
 import '../data/models/attachment.dart';
 import '../data/models/comment.dart';
 import '../data/models/custom_field_definition.dart';
@@ -318,32 +319,13 @@ class DealsNotifier extends AsyncNotifier<DealsListData> {
       throw Exception(response.message ?? 'Failed to load deals');
     }
 
-    final data = response.data!;
-    List<dynamic> dealsList = [];
-    int dealsCount = 0;
-
-    if (data['opportunities'] != null) {
-      dealsList = data['opportunities'] as List<dynamic>? ?? [];
-      dealsCount = data['opportunities_count'] as int? ?? dealsList.length;
-    } else if (data['results'] != null) {
-      dealsList = data['results'] as List<dynamic>? ?? [];
-      dealsCount = data['count'] as int? ?? dealsList.length;
-    }
-
-    final newDeals = <Deal>[];
-    for (final item in dealsList) {
-      try {
-        if (item is Map<String, dynamic>) {
-          newDeals.add(Deal.fromJson(item));
-        }
-      } catch (_) {
-        // Skip invalid deals
-      }
-    }
+    final data = api.OpportunityListResponse.fromJson(response.data!);
+    final rows = data.opportunities ?? const <api.OpportunityList>[];
+    final newDeals = [for (final row in rows) Deal.fromJson(row.json)];
 
     return DealsListData(
       deals: newDeals,
-      totalCount: dealsCount,
+      totalCount: data.opportunitiesCount ?? rows.length,
       hasMore: newDeals.length >= _pageSize,
       currentOffset: offset + newDeals.length,
     );
@@ -388,69 +370,38 @@ class DealsNotifier extends AsyncNotifier<DealsListData> {
         return null;
       }
 
-      final data = response.data!;
-      final dealData = data['opportunity_obj'] as Map<String, dynamic>?;
-      if (dealData == null) {
+      final data = api.OpportunityDetailResponse.fromJson(response.data!);
+      final dealObj = data.opportunityObj;
+      if (dealObj == null) {
         // ignore: avoid_print
         print('[deals_provider] getDealDetail($id): missing opportunity_obj');
         return null;
       }
 
-      // The deal itself is the only failure that should sink the whole load.
-      Deal deal = Deal.fromJson(dealData);
-
-      // Top-level comments override anything that might have been inlined
-      // on the deal. They're freshly queried.
-      try {
-        final raw = data['comments'] as List<dynamic>?;
-        if (raw != null) {
-          deal = deal.copyWith(
-            comments: raw
-                .whereType<Map<String, dynamic>>()
-                .map(Comment.fromJson)
-                .toList(),
-          );
-        }
-      } catch (e, st) {
-        // ignore: avoid_print
-        print('[deals_provider] comments parse failed: $e\n$st');
+      // Comments and attachments come beside the deal, freshly queried.
+      var deal = Deal.fromJson(dealObj.json);
+      if (data.comments case final comments?) {
+        deal = deal.copyWith(
+          comments: [for (final c in comments) Comment.fromJson(c.json)],
+        );
       }
-
-      try {
-        final raw = data['attachments'] as List<dynamic>?;
-        if (raw != null) {
-          deal = deal.copyWith(
-            attachments: raw
-                .whereType<Map<String, dynamic>>()
-                .map(Attachment.fromJson)
-                .toList(),
-          );
-        }
-      } catch (e, st) {
-        // ignore: avoid_print
-        print('[deals_provider] attachments parse failed: $e\n$st');
-      }
-
-      final defs = customFieldDefinitionsIn(data);
-
-      List<AssignableUser> users = const [];
-      try {
-        final usersData = data['users'] as List<dynamic>?;
-        users = (usersData ?? const [])
-            .whereType<Map<String, dynamic>>()
-            .map(AssignableUser.fromJson)
-            .toList();
-      } catch (e, st) {
-        // ignore: avoid_print
-        print('[deals_provider] users parse failed: $e\n$st');
+      if (data.attachments case final attachments?) {
+        deal = deal.copyWith(
+          attachments: [
+            for (final a in attachments) Attachment.fromJson(a.json),
+          ],
+        );
       }
 
       return DealDetail(
         deal: deal,
-        customFieldDefinitions: defs,
-        assignableUsers: users,
-        commentPermission: data['comment_permission'] == true,
-        canDelete: data['can_delete'] == true,
+        customFieldDefinitions: customFieldDefinitionsIn(response.data!),
+        assignableUsers: [
+          for (final u in data.users ?? const <api.Profile>[])
+            AssignableUser.fromJson(u.json),
+        ],
+        commentPermission: data.commentPermission ?? false,
+        canDelete: data.canDelete ?? false,
       );
     } catch (e, st) {
       // ignore: avoid_print
@@ -529,7 +480,9 @@ class DealsNotifier extends AsyncNotifier<DealsListData> {
       );
 
       if (response.success && response.data != null) {
-        final isError = response.data!['error'] as bool? ?? true;
+        final isError =
+            api.OpportunityCreateResponse.fromJson(response.data!).error ??
+            true;
         if (!isError) {
           await refresh();
           return (success: true, error: null, deal: null);
@@ -566,7 +519,9 @@ class DealsNotifier extends AsyncNotifier<DealsListData> {
       );
 
       if (response.success && response.data != null) {
-        final isError = response.data!['error'] as bool? ?? true;
+        final isError =
+            api.OpportunityUpdateResponse.fromJson(response.data!).error ??
+            true;
         if (!isError) {
           await refresh();
           return (success: true, error: null, deal: null);
@@ -620,7 +575,8 @@ class DealsNotifier extends AsyncNotifier<DealsListData> {
       });
 
       if (response.success && response.data != null) {
-        final isError = response.data!['error'] as bool? ?? true;
+        final isError =
+            api.OpportunityMoveResponse.fromJson(response.data!).error ?? true;
         if (!isError) {
           final current = state.value;
           if (current != null) {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../api/schema.g.dart' as api;
 import 'lead.dart' show Priority;
 
 /// A kanban board, its lanes, and the cards on them.
@@ -42,13 +43,15 @@ class BoardSummary {
   /// a 403. The refusal is the rule; this only keeps the UI honest about it.
   bool get canManageColumns => myRole == 'owner' || myRole == 'admin';
 
+  /// Reads a `BoardList` row.
   factory BoardSummary.fromJson(Map<String, dynamic> json) {
+    final w = api.BoardList.fromJson(json);
     return BoardSummary(
-      id: (json['id'] ?? '').toString(),
-      name: (json['name'] as String?) ?? 'Untitled board',
-      description: (json['description'] as String?) ?? '',
-      taskCount: json['task_count'] as int? ?? 0,
-      myRole: json['my_role'] as String?,
+      id: w.id ?? '',
+      name: w.name ?? 'Untitled board',
+      description: w.description ?? '',
+      taskCount: w.taskCount ?? 0,
+      myRole: w.myRole,
     );
   }
 }
@@ -86,22 +89,20 @@ class BoardLane {
     return value == null ? const Color(0xFF6B7280) : Color(0xFF000000 | value);
   }
 
+  /// Reads a `BoardColumn`, with its cards nested under `tasks`.
   factory BoardLane.fromJson(Map<String, dynamic> json) {
-    final id = (json['id'] ?? '').toString();
-    final rawCards = json['tasks'];
-    final cards = rawCards is List
-        ? rawCards
-              .whereType<Map<String, dynamic>>()
-              .map((c) => BoardCard.fromJson(c, id))
-              .toList()
-        : <BoardCard>[];
-    cards.sort((a, b) => a.order.compareTo(b.order));
+    final w = api.BoardColumn.fromJson(json);
+    final id = w.id ?? '';
+    final cards = [
+      for (final c in w.tasks ?? const <api.BoardTask>[])
+        BoardCard.fromJson(c.json, id),
+    ]..sort((a, b) => a.order.compareTo(b.order));
     return BoardLane(
       id: id,
-      name: (json['name'] as String?) ?? '',
-      order: json['order'] as int? ?? 0,
-      color: json['color'] as String?,
-      limit: json['limit'] as int?,
+      name: w.name ?? '',
+      order: w.order ?? 0,
+      color: w.color,
+      limit: w.limit,
       cards: cards,
     );
   }
@@ -141,41 +142,34 @@ class BoardCard {
   final String? accountName;
   final List<String> assignees;
 
+  /// Reads a `BoardTask`.
   factory BoardCard.fromJson(Map<String, dynamic> json, String laneId) {
-    final account = json['account'];
-    final rawDue = json['due_date'] as String?;
-    final rawAssignees = json['assigned_to'];
+    final w = api.BoardTask.fromJson(json);
     return BoardCard(
-      id: (json['id'] ?? '').toString(),
+      id: w.id ?? '',
       laneId: laneId,
-      title: (json['title'] as String?) ?? '',
-      order: json['order'] as int? ?? 0,
-      priority: Priority.fromString(json['priority'] as String?),
-      description: (json['description'] as String?) ?? '',
-      dueDate: rawDue == null ? null : DateTime.tryParse(rawDue),
-      isOverdue: json['is_overdue'] as bool? ?? false,
-      isCompleted: json['is_completed'] as bool? ?? false,
-      accountName: account is Map<String, dynamic>
-          ? (account['name'] as String?)
-          : null,
-      assignees: rawAssignees is List
-          ? rawAssignees
-                .whereType<Map<String, dynamic>>()
-                .map(_assigneeName)
-                .toList()
-          : const [],
+      title: w.title ?? '',
+      order: w.order ?? 0,
+      priority: Priority.fromString(w.priority),
+      description: w.description ?? '',
+      dueDate: DateTime.tryParse(w.dueDate ?? ''),
+      isOverdue: w.isOverdue ?? false,
+      isCompleted: w.isCompleted ?? false,
+      accountName: w.account?.name,
+      assignees: [
+        for (final p in w.assignedTo ?? const <api.Profile>[]) _assigneeName(p),
+      ],
     );
   }
 
   /// An assignee is a full profile object with the display name nested under
   /// `user_details`. Someone invited but not yet signed in has no name, so the
   /// email is all there is to call them.
-  static String _assigneeName(Map<String, dynamic> profile) {
-    final details =
-        (profile['user_details'] as Map<String, dynamic>?) ?? const {};
-    final name = (details['name'] as String?)?.trim() ?? '';
+  static String _assigneeName(api.Profile profile) {
+    final details = profile.userDetails;
+    final name = details?.name?.trim() ?? '';
     if (name.isNotEmpty) return name;
-    final email = (details['email'] as String?)?.trim() ?? '';
+    final email = details?.email?.trim() ?? '';
     return email.isNotEmpty ? email : 'Unknown';
   }
 }

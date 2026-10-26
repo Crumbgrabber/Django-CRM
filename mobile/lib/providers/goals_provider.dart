@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/api_config.dart';
-import '../data/api_envelope.dart';
+import '../data/api/schema.g.dart' as api;
 import '../data/models/sales_goal.dart';
 import '../services/api_service.dart';
 import '../services/org_date.dart';
@@ -107,18 +107,20 @@ class GoalsNotifier extends AsyncNotifier<GoalsData> {
       throw Exception(listResponse.message ?? 'Could not load the goals.');
     }
 
-    final goals = sortGoalsByUrgency(
-      listFromEnvelope(listResponse.data!, const [
-        'goals',
-      ]).map(SalesGoal.fromJson).toList(),
-    );
+    final list = api.SalesGoalListResponse.fromJson(listResponse.data!);
+    final goals = sortGoalsByUrgency([
+      for (final g in list.goals ?? const <api.SalesGoal>[])
+        SalesGoal.fromJson(g.json),
+    ]);
 
     final boardResponse = results[1];
-    final leaderboard = boardResponse.success && boardResponse.data != null
-        ? listFromEnvelope(boardResponse.data!, const [
-            'leaderboard',
-          ]).map(GoalLeaderRow.fromJson).toList()
-        : <GoalLeaderRow>[];
+    final board = boardResponse.success && boardResponse.data != null
+        ? api.SalesGoalLeaderboard.fromJson(boardResponse.data!).leaderboard
+        : null;
+    final leaderboard = [
+      for (final row in board ?? const <api.SalesGoalLeaderboardRow>[])
+        GoalLeaderRow.fromJson(row.json),
+    ];
 
     return GoalsData(
       goals: goals,
@@ -191,9 +193,11 @@ final goalHistoryProvider = FutureProvider<List<GoalHistoryPeriod>>((
   if (!response.success || response.data == null) {
     throw Exception(response.message ?? 'Could not load goal history.');
   }
-  return listFromEnvelope(response.data!, const [
-    'history',
-  ]).map(GoalHistoryPeriod.fromJson).toList();
+  final data = api.SalesGoalHistory.fromJson(response.data!);
+  return [
+    for (final period in data.history ?? const <api.SalesGoalHistoryPeriod>[])
+      GoalHistoryPeriod.fromJson(period.json),
+  ];
 });
 
 /// Turn the form's weight boxes into the map the write serializer takes.

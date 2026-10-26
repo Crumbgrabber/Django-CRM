@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   /**
    * New knowledge-base article.
@@ -37,9 +37,9 @@
   import { enhance } from '$app/forms';
   import { untrack } from 'svelte';
   import { ChevronLeft, Eye, EyeOff } from '@lucide/svelte';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   // `untrack` so a revalidation cannot overwrite what somebody has typed.
   // These are read once, on purpose. `update({ reset: false })` below is what

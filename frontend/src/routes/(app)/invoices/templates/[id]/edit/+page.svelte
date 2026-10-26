@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   /**
    * Editing an invoice template: the brand fields, the boilerplate text, and
@@ -24,18 +24,24 @@
   import { enhance } from '$app/forms';
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
   import { ChevronRight, Lock, FileCode } from '@lucide/svelte';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   // A failed save re-renders with what was typed; a fresh load uses the saved
   // record. Without the fallback an admin loses their edits on any 400.
-  /**
-   * @typedef {{ name?: string, primary_color?: string, secondary_color?: string, default_notes?: string, default_terms?: string, footer_text?: string, template_html?: string, template_css?: string }} TemplateValues
-   */
+  type TemplateValues = {
+    name?: string;
+    primary_color?: string;
+    secondary_color?: string;
+    default_notes?: string;
+    default_terms?: string;
+    footer_text?: string;
+    template_html?: string;
+    template_css?: string;
+  };
 
-  /** @type {TemplateValues} */
-  let values = $derived(form?.values ?? data.template ?? {});
+  let values: TemplateValues = $derived(form?.values ?? data.template ?? {});
 </script>
 
 <PageHeader title={data.template?.name ?? 'Edit template'} record center width="72ch">
@@ -90,7 +96,7 @@
             class="color-swatch"
             type="color"
             name="primary_color"
-            value={values.primary_color || '#3B82F6'}
+            defaultValue={values.primary_color || '#3B82F6'}
           />
         </label>
         <label class="color-field">
@@ -99,7 +105,7 @@
             class="color-swatch"
             type="color"
             name="secondary_color"
-            value={values.secondary_color || '#1E40AF'}
+            defaultValue={values.secondary_color || '#1E40AF'}
           />
         </label>
       </div>

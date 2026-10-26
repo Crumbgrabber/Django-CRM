@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * Help.
    *
@@ -32,12 +32,12 @@
   import Pill from '#lib/v2/components/Pill.svelte';
   import { relativeTime } from '#lib/v2/format.js';
   import { BookOpen, LifeBuoy, Plus, Bug, Mail, ArrowUpRight, ClipboardList } from '@lucide/svelte';
+  import type { Tone } from '#lib/v2/enums.js';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data } = $props();
+  let { data }: PageProps = $props();
 
-  /** @type {Record<string, import('#lib/v2/enums.js').Tone>} */
-  const STATUS_TONE = {
+  const STATUS_TONE: Record<string, Tone> = {
     open: 'rust',
     in_progress: 'clay',
     waiting_on_customer: 'slate',

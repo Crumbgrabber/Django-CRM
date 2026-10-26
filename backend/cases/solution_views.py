@@ -23,6 +23,7 @@ from cases.solution_serializers import (
     SolutionCreateUpdateSerializer,
     SolutionDetailSerializer,
     SolutionSerializer,
+    SolutionWriteSerializer,
 )
 from common.models import Tags
 from common.permissions import HasOrgContext
@@ -194,7 +195,7 @@ class SolutionListView(APIView, LimitOffsetPagination):
     @extend_schema(
         tags=["Solutions (Knowledge Base)"],
         description="Create a new solution",
-        request=SolutionCreateUpdateSerializer,
+        request=SolutionWriteSerializer,
         responses={201: SolutionSerializer},
     )
     def post(self, request):
@@ -243,7 +244,7 @@ class SolutionDetailView(APIView):
     @extend_schema(
         tags=["Solutions (Knowledge Base)"],
         description="Update solution",
-        request=SolutionCreateUpdateSerializer,
+        request=SolutionWriteSerializer,
         responses={200: SolutionSerializer},
     )
     def put(self, request, pk):
@@ -253,7 +254,7 @@ class SolutionDetailView(APIView):
     @extend_schema(
         tags=["Solutions (Knowledge Base)"],
         description="Partially update solution",
-        request=SolutionCreateUpdateSerializer,
+        request=SolutionWriteSerializer,
         responses={200: SolutionSerializer},
     )
     def patch(self, request, pk):

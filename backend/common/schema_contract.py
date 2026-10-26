@@ -23,6 +23,8 @@ from referencing.jsonschema import DRAFT202012
 
 _URN = "urn:bottlecrm:openapi"
 _METHODS = ("get", "post", "put", "patch", "delete")
+# Operations ("GET /api/x/") whose success reply some test response was checked against.
+CHECKED = set()
 
 
 def _to_json_schema(node):
@@ -110,6 +112,7 @@ def check_response(response):
     media = next((m for m in content if "json" in m), None)
     if media is None or "schema" not in content[media]:
         return [f"SCHEMA-GAP {key}: no {status} response schema"]
+    CHECKED.add(key)
     pointer = _pointer(
         "paths", template, method, "responses", status, "content", media, "schema"
     )
@@ -120,3 +123,19 @@ def check_response(response):
     first = errors[0]
     where = "/".join(str(p) for p in first.path) or "(root)"
     return [f"SCHEMA-GAP {key}: {status} at {where}: {first.message[:200]}"]
+
+
+def unchecked_operations():
+    """Operations with a JSON success reply that no test response was checked against."""
+    routes, _ = _spec()
+    missing = set()
+    for _, template, _, item in routes:
+        for method in _METHODS:
+            replies = item.get(method, {}).get("responses", {})
+            json_reply = any(
+                code.startswith("2") and any("json" in m for m in r.get("content", {}))
+                for code, r in replies.items()
+            )
+            if json_reply and f"{method.upper()} {template}" not in CHECKED:
+                missing.add(f"{method.upper()} {template}")
+    return sorted(missing)

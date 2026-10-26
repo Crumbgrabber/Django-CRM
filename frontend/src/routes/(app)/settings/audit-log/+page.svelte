@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * The security audit log: sign-ins, org switches, refused requests,
    * webhooks paused or turned back on, merges, and API tokens and calendar
@@ -22,18 +22,20 @@
   import EmptyState from '#lib/v2/components/EmptyState.svelte';
   import { count, relativeTime } from '#lib/v2/format.js';
   import { auditActor, auditDetail, auditWebhookId } from '#lib/v2/audit-log.js';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data } = $props();
+  let { data }: PageProps = $props();
 
   /**
    * This page's query string with `changes` applied to the current filters.
    * A changed filter starts again from the first page.
-   * @param {Record<string, string | number | null>} changes
    */
-  function pageQuery(changes) {
-    /** @type {Record<string, string | number | null | undefined>} */
-    const next = { ...data.filters, offset: data.offset, ...changes };
+  function pageQuery(changes: Record<string, string | number | null>) {
+    const next: Record<string, string | number | null | undefined> = {
+      ...data.filters,
+      offset: data.offset,
+      ...changes
+    };
     if (!('offset' in changes)) next.offset = null;
     return Object.entries(next)
       .filter(([k, v]) => v !== null && v !== undefined && v !== '' && !(k === 'offset' && v === 0))

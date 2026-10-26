@@ -66,6 +66,7 @@ class WatchView(APIView):
             status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
         )
 
+    @extend_schema(tags=["Cases"], responses={204: None})
     def delete(self, request, pk, *args, **kwargs):
         case = get_object_or_404(_visible_cases_qs(request.profile), pk=pk)
         CaseWatcher.objects.filter(case=case, profile=request.profile).delete()

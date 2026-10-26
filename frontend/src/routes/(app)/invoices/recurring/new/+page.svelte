@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   /**
    * New recurring schedule.
@@ -53,9 +53,9 @@
   } from '#lib/v2/line-items.js';
   import { todayIn } from '#lib/v2/dates.js';
   import { CURRENCY_CODES } from '#lib/constants/filters.js';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   // The org's day: a UTC date is yesterday for a morning east of UTC.
   const today = untrack(() => todayIn(data.org.timezone));
@@ -91,7 +91,7 @@
    * Contacts whose primary account is this account, plus contacts with no
    * account (they attach to anyone).
    *
-   * `c.account_id` (set in `+page.server.js` from `contacts.js`'s
+   * `c.account_id` (set in `+page.server.ts` from `contacts.js`'s
    * `accountLink`) is the primary FK when the contact has one, and the first
    * M2M membership otherwise. The server's cross-check,
    * `RecurringInvoiceCreateSerializer.validate` (`invoices/serializer.py:
@@ -145,8 +145,7 @@
    * are its to derive, so none are here.
    */
   let payload = $derived.by(() => {
-    /** @type {Record<string, unknown>} */
-    const body = {
+    const body: Record<string, unknown> = {
       account_id: accountId,
       contact_id: contactId,
       title: title.trim(),

@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   /**
    * What gates a ticket close, and who can clear it.
@@ -43,11 +43,10 @@
     shadowedBy
   } from './matching.js';
   import { Plus, TriangleAlert, ChevronRight } from '@lucide/svelte';
+  import type { PageProps } from './$types';
+  import type { ApprovalRuleRow } from '#lib/server/v2/ticket-approvals.js';
 
-  /** @typedef {import('#lib/server/v2/ticket-approvals.js').ApprovalRuleRow} ApprovalRuleRow */
-
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   // cases.approvals: PRIORITY_CHOICE and CASE_TYPE. Not in `#lib/v2/enums.js`
   // because there is no shared label map to derive from: value and label are
@@ -59,22 +58,20 @@
   // vocabulary this form offers (ADMIN/MANAGER). MANAGER is not a real
   // `Profile.role` value (see the module docstring), so it has no entry in
   // that map and would render as `undefined`. Labelled here instead.
-  /** @param {string} role */
-  function approverRoleLabel(role) {
+  function approverRoleLabel(role: string) {
     return role === 'MANAGER' ? 'Manager' : (ROLE_LABEL[role] ?? role);
   }
 
   // `null` when the panel is closed, `'new'` when adding, or the rule object
   // when editing that row. One panel, two modes, so two rows can never be
   // open for edit at once.
-  let editing = $state(/** @type {'new' | ApprovalRuleRow | null} */ (null));
+  let editing = $state<'new' | ApprovalRuleRow | null>(null);
 
   function openCreate() {
     editing = 'new';
   }
 
-  /** @param {ApprovalRuleRow} r */
-  function openEdit(r) {
+  function openEdit(r: ApprovalRuleRow) {
     editing = r;
   }
 

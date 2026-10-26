@@ -541,7 +541,7 @@ class TaskPipelineDetailView(APIView):
 
     @extend_schema(
         tags=["Task Pipelines"],
-        request=TaskPipelineSerializer,
+        request=TaskPipelineSerializer(partial=True),
         responses={200: TaskPipelineSerializer},
     )
     @transaction.atomic
@@ -643,7 +643,7 @@ class TaskStageDetailView(APIView):
 
     @extend_schema(
         tags=["Task Stages"],
-        request=TaskStageSerializer,
+        request=TaskStageSerializer(partial=True),
         responses={200: TaskStageSerializer},
     )
     def put(self, request, pk):

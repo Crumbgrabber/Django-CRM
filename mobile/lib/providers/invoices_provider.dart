@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/api_config.dart';
+import '../data/api/schema.g.dart' as api;
 import '../data/models/custom_field_definition.dart';
 import '../data/models/invoice.dart';
 import '../services/api_service.dart';
@@ -12,7 +13,7 @@ import '../services/api_service.dart';
 /// wholly absent. This is the half that was missing.
 ///
 /// The list envelope is the ordinary `{count, next, previous, results}` plus a
-/// `totals` block, so no `listFromEnvelope` path guessing is needed here.
+/// `totals` block.
 class InvoicesListData {
   const InvoicesListData({
     this.invoices = const [],
@@ -128,25 +129,21 @@ class InvoicesNotifier extends AsyncNotifier<InvoicesListData> {
       throw Exception(response.message ?? 'Failed to load invoices');
     }
 
-    final body = response.data!;
-    final rows = body['results'];
-    final invoices = rows is List
-        ? rows
-              .whereType<Map<String, dynamic>>()
-              .map(Invoice.fromJson)
-              .toList(growable: false)
-        : const <Invoice>[];
-    final totals = body['totals'] is Map<String, dynamic>
-        ? InvoiceTotals.fromJson(body['totals'] as Map<String, dynamic>)
-        : const InvoiceTotals();
+    final body = api.InvoicePage.fromJson(response.data!);
+    final totals = body.totals;
 
     return InvoicesListData(
-      invoices: invoices,
-      totals: totals,
+      invoices: [
+        for (final row in body.results ?? const <api.InvoiceList>[])
+          Invoice.fromJson(row.json),
+      ],
+      totals: totals == null
+          ? const InvoiceTotals()
+          : InvoiceTotals.fromJson(totals.json),
       // `next` is the server's own answer about whether more exist. Comparing
       // offset against `totals.count` would be wrong here, because that count
       // ignores the active status filter by design.
-      hasMore: body['next'] != null,
+      hasMore: body.next != null,
       offset: offset,
       status: _status,
     );
@@ -157,14 +154,11 @@ class InvoicesNotifier extends AsyncNotifier<InvoicesListData> {
     if (id.isEmpty) return null;
     final response = await _api.get(ApiConfig.invoice(id));
     if (!response.success || response.data == null) return null;
-    final body = response.data!;
-    // The detail view wraps the record under `invoice`; a bare body is
-    // accepted too so a serializer change degrades to a miss, not a crash.
-    final raw = body['invoice'] ?? body;
-    if (raw is! Map<String, dynamic>) return null;
+    final invoice = api.InvoiceDetail.fromJson(response.data!).invoice;
+    if (invoice == null) return null;
     return Invoice.fromJson(
-      raw,
-      customFieldDefinitions: customFieldDefinitionsIn(body),
+      invoice.json,
+      customFieldDefinitions: customFieldDefinitionsIn(response.data!),
     );
   }
 
@@ -226,11 +220,8 @@ class InvoicesNotifier extends AsyncNotifier<InvoicesListData> {
       return (invoiceId: null, error: _message(response));
     }
     await refresh();
-    final invoice = response.data?['invoice'];
-    final invoiceId = invoice is Map<String, dynamic>
-        ? invoice['id']?.toString()
-        : null;
-    return (invoiceId: invoiceId, error: null);
+    final saved = api.InvoiceSaved.fromJson(response.data ?? {});
+    return (invoiceId: saved.invoice?.id, error: null);
   }
 
   /// Raises a Draft invoice from a won deal. The server decides whether the
@@ -247,11 +238,8 @@ class InvoicesNotifier extends AsyncNotifier<InvoicesListData> {
       return (invoiceId: null, error: _message(response));
     }
     await refresh();
-    final invoice = response.data?['invoice'];
-    final invoiceId = invoice is Map<String, dynamic>
-        ? invoice['id']?.toString()
-        : null;
-    return (invoiceId: invoiceId, error: null);
+    final saved = api.InvoiceSaved.fromJson(response.data ?? {});
+    return (invoiceId: saved.invoice?.id, error: null);
   }
 
   /// Drafts an invoice from billable time: a ticket's entries by
@@ -276,7 +264,8 @@ class InvoicesNotifier extends AsyncNotifier<InvoicesListData> {
       return (invoiceId: null, error: _message(response));
     }
     await refresh();
-    return (invoiceId: response.data?['invoice_id']?.toString(), error: null);
+    final drafted = api.InvoiceFromTimeEntries.fromJson(response.data ?? {});
+    return (invoiceId: drafted.invoiceId, error: null);
   }
 
   /// POSTs an action and refreshes the list. Returns null on success, or the

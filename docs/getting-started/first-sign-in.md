@@ -59,9 +59,9 @@ The snippet `devlogin` prints (`localStorage.setItem('access_token', ...)`,
 `localStorage.setItem('refresh_token', ...)`) only writes `localStorage`, correct for
 `frontend/src/lib/api.js`'s own `STORAGE_KEYS`, which is what the API client reads for direct,
 client-side fetches, but **not enough on its own to sign you in through the SvelteKit app**.
-`frontend/src/hooks.server.js` authenticates every server-rendered request from three **cookies**
+`frontend/src/hooks.server.ts` authenticates every server-rendered request from three **cookies**
 instead (`event.cookies.get('jwt_access')`, `('jwt_refresh')` and `('org')`), and nothing
-server-side reads `localStorage` at all. Without those cookies set, `hooks.server.js` treats the
+server-side reads `localStorage` at all. Without those cookies set, `hooks.server.ts` treats the
 request as signed out and redirects to `/login`, no matter what `localStorage` holds.
 
 To get past the guard, open the devtools console on `http://localhost:5181`, run the printed

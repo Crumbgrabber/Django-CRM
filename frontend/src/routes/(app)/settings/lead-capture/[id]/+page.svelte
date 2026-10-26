@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * One lead webhook: where to post and with what key, test it, switch it,
    * replace its key, set what a post becomes, and read its newest deliveries.
@@ -27,13 +27,12 @@
   import CopyValue from '../CopyValue.svelte';
   import KeyOnce from '../KeyOnce.svelte';
   import MappingEditor from './MappingEditor.svelte';
+  import type { PageProps, SubmitFunction } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   let busy = $state(false);
-  /** @type {import('./$types').SubmitFunction} */
-  const working = () => {
+  const working: SubmitFunction = () => {
     busy = true;
     return async ({ update }) => {
       await update({ reset: false });
@@ -54,7 +53,7 @@
   );
 
   /** What each preset's sender asks for, in its own words. */
-  const HOW = /** @type {Record<string, string>} */ ({
+  const HOW = {
     google_ads:
       "In the Google Ads lead form, add a webhook: paste the URL as the webhook URL and the key as the key. Google's Send test data arrives here as a test.",
     tally:
@@ -63,7 +62,7 @@
       'With the Gravity Forms Webhooks add-on, add a feed that posts to the URL, with a request header Authorization set to Bearer, a space, and the key.',
     generic:
       'Post JSON or a form to the URL with the header Authorization: Bearer and the key. A tool that only takes a URL can add ?key= and the key to it instead, though the header is safer.'
-  });
+  } as Record<string, string>;
 
   // The stored owner and tags when the pickers cannot offer them (someone
   // deactivated, a tag archived): a select with no matching option submits

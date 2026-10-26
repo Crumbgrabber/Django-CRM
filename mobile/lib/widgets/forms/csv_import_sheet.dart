@@ -1218,7 +1218,7 @@ class _ValidSample extends StatelessWidget {
                     TextSpan(
                       children: [
                         TextSpan(
-                          text: 'Row ${row['row'] ?? i + 1}',
+                          text: 'Row ${target.sampleRow(row) ?? i + 1}',
                           style: const TextStyle(
                             color: AppColors.textSecondary,
                           ),

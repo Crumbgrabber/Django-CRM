@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * Automation rules: what the organization does for itself when a record is
    * created or changes. Admins only; the server answers a member with a 403,
@@ -24,19 +24,18 @@
     modulePausedNote
   } from '#lib/v2/automation.js';
   import { ArrowUp, ArrowDown, Plus } from '@lucide/svelte';
+  import type { Tone } from '#lib/v2/enums.js';
+  import type { components } from '#lib/api-schema.js';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   let rules = $derived(data.rules ?? []);
   let paused = $derived(rules.filter((r) => r.status === 'paused'));
 
-  /** @param {import('#lib/api-schema.js').components['schemas']['RuleRow']} rule */
-  function statusOf(rule) {
+  function statusOf(rule: components['schemas']['RuleRow']) {
     return (
-      /** @type {Record<string, { label: string, tone: import('#lib/v2/enums.js').Tone }>} */ (
-        STATUS
-      )[rule.status] ?? {
+      (STATUS as Record<string, { label: string; tone: Tone }>)[rule.status] ?? {
         label: rule.status,
         tone: 'slate'
       }

@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * A signing secret, shown in the one response that carries it (a create or
    * a rotate) and gone on the next load. The list and detail responses only
@@ -6,8 +6,7 @@
    */
   import { Copy, Check } from '@lucide/svelte';
 
-  /** @type {{ title: string, secret: string }} */
-  let { title, secret } = $props();
+  let { title, secret }: { title: string; secret: string } = $props();
   let copied = $state(false);
 
   async function copy() {

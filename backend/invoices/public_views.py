@@ -12,6 +12,7 @@ from django.db import transaction
 from django.http import HttpResponse
 from django.utils import timezone
 from django.utils.decorators import method_decorator
+from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema, inline_serializer
 from rest_framework import serializers, status
 from rest_framework.response import Response
@@ -256,6 +257,9 @@ class PublicInvoicePDFView(APIView):
     authentication_classes = []
     permission_classes = []
 
+    @extend_schema(
+        tags=["Public"], responses={(200, "application/pdf"): OpenApiTypes.BINARY}
+    )
     def get(self, request, token):
         """Download invoice PDF by public token"""
         _resolve_org_context(token, "invoice")
@@ -400,6 +404,9 @@ class PublicEstimatePDFView(APIView):
     authentication_classes = []
     permission_classes = []
 
+    @extend_schema(
+        tags=["Public"], responses={(200, "application/pdf"): OpenApiTypes.BINARY}
+    )
     def get(self, request, token):
         """Download estimate PDF by public token"""
         _resolve_org_context(token, "estimate")

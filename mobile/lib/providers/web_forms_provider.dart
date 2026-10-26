@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/api_config.dart';
-import '../data/api_envelope.dart';
+import '../data/api/schema.g.dart' as api;
 import '../data/models/web_form.dart';
 import '../services/api_service.dart';
 
@@ -59,19 +59,14 @@ class WebFormsNotifier extends AsyncNotifier<WebFormsState> {
     if (!response.success || response.data == null) {
       throw Exception(response.message ?? 'Failed to load web forms');
     }
-    final body = response.data!;
-    final forms = listFromEnvelope(body, const [
-      'results',
-    ]).map(WebForm.fromJson).toList(growable: false);
-    final count = body['count'];
+    final body = api.WebFormListResponse.fromJson(response.data!);
+    final forms = (body.results ?? const <api.WebFormList>[])
+        .map((row) => WebForm.fromJson(row.json))
+        .toList(growable: false);
     return WebFormsState(
       forms: forms,
-      totals: WebFormTotals.fromJson(
-        body['totals'] is Map<String, dynamic>
-            ? body['totals'] as Map<String, dynamic>
-            : null,
-      ),
-      truncated: count is int && count > forms.length,
+      totals: WebFormTotals.fromJson(body.totals?.json),
+      truncated: (body.count ?? 0) > forms.length,
     );
   }
 
@@ -96,7 +91,7 @@ class WebFormsNotifier extends AsyncNotifier<WebFormsState> {
       throw Exception(response.message ?? 'Could not create the form');
     }
     await refresh();
-    return response.data!['id']?.toString() ?? '';
+    return api.WebFormDetail.fromJson(response.data!).id ?? '';
   }
 
   /// PUT, which the view runs with `partial=True`, so this is a partial update
@@ -179,9 +174,9 @@ final webFormDetailProvider = FutureProvider.family<WebFormDetail, String>((
   ref,
   id,
 ) async {
-  final api = ApiService();
+  final service = ApiService();
 
-  final formResponse = await api.get(ApiConfig.webForm(id));
+  final formResponse = await service.get(ApiConfig.webForm(id));
   if (!formResponse.success || formResponse.data == null) {
     throw Exception(formResponse.message ?? 'Failed to load the web form');
   }
@@ -189,20 +184,21 @@ final webFormDetailProvider = FutureProvider.family<WebFormDetail, String>((
 
   var submissions = const <WebFormSubmission>[];
   var submissionCount = 0;
-  final submissionsResponse = await api.get(
+  final submissionsResponse = await service.get(
     '${ApiConfig.webFormSubmissions(id)}?limit=25',
   );
   if (submissionsResponse.success && submissionsResponse.data != null) {
-    final body = submissionsResponse.data!;
-    submissions = listFromEnvelope(body, const [
-      'results',
-    ]).map(WebFormSubmission.fromJson).toList(growable: false);
-    final count = body['count'];
-    submissionCount = count is int ? count : submissions.length;
+    final body = api.WebFormSubmissionListResponse.fromJson(
+      submissionsResponse.data!,
+    );
+    submissions = (body.results ?? const <api.WebFormSubmission>[])
+        .map((row) => WebFormSubmission.fromJson(row.json))
+        .toList(growable: false);
+    submissionCount = body.count ?? submissions.length;
   }
 
   WebFormAnalytics? analytics;
-  final analyticsResponse = await api.get(ApiConfig.webFormAnalytics(id));
+  final analyticsResponse = await service.get(ApiConfig.webFormAnalytics(id));
   if (analyticsResponse.success && analyticsResponse.data != null) {
     analytics = WebFormAnalytics.fromJson(analyticsResponse.data!);
   }

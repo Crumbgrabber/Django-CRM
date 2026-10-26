@@ -1,8 +1,7 @@
-<script>
+<script lang="ts">
   import { initials } from '#lib/v2/format.js';
 
-  /** @type {{ name: string, size?: number }} */
-  let { name, size = 26 } = $props();
+  let { name, size = 26 }: { name: string; size?: number } = $props();
 </script>
 
 <span

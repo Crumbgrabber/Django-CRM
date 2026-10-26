@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * Optional per-deal-type multipliers for a revenue or deals-closed goal.
    *
@@ -20,8 +20,8 @@
   import { untrack } from 'svelte';
   import { DEAL_TYPE_LABEL } from '#lib/v2/enums.js';
 
-  /** @type {{ weights?: Record<string, unknown> | null, goalType: string }} */
-  let { weights = {}, goalType } = $props();
+  let { weights = {}, goalType }: { weights?: Record<string, unknown> | null; goalType: string } =
+    $props();
 
   // Open when the goal already carries weights, so an existing weighting is
   // visible rather than hidden behind a control nobody thought to click.
@@ -30,7 +30,7 @@
   let open = $state(untrack(() => Object.keys(weights ?? {}).length > 0));
 
   /** Current value for one type, as the string an input binds to. */
-  const valueFor = (/** @type {string} */ type) => {
+  const valueFor = (type: string) => {
     const w = weights?.[type];
     return w === undefined || w === null ? '' : String(w);
   };

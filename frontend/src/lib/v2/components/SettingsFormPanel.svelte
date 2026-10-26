@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * The chrome around a settings form.
    *
@@ -20,17 +20,25 @@
    * `{#if}`.
    */
   import { enhance } from '$app/forms';
+  import type { Snippet } from 'svelte';
 
-  /** @type {{
-   *   title: string,
-   *   action: string,
-   *   error?: string | null,
-   *   submitLabel?: string,
-   *   oncancel: () => void,
-   *   ondone?: () => void,
-   *   fields: import('svelte').Snippet
-   * }} */
-  let { title, action, error = null, submitLabel = 'Save', oncancel, ondone, fields } = $props();
+  let {
+    title,
+    action,
+    error = null,
+    submitLabel = 'Save',
+    oncancel,
+    ondone,
+    fields
+  }: {
+    title: string;
+    action: string;
+    error?: string | null;
+    submitLabel?: string;
+    oncancel: () => void;
+    ondone?: () => void;
+    fields: Snippet;
+  } = $props();
 
   // Disables submit while a request is in flight so a double-click cannot
   // fire two writes.

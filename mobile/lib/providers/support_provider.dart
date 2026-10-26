@@ -2,6 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/api_config.dart';
+import '../data/api/enterprise_schema.g.dart' as enterprise;
 import '../data/models/support_ticket.dart';
 import '../services/api_service.dart';
 import '../services/attachment_upload.dart';
@@ -49,16 +50,16 @@ class SupportRepository {
         statusCode: response.statusCode,
       );
     }
-    final body = response.data!;
-    final rows = (body['tickets'] as List<dynamic>? ?? const [])
-        .whereType<Map<String, dynamic>>()
-        .map(SupportTicket.fromJson)
-        .toList();
+    final body = enterprise.SupportTicketListResponse.fromJson(response.data!);
+    final rows = [
+      for (final t in body.tickets ?? const <enterprise.SupportTicketList>[])
+        SupportTicket.fromJson(t.json),
+    ];
     return ApiResponse(
       success: true,
       data: SupportTicketListData(
         tickets: rows,
-        count: body['count'] as int? ?? rows.length,
+        count: body.count ?? rows.length,
       ),
       statusCode: response.statusCode,
     );

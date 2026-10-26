@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   /**
    * The addresses that turn email into tickets, or into leads (`creates`).
@@ -45,11 +45,10 @@
     webhookSetupUrl
   } from './delivery.js';
   import { Plus, MailWarning, KeyRound } from '@lucide/svelte';
+  import type { PageProps } from './$types';
+  import type { MailboxRow } from '#lib/server/v2/inbound-email.js';
 
-  /** @typedef {import('#lib/server/v2/inbound-email.js').MailboxRow} MailboxRow */
-
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   // cases.InboundMailbox.PROVIDER_CHOICES is MAILBOX_PROVIDER_LABEL's key
   // order. PRIORITY_CHOICE and CASE_TYPE mirror ticket-approvals' own local
@@ -68,7 +67,7 @@
   // `null` when the panel is closed, `'new'` when adding, or the mailbox
   // object when editing that row. One panel, two modes, so two rows can
   // never be open for edit at once.
-  let editing = $state(/** @type {'new' | MailboxRow | null} */ (null));
+  let editing = $state<'new' | MailboxRow | null>(null);
   // What the open form makes, and whether the server picks the address.
   let creates = $state('tickets');
   // The provider picked in the open form, which decides the credential shown.
@@ -90,8 +89,7 @@
     addressMode = data.generated_domain ? 'generate' : 'own';
   }
 
-  /** @param {MailboxRow} m */
-  function openEdit(m) {
+  function openEdit(m: MailboxRow) {
     editing = m;
     creates = m.creates;
     provider = m.provider;

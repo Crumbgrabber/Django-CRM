@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   /**
    * Editing the organisation.
@@ -39,9 +39,10 @@
   import { COUNTRIES } from '#lib/constants/countries.js';
   import { ChevronRight, TriangleAlert } from '@lucide/svelte';
   import { isOn } from '#lib/v2/modules.js';
+  import type { components } from '#lib/api-schema.js';
+  import type { PageProps, SubmitFunction } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form: result } = $props();
+  let { data, form: result }: PageProps = $props();
 
   // A switched-off module's fields are left out, and the save sends only what
   // the form submits, so their stored values stay as they are.
@@ -57,8 +58,7 @@
   // the next save would silently clear the org's country.
   const countryOptions = COUNTRIES.map((c) => ({ value: c.code, label: c.name }));
 
-  /** @type {Partial<import('#lib/api-schema.js').components['schemas']['OrgSettings']>} */
-  const org = untrack(() => data.org ?? {});
+  const org: Partial<components['schemas']['OrgSettings']> = untrack(() => data.org ?? {});
   // Always includes the org's current value, because the API builds the list
   // from the same database the value was validated against. A stored zone with
   // no matching option would make the select submit its first entry instead.
@@ -93,12 +93,11 @@
     }))
   );
 
-  let touched = $state(/** @type {Record<string, boolean>} */ ({}));
+  let touched = $state<Record<string, boolean>>({});
   let submitted = $state(false);
 
   let errors = $derived.by(() => {
-    /** @type {Record<string, string>} */
-    const e = {};
+    const e: Record<string, string> = {};
     if (form.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.email))
       e.email = 'That does not look like an email address.';
     // The model stores this in a URLField, which wants a real URL. A light check
@@ -106,8 +105,10 @@
     if (form.website && !/^https?:\/\/.+\..+/.test(form.website))
       e.website = 'Include the full address, starting with http:// or https://.';
     if (!invoicesOn) return e;
-    /** @type {('invoice_number_prefix' | 'estimate_number_prefix')[]} */
-    const prefixFields = ['invoice_number_prefix', 'estimate_number_prefix'];
+    const prefixFields: ('invoice_number_prefix' | 'estimate_number_prefix')[] = [
+      'invoice_number_prefix',
+      'estimate_number_prefix'
+    ];
     for (const field of prefixFields) {
       if (!NUMBER_PREFIX_PATTERN.test(form[field].trim()))
         e[field] = 'Use letters, numbers, hyphens and underscores only.';
@@ -118,28 +119,24 @@
     return e;
   });
 
-  /** @param {unknown} value @param {number} min @param {number} max */
-  function wholeIn(value, min, max) {
+  function wholeIn(value: unknown, min: number, max: number) {
     const n = Number(value);
     return value !== '' && value !== null && Number.isInteger(n) && n >= min && n <= max;
   }
 
   let valid = $derived(Object.keys(errors).length === 0);
-  const show = (/** @type {string} */ field) => (touched[field] || submitted) && errors[field];
+  const show = (field: string) => (touched[field] || submitted) && errors[field];
 
   /**
    * These checks are a UX hint. The serializer is the rule, and its 400 is what
    * `result.error` reports.
-   *
-   * @type {import('./$types').SubmitFunction}
    */
-  const check = async ({ cancel }) => {
+  const check: SubmitFunction = async ({ cancel }) => {
     submitted = true;
     if (!valid) {
       cancel();
       await tick();
-      /** @type {HTMLElement | null} */
-      const first = document.querySelector('[aria-invalid="true"]');
+      const first: HTMLElement | null = document.querySelector('[aria-invalid="true"]');
       first?.focus();
       return;
     }

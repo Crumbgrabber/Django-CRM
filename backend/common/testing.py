@@ -260,6 +260,32 @@ def _restore_rls_context_after_each_request(db):
                 pass
 
 
+@pytest.fixture(autouse=True)
+def _schema_contract(monkeypatch):
+    """Fail a test whose API responses do not match the OpenAPI schema.
+
+    The schema is generated from the running URLconf, so a downstream suite
+    that imports this checks its own endpoints too. See
+    ``common/schema_contract.py``.
+    """
+    from django.test import Client
+
+    from common.schema_contract import check_response
+
+    problems = []
+    original = Client.request
+
+    def request(self, **kwargs):
+        response = original(self, **kwargs)
+        problems.extend(check_response(response))
+        return response
+
+    monkeypatch.setattr(Client, "request", request)
+    yield
+    if problems:
+        pytest.fail("\n".join(dict.fromkeys(problems)), pytrace=False)
+
+
 @pytest.fixture
 def org_a():
     """The org a test acts as by default.

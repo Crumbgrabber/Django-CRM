@@ -32,6 +32,7 @@ from accounts.serializer import (
     AccountCreateSerializer,
     AccountDetailEditSwaggerSerializer,
     AccountSerializer,
+    AccountWithRelatedSerializer,
     AccountWriteSerializer,
     EmailSerializer,
     EmailWriteSerializer,
@@ -491,7 +492,7 @@ class AccountsListView(APIView, LimitOffsetPagination):
         tags=["Accounts"],
         operation_id="accounts_create",
         parameters=swagger_params.organization_params,
-        request=AccountCreateSerializer,
+        request=AccountWriteSerializer,
         responses={
             200: _ack("AccountCreateResponse", id=serializers.UUIDField()),
         },
@@ -759,7 +760,7 @@ class AccountDetailView(APIView):
             200: inline_serializer(
                 name="AccountDetailResponse",
                 fields={
-                    "account_obj": AccountSerializer(),
+                    "account_obj": AccountWithRelatedSerializer(),
                     "attachments": AttachmentsSerializer(many=True),
                     "comments": CommentSerializer(many=True),
                     "contacts": ContactSerializer(many=True),
@@ -932,7 +933,7 @@ class AccountDetailView(APIView):
             200: inline_serializer(
                 name="AccountCommentAttachmentResponse",
                 fields={
-                    "account_obj": AccountSerializer(),
+                    "account_obj": AccountWithRelatedSerializer(),
                     "attachments": AttachmentsSerializer(many=True),
                     "comments": CommentSerializer(many=True),
                 },

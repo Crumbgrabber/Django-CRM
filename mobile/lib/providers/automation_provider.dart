@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/api_config.dart';
+import '../data/api/schema.g.dart' as api;
 import '../data/models/automation.dart';
 import '../services/api_service.dart';
 import '../services/automation_text.dart';
@@ -181,13 +182,12 @@ class AutomationApi {
         error: r.message ?? 'Could not try the rule.',
       );
     }
-    final raw = data['steps'];
-    final steps = raw is List
-        ? raw
-              .whereType<Map>()
-              .map((m) => RunStep.fromJson(Map<String, dynamic>.from(m)))
-              .toList()
-        : <RunStep>[];
+    final steps = [
+      for (final s
+          in api.AutomationRuleTryResponse.fromJson(data).steps ??
+              const <api.AutomationStep>[])
+        RunStep.fromJson(s.json),
+    ];
     return (steps: steps, error: null);
   }
 }

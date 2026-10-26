@@ -254,7 +254,7 @@ class BoardDetailView(APIView):
                 name="org", description="Organization ID", required=True, type=str
             )
         ],
-        request=BoardSerializer,
+        request=BoardSerializer(partial=True),
         responses={200: BoardSerializer},
     )
     def put(self, request, pk):
@@ -487,6 +487,11 @@ class BoardTaskListCreateView(APIView):
         return Response(BoardTaskSerializer(task).data, status=status.HTTP_201_CREATED)
 
 
+class BoardTaskMoveSerializer(BoardTaskSerializer):
+    # The column to move the card to: `put` checks it is on the card's board.
+    column = serializers.UUIDField(required=False)
+
+
 class BoardTaskDetailView(APIView):
     """Retrieve, update or delete a task"""
 
@@ -499,7 +504,7 @@ class BoardTaskDetailView(APIView):
                 name="org", description="Organization ID", required=True, type=str
             )
         ],
-        request=BoardTaskSerializer,
+        request=BoardTaskMoveSerializer(partial=True),
         responses={200: BoardTaskSerializer},
     )
     def put(self, request, pk):

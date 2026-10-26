@@ -1,3 +1,5 @@
+import '../api/schema.g.dart' as api;
+
 /// Comment model for notes on leads, deals, etc.
 class Comment {
   final String id;
@@ -38,63 +40,23 @@ class Comment {
     return 'Unknown';
   }
 
-  /// Factory constructor to create Comment from JSON
+  /// Reads a `Comment`; a lead's `LeadComment` is the same shape without the
+  /// portal and internal fields.
   factory Comment.fromJson(Map<String, dynamic> json) {
-    // Handle commented_by which can be a map or an ID
-    String? commentedById;
-    String? commentedByName;
-    String? commentedByEmail;
-
-    final commentedBy = json['commented_by'];
-    if (commentedBy is Map<String, dynamic>) {
-      commentedById = commentedBy['id']?.toString();
-      // The case-app CommentSerializer wraps the email under user_details.
-      // Older serializers expose user__email / first_name / last_name at the
-      // top level. Keep both paths for compatibility across entities.
-      final userDetails = commentedBy['user_details'];
-      if (userDetails is Map<String, dynamic>) {
-        commentedByEmail = userDetails['email'] as String?;
-      }
-      commentedByEmail ??=
-          commentedBy['user__email'] as String? ??
-          commentedBy['email'] as String?;
-      commentedByName =
-          commentedBy['user__first_name'] as String? ??
-          commentedBy['first_name'] as String?;
-      if (commentedByName != null) {
-        final lastName =
-            commentedBy['user__last_name'] as String? ??
-            commentedBy['last_name'] as String?;
-        if (lastName != null && lastName.isNotEmpty) {
-          commentedByName = '$commentedByName $lastName';
-        }
-      }
-    } else if (commentedBy != null) {
-      commentedById = commentedBy.toString();
-    }
-
-    // Portal replies carry the contact instead. The backend serializer sends a
-    // pre-joined `name`, so there is nothing to assemble here.
-    String? commentedByContactName;
-    final commentedByContact = json['commented_by_contact'];
-    if (commentedByContact is Map<String, dynamic>) {
-      final name = commentedByContact['name'] as String?;
-      if (name != null && name.isNotEmpty) {
-        commentedByContactName = name;
-      }
-      commentedByContactName ??= commentedByContact['email'] as String?;
-    }
-
+    final w = api.Comment.fromJson(json);
+    final by = w.commentedBy;
+    final contactName = w.commentedByContact?.name ?? '';
     return Comment(
-      id: json['id']?.toString() ?? '',
-      comment: json['comment'] as String? ?? '',
-      commentedOn: json['commented_on'] != null
-          ? DateTime.tryParse(json['commented_on'] as String) ?? DateTime.now()
-          : DateTime.now(),
-      commentedById: commentedById,
-      commentedByName: commentedByName,
-      commentedByEmail: commentedByEmail,
-      commentedByContactName: commentedByContactName,
+      id: w.id ?? '',
+      comment: w.comment ?? '',
+      commentedOn: DateTime.tryParse(w.commentedOn ?? '') ?? DateTime.now(),
+      commentedById: by?.id,
+      commentedByEmail: by?.userDetails?.email,
+      // A portal reply has no Profile behind it; the contact's name is
+      // pre-joined server-side.
+      commentedByContactName: contactName.isNotEmpty
+          ? contactName
+          : w.commentedByContact?.email,
     );
   }
 

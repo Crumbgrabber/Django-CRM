@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   /**
    * Billing schedules. Each row answers one question: when does this next
@@ -20,19 +20,19 @@
   import { money, count, shortDate, daysSince } from '#lib/v2/format.js';
   import { RECURRING_FREQUENCY_LABEL, PAYMENT_TERMS_LABEL } from '#lib/v2/enums.js';
   import { Plus, RefreshCw, Hand, Pause, Play } from '@lucide/svelte';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   let totals = $derived(data.totals);
 
-  const frequency = (/** @type {{ frequency: string, custom_days: number | null }} */ s) =>
+  const frequency = (s: { frequency: string; custom_days: number | null }) =>
     s.frequency === 'CUSTOM'
       ? `Every ${s.custom_days} days`
       : RECURRING_FREQUENCY_LABEL[s.frequency];
 
   /** Next run, or why there isn't one. A paused schedule has no next run. */
-  function nextRun(/** @type {{ is_active: boolean, next_generation_date: string | null }} */ s) {
+  function nextRun(s: { is_active: boolean; next_generation_date: string | null }) {
     if (!s.is_active) return { text: 'Paused', tone: 'muted' };
     const n = daysSince(s.next_generation_date);
     if (n === null) return { text: shortDate(s.next_generation_date), tone: 'normal' };
@@ -43,7 +43,7 @@
   }
 
   /** An end date that has nearly arrived stops the schedule without warning. */
-  const endingSoon = (/** @type {{ is_active: boolean, end_date: string | null }} */ s) => {
+  const endingSoon = (s: { is_active: boolean; end_date: string | null }) => {
     if (!s.end_date || !s.is_active) return false;
     const n = daysSince(s.end_date);
     return n !== null && n <= 0 && Math.abs(n) <= 14;

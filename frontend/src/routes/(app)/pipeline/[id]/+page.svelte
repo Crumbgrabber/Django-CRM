@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   import { enhance } from '$app/forms';
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
@@ -17,9 +17,9 @@
   import { AGING_TONE, AGING_LABEL, OPPORTUNITY_TYPE_LABEL } from '#lib/v2/enums.js';
   import { sourceLabel } from '#lib/v2/lead-sources.js';
   import { Check, ChevronRight } from '@lucide/svelte';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
   let related = $derived(relatedView(data.related));
 
   /* Raising an invoice copies the lines of a won deal. The API refuses any
@@ -45,17 +45,10 @@
    * `recalculate_amount()` sets amount to the sum of the line totals.
    */
   let subtotal = $derived(
-    lineItems.reduce(
-      (/** @type {number} */ a, /** @type {{ subtotal: number }} */ li) => a + li.subtotal,
-      0
-    )
+    lineItems.reduce((a: number, li: { subtotal: number }) => a + li.subtotal, 0)
   );
   let discount = $derived(
-    lineItems.reduce(
-      (/** @type {number} */ a, /** @type {{ discount_amount: number }} */ li) =>
-        a + li.discount_amount,
-      0
-    )
+    lineItems.reduce((a: number, li: { discount_amount: number }) => a + li.discount_amount, 0)
   );
 </script>
 

@@ -1,19 +1,6 @@
+import '../api/enterprise_schema.g.dart' as enterprise;
 import 'attachment.dart';
 import 'custom_field_definition.dart';
-
-Map<String, dynamic> _map(dynamic v) =>
-    v is Map ? Map<String, dynamic>.from(v) : <String, dynamic>{};
-
-List<Map<String, dynamic>> _maps(dynamic v) => v is List
-    ? [
-        for (final e in v)
-          if (e is Map) _map(e),
-      ]
-    : const [];
-
-String _str(dynamic v, [String fallback = '']) => v?.toString() ?? fallback;
-
-DateTime? _date(dynamic v) => v is String ? DateTime.tryParse(v) : null;
 
 const objectsTurnedOffNotice =
     'Creating and editing is turned off for this organization.';
@@ -57,14 +44,21 @@ class CustomObjectsAnswer {
 
   bool get offered => hasCustomObjects || objects.isNotEmpty;
 
-  factory CustomObjectsAnswer.fromJson(Map<String, dynamic> json) =>
-      CustomObjectsAnswer(
-        hasCustomObjects: json['has_custom_objects'] == true,
-        objects: _maps(json['objects']).map(ObjectSummary.fromJson).toList(),
-        linkTargets: _maps(
-          json['link_targets'],
-        ).map(LinkTarget.fromJson).toList(),
-      );
+  /// Reads a `CustomObjectList`.
+  factory CustomObjectsAnswer.fromJson(Map<String, dynamic> json) {
+    final w = enterprise.CustomObjectList.fromJson(json);
+    return CustomObjectsAnswer(
+      hasCustomObjects: w.hasCustomObjects ?? false,
+      objects: [
+        for (final o in w.objects ?? const <enterprise.CustomObjectSummary>[])
+          ObjectSummary.fromJson(o.json),
+      ],
+      linkTargets: [
+        for (final t in w.linkTargets ?? const <enterprise.CustomObjectRef>[])
+          LinkTarget.fromJson(t.json),
+      ],
+    );
+  }
 }
 
 class ObjectSummary {
@@ -86,16 +80,19 @@ class ObjectSummary {
     this.isActive = true,
   });
 
+  /// Reads a `CustomObjectSummary`, which the object's `CustomObjectDetail`
+  /// repeats beside its fields.
   factory ObjectSummary.fromJson(Map<String, dynamic> json) {
-    final label = _str(json['label']);
+    final w = enterprise.CustomObjectSummary.fromJson(json);
+    final label = w.label ?? '';
     return ObjectSummary(
-      key: _str(json['key']),
+      key: w.key ?? '',
       label: label,
-      labelPlural: _str(json['label_plural'], label),
-      nameLabel: _str(json['name_label'], 'Name'),
-      description: _str(json['description']),
-      recordAccess: _str(json['record_access'], 'everyone'),
-      isActive: json['is_active'] as bool? ?? true,
+      labelPlural: w.labelPlural ?? label,
+      nameLabel: w.nameLabel ?? 'Name',
+      description: w.description ?? '',
+      recordAccess: w.recordAccess ?? 'everyone',
+      isActive: w.isActive ?? true,
     );
   }
 }
@@ -111,12 +108,14 @@ class LinkTarget {
     required this.labelPlural,
   });
 
+  /// Reads a `CustomObjectRef`.
   factory LinkTarget.fromJson(Map<String, dynamic> json) {
-    final label = _str(json['label']);
+    final w = enterprise.CustomObjectRef.fromJson(json);
+    final label = w.label ?? '';
     return LinkTarget(
-      key: _str(json['key']),
+      key: w.key ?? '',
       label: label,
-      labelPlural: _str(json['label_plural'], label),
+      labelPlural: w.labelPlural ?? label,
     );
   }
 }
@@ -146,25 +145,23 @@ class ObjectField {
 
   bool get isLink => fieldType == 'link';
 
+  /// Reads a `CustomObjectField`.
   factory ObjectField.fromJson(Map<String, dynamic> json) {
-    final options = <CustomFieldOption>[];
-    for (final o in _maps(json['options'])) {
-      final value = _str(o['value']);
-      if (value.isEmpty) continue;
-      options.add(
-        CustomFieldOption(value: value, label: _str(o['label'], value)),
-      );
-    }
+    final w = enterprise.CustomObjectField.fromJson(json);
     return ObjectField(
-      key: _str(json['key']),
-      label: _str(json['label']),
-      fieldType: _str(json['field_type'], 'text'),
-      options: options,
-      isRequired: json['is_required'] as bool? ?? false,
-      displayOrder: json['display_order'] as int? ?? 0,
-      isActive: json['is_active'] as bool? ?? true,
-      target: json['target'] as String?,
-      many: json['many'] as bool?,
+      key: w.key ?? '',
+      label: w.label ?? '',
+      fieldType: w.fieldType ?? 'text',
+      options: [
+        for (final o in w.options ?? const <enterprise.CustomFieldOption>[])
+          if (o.value case final value? when value.isNotEmpty)
+            CustomFieldOption(value: value, label: o.label ?? value),
+      ],
+      isRequired: w.isRequired ?? false,
+      displayOrder: w.displayOrder ?? 0,
+      isActive: w.isActive ?? true,
+      target: w.target,
+      many: w.many,
     );
   }
 
@@ -197,11 +194,17 @@ class ObjectDefinition {
   List<ObjectField> get customFields => _ordered((f) => !f.isLink);
   List<ObjectField> get linkFields => _ordered((f) => f.isLink);
 
-  factory ObjectDefinition.fromJson(Map<String, dynamic> json) =>
-      ObjectDefinition(
-        summary: ObjectSummary.fromJson(json),
-        fields: _maps(json['fields']).map(ObjectField.fromJson).toList(),
-      );
+  /// Reads a `CustomObjectDetail`: the summary with its fields.
+  factory ObjectDefinition.fromJson(Map<String, dynamic> json) {
+    final w = enterprise.CustomObjectDetail.fromJson(json);
+    return ObjectDefinition(
+      summary: ObjectSummary.fromJson(json),
+      fields: [
+        for (final f in w.fields ?? const <enterprise.CustomObjectField>[])
+          ObjectField.fromJson(f.json),
+      ],
+    );
+  }
 }
 
 class PersonRef {
@@ -211,11 +214,11 @@ class PersonRef {
 
   const PersonRef({required this.id, this.name = '', this.email = ''});
 
-  factory PersonRef.fromJson(Map<String, dynamic> json) => PersonRef(
-    id: _str(json['id']),
-    name: _str(json['name']),
-    email: _str(json['email']),
-  );
+  /// Reads a `CustomRecordPerson`.
+  factory PersonRef.fromJson(Map<String, dynamic> json) {
+    final w = enterprise.CustomRecordPerson.fromJson(json);
+    return PersonRef(id: w.id ?? '', name: w.name ?? '', email: w.email ?? '');
+  }
 }
 
 class LinkedRecord {
@@ -225,11 +228,15 @@ class LinkedRecord {
 
   const LinkedRecord({required this.id, required this.object, this.name = ''});
 
-  factory LinkedRecord.fromJson(Map<String, dynamic> json) => LinkedRecord(
-    id: _str(json['id']),
-    object: _str(json['object']),
-    name: _str(json['name']),
-  );
+  /// Reads a `CustomRecordLinked`.
+  factory LinkedRecord.fromJson(Map<String, dynamic> json) {
+    final w = enterprise.CustomRecordLinked.fromJson(json);
+    return LinkedRecord(
+      id: w.id ?? '',
+      object: w.object ?? '',
+      name: w.name ?? '',
+    );
+  }
 }
 
 class LinkValue {
@@ -242,11 +249,18 @@ class LinkValue {
   /// A one-record field holding a link the caller cannot open is never sent.
   bool get readOnly => !many && hidden > 0;
 
-  factory LinkValue.fromJson(Map<String, dynamic> json) => LinkValue(
-    many: json['many'] as bool? ?? true,
-    records: _maps(json['records']).map(LinkedRecord.fromJson).toList(),
-    hidden: json['hidden'] as int? ?? 0,
-  );
+  /// Reads a `CustomRecordLinkValue`.
+  factory LinkValue.fromJson(Map<String, dynamic> json) {
+    final w = enterprise.CustomRecordLinkValue.fromJson(json);
+    return LinkValue(
+      many: w.many ?? true,
+      records: [
+        for (final r in w.records ?? const <enterprise.CustomRecordLinked>[])
+          LinkedRecord.fromJson(r.json),
+      ],
+      hidden: w.hidden ?? 0,
+    );
+  }
 }
 
 class RecordAttachment {
@@ -287,15 +301,17 @@ class RecordAttachment {
         : (createdBy!.email.isNotEmpty ? createdBy!.email : createdBy!.name),
   );
 
+  /// Reads a `CustomRecordAttachment`.
   factory RecordAttachment.fromJson(Map<String, dynamic> json) {
-    final cb = json['created_by'];
+    final w = enterprise.CustomRecordAttachment.fromJson(json);
+    final by = w.createdBy;
     return RecordAttachment(
-      id: _str(json['id']),
-      fileName: _str(json['file_name'], 'Attachment'),
-      isImage: json['is_image'] == true,
-      createdBy: cb is Map ? PersonRef.fromJson(_map(cb)) : null,
-      createdAt: _date(json['created_at']),
-      canDelete: json['can_delete'] == true,
+      id: w.id ?? '',
+      fileName: w.fileName ?? 'Attachment',
+      isImage: w.isImage ?? false,
+      createdBy: by == null ? null : PersonRef.fromJson(by.json),
+      createdAt: DateTime.tryParse(w.createdAt ?? ''),
+      canDelete: w.canDelete ?? false,
     );
   }
 }
@@ -327,25 +343,33 @@ class ObjectRecord {
     this.attachments = const [],
   });
 
+  /// Reads a `CustomRecordDetail`. A list row is a `CustomRecord`, the same
+  /// minus links, creator, rights and attachments, which then read as none.
   factory ObjectRecord.fromJson(Map<String, dynamic> json) {
-    final cb = json['created_by'];
+    final w = enterprise.CustomRecordDetail.fromJson(json);
+    final by = w.createdBy;
+    final links = w.links ?? const <String, enterprise.CustomRecordLinkValue>{};
     return ObjectRecord(
-      id: _str(json['id']),
-      name: _str(json['name']),
-      customFields: _map(json['custom_fields']),
-      assignedTo: _maps(json['assigned_to']).map(PersonRef.fromJson).toList(),
-      createdAt: _date(json['created_at']),
-      updatedAt: _date(json['updated_at']),
+      id: w.id ?? '',
+      name: w.name ?? '',
+      customFields: {...?w.customFields},
+      assignedTo: [
+        for (final p in w.assignedTo ?? const <enterprise.CustomRecordPerson>[])
+          PersonRef.fromJson(p.json),
+      ],
+      createdAt: DateTime.tryParse(w.createdAt ?? ''),
+      updatedAt: DateTime.tryParse(w.updatedAt ?? ''),
       links: {
-        for (final e in _map(json['links']).entries)
-          e.key: LinkValue.fromJson(_map(e.value)),
+        for (final e in links.entries) e.key: LinkValue.fromJson(e.value.json),
       },
-      createdBy: cb is Map ? PersonRef.fromJson(_map(cb)) : null,
-      canEdit: json['can_edit'] == true,
-      canDelete: json['can_delete'] == true,
-      attachments: _maps(
-        json['attachments'],
-      ).map(RecordAttachment.fromJson).toList(),
+      createdBy: by == null ? null : PersonRef.fromJson(by.json),
+      canEdit: w.canEdit ?? false,
+      canDelete: w.canDelete ?? false,
+      attachments: [
+        for (final a
+            in w.attachments ?? const <enterprise.CustomRecordAttachment>[])
+          RecordAttachment.fromJson(a.json),
+      ],
     );
   }
 }
@@ -356,8 +380,11 @@ class RelatedRecordRef {
 
   const RelatedRecordRef({required this.id, this.name = ''});
 
-  factory RelatedRecordRef.fromJson(Map<String, dynamic> json) =>
-      RelatedRecordRef(id: _str(json['id']), name: _str(json['name']));
+  /// Reads a `CustomRecordName`.
+  factory RelatedRecordRef.fromJson(Map<String, dynamic> json) {
+    final w = enterprise.CustomRecordName.fromJson(json);
+    return RelatedRecordRef(id: w.id ?? '', name: w.name ?? '');
+  }
 }
 
 class RelatedGroup {
@@ -375,15 +402,18 @@ class RelatedGroup {
     this.records = const [],
   });
 
+  /// Reads a `RelatedGroup`.
   factory RelatedGroup.fromJson(Map<String, dynamic> json) {
-    final object = _map(json['object']);
-    final field = _map(json['field']);
+    final w = enterprise.RelatedGroup.fromJson(json);
     return RelatedGroup(
-      objectKey: _str(object['key']),
-      objectLabel: _str(object['label']),
-      fieldKey: _str(field['key']),
-      fieldLabel: _str(field['label']),
-      records: _maps(json['records']).map(RelatedRecordRef.fromJson).toList(),
+      objectKey: w.object?.key ?? '',
+      objectLabel: w.object?.label ?? '',
+      fieldKey: w.field?.key ?? '',
+      fieldLabel: w.field?.label ?? '',
+      records: [
+        for (final r in w.records ?? const <enterprise.CustomRecordName>[])
+          RelatedRecordRef.fromJson(r.json),
+      ],
     );
   }
 }
@@ -401,14 +431,14 @@ class RelatedLinkField {
     required this.fieldLabel,
   });
 
+  /// Reads a `RelatedLinkField`.
   factory RelatedLinkField.fromJson(Map<String, dynamic> json) {
-    final object = _map(json['object']);
-    final field = _map(json['field']);
+    final w = enterprise.RelatedLinkField.fromJson(json);
     return RelatedLinkField(
-      objectKey: _str(object['key']),
-      objectLabel: _str(object['label']),
-      fieldKey: _str(field['key']),
-      fieldLabel: _str(field['label']),
+      objectKey: w.object?.key ?? '',
+      objectLabel: w.object?.label ?? '',
+      fieldKey: w.field?.key ?? '',
+      fieldLabel: w.field?.label ?? '',
     );
   }
 }
@@ -434,13 +464,21 @@ class RelatedAnswer {
 
   bool get showsNothing => groups.isEmpty && linkFields.isEmpty;
 
-  factory RelatedAnswer.fromJson(Map<String, dynamic> json) => RelatedAnswer(
-    groups: _maps(json['groups']).map(RelatedGroup.fromJson).toList(),
-    canEdit: json['can_edit'] == true,
-    linkFields: _maps(
-      json['link_fields'],
-    ).map(RelatedLinkField.fromJson).toList(),
-  );
+  /// Reads a `RelatedRecords`.
+  factory RelatedAnswer.fromJson(Map<String, dynamic> json) {
+    final w = enterprise.RelatedRecords.fromJson(json);
+    return RelatedAnswer(
+      groups: [
+        for (final g in w.groups ?? const <enterprise.RelatedGroup>[])
+          RelatedGroup.fromJson(g.json),
+      ],
+      canEdit: w.canEdit ?? false,
+      linkFields: [
+        for (final f in w.linkFields ?? const <enterprise.RelatedLinkField>[])
+          RelatedLinkField.fromJson(f.json),
+      ],
+    );
+  }
 }
 
 /// Latin letters that decompose to a base letter plus a combining mark, which

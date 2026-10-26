@@ -152,7 +152,7 @@ class DealContactSerializer(ContactPickerSerializer):
 
     The detail GET's top-level `contacts` sent full `ContactSerializer`
     records. The web's deal page reads the name, `title` and `department`
-    (`lib/server/v2/deals.js`, `getDeal`) and links each row to the contact;
+    (`lib/server/v2/deals.ts`, `getDeal`) and links each row to the contact;
     mobile reads the nested `opportunity_obj.contacts` instead.
     """
 
@@ -650,6 +650,7 @@ class OpportunityMoveSerializer(serializers.Serializer):
 
 class OpportunityCreateSwaggerSerializer(serializers.ModelSerializer):
     closed_on = serializers.DateField()
+    custom_fields = serializers.DictField(required=False)
 
     class Meta:
         model = Opportunity
@@ -671,11 +672,14 @@ class OpportunityCreateSwaggerSerializer(serializers.ModelSerializer):
             "contacts",
             "teams",
             "tags",
+            "custom_fields",
         )
 
 
 class OpportunityDetailEditSwaggerSerializer(serializers.Serializer):
-    comment = serializers.CharField()
+    # A comment, a file, or both.
+    comment = serializers.CharField(required=False)
+    opportunity_attachment = serializers.FileField(required=False)
 
 
 class OpportunityCommentEditSwaggerSerializer(serializers.Serializer):

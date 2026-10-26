@@ -993,10 +993,9 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Link or unlink Solutions (Knowledge Base articles) to a Case. */
+        /** @description Link a Solution (Knowledge Base article) to a Case. */
         post: operations["cases_solutions_create_2"];
-        /** @description Link or unlink Solutions (Knowledge Base articles) to a Case. */
-        delete: operations["cases_solutions_destroy_2"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1011,10 +1010,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Link or unlink Solutions (Knowledge Base articles) to a Case. */
-        post: operations["cases_solutions_create_3"];
-        /** @description Link or unlink Solutions (Knowledge Base articles) to a Case. */
-        delete: operations["cases_solutions_destroy_3"];
+        post?: never;
+        /**
+         * @description Unlink a Solution from a Case. A view of its own so each route answers
+         *     only its own verb, and the schema lists only the operations that exist.
+         */
+        delete: operations["cases_solutions_destroy_2"];
         options?: never;
         head?: never;
         patch?: never;
@@ -5912,8 +5913,13 @@ export interface components {
             error: boolean;
             message: string;
         };
+        AccountCaseRef: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+        };
         AccountCommentAttachmentResponse: {
-            account_obj: components["schemas"]["Account"];
+            account_obj: components["schemas"]["AccountWithRelated"];
             attachments: components["schemas"]["Attachments"][];
             comments: components["schemas"]["Comment"][];
         };
@@ -5938,46 +5944,31 @@ export interface components {
             error: boolean;
             message: string;
         };
-        /** @description Serializer for creating/updating Account data */
-        AccountCreateRequest: {
-            /** Account Name */
-            name: string;
-            email?: (string) | null;
-            phone?: (string) | null;
-            website?: (string) | null;
-            industry?: (components["schemas"]["IndustryEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
-            number_of_employees?: number | null;
-            /** Format: decimal */
-            annual_revenue?: string | null;
-            currency?: (components["schemas"]["CurrencyEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
-            /** Address */
-            address_line?: string | null;
-            city?: string | null;
-            state?: string | null;
-            /** Postal Code */
-            postcode?: string | null;
-            country?: (components["schemas"]["CountryEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
-            /** Notes */
-            description?: string | null;
-            is_active?: boolean;
-        };
         AccountCreateResponse: {
             /** Format: uuid */
             id: string;
             error: boolean;
             message: string;
         };
+        AccountDealRef: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            stage: string;
+            stage_label: string;
+            amount: string;
+        };
         AccountDeleteResponse: {
             error: boolean;
             message: string;
         };
         AccountDetailEditSwaggerRequest: {
-            comment: string;
+            comment?: string;
             /** Format: binary */
-            account_attachment: string;
+            account_attachment?: string;
         };
         AccountDetailResponse: {
-            account_obj: components["schemas"]["Account"];
+            account_obj: components["schemas"]["AccountWithRelated"];
             attachments: components["schemas"]["Attachments"][];
             comments: components["schemas"]["Comment"][];
             contacts: components["schemas"]["Contact"][];
@@ -6090,21 +6081,76 @@ export interface components {
             end_date: string;
             currencies: components["schemas"]["StatementCurrency"][];
         };
+        AccountTaskRef: {
+            /** Format: uuid */
+            id: string;
+            title: string;
+        };
         AccountUpdateResponse: {
             error: boolean;
             message: string;
         };
-        /** @description Serializer for API documentation of Account write operations */
+        /**
+         * @description The schema of `AccountDetailView`'s `account_obj`, which that view
+         *     serializes with a profile and so with the related lists.
+         *
+         *     Schema only: serializing with it and no profile fails on the first list
+         *     rather than emitting records the viewer may not open.
+         */
+        AccountWithRelated: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Account Name */
+            name: string;
+            email: (string) | null;
+            phone: (string) | null;
+            website: (string) | null;
+            industry: (components["schemas"]["IndustryEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
+            number_of_employees: number | null;
+            /** Format: decimal */
+            annual_revenue: string | null;
+            currency: (components["schemas"]["CurrencyEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** Address */
+            address_line: string | null;
+            city: string | null;
+            state: string | null;
+            /** Postal Code */
+            postcode: string | null;
+            country: (components["schemas"]["CountryEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
+            readonly country_display: string | null;
+            readonly assigned_to: components["schemas"]["Profile"][];
+            readonly teams: components["schemas"]["Teams"][];
+            readonly contacts: components["schemas"]["Contact"][];
+            readonly tags: components["schemas"]["Tags"][];
+            /** Notes */
+            description: string | null;
+            readonly cases: components["schemas"]["AccountCaseRef"][];
+            readonly tasks: components["schemas"]["AccountTaskRef"][];
+            readonly opportunities: components["schemas"]["AccountDealRef"][];
+            readonly rollups: components["schemas"]["AccountRollups"] | null;
+            created_by: components["schemas"]["User"] | null;
+            /** Format: date-time */
+            readonly created_at: string;
+            is_active: boolean;
+            org: components["schemas"]["Organization"];
+            /** @description Per-org schema extension; values are validated against common.CustomFieldDefinition. */
+            custom_fields: unknown;
+        };
+        /**
+         * @description The account write body, for the schema: `AccountCreateSerializer`'s
+         *     fields plus the relations and custom fields the views apply themselves.
+         */
         AccountWriteRequest: {
             /** Account Name */
             name: string;
-            phone?: (string) | null;
             email?: (string) | null;
+            phone?: (string) | null;
             website?: (string) | null;
             industry?: (components["schemas"]["IndustryEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
             number_of_employees?: number | null;
             /** Format: decimal */
             annual_revenue?: string | null;
+            currency?: (components["schemas"]["CurrencyEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
             /** Address */
             address_line?: string | null;
             city?: string | null;
@@ -6114,6 +6160,14 @@ export interface components {
             country?: (components["schemas"]["CountryEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
             /** Notes */
             description?: string | null;
+            is_active?: boolean;
+            assigned_to?: string[];
+            contacts?: string[];
+            tags?: string[];
+            teams?: string[];
+            custom_fields?: {
+                [key: string]: unknown;
+            };
         };
         /**
          * @description * `CREATE` - Created
@@ -6569,7 +6623,7 @@ export interface components {
             /** Format: uuid */
             rule_id?: string | null;
             /** @default  */
-            note: string;
+            note?: string;
         };
         /**
          * @description Read + write serializer for admin rule CRUD.
@@ -6725,6 +6779,18 @@ export interface components {
             previous: string | null;
             results: components["schemas"]["AuditLogEntry"][];
             event_types: components["schemas"]["AuditLogEventType"][];
+        };
+        /** @description Response-only: the shape `_org_payload` builds. */
+        AuthOrg: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            default_currency: string;
+            currency_symbol: string;
+            default_country: string | null;
+            timezone: string;
+            role?: components["schemas"]["ProfileRoleEnum"];
+            is_organization_admin?: boolean;
         };
         AutomationCatalogueChoice: {
             value: string;
@@ -7109,12 +7175,12 @@ export interface components {
             color: string;
             limit: number | null;
             /** Format: uuid */
-            created_by: string | null;
+            readonly created_by: string | null;
             /**
              * Last Modified By
              * Format: uuid
              */
-            updated_by: string | null;
+            readonly updated_by: string | null;
             /** Format: uuid */
             readonly board: string;
             /** Format: uuid */
@@ -7143,13 +7209,6 @@ export interface components {
             order?: number;
             color?: string;
             limit?: number | null;
-            /** Format: uuid */
-            created_by?: string | null;
-            /**
-             * Last Modified By
-             * Format: uuid
-             */
-            updated_by?: string | null;
         };
         /** @description Simplified board serializer for lists */
         BoardList: {
@@ -7399,39 +7458,6 @@ export interface components {
             sunday_close: string | null;
             readonly holidays: components["schemas"]["BusinessHoliday"][];
         };
-        BusinessCalendarRequest: {
-            name?: string;
-            /** @description IANA timezone (e.g. America/New_York). */
-            timezone?: string;
-            /** Format: time */
-            monday_open?: string | null;
-            /** Format: time */
-            monday_close?: string | null;
-            /** Format: time */
-            tuesday_open?: string | null;
-            /** Format: time */
-            tuesday_close?: string | null;
-            /** Format: time */
-            wednesday_open?: string | null;
-            /** Format: time */
-            wednesday_close?: string | null;
-            /** Format: time */
-            thursday_open?: string | null;
-            /** Format: time */
-            thursday_close?: string | null;
-            /** Format: time */
-            friday_open?: string | null;
-            /** Format: time */
-            friday_close?: string | null;
-            /** Format: time */
-            saturday_open?: string | null;
-            /** Format: time */
-            saturday_close?: string | null;
-            /** Format: time */
-            sunday_open?: string | null;
-            /** Format: time */
-            sunday_close?: string | null;
-        };
         BusinessHoliday: {
             /** Format: uuid */
             readonly id: string;
@@ -7445,6 +7471,12 @@ export interface components {
             name: string;
         };
         CalendarFeedIssuedResponse: {
+            error: boolean;
+            enabled: boolean;
+            /** Format: date-time */
+            created_at: string | null;
+            /** Format: date-time */
+            last_used_at: string | null;
             url: string;
         };
         CalendarFeedStateResponse: {
@@ -7582,15 +7614,19 @@ export interface components {
             contacts: string[];
             tags?: string[];
             description?: string | null;
+            custom_fields?: {
+                [key: string]: unknown;
+            };
         };
         CaseDeleteResponse: {
             error: boolean;
             message: string;
         };
         CaseDetailEditSwaggerRequest: {
-            comment: string;
+            comment?: string;
             /** Format: binary */
-            case_attachment: string;
+            case_attachment?: string;
+            is_internal?: boolean;
         };
         CaseDetailResponse: {
             cases_obj: components["schemas"]["Case"];
@@ -8492,9 +8528,9 @@ export interface components {
             message: string;
         };
         ContactDetailEditSwaggerRequest: {
-            comment: string;
+            comment?: string;
             /** Format: binary */
-            contact_attachment: string;
+            contact_attachment?: string;
         };
         ContactDetailResponse: {
             contact_obj: components["schemas"]["Contact"];
@@ -8523,6 +8559,8 @@ export interface components {
             error: boolean;
             created: number;
             ids: string[];
+            skipped?: components["schemas"]["ImportSkippedRow"][];
+            dropped?: components["schemas"]["ImportDropped"][];
         };
         ContactImportMappedPreview: {
             valid: components["schemas"]["ContactImportRow"][];
@@ -8648,6 +8686,49 @@ export interface components {
         ContactUpdateResponse: {
             error: boolean;
             message: string;
+        };
+        /**
+         * @description The contact write body, for the schema: `CreateContactSerializer`'s
+         *     fields plus the relations and custom fields the views apply themselves.
+         */
+        ContactWriteRequest: {
+            first_name: string;
+            last_name: string;
+            email?: (string) | null;
+            phone?: (string) | null;
+            source?: string;
+            /** Sub-source */
+            source_detail?: string;
+            /** Reference */
+            source_ref?: string;
+            /** Company */
+            organization?: string | null;
+            /** Job Title */
+            title?: string | null;
+            department?: string | null;
+            do_not_call?: boolean;
+            linkedin_url?: (string) | null;
+            /** Address */
+            address_line?: string | null;
+            city?: string | null;
+            state?: string | null;
+            /** Postal Code */
+            postcode?: string | null;
+            country?: (components["schemas"]["CountryEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** Notes */
+            description?: string | null;
+            /**
+             * Format: uuid
+             * @description Primary account this contact belongs to
+             */
+            account?: string | null;
+            is_active?: boolean;
+            assigned_to?: string[];
+            tags?: string[];
+            teams?: string[];
+            custom_fields?: {
+                [key: string]: unknown;
+            };
         };
         /**
          * @description * `GB` - United Kingdom
@@ -8899,40 +8980,6 @@ export interface components {
          * @enum {string}
          */
         CountryEnum: "GB" | "AF" | "AX" | "AL" | "DZ" | "AS" | "AD" | "AO" | "AI" | "AQ" | "AG" | "AR" | "AM" | "AW" | "AU" | "AT" | "AZ" | "BS" | "BH" | "BD" | "BB" | "BY" | "BE" | "BZ" | "BJ" | "BM" | "BT" | "BO" | "BA" | "BW" | "BV" | "BR" | "IO" | "BN" | "BG" | "BF" | "BI" | "KH" | "CM" | "CA" | "CV" | "KY" | "CF" | "TD" | "CL" | "CN" | "CX" | "CC" | "CO" | "KM" | "CG" | "CD" | "CK" | "CR" | "CI" | "HR" | "CU" | "CY" | "CZ" | "DK" | "DJ" | "DM" | "DO" | "EC" | "EG" | "SV" | "GQ" | "ER" | "EE" | "ET" | "FK" | "FO" | "FJ" | "FI" | "FR" | "GF" | "PF" | "TF" | "GA" | "GM" | "GE" | "DE" | "GH" | "GI" | "GR" | "GL" | "GD" | "GP" | "GU" | "GT" | "GG" | "GN" | "GW" | "GY" | "HT" | "HM" | "VA" | "HN" | "HK" | "HU" | "IS" | "IN" | "ID" | "IR" | "IQ" | "IE" | "IM" | "IL" | "IT" | "JM" | "JP" | "JE" | "JO" | "KZ" | "KE" | "KI" | "KP" | "KR" | "KW" | "KG" | "LA" | "LV" | "LB" | "LS" | "LR" | "LY" | "LI" | "LT" | "LU" | "MO" | "MK" | "MG" | "MW" | "MY" | "MV" | "ML" | "MT" | "MH" | "MQ" | "MR" | "MU" | "YT" | "MX" | "FM" | "MD" | "MC" | "MN" | "ME" | "MS" | "MA" | "MZ" | "MM" | "NA" | "NR" | "NP" | "NL" | "AN" | "NC" | "NZ" | "NI" | "NE" | "NG" | "NU" | "NF" | "MP" | "NO" | "OM" | "PK" | "PW" | "PS" | "PA" | "PG" | "PY" | "PE" | "PH" | "PN" | "PL" | "PT" | "PR" | "QA" | "RE" | "RO" | "RU" | "RW" | "BL" | "SH" | "KN" | "LC" | "MF" | "PM" | "VC" | "WS" | "SM" | "ST" | "SA" | "SN" | "RS" | "SC" | "SL" | "SG" | "SK" | "SI" | "SB" | "SO" | "ZA" | "GS" | "ES" | "LK" | "SD" | "SR" | "SJ" | "SZ" | "SE" | "CH" | "SY" | "TW" | "TJ" | "TZ" | "TH" | "TL" | "TG" | "TK" | "TO" | "TT" | "TN" | "TR" | "TM" | "TC" | "TV" | "UG" | "UA" | "AE" | "US" | "UM" | "UY" | "UZ" | "VU" | "VE" | "VN" | "VG" | "VI" | "WF" | "EH" | "YE" | "ZM" | "ZW";
-        /** @description Serializer for creating/updating Contact data */
-        CreateContactRequest: {
-            first_name: string;
-            last_name: string;
-            email?: (string) | null;
-            phone?: (string) | null;
-            source?: string;
-            /** Sub-source */
-            source_detail?: string;
-            /** Reference */
-            source_ref?: string;
-            /** Company */
-            organization?: string | null;
-            /** Job Title */
-            title?: string | null;
-            department?: string | null;
-            do_not_call?: boolean;
-            linkedin_url?: (string) | null;
-            /** Address */
-            address_line?: string | null;
-            city?: string | null;
-            state?: string | null;
-            /** Postal Code */
-            postcode?: string | null;
-            country?: (components["schemas"]["CountryEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
-            /** Notes */
-            description?: string | null;
-            /**
-             * Format: uuid
-             * @description Primary account this contact belongs to
-             */
-            account?: string | null;
-            is_active?: boolean;
-        };
         CreateLeadFromSiteResponse: {
             error: boolean;
             message: string;
@@ -9106,7 +9153,7 @@ export interface components {
          *
          *     The detail GET's top-level `contacts` sent full `ContactSerializer`
          *     records. The web's deal page reads the name, `title` and `department`
-         *     (`lib/server/v2/deals.js`, `getDeal`) and links each row to the contact;
+         *     (`lib/server/v2/deals.ts`, `getDeal`) and links each row to the contact;
          *     mobile reads the nested `opportunity_obj.contacts` instead.
          */
         DealContact: {
@@ -9501,14 +9548,6 @@ export interface components {
             file_type_code: string;
             users: components["schemas"]["Profile"][];
         };
-        DocumentEditSwaggerRequest: {
-            title?: string | null;
-            /** Format: binary */
-            document_file: string;
-            teams: string[];
-            shared_to: string[];
-            status?: components["schemas"]["DocumentStatusEnum"];
-        };
         DocumentListActive: {
             documents_active_count: number;
             documents_active: components["schemas"]["Document"][];
@@ -9812,6 +9851,48 @@ export interface components {
             /** Format: uuid */
             org: string;
         };
+        /** @description Serializer for creating/updating Estimates */
+        EstimateBodyRequest: {
+            title: string;
+            /** Format: uuid */
+            account_id: string;
+            /** Format: uuid */
+            contact_id: string;
+            /** Format: uuid */
+            opportunity_id?: string | null;
+            client_name?: string;
+            /** Format: email */
+            client_email?: string;
+            client_phone?: string;
+            /** Client Address */
+            client_address_line?: string;
+            client_city?: string;
+            client_state?: string;
+            /** Client Postal Code */
+            client_postcode?: string;
+            client_country?: components["schemas"]["ClientCountryEnum"] | components["schemas"]["BlankEnum"];
+            discount_type?: components["schemas"]["DiscountTypeEnum"] | components["schemas"]["BlankEnum"];
+            /** Format: decimal */
+            discount_value?: string;
+            /**
+             * Tax Rate (%)
+             * Format: decimal
+             */
+            tax_rate?: string;
+            currency?: components["schemas"]["CurrencyEnum"];
+            /** Format: date */
+            issue_date?: string;
+            /** Format: date */
+            expiry_date?: string | null;
+            public_link_enabled?: boolean;
+            notes?: string;
+            /** Terms & Conditions */
+            terms?: string;
+            line_items?: components["schemas"]["EstimateLineItemCreateRequest"][];
+            custom_fields?: {
+                [key: string]: unknown;
+            };
+        };
         EstimateDetail: {
             estimate: components["schemas"]["Estimate"];
             custom_field_definitions: components["schemas"]["CustomFieldDefinition"][];
@@ -9849,6 +9930,27 @@ export interface components {
             /** Format: decimal */
             readonly total: string;
             order: number;
+        };
+        /** @description Serializer for creating/updating Estimate Line Items */
+        EstimateLineItemCreateRequest: {
+            /** Format: uuid */
+            product?: string | null;
+            /** Item Name */
+            name?: string | null;
+            description?: string;
+            /** Format: decimal */
+            quantity?: string;
+            /** Format: decimal */
+            unit_price?: string;
+            discount_type?: components["schemas"]["DiscountTypeEnum"] | components["schemas"]["BlankEnum"];
+            /** Format: decimal */
+            discount_value?: string;
+            /**
+             * Tax Rate (%)
+             * Format: decimal
+             */
+            tax_rate?: string;
+            order?: number;
         };
         /**
          * @description Lightweight serializer for Estimate list views.
@@ -9973,10 +10075,16 @@ export interface components {
         GoogleIdTokenResponse: {
             JWTtoken: string;
             refresh_token: string;
-            user: {
-                [key: string]: unknown;
-            };
-            organizations: unknown[];
+            user: components["schemas"]["GoogleIdTokenUser"];
+            organizations: components["schemas"]["AuthOrg"][];
+        };
+        GoogleIdTokenUser: {
+            /** Format: uuid */
+            id: string;
+            /** Format: email */
+            email: string;
+            name: string;
+            profileImage: string | null;
         };
         GoogleOAuthRequestRequest: {
             code: string;
@@ -9986,18 +10094,14 @@ export interface components {
         GoogleOAuthResponse: {
             access_token: string;
             refresh_token: string;
-            user: {
-                [key: string]: unknown;
-            };
+            user: components["schemas"]["GoogleOAuthUser"];
         };
-        /**
-         * @description * `agent` - agent
-         *     * `ticket` - ticket
-         *     * `project` - project
-         *     * `account` - account
-         * @enum {string}
-         */
-        GroupByEnum: "agent" | "ticket" | "project" | "account";
+        GoogleOAuthUser: {
+            /** Format: uuid */
+            id: string;
+            /** Format: email */
+            email: string;
+        };
         /**
          * @description * `sell` - sell
          *     * `serve` - serve
@@ -10152,7 +10256,7 @@ export interface components {
             lead_source?: string;
             lead_source_detail?: string;
             /** @default false */
-            generate_address: boolean;
+            generate_address?: boolean;
         };
         InboundWebhookResponse: {
             ok: boolean;
@@ -10413,15 +10517,91 @@ export interface components {
             percent?: string | null;
             description?: string | null;
         };
+        InvoiceAttachmentRequestRequest: {
+            /** Format: binary */
+            file: string;
+        };
         InvoiceAttachmentSaved: {
             attachment: components["schemas"]["Attachments"];
             error: boolean;
             message: string;
         };
+        /** @description Serializer for creating/updating Invoices with CRM validation */
+        InvoiceBodyRequest: {
+            invoice_title: string;
+            /** Format: uuid */
+            account_id: string;
+            /** Format: uuid */
+            contact_id: string;
+            /** Format: uuid */
+            opportunity_id?: string | null;
+            client_name?: string;
+            /** Format: email */
+            client_email?: string;
+            client_phone?: string;
+            /** Billing Address */
+            billing_address_line?: string;
+            billing_city?: string;
+            billing_state?: string;
+            /** Billing Postal Code */
+            billing_postcode?: string;
+            billing_country?: components["schemas"]["BillingCountryEnum"] | components["schemas"]["BlankEnum"];
+            /** Client Address */
+            client_address_line?: string;
+            client_city?: string;
+            client_state?: string;
+            /** Client Postal Code */
+            client_postcode?: string;
+            client_country?: components["schemas"]["ClientCountryEnum"] | components["schemas"]["BlankEnum"];
+            discount_type?: components["schemas"]["DiscountTypeEnum"] | components["schemas"]["BlankEnum"];
+            /** Format: decimal */
+            discount_value?: string;
+            /**
+             * Tax Rate (%)
+             * Format: decimal
+             */
+            tax_rate?: string;
+            /**
+             * Shipping
+             * Format: decimal
+             */
+            shipping_amount?: string;
+            currency?: components["schemas"]["CurrencyEnum"];
+            /** Format: date */
+            issue_date?: string;
+            /** Format: date */
+            due_date?: string | null;
+            payment_terms?: components["schemas"]["PaymentTermsEnum"];
+            /** Reminders Enabled */
+            reminder_enabled?: boolean;
+            /** Remind Days Before Due */
+            reminder_days_before?: number;
+            /** Remind Days After Due */
+            reminder_days_after?: number;
+            reminder_frequency?: components["schemas"]["ReminderFrequencyEnum"];
+            public_link_enabled?: boolean;
+            /** Format: uuid */
+            template_id?: string | null;
+            notes?: string;
+            /** Terms & Conditions */
+            terms?: string;
+            billing_period?: string | null;
+            po_number?: string | null;
+            line_items?: components["schemas"]["InvoiceLineItemCreateRequest"][];
+            custom_fields?: {
+                [key: string]: unknown;
+            };
+        };
+        InvoiceCommentRequestRequest: {
+            comment: string;
+        };
         InvoiceCommentSaved: {
             comment: components["schemas"]["Comment"];
             error: boolean;
             message: string;
+        };
+        InvoiceCommentUpdateRequestRequest: {
+            comment?: string;
         };
         InvoiceDashboard: {
             summary: components["schemas"]["InvoiceDashboardSummary"];
@@ -10504,6 +10684,24 @@ export interface components {
             /** Format: uuid */
             project_id: string | null;
         };
+        /**
+         * @description * `entry` - entry
+         *     * `person` - person
+         *     * `task` - task
+         *     * `single` - single
+         * @enum {string}
+         */
+        InvoiceFromTimeEntriesRequestGroupByEnum: "entry" | "person" | "task" | "single";
+        InvoiceFromTimeEntriesRequestRequest: {
+            /** Format: uuid */
+            account_id?: string;
+            /** Format: uuid */
+            project_id?: string;
+            entry_ids?: string[];
+            group_by?: components["schemas"]["InvoiceFromTimeEntriesRequestGroupByEnum"];
+            /** Format: date */
+            up_to?: string;
+        };
         /** @description Serializer for Invoice History (audit trail) */
         InvoiceHistory: {
             /** Format: uuid */
@@ -10563,6 +10761,27 @@ export interface components {
             order: number;
             readonly formatted_unit_price: string;
             readonly formatted_total: string;
+        };
+        /** @description Serializer for creating/updating Invoice Line Items */
+        InvoiceLineItemCreateRequest: {
+            /** Format: uuid */
+            product?: string | null;
+            /** Item Name */
+            name?: string | null;
+            description?: string;
+            /** Format: decimal */
+            quantity?: string;
+            /** Format: decimal */
+            unit_price?: string;
+            discount_type?: components["schemas"]["DiscountTypeEnum"] | components["schemas"]["BlankEnum"];
+            /** Format: decimal */
+            discount_value?: string;
+            /**
+             * Tax Rate (%)
+             * Format: decimal
+             */
+            tax_rate?: string;
+            order?: number;
         };
         InvoiceLineItemSaved: {
             line_item: components["schemas"]["InvoiceLineItem"];
@@ -10670,6 +10889,23 @@ export interface components {
              * Format: date-time
              */
             readonly updated_at: string;
+        };
+        /** @description Serializer for creating/updating Invoice Templates */
+        InvoiceTemplateCreateRequest: {
+            /** Template Name */
+            name: string;
+            /** Format: binary */
+            logo?: string | null;
+            primary_color?: string;
+            secondary_color?: string;
+            /** Custom HTML */
+            template_html?: string;
+            /** Custom CSS */
+            template_css?: string;
+            default_notes?: string;
+            default_terms?: string;
+            footer_text?: string;
+            is_default?: boolean;
         };
         /**
          * @description Safe template representation, never returns the raw markup.
@@ -10967,15 +11203,18 @@ export interface components {
             /** Notes */
             description?: string | null;
             company_name?: string | null;
+            custom_fields?: {
+                [key: string]: unknown;
+            };
         };
         LeadDeleteResponse: {
             error: boolean;
             message: string;
         };
         LeadDetailEditSwaggerRequest: {
-            comment: string;
+            comment?: string;
             /** Format: binary */
-            lead_attachment: string;
+            lead_attachment?: string;
         };
         LeadDetailResponse: {
             lead_obj: components["schemas"]["Lead"];
@@ -11022,6 +11261,8 @@ export interface components {
             error: boolean;
             created: number;
             ids: string[];
+            skipped?: components["schemas"]["ImportSkippedRow"][];
+            dropped?: components["schemas"]["ImportDropped"][];
         };
         LeadImportMappedPreview: {
             valid: components["schemas"]["LeadImportRow"][];
@@ -11328,6 +11569,18 @@ export interface components {
             readonly updated_at: string;
         };
         /**
+         * @description Serializer for lead pipelines with nested stages. Needs ``request`` in
+         *     its context.
+         */
+        LeadPipelineCreateRequest: {
+            /** Pipeline Name */
+            name: string;
+            description?: string | null;
+            /** @description Sorts this pipeline first in listings (see Meta.ordering) and is limited to one per org. It does NOT route new records: a lead created without a stage keeps stage=NULL, which is the supported status-based kanban mode. */
+            is_default?: boolean;
+            create_default_stages?: boolean;
+        };
+        /**
          * @description Simplified pipeline serializer for lists.
          *
          *     Both counts are read from annotations, so every queryset serialized here
@@ -11355,17 +11608,6 @@ export interface components {
         LeadPipelineRef: {
             id: string;
             name: string;
-        };
-        /**
-         * @description Serializer for lead pipelines with nested stages. Needs ``request`` in
-         *     its context.
-         */
-        LeadPipelineRequest: {
-            /** Pipeline Name */
-            name: string;
-            description?: string | null;
-            /** @description Sorts this pipeline first in listings (see Meta.ordering) and is limited to one per org. It does NOT route new records: a lead created without a stage keeps stage=NULL, which is the supported status-based kanban mode. */
-            is_default?: boolean;
         };
         /** @description Schema only: `LeadDetailView`'s `pipeline_stage`. */
         LeadPipelineStageRef: {
@@ -11636,7 +11878,7 @@ export interface components {
             /** Format: email */
             email: string;
             /** @default link */
-            delivery: components["schemas"]["DeliveryEnum"];
+            delivery?: components["schemas"]["DeliveryEnum"];
         };
         MagicLinkRequestResponse: {
             message: string;
@@ -11650,9 +11892,9 @@ export interface components {
         MagicLinkVerifyCodeResponse: {
             access_token: string;
             refresh_token: string;
-            user: {
-                [key: string]: unknown;
-            };
+            user: components["schemas"]["UserDetail"];
+            organizations: components["schemas"]["AuthOrg"][];
+            current_org?: components["schemas"]["AuthOrg"];
         };
         /** @description Serializer for verifying a magic link token. */
         MagicLinkVerifyRequest: {
@@ -11661,9 +11903,8 @@ export interface components {
         MagicLinkVerifyResponse: {
             access_token: string;
             refresh_token: string;
-            user: {
-                [key: string]: unknown;
-            };
+            user: components["schemas"]["UserDetail"];
+            current_org?: components["schemas"]["AuthOrg"];
         };
         MailboxDeleteResponse: {
             error: boolean;
@@ -11867,13 +12108,18 @@ export interface components {
             contacts: string[];
             teams: string[];
             tags?: string[];
+            custom_fields?: {
+                [key: string]: unknown;
+            };
         };
         OpportunityDetailDeleteResponse: {
             error: boolean;
             message: string;
         };
         OpportunityDetailEditSwaggerRequest: {
-            comment: string;
+            comment?: string;
+            /** Format: binary */
+            opportunity_attachment?: string;
         };
         OpportunityDetailResponse: {
             opportunity_obj: components["schemas"]["Opportunity"];
@@ -12235,6 +12481,13 @@ export interface components {
             access: string;
             refresh: string;
         };
+        /** @description Request-only: what a create may send. The view reads `signup_source` itself. */
+        OrgCreateBodyRequest: {
+            name: string;
+            /** @description IANA timezone (e.g. America/New_York). Sets the org's day. */
+            timezone?: string;
+            signup_source?: components["schemas"]["SignupSourceRequest"];
+        };
         OrgCreateResponse: {
             error: boolean;
             message: string;
@@ -12269,12 +12522,6 @@ export interface components {
         OrgModulesResponse: {
             modules: components["schemas"]["OrgModuleRow"][];
             can_edit: boolean;
-        };
-        /** @description It is for creating organization */
-        OrgProfileCreateRequest: {
-            name: string;
-            /** @description IANA timezone (e.g. America/New_York). Sets the org's day. */
-            timezone?: string;
         };
         OrgRetrieveResponse: {
             error: boolean;
@@ -12353,6 +12600,12 @@ export interface components {
             /** Format: date-time */
             readonly created_at: string;
         };
+        OrgSwitchProfile: {
+            /** Format: uuid */
+            id: string;
+            role: components["schemas"]["ProfileRoleEnum"];
+            is_organization_admin: boolean;
+        };
         OrgSwitchRequestRequest: {
             /**
              * Format: uuid
@@ -12365,12 +12618,8 @@ export interface components {
         OrgSwitchResponse: {
             access_token: string;
             refresh_token: string;
-            current_org: {
-                [key: string]: unknown;
-            };
-            profile: {
-                [key: string]: unknown;
-            };
+            current_org: components["schemas"]["AuthOrg"];
+            profile: components["schemas"]["OrgSwitchProfile"];
         };
         OrgUpdateResponse: {
             error: boolean;
@@ -12492,17 +12741,21 @@ export interface components {
         PatchedAccountCommentEditSwaggerRequest: {
             comment?: string;
         };
-        /** @description Serializer for API documentation of Account write operations */
+        /**
+         * @description The account write body, for the schema: `AccountCreateSerializer`'s
+         *     fields plus the relations and custom fields the views apply themselves.
+         */
         PatchedAccountWriteRequest: {
             /** Account Name */
             name?: string;
-            phone?: (string) | null;
             email?: (string) | null;
+            phone?: (string) | null;
             website?: (string) | null;
             industry?: (components["schemas"]["IndustryEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
             number_of_employees?: number | null;
             /** Format: decimal */
             annual_revenue?: string | null;
+            currency?: (components["schemas"]["CurrencyEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
             /** Address */
             address_line?: string | null;
             city?: string | null;
@@ -12512,12 +12765,104 @@ export interface components {
             country?: (components["schemas"]["CountryEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
             /** Notes */
             description?: string | null;
+            is_active?: boolean;
+            assigned_to?: string[];
+            contacts?: string[];
+            tags?: string[];
+            teams?: string[];
+            custom_fields?: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * @description Read + write serializer for admin rule CRUD.
+         *
+         *     The approver pool is a list of profile IDs on writes; on reads we expose
+         *     a thin {id, email} per-approver shape so the admin UI can render names
+         *     without an N+1 fetch.
+         */
+        PatchedApprovalRuleRequest: {
+            name?: string;
+            trigger_event?: components["schemas"]["TriggerEventEnum"];
+            match_priority?: (components["schemas"]["CasePriorityEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
+            match_case_type?: (components["schemas"]["MatchCaseTypeEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** Format: uuid */
+            match_team_id?: string | null;
+            approver_role?: components["schemas"]["ApproverRoleEnum"];
+            approver_ids?: string[];
+            is_active?: boolean;
         };
         /** @description Serializer for boards */
         PatchedBoardRequest: {
             name?: string;
             description?: string | null;
             is_archived?: boolean;
+        };
+        /**
+         * @description Serializer for board tasks.
+         *
+         *     The write surface is deliberately narrow. A card write may set only its own
+         *     content (title, description, order, priority, due_date), and its assignees
+         *     (through the write-only ``assigned_to_ids``). The board views take that
+         *     key out of the body and parse it with ``payload_id_list`` before this
+         *     serializer sees it, then apply it after save, org-filtered and active
+         *     only; the field stays declared so the request schema documents it.
+         *     Everything else is locked down:
+         *
+         *     * ``column`` is applied server-side by the move endpoint (see
+         *       ``BoardTaskDetailView.put``), so a card can't be mass-assigned into another
+         *       board's, or another org's, column.
+         *     * ``org``/``created_by``/``updated_by`` are server-derived audit facts.
+         *       (``created_by`` FKs ``common.User``, which is *not* org-scoped by RLS, so
+         *       leaving it writable let any user id be stamped onto a card.)
+         *     * the CRM-link FKs (``account``/``contact``/``opportunity``) are render-only
+         *       context, no UI sets them, and while writable they exposed the same
+         *       unfiltered, cross-org ``PrimaryKeyRelatedField`` queryset that
+         *       ``TaskCreateSerializer`` explicitly hardens against.
+         */
+        PatchedBoardTaskMoveRequest: {
+            assigned_to_ids?: string[];
+            /** Format: uuid */
+            column?: string;
+            title?: string;
+            description?: string | null;
+            order?: number;
+            priority?: components["schemas"]["BoardTaskPriorityEnum"];
+            /** Format: date-time */
+            due_date?: string | null;
+        };
+        PatchedBusinessCalendarRequest: {
+            name?: string;
+            /** @description IANA timezone (e.g. America/New_York). */
+            timezone?: string;
+            /** Format: time */
+            monday_open?: string | null;
+            /** Format: time */
+            monday_close?: string | null;
+            /** Format: time */
+            tuesday_open?: string | null;
+            /** Format: time */
+            tuesday_close?: string | null;
+            /** Format: time */
+            wednesday_open?: string | null;
+            /** Format: time */
+            wednesday_close?: string | null;
+            /** Format: time */
+            thursday_open?: string | null;
+            /** Format: time */
+            thursday_close?: string | null;
+            /** Format: time */
+            friday_open?: string | null;
+            /** Format: time */
+            friday_close?: string | null;
+            /** Format: time */
+            saturday_open?: string | null;
+            /** Format: time */
+            saturday_close?: string | null;
+            /** Format: time */
+            sunday_open?: string | null;
+            /** Format: time */
+            sunday_close?: string | null;
         };
         PatchedCaseCommentEditSwaggerRequest: {
             comment?: string;
@@ -12536,6 +12881,9 @@ export interface components {
             contacts?: string[];
             tags?: string[];
             description?: string | null;
+            custom_fields?: {
+                [key: string]: unknown;
+            };
         };
         /** @description Serializer for moving cases in kanban. */
         PatchedCaseMoveRequest: {
@@ -12549,11 +12897,46 @@ export interface components {
             /** Format: uuid */
             below_case_id?: string | null;
         };
+        /**
+         * @description Serializer for case pipelines with nested stages. Needs ``request`` in
+         *     its context.
+         */
+        PatchedCasePipelineRequest: {
+            /** Pipeline Name */
+            name?: string;
+            description?: string | null;
+            /** @description Sorts this pipeline first in listings (see Meta.ordering) and is limited to one per org. It does NOT route new records: a case created without a stage keeps stage=NULL, which is the supported status-based kanban mode. */
+            is_default?: boolean;
+        };
+        /** @description Serializer for case stages. Needs ``request`` in its context. */
+        PatchedCaseStageRequest: {
+            /** Stage Name */
+            name?: string;
+            order?: number;
+            color?: string;
+            stage_type?: components["schemas"]["CaseStageStageTypeEnum"];
+            /**
+             * @description When case enters this stage, also update Case.status
+             *
+             *     * `New` - New
+             *     * `Assigned` - Assigned
+             *     * `Pending` - Pending
+             *     * `Closed` - Closed
+             *     * `Rejected` - Rejected
+             *     * `Duplicate` - Duplicate
+             */
+            maps_to_status?: (components["schemas"]["CaseStatusEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description Maximum cases allowed in this stage (null = unlimited) */
+            wip_limit?: number | null;
+        };
         PatchedContactCommentEditSwaggerRequest: {
             comment?: string;
         };
-        /** @description Serializer for creating/updating Contact data */
-        PatchedCreateContactRequest: {
+        /**
+         * @description The contact write body, for the schema: `CreateContactSerializer`'s
+         *     fields plus the relations and custom fields the views apply themselves.
+         */
+        PatchedContactWriteRequest: {
             first_name?: string;
             last_name?: string;
             email?: (string) | null;
@@ -12585,6 +12968,31 @@ export interface components {
              */
             account?: string | null;
             is_active?: boolean;
+            assigned_to?: string[];
+            tags?: string[];
+            teams?: string[];
+            custom_fields?: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * @description Per-org custom-field definition. key/target_model/field_type are immutable
+         *     after creation. Admins must create a new definition to change shape.
+         */
+        PatchedCustomFieldDefinitionRequest: {
+            target_model?: components["schemas"]["TargetModelEnum"];
+            key?: string;
+            label?: string;
+            field_type?: components["schemas"]["FieldTypeEnum"];
+            /** @description List of {value, label} pairs for dropdown fields. */
+            options?: ({
+                value: string;
+                label: string;
+            }[] | Record<string, never>) | null;
+            is_required?: boolean;
+            is_filterable?: boolean;
+            display_order?: number;
+            is_active?: boolean;
         };
         /** @description A pipeline with its stages in board order. Only `name` is writable. */
         PatchedDealPipelineRequest: {
@@ -12611,6 +13019,67 @@ export interface components {
             shared_to?: string[];
             status?: components["schemas"]["DocumentStatusEnum"];
         };
+        /** @description Per-org, per-priority escalation policy. See docs/cases/tier1/escalation.md. */
+        PatchedEscalationPolicyRequest: {
+            priority?: components["schemas"]["CasePriorityEnum"];
+            /** @description Target hours for first response. Blank uses the built-in default. */
+            first_response_hours?: number | null;
+            /** @description Target hours for resolution. Blank uses the built-in default. */
+            resolution_hours?: number | null;
+            /** @description Target hours for each reply after the first. Blank uses the built-in default. */
+            next_response_hours?: number | null;
+            first_response_action?: components["schemas"]["FirstResponseActionEnum"];
+            resolution_action?: components["schemas"]["ResolutionActionEnum"];
+            /** Format: uuid */
+            first_response_target_id?: string | null;
+            /** Format: uuid */
+            resolution_target_id?: string | null;
+            /** Format: uuid */
+            notify_team_id?: string | null;
+            is_active?: boolean;
+        };
+        /** @description Serializer for creating/updating Estimates */
+        PatchedEstimateBodyRequest: {
+            title?: string;
+            /** Format: uuid */
+            account_id?: string;
+            /** Format: uuid */
+            contact_id?: string;
+            /** Format: uuid */
+            opportunity_id?: string | null;
+            client_name?: string;
+            /** Format: email */
+            client_email?: string;
+            client_phone?: string;
+            /** Client Address */
+            client_address_line?: string;
+            client_city?: string;
+            client_state?: string;
+            /** Client Postal Code */
+            client_postcode?: string;
+            client_country?: components["schemas"]["ClientCountryEnum"] | components["schemas"]["BlankEnum"];
+            discount_type?: components["schemas"]["DiscountTypeEnum"] | components["schemas"]["BlankEnum"];
+            /** Format: decimal */
+            discount_value?: string;
+            /**
+             * Tax Rate (%)
+             * Format: decimal
+             */
+            tax_rate?: string;
+            currency?: components["schemas"]["CurrencyEnum"];
+            /** Format: date */
+            issue_date?: string;
+            /** Format: date */
+            expiry_date?: string | null;
+            public_link_enabled?: boolean;
+            notes?: string;
+            /** Terms & Conditions */
+            terms?: string;
+            line_items?: components["schemas"]["EstimateLineItemCreateRequest"][];
+            custom_fields?: {
+                [key: string]: unknown;
+            };
+        };
         /**
          * @description The two help center columns, and the only write path to them.
          *
@@ -12625,6 +13094,28 @@ export interface components {
         PatchedHelpCenterSettingsRequest: {
             help_center_enabled?: boolean;
             help_center_slug?: string | null;
+        };
+        /** @description Per-org inbound mailbox config. See docs/cases/tier1/email-to-ticket.md. */
+        PatchedInboundMailboxRequest: {
+            /**
+             * Inbound Address
+             * Format: email
+             */
+            address?: string;
+            provider?: components["schemas"]["ProviderEnum"];
+            webhook_secret?: string;
+            /** @description SNS Topic ARN this mailbox accepts mail from. A valid SNS signature only proves a message came from some topic in some AWS account, so the webhook also requires this exact match. An admin can enter it. Left blank, it is pinned from the first verified SubscriptionConfirmation whose topic belongs to an AWS account listed in the INBOUND_SNS_ACCOUNT_IDS setting, and a topic in any other account pins nothing. Until it is set, every message is rejected. */
+            topic_arn?: string;
+            default_priority?: components["schemas"]["CasePriorityEnum"];
+            default_case_type?: (components["schemas"]["DefaultCaseTypeEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** Format: uuid */
+            default_assignee_id?: string | null;
+            is_active?: boolean;
+            creates?: components["schemas"]["CreatesEnum"];
+            lead_source?: string;
+            lead_source_detail?: string;
+            /** @default false */
+            generate_address?: boolean;
         };
         /**
          * @description What a person may send. `logged_by`, `org`, `participants` and
@@ -12656,13 +13147,112 @@ export interface components {
             /** Format: uuid */
             case?: string | null;
         };
+        /** @description Serializer for creating/updating Invoices with CRM validation */
+        PatchedInvoiceBodyRequest: {
+            invoice_title?: string;
+            /** Format: uuid */
+            account_id?: string;
+            /** Format: uuid */
+            contact_id?: string;
+            /** Format: uuid */
+            opportunity_id?: string | null;
+            client_name?: string;
+            /** Format: email */
+            client_email?: string;
+            client_phone?: string;
+            /** Billing Address */
+            billing_address_line?: string;
+            billing_city?: string;
+            billing_state?: string;
+            /** Billing Postal Code */
+            billing_postcode?: string;
+            billing_country?: components["schemas"]["BillingCountryEnum"] | components["schemas"]["BlankEnum"];
+            /** Client Address */
+            client_address_line?: string;
+            client_city?: string;
+            client_state?: string;
+            /** Client Postal Code */
+            client_postcode?: string;
+            client_country?: components["schemas"]["ClientCountryEnum"] | components["schemas"]["BlankEnum"];
+            discount_type?: components["schemas"]["DiscountTypeEnum"] | components["schemas"]["BlankEnum"];
+            /** Format: decimal */
+            discount_value?: string;
+            /**
+             * Tax Rate (%)
+             * Format: decimal
+             */
+            tax_rate?: string;
+            /**
+             * Shipping
+             * Format: decimal
+             */
+            shipping_amount?: string;
+            currency?: components["schemas"]["CurrencyEnum"];
+            /** Format: date */
+            issue_date?: string;
+            /** Format: date */
+            due_date?: string | null;
+            payment_terms?: components["schemas"]["PaymentTermsEnum"];
+            /** Reminders Enabled */
+            reminder_enabled?: boolean;
+            /** Remind Days Before Due */
+            reminder_days_before?: number;
+            /** Remind Days After Due */
+            reminder_days_after?: number;
+            reminder_frequency?: components["schemas"]["ReminderFrequencyEnum"];
+            public_link_enabled?: boolean;
+            /** Format: uuid */
+            template_id?: string | null;
+            notes?: string;
+            /** Terms & Conditions */
+            terms?: string;
+            billing_period?: string | null;
+            po_number?: string | null;
+            line_items?: components["schemas"]["InvoiceLineItemCreateRequest"][];
+            custom_fields?: {
+                [key: string]: unknown;
+            };
+        };
+        /** @description Serializer for creating/updating Invoice Line Items */
+        PatchedInvoiceLineItemCreateRequest: {
+            /** Format: uuid */
+            product?: string | null;
+            /** Item Name */
+            name?: string | null;
+            description?: string;
+            /** Format: decimal */
+            quantity?: string;
+            /** Format: decimal */
+            unit_price?: string;
+            discount_type?: components["schemas"]["DiscountTypeEnum"] | components["schemas"]["BlankEnum"];
+            /** Format: decimal */
+            discount_value?: string;
+            /**
+             * Tax Rate (%)
+             * Format: decimal
+             */
+            tax_rate?: string;
+            order?: number;
+        };
+        /** @description Serializer for creating/updating Invoice Templates */
+        PatchedInvoiceTemplateCreateRequest: {
+            /** Template Name */
+            name?: string;
+            /** Format: binary */
+            logo?: string | null;
+            primary_color?: string;
+            secondary_color?: string;
+            /** Custom HTML */
+            template_html?: string;
+            /** Custom CSS */
+            template_css?: string;
+            default_notes?: string;
+            default_terms?: string;
+            footer_text?: string;
+            is_default?: boolean;
+        };
         PatchedLeadCommentEditSwaggerRequest: {
             comment?: string;
-        };
-        PatchedLeadDetailEditSwaggerRequest: {
-            comment?: string;
-            /** Format: binary */
-            lead_attachment?: string;
         };
         /**
          * @description Reads and writes one intake. `key`, `org` and the delivery stamps are
@@ -12691,6 +13281,98 @@ export interface components {
             above_lead_id?: string | null;
             /** Format: uuid */
             below_lead_id?: string | null;
+        };
+        PatchedLeadPatchSwaggerRequest: {
+            /** @description Lead name/subject (e.g., 'Enterprise Deal', 'Website Inquiry') */
+            title?: string | null;
+            /** @description e.g., Mr, Mrs, Ms, Dr */
+            salutation?: string | null;
+            first_name?: string | null;
+            last_name?: string | null;
+            email?: (string) | null;
+            phone?: (string) | null;
+            /** @description Person's job title (e.g., 'VP of Sales', 'CTO') */
+            job_title?: string | null;
+            website?: string | null;
+            linkedin_url?: (string) | null;
+            status?: (components["schemas"]["LeadStatusEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
+            source?: string | null;
+            /** Sub-source */
+            source_detail?: string;
+            /** Reference */
+            source_ref?: string;
+            industry?: (components["schemas"]["IndustryEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
+            rating?: (components["schemas"]["RatingEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
+            /**
+             * Deal Value
+             * Format: decimal
+             */
+            opportunity_amount?: string | null;
+            /** Win Probability % */
+            probability?: number | null;
+            /**
+             * Expected Close Date
+             * Format: date
+             */
+            close_date?: string | null;
+            /** Address */
+            address_line?: string | null;
+            city?: string | null;
+            state?: string | null;
+            /** Postal Code */
+            postcode?: string | null;
+            country?: (components["schemas"]["CountryEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
+            assigned_to?: string[];
+            teams?: string[];
+            contacts?: string[];
+            tags?: string[];
+            /** Format: date */
+            last_contacted?: string | null;
+            /** Format: date */
+            next_follow_up?: string | null;
+            /** Notes */
+            description?: string | null;
+            company_name?: string | null;
+            custom_fields?: {
+                [key: string]: unknown;
+            };
+            is_converted?: boolean;
+        };
+        /**
+         * @description Serializer for lead pipelines with nested stages. Needs ``request`` in
+         *     its context.
+         */
+        PatchedLeadPipelineRequest: {
+            /** Pipeline Name */
+            name?: string;
+            description?: string | null;
+            /** @description Sorts this pipeline first in listings (see Meta.ordering) and is limited to one per org. It does NOT route new records: a lead created without a stage keeps stage=NULL, which is the supported status-based kanban mode. */
+            is_default?: boolean;
+        };
+        /** @description Serializer for lead stages. Needs ``request`` in its context. */
+        PatchedLeadStageRequest: {
+            /** Stage Name */
+            name?: string;
+            order?: number;
+            color?: string;
+            stage_type?: components["schemas"]["LeadStageStageTypeEnum"];
+            /**
+             * @description When lead enters this stage, also update Lead.status
+             *
+             *     * `assigned` - Assigned
+             *     * `in process` - In Process
+             *     * `converted` - Converted
+             *     * `recycled` - Recycled
+             *     * `closed` - Closed
+             */
+            maps_to_status?: (components["schemas"]["LeadStatusEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
+            /**
+             * Default Win Probability %
+             * @description Default probability when lead enters this stage
+             */
+            win_probability?: number;
+            /** @description Maximum leads allowed in this stage (null = unlimited) */
+            wip_limit?: number | null;
         };
         /**
          * @description Serialize Macro for read and write paths.
@@ -12746,6 +13428,31 @@ export interface components {
             contacts?: string[];
             teams?: string[];
             tags?: string[];
+            custom_fields?: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * @description Serializer for creating/updating OpportunityLineItem data.
+         *
+         *     Needs ``context["opportunity"]``: the product is looked up in that deal's
+         *     org. Quantity, price and discount follow the invoice line rules
+         *     (`LineAmountsMixin`), since an invoice raised from the deal copies them.
+         */
+        PatchedOpportunityLineItemCreateRequest: {
+            /** Format: uuid */
+            product_id?: string | null;
+            /** Item Name */
+            name?: string;
+            description?: string;
+            /** Format: decimal */
+            quantity?: string;
+            /** Format: decimal */
+            unit_price?: string;
+            discount_type?: components["schemas"]["DiscountTypeEnum"] | components["schemas"]["BlankEnum"];
+            /** Format: decimal */
+            discount_value?: string;
+            order?: number;
         };
         /**
          * @description Payload for PATCH /opportunities/<pk>/move/.
@@ -12840,6 +13547,36 @@ export interface components {
             name?: string | null;
         };
         /**
+         * @description Serializer for recording Payments.
+         *
+         *     Pass the target invoice via ``context={"invoice": invoice}`` so the amount
+         *     can be bounded by the outstanding balance and the invoice's status can be
+         *     checked. Both endpoints that record a payment (``mark-paid`` and
+         *     ``payments``) go through here, which is why the rules live on the
+         *     serializer rather than in either view.
+         */
+        PatchedPaymentCreateRequest: {
+            /** Format: decimal */
+            amount?: string;
+            /** Format: date */
+            payment_date?: string;
+            payment_method?: components["schemas"]["PaymentMethodEnum"];
+            reference_number?: string;
+            notes?: string;
+        };
+        /** @description Serializer for creating/updating Products */
+        PatchedProductCreateRequest: {
+            /** Product Name */
+            name?: string;
+            description?: string | null;
+            sku?: string | null;
+            /** Format: decimal */
+            price?: string;
+            currency?: (components["schemas"]["CurrencyEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
+            category?: string | null;
+            is_active?: boolean;
+        };
+        /**
          * @description The two fields a user may change on their OWN profile via PATCH /api/profile/.
          *
          *     Deliberately just ``phone`` (on Profile) and ``name`` (on User). Role, org
@@ -12886,6 +13623,83 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /** @description Serializer for creating/updating Recurring Invoices */
+        PatchedRecurringInvoiceBodyRequest: {
+            title?: string;
+            is_active?: boolean;
+            /** Format: uuid */
+            account_id?: string;
+            /** Format: uuid */
+            contact_id?: string;
+            /** Format: uuid */
+            opportunity_id?: string | null;
+            client_name?: string;
+            /** Format: email */
+            client_email?: string;
+            frequency?: components["schemas"]["FrequencyEnum"];
+            /** Custom Days Interval */
+            custom_days?: number | null;
+            /** Format: date */
+            start_date?: string;
+            /** Format: date */
+            end_date?: string | null;
+            /** Format: date */
+            next_generation_date?: string;
+            payment_terms?: components["schemas"]["PaymentTermsEnum"];
+            auto_send?: boolean;
+            currency?: components["schemas"]["CurrencyEnum"];
+            discount_type?: components["schemas"]["DiscountTypeEnum"] | components["schemas"]["BlankEnum"];
+            /** Format: decimal */
+            discount_value?: string;
+            /**
+             * Tax Rate (%)
+             * Format: decimal
+             */
+            tax_rate?: string;
+            notes?: string;
+            /** Terms & Conditions */
+            terms?: string;
+            line_items?: components["schemas"]["RecurringInvoiceLineItemCreateRequest"][];
+            custom_fields?: {
+                [key: string]: unknown;
+            };
+        };
+        /** @description Per-org reopen policy. Only non-terminal statuses allowed for reopen_to_status. */
+        PatchedReopenPolicyRequest: {
+            is_enabled?: boolean;
+            /** @description Replies within this many days of closed_on reopen the case. */
+            reopen_window_days?: number;
+            /**
+             * @description Status the case flips to on reopen (must be non-terminal).
+             *
+             *     * `New` - New
+             *     * `Assigned` - Assigned
+             *     * `Pending` - Pending
+             *     * `Closed` - Closed
+             *     * `Rejected` - Rejected
+             *     * `Duplicate` - Duplicate
+             */
+            reopen_to_status?: components["schemas"]["CaseStatusEnum"];
+            notify_assigned?: boolean;
+        };
+        /** @description Per-org auto-routing rule. See docs/cases/tier1/auto-routing.md. */
+        PatchedRoutingRuleRequest: {
+            name?: string;
+            /** @description Lower runs first; ties broken by created_at. */
+            priority_order?: number;
+            is_active?: boolean;
+            conditions?: {
+                field: string;
+                op?: string;
+                value: unknown;
+            }[];
+            strategy?: components["schemas"]["StrategyEnum"];
+            /** @description If a rule matches and this is True, skip lower-priority rules. */
+            stop_processing?: boolean;
+            target_assignee_ids?: string[];
+            /** Format: uuid */
+            target_team_id?: string | null;
+        };
         /**
          * @description A rule as an admin edits it. Takes the org as `context["org"]`.
          *
@@ -12903,6 +13717,50 @@ export interface components {
             position?: number;
         };
         /**
+         * @description Write serializer for SalesGoal (create + partial update).
+         *
+         *     ``org`` and ``created_by`` are set by the view from ``request.profile``.
+         *     They are not fields here, so they can never be mass-assigned from the body.
+         *
+         *     ``currency`` is checked against ``CURRENCY_CODES`` by the model field's
+         *     choices. Left out (or blank), ``SalesGoal.save`` fills it from the org's
+         *     default currency.
+         *
+         *     ``assigned_to`` (a Profile) and ``team`` (a Teams) are the tenant-boundary
+         *     risk on this serializer. DRF's default ``PrimaryKeyRelatedField`` resolves
+         *     them against *every* row in the table, and ``common_profile`` is **not**
+         *     RLS-protected (it is an auth-bootstrap table looked up before org context
+         *     exists), so without the checks below an admin could POST/PUT a goal whose
+         *     ``assigned_to`` is a Profile in another org, leaking that person's name and
+         *     email into this org's goal detail and leaderboard. ``teams`` *is* RLS-scoped,
+         *     but the contract is the explicit org check, not the safety net, so both are
+         *     validated the same way. The view passes ``context={"request": request}`` for
+         *     exactly this reason.
+         */
+        PatchedSalesGoalCreateRequest: {
+            /** Goal Name */
+            name?: string;
+            goal_type?: components["schemas"]["GoalTypeEnum"];
+            /** Format: decimal */
+            target_value?: string;
+            currency?: (components["schemas"]["CurrencyEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
+            period_type?: components["schemas"]["PeriodTypeEnum"];
+            /** Format: date */
+            period_start?: string;
+            /** Format: date */
+            period_end?: string;
+            /** Format: uuid */
+            assigned_to?: string | null;
+            /** Format: uuid */
+            team?: string | null;
+            /**
+             * Deal Type Weights
+             * @description Optional multiplier per opportunity type, e.g. {"RENEWAL": 0.5, "NEW_BUSINESS": 1.5}. A type left out of the map, and a deal with no type at all, counts at its full value. An empty map is an unweighted goal. Not accepted on an ACTIVITIES goal, which has no deal type to weigh.
+             */
+            type_weights?: unknown;
+            is_active?: boolean;
+        };
+        /**
          * @description One saved view, as its owner reads and writes it.
          *
          *     ``org`` and ``profile`` are set by the view from the request, and a body
@@ -12917,12 +13775,16 @@ export interface components {
                 [key: string]: string[];
             };
         };
-        /** @description Serializer for creating/updating solutions */
-        PatchedSolutionCreateUpdateRequest: {
+        /**
+         * @description The article write body, for the schema: the serializer's fields plus
+         *     the tags the views apply themselves.
+         */
+        PatchedSolutionWriteRequest: {
             title?: string;
             description?: string;
             status?: components["schemas"]["SolutionStatusEnum"];
             is_published?: boolean;
+            tags?: string[];
         };
         PatchedSourceUpdateRequest: {
             label?: string;
@@ -12953,6 +13815,9 @@ export interface components {
             teams?: string[];
             assigned_to?: string[];
             tags?: string[];
+            custom_fields?: {
+                [key: string]: unknown;
+            };
         };
         /** @description Serializer for moving tasks in kanban. */
         PatchedTaskMoveRequest: {
@@ -12966,10 +13831,60 @@ export interface components {
             /** Format: uuid */
             below_task_id?: string | null;
         };
+        /**
+         * @description Serializer for task pipelines with nested stages. Needs ``request`` in
+         *     its context.
+         */
+        PatchedTaskPipelineRequest: {
+            /** Pipeline Name */
+            name?: string;
+            description?: string | null;
+            /** @description Sorts this pipeline first in listings (see Meta.ordering) and is limited to one per org. It does NOT route new records: a task created without a stage keeps stage=NULL, which is the supported status-based kanban mode. */
+            is_default?: boolean;
+        };
+        /** @description Serializer for task stages. Needs ``request`` in its context. */
+        PatchedTaskStageRequest: {
+            /** Stage Name */
+            name?: string;
+            order?: number;
+            color?: string;
+            stage_type?: components["schemas"]["TaskStageStageTypeEnum"];
+            /** @description When task enters this stage, also update Task.status */
+            maps_to_status?: string | null;
+            /** @description Maximum tasks allowed in this stage (null = unlimited) */
+            wip_limit?: number | null;
+        };
         PatchedTeamswaggerCreateRequest: {
             name?: string;
             description?: string;
             users?: string[];
+        };
+        /**
+         * @description Update path for /api/time-entries/<pk>/.
+         *
+         *     Lets the owner (or an admin) revise the start/end window, description,
+         *     billable flag, and hourly rate. `case`, `profile`, and `invoice` stay
+         *     read-only, moving an entry between cases or stealing someone else's
+         *     timer is intentionally not supported.
+         */
+        PatchedTimeEntryUpdateBodyRequest: {
+            /** Format: date-time */
+            started_at?: string;
+            /**
+             * Format: date-time
+             * @description Null while the timer is running.
+             */
+            ended_at?: string | null;
+            description?: string;
+            billable?: boolean;
+            /**
+             * Format: decimal
+             * @description Snapshot at log time so future rate changes do not alter history.
+             */
+            hourly_rate?: string | null;
+            currency?: components["schemas"]["CurrencyEnum"];
+            /** Format: uuid */
+            task?: string | null;
         };
         /** @description It is swagger for creating or updating user */
         PatchedUserCreateSwaggerRequest: {
@@ -12983,6 +13898,37 @@ export interface components {
             state?: string;
             pincode?: string;
             country?: string;
+        };
+        PatchedWebFormDetailRequest: {
+            name?: string;
+            /**
+             * @description What an accepted submission creates. Fixed once the form has submissions, so its history never mixes leads and tickets.
+             *
+             *     * `lead` - Lead
+             *     * `ticket` - Ticket
+             */
+            target?: components["schemas"]["TargetEnum"];
+            /** @description Origins permitted to frame this form or POST to it. An empty list means unrestricted. */
+            allowed_origins?: string[];
+            submit_button_label?: string;
+            success_mode?: components["schemas"]["SuccessModeEnum"];
+            success_message?: string;
+            redirect_url?: string;
+            assignment_mode?: components["schemas"]["AssignmentModeEnum"];
+            /** Format: uuid */
+            assign_to?: string | null;
+            rotation_members?: string[];
+            rotation_cap?: number | null;
+            notify_profiles?: string[];
+            lead_source?: string;
+            tags?: string[];
+            ticket_priority?: components["schemas"]["CasePriorityEnum"];
+            ticket_type?: components["schemas"]["TicketTypeEnum"] | components["schemas"]["BlankEnum"];
+            captcha_provider?: components["schemas"]["CaptchaProviderEnum"] | components["schemas"]["BlankEnum"];
+            captcha_site_key?: string;
+            captcha_secret?: string;
+            reject_disposable_email?: boolean;
+            fields?: components["schemas"]["WebFormFieldRequest"][];
         };
         /**
          * @description An endpoint as an admin sees it. The secret is only ever a hint here;
@@ -13011,6 +13957,24 @@ export interface components {
             notes: string;
             /** Format: date-time */
             readonly created_at: string;
+        };
+        /**
+         * @description Serializer for recording Payments.
+         *
+         *     Pass the target invoice via ``context={"invoice": invoice}`` so the amount
+         *     can be bounded by the outstanding balance and the invoice's status can be
+         *     checked. Both endpoints that record a payment (``mark-paid`` and
+         *     ``payments``) go through here, which is why the rules live on the
+         *     serializer rather than in either view.
+         */
+        PaymentCreateRequest: {
+            /** Format: decimal */
+            amount: string;
+            /** Format: date */
+            payment_date: string;
+            payment_method: components["schemas"]["PaymentMethodEnum"];
+            reference_number?: string;
+            notes?: string;
         };
         /**
          * @description * `CASH` - Cash
@@ -13288,6 +14252,18 @@ export interface components {
              * Format: date-time
              */
             readonly updated_at: string;
+        };
+        /** @description Serializer for creating/updating Products */
+        ProductCreateRequest: {
+            /** Product Name */
+            name: string;
+            description?: string | null;
+            sku?: string | null;
+            /** Format: decimal */
+            price?: string;
+            currency?: (components["schemas"]["CurrencyEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
+            category?: string | null;
+            is_active?: boolean;
         };
         ProductPage: {
             results: components["schemas"]["Product"][];
@@ -13568,6 +14544,44 @@ export interface components {
             id: string;
             project: components["schemas"]["ProjectDetail"];
         };
+        /**
+         * @description Manual time entry creation, on a ticket
+         *     (``POST /api/cases/<pk>/time-entries/``) or a project
+         *     (``POST /api/projects/<pk>/time-entries/``).
+         *
+         *     `case`, `project`, `task`, `profile`, and `org` are set by the view, never
+         *     taken from this serializer. On a project the view also replaces `currency`
+         *     with the project's, and a non-admin's `hourly_rate` with the project's
+         *     rate rule (`cases.time_views.create_entry`).
+         *
+         *     Validation rejects negative durations and negative hourly rates so the DB
+         *     CheckConstraint is a backstop, not the first line of defense.
+         */
+        ProjectTimeEntryBodyRequest: {
+            /** Format: date-time */
+            started_at: string;
+            /**
+             * Format: date-time
+             * @description Null while the timer is running.
+             */
+            ended_at?: string | null;
+            description?: string;
+            billable?: boolean;
+            /**
+             * Format: decimal
+             * @description Snapshot at log time so future rate changes do not alter history.
+             */
+            hourly_rate?: string | null;
+            currency?: components["schemas"]["CurrencyEnum"];
+            /** Format: uuid */
+            task?: string | null;
+        };
+        ProjectTimerStartRequestRequest: {
+            description?: string;
+            billable?: boolean;
+            /** Format: uuid */
+            task?: string | null;
+        };
         ProjectUnbilled: {
             entry_count: number;
             /** Format: decimal */
@@ -13809,6 +14823,47 @@ export interface components {
             /** Format: uuid */
             org: string;
         };
+        /** @description Serializer for creating/updating Recurring Invoices */
+        RecurringInvoiceBodyRequest: {
+            title: string;
+            is_active?: boolean;
+            /** Format: uuid */
+            account_id: string;
+            /** Format: uuid */
+            contact_id: string;
+            /** Format: uuid */
+            opportunity_id?: string | null;
+            client_name?: string;
+            /** Format: email */
+            client_email?: string;
+            frequency?: components["schemas"]["FrequencyEnum"];
+            /** Custom Days Interval */
+            custom_days?: number | null;
+            /** Format: date */
+            start_date?: string;
+            /** Format: date */
+            end_date?: string | null;
+            /** Format: date */
+            next_generation_date?: string;
+            payment_terms?: components["schemas"]["PaymentTermsEnum"];
+            auto_send?: boolean;
+            currency?: components["schemas"]["CurrencyEnum"];
+            discount_type?: components["schemas"]["DiscountTypeEnum"] | components["schemas"]["BlankEnum"];
+            /** Format: decimal */
+            discount_value?: string;
+            /**
+             * Tax Rate (%)
+             * Format: decimal
+             */
+            tax_rate?: string;
+            notes?: string;
+            /** Terms & Conditions */
+            terms?: string;
+            line_items?: components["schemas"]["RecurringInvoiceLineItemCreateRequest"][];
+            custom_fields?: {
+                [key: string]: unknown;
+            };
+        };
         RecurringInvoiceDetail: {
             recurring_invoice: components["schemas"]["RecurringInvoice"];
             custom_field_definitions: components["schemas"]["CustomFieldDefinition"][];
@@ -13838,6 +14893,27 @@ export interface components {
              */
             tax_rate: string;
             order: number;
+        };
+        /** @description Serializer for creating/updating Recurring Invoice Line Items */
+        RecurringInvoiceLineItemCreateRequest: {
+            /** Format: uuid */
+            product?: string | null;
+            /** Item Name */
+            name?: string | null;
+            description?: string;
+            /** Format: decimal */
+            quantity?: string;
+            /** Format: decimal */
+            unit_price?: string;
+            discount_type?: components["schemas"]["DiscountTypeEnum"] | components["schemas"]["BlankEnum"];
+            /** Format: decimal */
+            discount_value?: string;
+            /**
+             * Tax Rate (%)
+             * Format: decimal
+             */
+            tax_rate?: string;
+            order?: number;
         };
         /**
          * @description Lightweight serializer for Recurring Invoice list views.
@@ -13925,24 +15001,6 @@ export interface components {
              */
             reopen_to_status: components["schemas"]["CaseStatusEnum"];
             notify_assigned: boolean;
-        };
-        /** @description Per-org reopen policy. Only non-terminal statuses allowed for reopen_to_status. */
-        ReopenPolicyRequest: {
-            is_enabled?: boolean;
-            /** @description Replies within this many days of closed_on reopen the case. */
-            reopen_window_days?: number;
-            /**
-             * @description Status the case flips to on reopen (must be non-terminal).
-             *
-             *     * `New` - New
-             *     * `Assigned` - Assigned
-             *     * `Pending` - Pending
-             *     * `Closed` - Closed
-             *     * `Rejected` - Rejected
-             *     * `Duplicate` - Duplicate
-             */
-            reopen_to_status?: components["schemas"]["CaseStatusEnum"];
-            notify_assigned?: boolean;
         };
         /** @description `GET /api/cases/reopen-policy/`: the policy plus `_reopen_analytics`. */
         ReopenPolicyWithStats: {
@@ -14277,6 +15335,50 @@ export interface components {
             readonly progress_percent: number;
             readonly status: components["schemas"]["SalesGoalStatusEnum"];
         };
+        /**
+         * @description Write serializer for SalesGoal (create + partial update).
+         *
+         *     ``org`` and ``created_by`` are set by the view from ``request.profile``.
+         *     They are not fields here, so they can never be mass-assigned from the body.
+         *
+         *     ``currency`` is checked against ``CURRENCY_CODES`` by the model field's
+         *     choices. Left out (or blank), ``SalesGoal.save`` fills it from the org's
+         *     default currency.
+         *
+         *     ``assigned_to`` (a Profile) and ``team`` (a Teams) are the tenant-boundary
+         *     risk on this serializer. DRF's default ``PrimaryKeyRelatedField`` resolves
+         *     them against *every* row in the table, and ``common_profile`` is **not**
+         *     RLS-protected (it is an auth-bootstrap table looked up before org context
+         *     exists), so without the checks below an admin could POST/PUT a goal whose
+         *     ``assigned_to`` is a Profile in another org, leaking that person's name and
+         *     email into this org's goal detail and leaderboard. ``teams`` *is* RLS-scoped,
+         *     but the contract is the explicit org check, not the safety net, so both are
+         *     validated the same way. The view passes ``context={"request": request}`` for
+         *     exactly this reason.
+         */
+        SalesGoalCreateRequest: {
+            /** Goal Name */
+            name: string;
+            goal_type: components["schemas"]["GoalTypeEnum"];
+            /** Format: decimal */
+            target_value: string;
+            currency?: (components["schemas"]["CurrencyEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
+            period_type: components["schemas"]["PeriodTypeEnum"];
+            /** Format: date */
+            period_start: string;
+            /** Format: date */
+            period_end: string;
+            /** Format: uuid */
+            assigned_to?: string | null;
+            /** Format: uuid */
+            team?: string | null;
+            /**
+             * Deal Type Weights
+             * @description Optional multiplier per opportunity type, e.g. {"RENEWAL": 0.5, "NEW_BUSINESS": 1.5}. A type left out of the map, and a deal with no type at all, counts at its full value. An empty map is an unweighted goal. Not accepted on an ACTIVITIES goal, which has no deal type to weigh.
+             */
+            type_weights?: unknown;
+            is_active?: boolean;
+        };
         SalesGoalHistory: {
             history: components["schemas"]["SalesGoalHistoryPeriod"][];
             periods_returned: number;
@@ -14445,6 +15547,13 @@ export interface components {
             readonly is_organization_admin: boolean;
             org: components["schemas"]["Organization"];
         };
+        /** @description Request-only: the first visit's tags; `clean_signup_source` drops bad values. */
+        SignupSourceRequest: {
+            utm_source?: string;
+            utm_medium?: string;
+            utm_campaign?: string;
+            referrer?: string;
+        };
         /** @description Serializer for Solution model */
         Solution: {
             /** Format: uuid */
@@ -14472,13 +15581,6 @@ export interface components {
              * Format: uuid
              */
             readonly updated_by: string | null;
-        };
-        /** @description Serializer for creating/updating solutions */
-        SolutionCreateUpdateRequest: {
-            title: string;
-            description: string;
-            status?: components["schemas"]["SolutionStatusEnum"];
-            is_published?: boolean;
         };
         /** @description Detailed serializer for solution with linked cases */
         SolutionDetail: {
@@ -14560,6 +15662,17 @@ export interface components {
             draft: number;
             reviewed: number;
             approved_unpublished: number;
+        };
+        /**
+         * @description The article write body, for the schema: the serializer's fields plus
+         *     the tags the views apply themselves.
+         */
+        SolutionWriteRequest: {
+            title: string;
+            description: string;
+            status?: components["schemas"]["SolutionStatusEnum"];
+            is_published?: boolean;
+            tags?: string[];
         };
         SourceCreateRequest: {
             label: string;
@@ -14841,15 +15954,18 @@ export interface components {
             teams: string[];
             assigned_to: string[];
             tags?: string[];
+            custom_fields?: {
+                [key: string]: unknown;
+            };
         };
         TaskDeleteResponse: {
             error: boolean;
             message: string;
         };
         TaskDetailEditSwaggerRequest: {
-            comment: string;
+            comment?: string;
             /** Format: binary */
-            task_attachment: string;
+            task_attachment?: string;
         };
         TaskDetailResponse: {
             assigned_data: components["schemas"]["ProfileEmail"][];
@@ -15253,11 +16369,19 @@ export interface components {
             start: string;
             /** Format: date */
             end: string;
-            group_by: components["schemas"]["GroupByEnum"];
+            group_by: components["schemas"]["TimeReportGroupByEnum"];
             rows: components["schemas"]["TimeReportRow"][];
             totals: components["schemas"]["TimeReportTotals"];
             currencies: string[];
         };
+        /**
+         * @description * `agent` - agent
+         *     * `ticket` - ticket
+         *     * `project` - project
+         *     * `account` - account
+         * @enum {string}
+         */
+        TimeReportGroupByEnum: "agent" | "ticket" | "project" | "account";
         TimeReportRow: {
             key: string | null;
             name: string;
@@ -15428,11 +16552,24 @@ export interface components {
             is_active: boolean;
             readonly organizations: components["schemas"]["UserOrganization"][];
         };
+        UserDetailAssignee: {
+            /** Format: uuid */
+            id: string;
+            /** Format: email */
+            user__email: string;
+        };
+        UserDetailData: {
+            profile_obj: components["schemas"]["Profile"];
+            opportunity_list: components["schemas"]["Opportunity"][];
+            contacts: components["schemas"]["Contact"][];
+            cases: components["schemas"]["Case"][];
+            assigned_data: components["schemas"]["UserDetailAssignee"][];
+            comments: components["schemas"]["Comment"][];
+            countries: string[][];
+        };
         UserDetailResponse: {
             error: boolean;
-            data: {
-                [key: string]: unknown;
-            };
+            data: components["schemas"]["UserDetailData"];
         };
         /**
          * @description Response-only: a `UsersListView` row, which also counts the profile's
@@ -15887,9 +17024,9 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["AccountCreateRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["AccountCreateRequest"];
-                "multipart/form-data": components["schemas"]["AccountCreateRequest"];
+                "application/json": components["schemas"]["AccountWriteRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["AccountWriteRequest"];
+                "multipart/form-data": components["schemas"]["AccountWriteRequest"];
             };
         };
         responses: {
@@ -15960,7 +17097,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
                 "application/json": components["schemas"]["AccountDetailEditSwaggerRequest"];
                 "application/x-www-form-urlencoded": components["schemas"]["AccountDetailEditSwaggerRequest"];
@@ -16233,12 +17370,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "text/csv": string;
+                };
             };
         };
     };
@@ -17166,11 +18304,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
-                "application/json": components["schemas"]["BoardRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["BoardRequest"];
-                "multipart/form-data": components["schemas"]["BoardRequest"];
+                "application/json": components["schemas"]["PatchedBoardRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedBoardRequest"];
+                "multipart/form-data": components["schemas"]["PatchedBoardRequest"];
             };
         };
         responses: {
@@ -17303,11 +18441,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
-                "application/json": components["schemas"]["BoardTaskRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["BoardTaskRequest"];
-                "multipart/form-data": components["schemas"]["BoardTaskRequest"];
+                "application/json": components["schemas"]["PatchedBoardTaskMoveRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedBoardTaskMoveRequest"];
+                "multipart/form-data": components["schemas"]["PatchedBoardTaskMoveRequest"];
             };
         };
         responses: {
@@ -17372,9 +18510,9 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["BusinessCalendarRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["BusinessCalendarRequest"];
-                "multipart/form-data": components["schemas"]["BusinessCalendarRequest"];
+                "application/json": components["schemas"]["PatchedBusinessCalendarRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedBusinessCalendarRequest"];
+                "multipart/form-data": components["schemas"]["PatchedBusinessCalendarRequest"];
             };
         };
         responses: {
@@ -17420,9 +18558,9 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["BusinessCalendarRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["BusinessCalendarRequest"];
-                "multipart/form-data": components["schemas"]["BusinessCalendarRequest"];
+                "application/json": components["schemas"]["PatchedBusinessCalendarRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedBusinessCalendarRequest"];
+                "multipart/form-data": components["schemas"]["PatchedBusinessCalendarRequest"];
             };
         };
         responses: {
@@ -17598,7 +18736,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
                 "application/json": components["schemas"]["CaseDetailEditSwaggerRequest"];
                 "application/x-www-form-urlencoded": components["schemas"]["CaseDetailEditSwaggerRequest"];
@@ -17898,62 +19036,6 @@ export interface operations {
         };
     };
     cases_solutions_destroy_2: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    cases_solutions_create_3: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-                solution_pk: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CaseSolutionLinkRequestRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["CaseSolutionLinkRequestRequest"];
-                "multipart/form-data": components["schemas"]["CaseSolutionLinkRequestRequest"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CaseSolutionLinkResponse"];
-                };
-            };
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CaseSolutionLinkResponse"];
-                };
-            };
-        };
-    };
-    cases_solutions_destroy_3: {
         parameters: {
             query?: never;
             header?: never;
@@ -18300,12 +19382,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "text/csv": string;
+                };
             };
         };
     };
@@ -18525,11 +19608,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
-                "application/json": components["schemas"]["ApprovalRuleRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["ApprovalRuleRequest"];
-                "multipart/form-data": components["schemas"]["ApprovalRuleRequest"];
+                "application/json": components["schemas"]["PatchedApprovalRuleRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedApprovalRuleRequest"];
+                "multipart/form-data": components["schemas"]["PatchedApprovalRuleRequest"];
             };
         };
         responses: {
@@ -18915,11 +19998,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
-                "application/json": components["schemas"]["EscalationPolicyRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["EscalationPolicyRequest"];
-                "multipart/form-data": components["schemas"]["EscalationPolicyRequest"];
+                "application/json": components["schemas"]["PatchedEscalationPolicyRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedEscalationPolicyRequest"];
+                "multipart/form-data": components["schemas"]["PatchedEscalationPolicyRequest"];
             };
         };
         responses: {
@@ -18965,12 +20048,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "text/csv": string;
+                };
             };
         };
     };
@@ -19181,9 +20265,9 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["InboundMailboxRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["InboundMailboxRequest"];
-                "multipart/form-data": components["schemas"]["InboundMailboxRequest"];
+                "application/json": components["schemas"]["PatchedInboundMailboxRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedInboundMailboxRequest"];
+                "multipart/form-data": components["schemas"]["PatchedInboundMailboxRequest"];
             };
         };
         responses: {
@@ -19346,11 +20430,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
-                "application/json": components["schemas"]["CasePipelineRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["CasePipelineRequest"];
-                "multipart/form-data": components["schemas"]["CasePipelineRequest"];
+                "application/json": components["schemas"]["PatchedCasePipelineRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedCasePipelineRequest"];
+                "multipart/form-data": components["schemas"]["PatchedCasePipelineRequest"];
             };
         };
         responses: {
@@ -19412,9 +20496,9 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["ReopenPolicyRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["ReopenPolicyRequest"];
-                "multipart/form-data": components["schemas"]["ReopenPolicyRequest"];
+                "application/json": components["schemas"]["PatchedReopenPolicyRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedReopenPolicyRequest"];
+                "multipart/form-data": components["schemas"]["PatchedReopenPolicyRequest"];
             };
         };
         responses: {
@@ -19502,11 +20586,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
-                "application/json": components["schemas"]["RoutingRuleRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["RoutingRuleRequest"];
-                "multipart/form-data": components["schemas"]["RoutingRuleRequest"];
+                "application/json": components["schemas"]["PatchedRoutingRuleRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedRoutingRuleRequest"];
+                "multipart/form-data": components["schemas"]["PatchedRoutingRuleRequest"];
             };
         };
         responses: {
@@ -19605,9 +20689,9 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["SolutionCreateUpdateRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["SolutionCreateUpdateRequest"];
-                "multipart/form-data": components["schemas"]["SolutionCreateUpdateRequest"];
+                "application/json": components["schemas"]["SolutionWriteRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["SolutionWriteRequest"];
+                "multipart/form-data": components["schemas"]["SolutionWriteRequest"];
             };
         };
         responses: {
@@ -19653,9 +20737,9 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["SolutionCreateUpdateRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["SolutionCreateUpdateRequest"];
-                "multipart/form-data": components["schemas"]["SolutionCreateUpdateRequest"];
+                "application/json": components["schemas"]["SolutionWriteRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["SolutionWriteRequest"];
+                "multipart/form-data": components["schemas"]["SolutionWriteRequest"];
             };
         };
         responses: {
@@ -19700,9 +20784,9 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["PatchedSolutionCreateUpdateRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["PatchedSolutionCreateUpdateRequest"];
-                "multipart/form-data": components["schemas"]["PatchedSolutionCreateUpdateRequest"];
+                "application/json": components["schemas"]["PatchedSolutionWriteRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedSolutionWriteRequest"];
+                "multipart/form-data": components["schemas"]["PatchedSolutionWriteRequest"];
             };
         };
         responses: {
@@ -19767,11 +20851,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
-                "application/json": components["schemas"]["CaseStageRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["CaseStageRequest"];
-                "multipart/form-data": components["schemas"]["CaseStageRequest"];
+                "application/json": components["schemas"]["PatchedCaseStageRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedCaseStageRequest"];
+                "multipart/form-data": components["schemas"]["PatchedCaseStageRequest"];
             };
         };
         responses: {
@@ -19856,9 +20940,9 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["CreateContactRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["CreateContactRequest"];
-                "multipart/form-data": components["schemas"]["CreateContactRequest"];
+                "application/json": components["schemas"]["ContactWriteRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ContactWriteRequest"];
+                "multipart/form-data": components["schemas"]["ContactWriteRequest"];
             };
         };
         responses: {
@@ -19931,9 +21015,9 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["CreateContactRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["CreateContactRequest"];
-                "multipart/form-data": components["schemas"]["CreateContactRequest"];
+                "application/json": components["schemas"]["ContactWriteRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ContactWriteRequest"];
+                "multipart/form-data": components["schemas"]["ContactWriteRequest"];
             };
         };
         responses: {
@@ -19956,7 +21040,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
                 "application/json": components["schemas"]["ContactDetailEditSwaggerRequest"];
                 "application/x-www-form-urlencoded": components["schemas"]["ContactDetailEditSwaggerRequest"];
@@ -20006,9 +21090,9 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["PatchedCreateContactRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["PatchedCreateContactRequest"];
-                "multipart/form-data": components["schemas"]["PatchedCreateContactRequest"];
+                "application/json": components["schemas"]["PatchedContactWriteRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedContactWriteRequest"];
+                "multipart/form-data": components["schemas"]["PatchedContactWriteRequest"];
             };
         };
         responses: {
@@ -20202,12 +21286,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "text/csv": string;
+                };
             };
         };
     };
@@ -20331,11 +21416,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
-                "application/json": components["schemas"]["CustomFieldDefinitionRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["CustomFieldDefinitionRequest"];
-                "multipart/form-data": components["schemas"]["CustomFieldDefinitionRequest"];
+                "application/json": components["schemas"]["PatchedCustomFieldDefinitionRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedCustomFieldDefinitionRequest"];
+                "multipart/form-data": components["schemas"]["PatchedCustomFieldDefinitionRequest"];
             };
         };
         responses: {
@@ -20486,11 +21571,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
-                "application/json": components["schemas"]["DocumentEditSwaggerRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["DocumentEditSwaggerRequest"];
-                "multipart/form-data": components["schemas"]["DocumentEditSwaggerRequest"];
+                "application/json": components["schemas"]["PatchedDocumentEditSwaggerRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedDocumentEditSwaggerRequest"];
+                "multipart/form-data": components["schemas"]["PatchedDocumentEditSwaggerRequest"];
             };
         };
         responses: {
@@ -20698,7 +21783,13 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvoiceBodyRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["InvoiceBodyRequest"];
+                "multipart/form-data": components["schemas"]["InvoiceBodyRequest"];
+            };
+        };
         responses: {
             201: {
                 headers: {
@@ -20719,7 +21810,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["InvoiceAttachmentRequestRequest"];
+            };
+        };
         responses: {
             201: {
                 headers: {
@@ -20740,7 +21835,13 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvoiceCommentRequestRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["InvoiceCommentRequestRequest"];
+                "multipart/form-data": components["schemas"]["InvoiceCommentRequestRequest"];
+            };
+        };
         responses: {
             201: {
                 headers: {
@@ -20782,7 +21883,13 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["InvoiceLineItemCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["InvoiceLineItemCreateRequest"];
+                "multipart/form-data": components["schemas"]["InvoiceLineItemCreateRequest"];
+            };
+        };
         responses: {
             201: {
                 headers: {
@@ -20804,7 +21911,13 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedInvoiceLineItemCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedInvoiceLineItemCreateRequest"];
+                "multipart/form-data": components["schemas"]["PatchedInvoiceLineItemCreateRequest"];
+            };
+        };
         responses: {
             200: {
                 headers: {
@@ -20868,7 +21981,13 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaymentCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PaymentCreateRequest"];
+                "multipart/form-data": components["schemas"]["PaymentCreateRequest"];
+            };
+        };
         responses: {
             201: {
                 headers: {
@@ -20932,7 +22051,13 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedInvoiceBodyRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedInvoiceBodyRequest"];
+                "multipart/form-data": components["schemas"]["PatchedInvoiceBodyRequest"];
+            };
+        };
         responses: {
             200: {
                 headers: {
@@ -20995,7 +22120,13 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedPaymentCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedPaymentCreateRequest"];
+                "multipart/form-data": components["schemas"]["PatchedPaymentCreateRequest"];
+            };
+        };
         responses: {
             200: {
                 headers: {
@@ -21018,12 +22149,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/pdf": string;
+                };
             };
         };
     };
@@ -21078,7 +22210,13 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["InvoiceCommentUpdateRequestRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["InvoiceCommentUpdateRequestRequest"];
+                "multipart/form-data": components["schemas"]["InvoiceCommentUpdateRequestRequest"];
+            };
+        };
         responses: {
             200: {
                 headers: {
@@ -21137,7 +22275,13 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EstimateBodyRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["EstimateBodyRequest"];
+                "multipart/form-data": components["schemas"]["EstimateBodyRequest"];
+            };
+        };
         responses: {
             201: {
                 headers: {
@@ -21179,7 +22323,13 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedEstimateBodyRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedEstimateBodyRequest"];
+                "multipart/form-data": components["schemas"]["PatchedEstimateBodyRequest"];
+            };
+        };
         responses: {
             200: {
                 headers: {
@@ -21244,12 +22394,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/pdf": string;
+                };
             };
         };
     };
@@ -21285,12 +22436,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "text/csv": string;
+                };
             };
         };
     };
@@ -21338,7 +22490,13 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["InvoiceFromTimeEntriesRequestRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["InvoiceFromTimeEntriesRequestRequest"];
+                "multipart/form-data": components["schemas"]["InvoiceFromTimeEntriesRequestRequest"];
+            };
+        };
         responses: {
             201: {
                 headers: {
@@ -21376,7 +22534,13 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProductCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ProductCreateRequest"];
+                "multipart/form-data": components["schemas"]["ProductCreateRequest"];
+            };
+        };
         responses: {
             201: {
                 headers: {
@@ -21418,7 +22582,13 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedProductCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedProductCreateRequest"];
+                "multipart/form-data": components["schemas"]["PatchedProductCreateRequest"];
+            };
+        };
         responses: {
             200: {
                 headers: {
@@ -21477,7 +22647,13 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecurringInvoiceBodyRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["RecurringInvoiceBodyRequest"];
+                "multipart/form-data": components["schemas"]["RecurringInvoiceBodyRequest"];
+            };
+        };
         responses: {
             201: {
                 headers: {
@@ -21519,7 +22695,13 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedRecurringInvoiceBodyRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedRecurringInvoiceBodyRequest"];
+                "multipart/form-data": components["schemas"]["PatchedRecurringInvoiceBodyRequest"];
+            };
+        };
         responses: {
             200: {
                 headers: {
@@ -21662,12 +22844,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/pdf": string;
+                };
             };
         };
     };
@@ -21697,7 +22880,13 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvoiceTemplateCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["InvoiceTemplateCreateRequest"];
+                "multipart/form-data": components["schemas"]["InvoiceTemplateCreateRequest"];
+            };
+        };
         responses: {
             201: {
                 headers: {
@@ -21739,7 +22928,13 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedInvoiceTemplateCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedInvoiceTemplateCreateRequest"];
+                "multipart/form-data": components["schemas"]["PatchedInvoiceTemplateCreateRequest"];
+            };
+        };
         responses: {
             200: {
                 headers: {
@@ -21902,7 +23097,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
                 "application/json": components["schemas"]["LeadDetailEditSwaggerRequest"];
                 "application/x-www-form-urlencoded": components["schemas"]["LeadDetailEditSwaggerRequest"];
@@ -21952,9 +23147,9 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["PatchedLeadDetailEditSwaggerRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["PatchedLeadDetailEditSwaggerRequest"];
-                "multipart/form-data": components["schemas"]["PatchedLeadDetailEditSwaggerRequest"];
+                "application/json": components["schemas"]["PatchedLeadPatchSwaggerRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedLeadPatchSwaggerRequest"];
+                "multipart/form-data": components["schemas"]["PatchedLeadPatchSwaggerRequest"];
             };
         };
         responses: {
@@ -22200,12 +23395,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "text/csv": string;
+                };
             };
         };
     };
@@ -22487,9 +23683,9 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["LeadPipelineRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["LeadPipelineRequest"];
-                "multipart/form-data": components["schemas"]["LeadPipelineRequest"];
+                "application/json": components["schemas"]["LeadPipelineCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["LeadPipelineCreateRequest"];
+                "multipart/form-data": components["schemas"]["LeadPipelineCreateRequest"];
             };
         };
         responses: {
@@ -22587,11 +23783,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
-                "application/json": components["schemas"]["LeadPipelineRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["LeadPipelineRequest"];
-                "multipart/form-data": components["schemas"]["LeadPipelineRequest"];
+                "application/json": components["schemas"]["PatchedLeadPipelineRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedLeadPipelineRequest"];
+                "multipart/form-data": components["schemas"]["PatchedLeadPipelineRequest"];
             };
         };
         responses: {
@@ -22752,11 +23948,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
-                "application/json": components["schemas"]["LeadStageRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["LeadStageRequest"];
-                "multipart/form-data": components["schemas"]["LeadStageRequest"];
+                "application/json": components["schemas"]["PatchedLeadStageRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedLeadStageRequest"];
+                "multipart/form-data": components["schemas"]["PatchedLeadStageRequest"];
             };
         };
         responses: {
@@ -23222,9 +24418,9 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["OpportunityLineItemCreateRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["OpportunityLineItemCreateRequest"];
-                "multipart/form-data": components["schemas"]["OpportunityLineItemCreateRequest"];
+                "application/json": components["schemas"]["PatchedOpportunityLineItemCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedOpportunityLineItemCreateRequest"];
+                "multipart/form-data": components["schemas"]["PatchedOpportunityLineItemCreateRequest"];
             };
         };
         responses: {
@@ -23317,7 +24513,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
                 "application/json": components["schemas"]["OpportunityDetailEditSwaggerRequest"];
                 "application/x-www-form-urlencoded": components["schemas"]["OpportunityDetailEditSwaggerRequest"];
@@ -23561,12 +24757,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "text/csv": string;
+                };
             };
         };
     };
@@ -23596,7 +24793,13 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SalesGoalCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["SalesGoalCreateRequest"];
+                "multipart/form-data": components["schemas"]["SalesGoalCreateRequest"];
+            };
+        };
         responses: {
             201: {
                 headers: {
@@ -23638,7 +24841,13 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedSalesGoalCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedSalesGoalCreateRequest"];
+                "multipart/form-data": components["schemas"]["PatchedSalesGoalCreateRequest"];
+            };
+        };
         responses: {
             200: {
                 headers: {
@@ -23986,9 +25195,9 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["OrgProfileCreateRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["OrgProfileCreateRequest"];
-                "multipart/form-data": components["schemas"]["OrgProfileCreateRequest"];
+                "application/json": components["schemas"]["OrgCreateBodyRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["OrgCreateBodyRequest"];
+                "multipart/form-data": components["schemas"]["OrgCreateBodyRequest"];
             };
         };
         responses: {
@@ -24966,9 +26175,9 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["TimeEntryCreateRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["TimeEntryCreateRequest"];
-                "multipart/form-data": components["schemas"]["TimeEntryCreateRequest"];
+                "application/json": components["schemas"]["ProjectTimeEntryBodyRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ProjectTimeEntryBodyRequest"];
+                "multipart/form-data": components["schemas"]["ProjectTimeEntryBodyRequest"];
             };
         };
         responses: {
@@ -24991,7 +26200,13 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ProjectTimerStartRequestRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ProjectTimerStartRequestRequest"];
+                "multipart/form-data": components["schemas"]["ProjectTimerStartRequestRequest"];
+            };
+        };
         responses: {
             201: {
                 headers: {
@@ -25200,12 +26415,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/pdf": string;
+                };
             };
         };
     };
@@ -25221,12 +26437,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "text/html": string;
+                };
             };
         };
     };
@@ -25242,12 +26459,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/javascript": string;
+                };
             };
         };
     };
@@ -25360,12 +26578,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/pdf": string;
+                };
             };
         };
     };
@@ -25818,7 +27037,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
                 "application/json": components["schemas"]["TaskDetailEditSwaggerRequest"];
                 "application/x-www-form-urlencoded": components["schemas"]["TaskDetailEditSwaggerRequest"];
@@ -26176,11 +27395,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
-                "application/json": components["schemas"]["TaskPipelineRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["TaskPipelineRequest"];
-                "multipart/form-data": components["schemas"]["TaskPipelineRequest"];
+                "application/json": components["schemas"]["PatchedTaskPipelineRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedTaskPipelineRequest"];
+                "multipart/form-data": components["schemas"]["PatchedTaskPipelineRequest"];
             };
         };
         responses: {
@@ -26223,11 +27442,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
-                "application/json": components["schemas"]["TaskStageRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["TaskStageRequest"];
-                "multipart/form-data": components["schemas"]["TaskStageRequest"];
+                "application/json": components["schemas"]["PatchedTaskStageRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedTaskStageRequest"];
+                "multipart/form-data": components["schemas"]["PatchedTaskStageRequest"];
             };
         };
         responses: {
@@ -26414,7 +27633,13 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedTimeEntryUpdateBodyRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedTimeEntryUpdateBodyRequest"];
+                "multipart/form-data": components["schemas"]["PatchedTimeEntryUpdateBodyRequest"];
+            };
+        };
         responses: {
             200: {
                 headers: {
@@ -26497,12 +27722,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "text/csv": string;
+                };
             };
         };
     };
@@ -26808,11 +28034,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
-                "application/json": components["schemas"]["WebFormDetailRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["WebFormDetailRequest"];
-                "multipart/form-data": components["schemas"]["WebFormDetailRequest"];
+                "application/json": components["schemas"]["PatchedWebFormDetailRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedWebFormDetailRequest"];
+                "multipart/form-data": components["schemas"]["PatchedWebFormDetailRequest"];
             };
         };
         responses: {

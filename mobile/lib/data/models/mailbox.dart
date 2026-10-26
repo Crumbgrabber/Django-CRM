@@ -14,6 +14,7 @@ library;
 
 import 'package:intl/intl.dart';
 
+import '../api/schema.g.dart' as api;
 import 'lead_source.dart';
 import 'lookup_models.dart';
 
@@ -151,47 +152,49 @@ class Mailbox {
 
   bool get createsLeads => creates == mailboxCreatesLeads;
 
-  /// [generatedDomain] is the list's: an API that does not say which rows it
-  /// made is read by the address.
+  /// Reads an `InboundMailboxListRow`, the list's `InboundMailbox` plus its
+  /// 30-day numbers. [generatedDomain] is the list's: an API that does not
+  /// say which rows it made is read by the address.
   factory Mailbox.fromJson(
     Map<String, dynamic> json, {
     String? generatedDomain,
   }) {
-    final assignee = json['default_assignee'];
-    final address = json['address']?.toString() ?? '';
+    final w = api.InboundMailboxListRow.fromJson(json);
+    final assignee = w.defaultAssignee;
+    final address = w.address ?? '';
+    final topicArn = w.topicArn ?? '';
+    final caseType = w.defaultCaseType;
+    final drops = w.dropsLast30d;
     return Mailbox(
-      id: json['id']?.toString() ?? '',
+      id: w.id ?? '',
       address: address,
-      provider: json['provider']?.toString() ?? 'ses',
-      isActive: json['is_active'] as bool? ?? true,
-      hasTopicArn: json['has_topic_arn'] == true,
-      hasWebhookSecret: json['has_webhook_secret'] == true,
-      topicArn: json['topic_arn'] is String && json['topic_arn'] != ''
-          ? json['topic_arn'] as String
-          : null,
-      defaultPriority: json['default_priority']?.toString() ?? 'Normal',
-      defaultCaseType:
-          (json['default_case_type'] as String?)?.trim().isEmpty ?? true
+      provider: w.provider ?? 'ses',
+      isActive: w.isActive ?? true,
+      hasTopicArn: w.hasTopicArn ?? false,
+      hasWebhookSecret: w.hasWebhookSecret ?? false,
+      topicArn: topicArn.isNotEmpty ? topicArn : null,
+      defaultPriority: w.defaultPriority ?? 'Normal',
+      defaultCaseType: caseType?.trim().isEmpty ?? true ? null : caseType,
+      defaultAssignee: assignee == null
           ? null
-          : json['default_case_type'] as String,
-      defaultAssignee: assignee is Map
-          ? UserLookup.fromJson(assignee.cast<String, dynamic>())
-          : null,
-      casesLast30d: (json['cases_last_30d'] as num?)?.round() ?? 0,
-      lastReceivedAt: json['last_received_at'] == null
-          ? null
-          : DateTime.tryParse(json['last_received_at'].toString())?.toLocal(),
-      creates: json['creates']?.toString() ?? mailboxCreatesTickets,
-      leadSource: json['lead_source']?.toString() ?? '',
-      leadSourceDetail: json['lead_source_detail']?.toString() ?? '',
-      isGenerated: json['is_generated'] is bool
-          ? json['is_generated'] as bool
-          : generatedDomain != null && address.endsWith('@$generatedDomain'),
-      droppedLast30d: json['dropped_last_30d'] is num
-          ? (json['dropped_last_30d'] as num).round()
-          : 0,
-      dropsLast30d: _dropCounts(json['drops_last_30d']),
-      limitReached: json['limit_reached'] == true,
+          : UserLookup.fromJson(assignee.json),
+      casesLast30d: w.casesLast30d ?? 0,
+      lastReceivedAt: DateTime.tryParse(w.lastReceivedAt ?? '')?.toLocal(),
+      creates: w.creates ?? mailboxCreatesTickets,
+      leadSource: w.leadSource ?? '',
+      leadSourceDetail: w.leadSourceDetail ?? '',
+      isGenerated:
+          w.isGenerated ??
+          (generatedDomain != null && address.endsWith('@$generatedDomain')),
+      droppedLast30d: w.droppedLast30d ?? 0,
+      dropsLast30d: {
+        'spam': ?drops?.spam,
+        'virus': ?drops?.virus,
+        'spoofed': ?drops?.spoofed,
+        'automatic': ?drops?.automatic,
+        'other': ?drops?.other,
+      },
+      limitReached: w.limitReached ?? false,
     );
   }
 
@@ -297,7 +300,7 @@ class Mailbox {
 }
 
 /// The drop reasons the API sends, in the order a row names them, each with
-/// its singular and plural label. `frontend/src/lib/v2/inbound-drops.js` says
+/// its singular and plural label. `frontend/src/lib/v2/inbound-drops.ts` says
 /// the same.
 const List<(String, String, String)> _dropReasons = [
   ('spam', 'spam', 'spam'),
@@ -310,14 +313,6 @@ const List<(String, String, String)> _dropReasons = [
 final NumberFormat _grouped = NumberFormat('#,##0', 'en_US');
 
 String _count(int n) => _grouped.format(n);
-
-Map<String, int> _dropCounts(Object? raw) {
-  if (raw is! Map) return const {};
-  return {
-    for (final entry in raw.entries)
-      if (entry.value is num) '${entry.key}': (entry.value as num).round(),
-  };
-}
 
 /// What every address refuses, for the screen's explanation. Null when the
 /// API sends no `daily_limit`: an API that old filters none of this, so the
@@ -464,7 +459,7 @@ Map<String, dynamic> mailboxPayload({
 /// the empty one, would silently undo a pin nobody on this form chose to undo.
 /// Clearing the field on purpose is a change, and sends `''`.
 ///
-/// `frontend/src/lib/server/v2/inbound-email.js` `topicArnEdit` is the same
+/// `frontend/src/lib/server/v2/inbound-email.ts` `topicArnEdit` is the same
 /// rule.
 String? mailboxTopicArnEdit(String submitted, String? loaded) {
   final next = submitted.trim();

@@ -1,12 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/api_config.dart';
+import '../data/api/schema.g.dart' as api;
 import '../services/api_service.dart';
 
 /// The six lists a saved view can belong to, by the name the API uses.
 ///
 /// Mirrors `LISTS` in `backend/common/saved_views.py` and `SAVED_VIEW_KEYS` in
-/// `frontend/src/lib/server/v2/saved-views.js`.
+/// `frontend/src/lib/server/v2/saved-views.ts`.
 enum SavedViewList {
   leads('leads'),
   contacts('contacts'),
@@ -32,21 +33,17 @@ class SavedView {
     required this.filters,
   });
 
+  /// Reads a `SavedView`. The API stores every filter as a list of text, a
+  /// single value included.
   factory SavedView.fromJson(Map<String, dynamic> json) {
-    final raw = json['filters'];
-    final filters = <String, List<String>>{};
-    if (raw is Map) {
-      raw.forEach((key, value) {
-        final values = value is List
-            ? value.map((v) => '$v').toList(growable: false)
-            : ['$value'];
-        if (values.isNotEmpty) filters['$key'] = values;
-      });
-    }
+    final w = api.SavedView.fromJson(json);
     return SavedView(
-      id: json['id']?.toString() ?? '',
-      name: json['name']?.toString() ?? '',
-      filters: filters,
+      id: w.id ?? '',
+      name: w.name ?? '',
+      filters: {
+        for (final MapEntry(:key, :value) in (w.filters ?? const {}).entries)
+          if (value.isNotEmpty) key: value,
+      },
     );
   }
 
@@ -60,7 +57,7 @@ class SavedView {
   /// shows the parameters in [keys] and takes more than one value only for
   /// those in [multi]. Counted in values, not keys: three statuses on a
   /// screen that reads one is two it leaves out. The web counts the same way
-  /// (`droppedValues` in `frontend/src/lib/v2/saved-views.js`).
+  /// (`droppedValues` in `frontend/src/lib/v2/saved-views.ts`).
   int dropped(Set<String> keys, Set<String> multi) {
     var count = 0;
     filters.forEach((key, values) {
@@ -127,16 +124,13 @@ class SavedViewsNotifier extends AsyncNotifier<SavedViewsState> {
     if (!response.success || response.data == null) {
       throw Exception(response.message ?? 'Could not load saved views.');
     }
-    final body = response.data!;
-    final rows = body['saved_views'];
+    final body = api.SavedViewListResponse.fromJson(response.data!);
     return SavedViewsState(
-      views: rows is List
-          ? rows
-                .whereType<Map<String, dynamic>>()
-                .map(SavedView.fromJson)
-                .toList(growable: false)
-          : const [],
-      limit: (body['limit'] as num?)?.toInt(),
+      views: [
+        for (final row in body.savedViews ?? const <api.SavedView>[])
+          SavedView.fromJson(row.json),
+      ],
+      limit: body.limit,
     );
   }
 

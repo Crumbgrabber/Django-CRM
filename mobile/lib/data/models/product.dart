@@ -1,3 +1,5 @@
+import '../api/schema.g.dart' as api;
+
 /// A catalogue product, from `invoices.serializer.ProductSerializer`.
 ///
 /// The catalogue is org-wide shared config: every member reads it (they need
@@ -31,17 +33,19 @@ class Product {
   /// and this count is why a retired one is still worth listing.
   final int usedOn;
 
+  /// Reads a `Product`.
   factory Product.fromJson(Map<String, dynamic> json) {
+    final w = api.Product.fromJson(json);
     return Product(
-      id: json['id']?.toString() ?? '',
-      name: json['name'] as String? ?? '',
-      description: json['description'] as String?,
-      sku: json['sku'] as String?,
-      price: _num(json['price']),
-      currency: json['currency'] as String?,
-      category: json['category'] as String?,
-      isActive: json['is_active'] as bool? ?? true,
-      usedOn: json['used_on'] as int? ?? 0,
+      id: w.id ?? '',
+      name: w.name ?? '',
+      description: w.description,
+      sku: w.sku,
+      price: double.tryParse(w.price ?? '') ?? 0,
+      currency: w.currency,
+      category: w.category,
+      isActive: w.isActive ?? true,
+      usedOn: w.usedOn ?? 0,
     );
   }
 
@@ -58,9 +62,4 @@ class Product {
       'is_active': isActive,
     };
   }
-}
-
-double _num(dynamic value) {
-  if (value is num) return value.toDouble();
-  return double.tryParse(value?.toString() ?? '') ?? 0;
 }

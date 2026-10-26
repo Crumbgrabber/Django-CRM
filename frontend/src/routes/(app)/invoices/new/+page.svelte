@@ -1,5 +1,7 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
+  import type { FormBody } from '#lib/api-helpers.js';
+  import type { components } from '#lib/api-schema.js';
   /**
    * New invoice.
    *
@@ -54,9 +56,11 @@
     taxRateError
   } from '#lib/v2/line-items.js';
   import { Info } from '@lucide/svelte';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  type Schemas = components['schemas'];
+
+  let { data, form }: PageProps = $props();
 
   /* The estimate builder's list. The org's default currency to start, read
      once; one the list does not carry starts at USD, so the picker never
@@ -67,8 +71,13 @@
       CURRENCIES.some((c) => c.value === data.org?.currency) ? data.org.currency : 'USD'
     )
   );
-  /** @type {Record<string, number>} */
-  const TERM_DAYS = { DUE_ON_RECEIPT: 0, NET_15: 15, NET_30: 30, NET_45: 45, NET_60: 60 };
+  const TERM_DAYS: Record<string, number> = {
+    DUE_ON_RECEIPT: 0,
+    NET_15: 15,
+    NET_30: 30,
+    NET_45: 45,
+    NET_60: 60
+  };
 
   let accountId = $state('');
   let contactId = $state('');
@@ -149,8 +158,7 @@
    * status is server-forced to Draft, so none are here.
    */
   let payload = $derived.by(() => {
-    /** @type {Record<string, unknown>} */
-    const body = {
+    const body: FormBody<Schemas['InvoiceBodyRequest']> = {
       account_id: accountId,
       contact_id: contactId,
       currency,

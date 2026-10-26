@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * Personal access tokens: the org-wide oversight view.
    *
@@ -49,22 +49,19 @@
   import NextAction from '#lib/v2/components/NextAction.svelte';
   import { count, relativeDays, shortDate } from '#lib/v2/format.js';
   import { ROLE_LABEL } from '#lib/v2/enums.js';
-  import { enhance } from '$app/forms';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import { Plus, ShieldAlert, Copy, Check } from '@lucide/svelte';
   import { tokenStatus, staleness, scopeSummary, EXPIRY_CHOICES } from '#lib/v2/token-rules.js';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   let creating = $state(false);
   let busy = $state(false);
   let copied = $state(false);
 
-  /**
-   * A submit handler that flips `busy` while the action runs.
-   * @type {import('$app/forms').SubmitFunction}
-   */
-  const working = () => {
+  /** A submit handler that flips `busy` while the action runs. */
+  const working: SubmitFunction = () => {
     busy = true;
     return async ({ update }) => {
       await update();
@@ -72,11 +69,8 @@
     };
   };
 
-  /**
-   * Create both submits and, on success, closes its own form.
-   * @type {import('$app/forms').SubmitFunction}
-   */
-  const createSubmit = () => {
+  /** Create both submits and, on success, closes its own form. */
+  const createSubmit: SubmitFunction = () => {
     busy = true;
     return async ({ update, result }) => {
       await update();
@@ -85,8 +79,7 @@
     };
   };
 
-  /** @param {string} value */
-  async function copyToken(value) {
+  async function copyToken(value: string) {
     try {
       await navigator.clipboard.writeText(value);
       copied = true;

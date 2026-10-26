@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   /**
    * Who can get in, and how much they can do.
@@ -27,18 +27,17 @@
   import NextAction from '#lib/v2/components/NextAction.svelte';
   import { count, relativeDays } from '#lib/v2/format.js';
   import { ROLE_LABEL, ROLE_TONE } from '#lib/v2/enums.js';
-  import { enhance } from '$app/forms';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import { UserPlus, KeyRound } from '@lucide/svelte';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   let inviting = $state(false);
   let busy = $state(false);
 
   /** A submit handler that flips `busy` while the action runs. */
-  /** @type {import('$app/forms').SubmitFunction} */
-  const working = () => {
+  const working: SubmitFunction = () => {
     busy = true;
     return async ({ update }) => {
       await update();
@@ -47,8 +46,7 @@
   };
 
   /** The invite form both submits and, on success, closes itself. */
-  /** @type {import('$app/forms').SubmitFunction} */
-  const inviteSubmit = () => {
+  const inviteSubmit: SubmitFunction = () => {
     busy = true;
     return async ({ update, result }) => {
       await update();

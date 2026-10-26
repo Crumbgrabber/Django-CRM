@@ -1,0 +1,43 @@
+import { fail } from '@sveltejs/kit';
+import { getReopenPolicy, updateReopenPolicy } from '#lib/server/v2/reopen.js';
+import { readableError } from '#lib/server/v2/form-errors.js';
+import { apiStatus } from '#lib/api-errors.js';
+import type { Actions, PageServerLoad } from './$types';
+
+export const load: PageServerLoad = async ({ cookies }) => {
+  return getReopenPolicy({ cookies });
+};
+
+export const actions: Actions = {
+  // Admin-only. `load`'s `can_edit` hides the "Edit policy" control for a
+  // member, but that is the affordance, not the check. `ReopenPolicyView.put`
+  // 403s a non-admin regardless of what reaches it; this branch turns that
+  // into a sentence instead of a raw backend error string.
+  async update(event) {
+    const form = await event.request.formData();
+
+    // The two booleans are read as "was the checkbox submitted", the normal
+    // HTML convention: an unchecked box sends nothing at all.
+    const values = {
+      is_enabled: form.get('is_enabled') === 'true',
+      notify_assigned: form.get('notify_assigned') === 'true',
+      reopen_window_days: form.get('reopen_window_days')?.toString() ?? '',
+      reopen_to_status: form.get('reopen_to_status')?.toString() ?? ''
+    };
+
+    try {
+      await updateReopenPolicy(event, values);
+    } catch (err) {
+      if (apiStatus(err) === 403) {
+        return fail(403, { update: { error: 'Only an admin can change the reopen policy.' } });
+      }
+      return fail(400, {
+        update: { error: readableError(err, 'Could not save the reopen policy.') }
+      });
+    }
+
+    // No redirect. The policy is on this page and `load` re-runs after an
+    // action, so the new values appear where the user is already looking.
+    return { updated: true };
+  }
+};

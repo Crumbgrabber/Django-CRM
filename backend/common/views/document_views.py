@@ -367,7 +367,7 @@ class DocumentDetailView(APIView):
         tags=["documents"],
         operation_id="documents_update",
         parameters=swagger_params.organization_params,
-        request=DocumentEditSwaggerSerializer,
+        request=DocumentEditSwaggerSerializer(partial=True),
         responses={
             200: inline_serializer(
                 name="DocumentUpdateResponse",

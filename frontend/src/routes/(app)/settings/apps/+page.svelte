@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * Settings › Apps: industry apps to install, update and remove, then the
    * modules (switched off and ordered as before), then sample data. Install,
@@ -6,7 +6,7 @@
    * the apps section is hidden on an API without apps. Forms use plain
    * `use:enhance`, so the shell reloads and the menus change at once.
    */
-  import { enhance } from '$app/forms';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import { resolve } from '$app/paths';
   import { ArrowDown, ArrowUp, Boxes, Trash2 } from '@lucide/svelte';
   import ConfirmAction from '#lib/v2/components/ConfirmAction.svelte';
@@ -17,11 +17,12 @@
   import SettingsCrumb from '#lib/v2/components/SettingsCrumb.svelte';
   import { updateLine } from '#lib/v2/apps.js';
   import { shortDate } from '#lib/v2/format.js';
-  import { labelOf } from '#lib/v2/modules.js';
+  import { labelOf, type ModuleRow } from '#lib/v2/modules.js';
   import { asInternalPath } from '#lib/utils/paths.js';
+  import type { App } from '#lib/server/v2/apps.js';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   const GROUPS = [
     { key: 'sell', label: 'Sell' },
@@ -29,8 +30,7 @@
     { key: 'bill', label: 'Bill' }
   ];
 
-  /** @type {import('#lib/v2/modules.js').ModuleRow[]} */
-  let rows = $derived(data.modules ?? []);
+  let rows: ModuleRow[] = $derived(data.modules ?? []);
 
   let groups = $derived(
     GROUPS.map((g) => ({ ...g, rows: rows.filter((r) => r.group === g.key) })).filter(
@@ -50,19 +50,18 @@
   let busy = $state(false);
   let confirmingClear = $state(false);
 
-  const DONE = /** @type {Record<string, string>} */ ({
+  const DONE = {
     install: 'Installed',
     upgrade: 'Updated',
     remove: 'Removed'
-  });
-  const VERB = /** @type {Record<string, string>} */ ({
+  } as Record<string, string>;
+  const VERB = {
     install: 'Install',
     upgrade: 'Update',
     remove: 'Remove'
-  });
+  } as Record<string, string>;
 
-  /** @param {import('#lib/server/v2/apps.js').App} app */
-  function statusLine(app) {
+  function statusLine(app: App) {
     if (app.status === 'removed') return 'Removed. Installing it again brings its parts back.';
     if (app.status !== 'installed') return '';
     const when = app.installedAt ? ` ${shortDate(app.installedAt)}` : '';
@@ -70,11 +69,10 @@
     return `Installed${when}${who}.`;
   }
 
-  /** @param {string} id @param {string} action */
-  const ask = (id, action) => `/settings/apps?app=${encodeURIComponent(id)}&do=${action}`;
+  const ask = (id: string, action: string) =>
+    `/settings/apps?app=${encodeURIComponent(id)}&do=${action}`;
 
-  /** @type {import('$app/forms').SubmitFunction} */
-  const submitting = () => {
+  const submitting: SubmitFunction = () => {
     busy = true;
     return async ({ update }) => {
       await update();
@@ -82,8 +80,7 @@
     };
   };
 
-  /** @type {import('$app/forms').SubmitFunction} */
-  const clearSubmit = () => {
+  const clearSubmit: SubmitFunction = () => {
     busy = true;
     return async ({ update, result }) => {
       await update();
@@ -92,8 +89,7 @@
     };
   };
 
-  /** @param {import('#lib/v2/modules.js').ModuleRow} row */
-  function needOff(row) {
+  function needOff(row: ModuleRow) {
     const need = row.needs ? rows.find((r) => r.key === row.needs) : null;
     return need ? !need.available : false;
   }
@@ -166,7 +162,7 @@
                     {#if app.status === 'installed' && app.skippedModules.length}
                       <span class="v2-sub" style="font-size:11.5px">
                         Skipped while switched off: {app.skippedModules
-                          .map((/** @type {string} */ k) => labelOf(data.modules, k))
+                          .map((k: string) => labelOf(data.modules, k))
                           .join(', ')}.
                       </span>
                     {/if}

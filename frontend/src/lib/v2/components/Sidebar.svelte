@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   import { asInternalPath } from '#lib/utils/paths.js';
   import { page } from '$app/state';
@@ -27,6 +27,7 @@
     LogOut
   } from '@lucide/svelte';
   import { sidebarGroups } from '#lib/v2/nav.js';
+  import type { ModuleRow } from '#lib/v2/modules.js';
 
   /**
    * One flat tree, grouped by what the person is doing rather than by which
@@ -49,16 +50,6 @@
    * ever the fallback an org with no pack, or no override for that key,
    * still renders; the derived `groups` below is what actually resolves it
    * against `terminology`. No other label branches on the org at all.
-   *
-   * @type {{
-   *   counts?: Record<string, number>,
-   *   org?: { name: string },
-   *   isAdmin?: boolean,
-   *   terminology?: Record<string, string> | null,
-   *   modules?: import('#lib/v2/modules.js').ModuleRow[] | null,
-   *   objects?: { href: string, label: string }[],
-   *   onsearch?: () => void
-   * }}
    */
   let {
     counts = {},
@@ -68,10 +59,17 @@
     modules = null,
     objects = [],
     onsearch = () => {}
+  }: {
+    counts?: Record<string, number>;
+    org?: { name: string };
+    isAdmin?: boolean;
+    terminology?: Record<string, string> | null;
+    modules?: ModuleRow[] | null;
+    objects?: { href: string; label: string }[];
+    onsearch?: () => void;
   } = $props();
 
-  /** @type {Record<string, typeof Sun>} */
-  const ICONS = {
+  const ICONS: Record<string, typeof Sun> = {
     Sun,
     Columns3,
     Target,
@@ -106,7 +104,7 @@
       )
   );
 
-  const isActive = (/** @type {string} */ href, /** @type {boolean | undefined} */ exact) =>
+  const isActive = (href: string, exact: boolean | undefined) =>
     exact ? page.url.pathname === href : page.url.pathname.startsWith(href);
 </script>
 

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/theme/theme.dart';
+import '../../data/api/schema.g.dart' as api;
 import 'avatar.dart';
 
 /// One assignee, from a profile map (`{id, user_details: {name, email,
@@ -16,14 +17,14 @@ class AssigneeRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final details = profile['user_details'];
+    final details = api.Profile.fromJson(profile).userDetails;
     String name = 'Unknown';
     String? email;
     String? pic;
-    if (details is Map<String, dynamic>) {
-      final n = (details['name'] as String?)?.trim();
-      email = (details['email'] as String?)?.trim();
-      pic = (details['profile_pic'] as String?)?.trim();
+    if (details != null) {
+      final n = details.name?.trim();
+      email = details.email?.trim();
+      pic = details.profilePic?.trim();
       if (n != null && n.isNotEmpty) {
         name = n;
       } else if (email != null && email.isNotEmpty) {

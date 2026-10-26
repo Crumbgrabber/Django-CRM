@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * Where the time went: totals by agent, ticket, project or account over a
    * window, with each agent's billable share.
@@ -19,9 +19,9 @@
   import { money, count, shortDate, hoursMinutes as hm } from '#lib/v2/format.js';
   import { billableSharePercent } from '#lib/v2/time-entry.js';
   import { Download } from '@lucide/svelte';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data } = $props();
+  let { data }: PageProps = $props();
 
   let report = $derived(data.report);
   let filters = $derived(data.filters);
@@ -35,19 +35,19 @@
   let groups = $derived(GROUPS.filter((g) => g.value !== 'project' || data.projectsOn));
 
   /** What each row's name means, said once above the table rather than per row. */
-  const GROUP_NOUN = /** @type {Record<string, string>} */ ({
+  const GROUP_NOUN = {
     agent: 'Agent',
     ticket: 'Ticket',
     project: 'Project',
     account: 'Account'
-  });
+  } as Record<string, string>;
 
   /** Where a row's name links, or null for a bucket with no record (`key` null). */
-  const ROW_HREF = /** @type {Record<string, string>} */ ({
+  const ROW_HREF = {
     ticket: 'tickets',
     project: 'projects',
     account: 'accounts'
-  });
+  } as Record<string, string>;
   let byAgent = $derived(report.group_by === 'agent');
 
   let billableShare = $derived(

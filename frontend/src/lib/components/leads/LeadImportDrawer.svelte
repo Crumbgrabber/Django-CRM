@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { untrack } from 'svelte';
   import { refreshAll } from '$app/navigation';
   import { Upload } from '@lucide/svelte';
@@ -11,10 +11,18 @@
    * list after an import. `singular` and `plural` are the org's own words for
    * a lead, so a pack that renames the module is not contradicted by this
    * dialog.
-   *
-   * @type {{ open: boolean, onOpenChange?: (v: boolean) => void, singular?: string, plural?: string }}
    */
-  let { open = $bindable(false), onOpenChange, singular = 'lead', plural = 'leads' } = $props();
+  let {
+    open = $bindable(false),
+    onOpenChange,
+    singular = 'lead',
+    plural = 'leads'
+  }: {
+    open: boolean;
+    onOpenChange?: (v: boolean) => void;
+    singular?: string;
+    plural?: string;
+  } = $props();
 
   let done = $state(false);
   /** Bumped on each opening, so every opening starts again at choosing a file. */

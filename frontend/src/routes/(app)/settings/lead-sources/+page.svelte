@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * Settings › Lead sources: the list every source picker, filter, import and
    * webhook reads. Any member sees it; admins add, rename, retire and order.
@@ -11,23 +11,19 @@
   import Pill from '#lib/v2/components/Pill.svelte';
   import NextAction from '#lib/v2/components/NextAction.svelte';
   import { count } from '#lib/v2/format.js';
+  import type { PageProps, SubmitFunction } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   let sources = $derived(data.sources);
   let active = $derived(sources.filter((s) => s.is_active).length);
-  let renaming = $state(/** @type {string | null} */ (null));
+  let renaming = $state<string | null>(null);
   let busy = $state(false);
 
   /** The refusal for a row, whichever action it came from. */
   let rowError = $derived(form?.rename ?? form?.retire ?? form?.move ?? null);
 
-  /**
-   * @param {{ reset?: boolean }} [opts]
-   * @returns {ReturnType<import('./$types').SubmitFunction>}
-   */
-  const working = (opts = {}) => {
+  const working = (opts: { reset?: boolean } = {}): ReturnType<SubmitFunction> => {
     busy = true;
     return async ({ update, result }) => {
       await update({ reset: opts.reset ?? false });

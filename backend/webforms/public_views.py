@@ -277,6 +277,7 @@ class WebFormEmbedView(EmbedViewMixin, APIView):
     form that was already public.
     """
 
+    @extend_schema(tags=["Public"], responses={(200, "text/html"): OpenApiTypes.STR})
     @method_decorator(xframe_options_exempt)
     def get(self, request, org_id, form_id):
         form = self.load_form(org_id, form_id)
@@ -301,6 +302,9 @@ class WebFormEmbedJsView(EmbedViewMixin, APIView):
     down to the single submit route.
     """
 
+    @extend_schema(
+        tags=["Public"], responses={(200, "application/javascript"): OpenApiTypes.STR}
+    )
     def get(self, request, org_id, form_id):
         form = self.load_form(org_id, form_id)
         if form is None:

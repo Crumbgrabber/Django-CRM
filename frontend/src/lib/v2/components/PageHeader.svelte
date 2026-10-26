@@ -1,16 +1,7 @@
-<script>
+<script lang="ts">
+  import type { Snippet } from 'svelte';
+
   /**
-   * @type {{
-   *   title: string,
-   *   record?: boolean,
-   *   center?: boolean,
-   *   width?: string,
-   *   leading?: import('svelte').Snippet,
-   *   sub?: import('svelte').Snippet,
-   *   crumb?: import('svelte').Snippet,
-   *   actions?: import('svelte').Snippet
-   * }}
-   *
    * `center` narrows the header to a form column so it sits above a centred
    * `.v2-form` (or other centred body) rather than spanning the full width.
    * `width` overrides that column's outer width for pages whose body is wider
@@ -19,7 +10,25 @@
    * `leading` renders before the title block. An avatar or record mark. It is
    * centred against the text so it sits beside the name, not the crumb.
    */
-  let { title, record = false, center = false, width, leading, sub, crumb, actions } = $props();
+  let {
+    title,
+    record = false,
+    center = false,
+    width,
+    leading,
+    sub,
+    crumb,
+    actions
+  }: {
+    title: string;
+    record?: boolean;
+    center?: boolean;
+    width?: string;
+    leading?: Snippet;
+    sub?: Snippet;
+    crumb?: Snippet;
+    actions?: Snippet;
+  } = $props();
 </script>
 
 <header

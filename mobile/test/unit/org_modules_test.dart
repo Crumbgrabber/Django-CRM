@@ -133,8 +133,8 @@ void main() {
         'modules': [
           'junk',
           {'label': 'no key'},
-          {'key': 7},
-          {'key': 'leads', 'label': 3, 'enabled': 'yes', 'needs': 4},
+          {'key': true},
+          {'key': 'leads', 'label': false, 'enabled': 'yes', 'needs': []},
         ],
         'can_edit': 'true',
       });

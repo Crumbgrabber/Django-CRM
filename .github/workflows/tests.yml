@@ -80,7 +80,7 @@ jobs:
           DJANGO_SETTINGS_MODULE: crm.test_settings
           SECRET_KEY: test-secret-key-for-ci
           ADMIN_EMAIL: admin@test.com
-        run: uv run pytest -m "not postgres_only" --tb=short -v
+        run: uv run pytest -m "not postgres_only" --tb=short -v --contract-coverage
 
       - name: Generate coverage badge
         if: github.ref == 'refs/heads/master' && github.event_name == 'push'

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../core/theme/app_colors.dart';
+import '../api/schema.g.dart' as api;
 import 'lead.dart';
 
 /// Related entity type for polymorphic relations
@@ -40,24 +41,16 @@ class RelatedEntity {
 
   String get displayLabel => '${type.label}: $title';
 
+  /// Reads a task's parent link, a `RelatedEntity` (`{id, name}`).
   factory RelatedEntity.fromJson(
     Map<String, dynamic> json,
     RelatedEntityType type,
   ) {
-    String title = '';
-    if (type == RelatedEntityType.lead) {
-      final firstName = json['first_name'] as String? ?? '';
-      final lastName = json['last_name'] as String? ?? '';
-      title = '$firstName $lastName'.trim();
-      if (title.isEmpty) title = json['email'] as String? ?? 'Unknown';
-    } else {
-      title = json['name'] as String? ?? 'Unknown';
-    }
-
+    final w = api.RelatedEntity.fromJson(json);
     return RelatedEntity(
-      id: json['id']?.toString() ?? '',
+      id: w.id ?? '',
       type: type,
-      title: title,
+      title: w.name ?? 'Unknown',
     );
   }
 }
@@ -195,145 +188,83 @@ class Task {
     return taskDate.difference(today).inDays;
   }
 
-  /// Get assigned user name (first one if multiple)
+  /// The first assignee's name, else their email's local part.
   String get assignedToName {
     if (assignedTo == null || assignedTo!.isEmpty) return 'Unassigned';
-    final first = assignedTo!.first;
-    final email = first['user__email'] as String? ?? '';
-    return email.split('@').first;
+    final details = api.Profile.fromJson(assignedTo!.first).userDetails;
+    final name = details?.name?.trim() ?? '';
+    if (name.isNotEmpty) return name;
+    return (details?.email ?? '').split('@').first;
   }
 
-  /// Factory constructor to create Task from JSON
+  /// Reads a `Task`, the detail's `task_obj`; the list's `TaskList` rows are
+  /// the same shape with fewer fields.
   factory Task.fromJson(Map<String, dynamic> json) {
-    // Parse tags
-    List<String> parsedTags = [];
-    if (json['tags'] != null) {
-      final tagsList = json['tags'] as List<dynamic>;
-      parsedTags = tagsList
-          .map((t) {
-            if (t is Map<String, dynamic>) {
-              return t['name'] as String? ?? '';
-            }
-            return t.toString();
-          })
-          .where((t) => t.isNotEmpty)
-          .toList();
-    }
+    final w = api.Task.fromJson(json);
+    final assigned = w.assignedTo;
+    final customFields = w.customFields;
+    final createdByName = w.createdBy?.name?.trim() ?? '';
 
-    // Parse assigned_to
-    List<Map<String, dynamic>>? parsedAssignedTo;
-    List<String> parsedAssignedToIds = const [];
-    if (json['assigned_to'] != null) {
-      final assignedList = json['assigned_to'] as List<dynamic>;
-      parsedAssignedTo = assignedList
-          .map((a) => a is Map<String, dynamic> ? a : <String, dynamic>{})
-          .toList();
-      parsedAssignedToIds = parsedAssignedTo
-          .map((a) => a['id']?.toString() ?? '')
-          .where((s) => s.isNotEmpty)
-          .toList();
+    // Through django-crm 1.0.0 the parent links were bare ids; since 2026-05
+    // they are `{id, name}`, which is also what fills [relatedTo].
+    String? linkId(api.RelatedEntity? link, String key) {
+      if (link != null) return link.id;
+      final raw = json[key];
+      return raw is String && raw.isNotEmpty ? raw : null;
     }
-
-    // Parse related entity (account, lead, opportunity, ticket).
-    // Backend serializes FKs as plain UUID strings, so prefer the *Id capture
-    // path below for round-tripping; the nested-object branch is kept for any
-    // endpoint that does enrich (e.g. dashboard activity).
-    String? extractId(dynamic raw) {
-      if (raw == null) return null;
-      if (raw is String && raw.isNotEmpty) return raw;
-      if (raw is Map<String, dynamic>) return raw['id']?.toString();
-      return null;
-    }
-
-    final accountId = extractId(json['account']);
-    final opportunityId = extractId(json['opportunity']);
-    final caseId = extractId(json['case']);
-    final leadId = extractId(json['lead']);
-    final projectId = extractId(json['project']);
 
     RelatedEntity? relatedEntity;
-    if (json['account'] is Map<String, dynamic>) {
+    if (w.account case final link?) {
       relatedEntity = RelatedEntity.fromJson(
-        json['account'] as Map<String, dynamic>,
+        link.json,
         RelatedEntityType.account,
       );
-    } else if (json['lead'] is Map<String, dynamic>) {
+    } else if (w.lead case final link?) {
+      relatedEntity = RelatedEntity.fromJson(link.json, RelatedEntityType.lead);
+    } else if (w.opportunity case final link?) {
       relatedEntity = RelatedEntity.fromJson(
-        json['lead'] as Map<String, dynamic>,
-        RelatedEntityType.lead,
-      );
-    } else if (json['opportunity'] is Map<String, dynamic>) {
-      relatedEntity = RelatedEntity.fromJson(
-        json['opportunity'] as Map<String, dynamic>,
+        link.json,
         RelatedEntityType.opportunity,
       );
-    } else if (json['case'] is Map<String, dynamic>) {
+    } else if (w.case_ case final link?) {
       relatedEntity = RelatedEntity.fromJson(
-        json['case'] as Map<String, dynamic>,
+        link.json,
         RelatedEntityType.ticket_,
       );
     }
 
-    final rawCustomFields = json['custom_fields'];
-    final Map<String, dynamic> parsedCustomFields =
-        rawCustomFields is Map<String, dynamic>
-        ? Map<String, dynamic>.from(rawCustomFields)
-        : const {};
-
-    // Teams. TaskSerializer returns nested objects. Fall back to a string
-    // if the API ever switches to plain values.
-    final List<String> parsedTeamNames = [];
-    if (json['teams'] is List) {
-      for (final t in json['teams'] as List<dynamic>) {
-        if (t is Map<String, dynamic>) {
-          final name = t['name'] as String?;
-          if (name != null && name.isNotEmpty) parsedTeamNames.add(name);
-        } else if (t is String && t.isNotEmpty) {
-          parsedTeamNames.add(t);
-        }
-      }
-    }
-
-    // created_by, UserSerializer shape: {id, email, name, profile_pic}.
-    // Be defensive: backend serializers sometimes return null or a plain id,
-    // and `name` may be an empty string for users who never set it.
-    String? createdByName;
-    String? createdByEmail;
-    final cb = json['created_by'];
-    if (cb is Map<String, dynamic>) {
-      createdByEmail = cb['email'] as String?;
-      final name = (cb['name'] as String?)?.trim();
-      if (name != null && name.isNotEmpty) createdByName = name;
-    }
-
     return Task(
-      id: json['id']?.toString() ?? '',
-      title: json['title'] as String? ?? '',
-      description: json['description'] as String?,
-      dueDate: json['due_date'] != null
-          ? DateTime.tryParse(json['due_date'] as String)
-          : null,
-      status: TaskStatus.fromString(json['status'] as String?),
-      priority: Priority.fromString(json['priority'] as String?),
-      assignedTo: parsedAssignedTo,
-      assignedToIds: parsedAssignedToIds,
+      id: w.id ?? '',
+      title: w.title ?? '',
+      description: w.description,
+      dueDate: DateTime.tryParse(w.dueDate ?? ''),
+      status: TaskStatus.fromString(w.status),
+      priority: Priority.fromString(w.priority),
+      assignedTo: assigned?.map((p) => p.json).toList(),
+      assignedToIds: [
+        for (final p in assigned ?? const <api.Profile>[])
+          if (p.id case final id? when id.isNotEmpty) id,
+      ],
       relatedTo: relatedEntity,
-      accountId: accountId,
-      opportunityId: opportunityId,
-      caseId: caseId,
-      leadId: leadId,
-      projectId: projectId,
-      tags: parsedTags,
-      teamNames: parsedTeamNames,
-      customFields: parsedCustomFields,
-      createdByName: createdByName,
-      createdByEmail: createdByEmail,
-      createdAt: json['created_at'] != null
-          ? DateTime.tryParse(json['created_at'] as String) ?? DateTime.now()
-          : DateTime.now(),
-      updatedAt: json['updated_at'] != null
-          ? DateTime.tryParse(json['updated_at'] as String)
-          : null,
+      accountId: linkId(w.account, 'account'),
+      opportunityId: linkId(w.opportunity, 'opportunity'),
+      caseId: linkId(w.case_, 'case'),
+      leadId: linkId(w.lead, 'lead'),
+      projectId: w.project?.isNotEmpty == true ? w.project : null,
+      tags: [
+        for (final t in w.tags ?? const <api.Tags>[])
+          if (t.name case final name? when name.isNotEmpty) name,
+      ],
+      teamNames: [
+        for (final t in w.teams ?? const <api.Teams>[])
+          if (t.name case final name? when name.isNotEmpty) name,
+      ],
+      customFields: customFields is Map<String, dynamic>
+          ? Map<String, dynamic>.from(customFields)
+          : const {},
+      createdByName: createdByName.isEmpty ? null : createdByName,
+      createdByEmail: w.createdBy?.email,
+      createdAt: DateTime.tryParse(w.createdAt ?? '') ?? DateTime.now(),
     );
   }
 

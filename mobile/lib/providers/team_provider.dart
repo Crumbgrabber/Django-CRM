@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/api_config.dart';
+import '../data/api/schema.g.dart' as api;
 import '../data/models/team_member.dart';
 import '../services/api_service.dart';
 
@@ -55,25 +56,17 @@ class TeamNotifier extends AsyncNotifier<TeamListData> {
     if (!response.success || response.data == null) {
       throw Exception(response.message ?? 'Could not load the team.');
     }
-    final data = response.data!;
+    final data = api.UsersListResponse.fromJson(response.data!);
     return TeamListData(
-      active: _rows(data['active_users'], 'active_users'),
-      inactive: _rows(data['inactive_users'], 'inactive_users'),
+      active: _members(data.activeUsers?.activeUsers),
+      inactive: _members(data.inactiveUsers?.inactiveUsers),
     );
   }
 
-  /// The rows live one level down, under a key repeating the group's name
-  /// (`active_users.active_users`). Reading the outer object as the list is
-  /// what left the accounts screen empty for a week, so the path is explicit.
-  List<TeamMember> _rows(dynamic group, String key) {
-    if (group is! Map<String, dynamic>) return const [];
-    final rows = group[key];
-    if (rows is! List) return const [];
-    return rows
-        .whereType<Map<String, dynamic>>()
-        .map(TeamMember.fromJson)
-        .toList();
-  }
+  List<TeamMember> _members(List<api.UserListRow>? rows) => [
+    for (final row in rows ?? const <api.UserListRow>[])
+      TeamMember.fromJson(row.json),
+  ];
 
   Future<void> refresh() async {
     state = const AsyncValue.loading();

@@ -1,3 +1,4 @@
+import '../api/schema.g.dart' as api;
 import 'time_entry.dart';
 
 /// One week of the caller's logged time, as `/api/time-entries/timesheet/`
@@ -71,21 +72,20 @@ class TimesheetWeek {
     return (amount: amount, currency: currencies.first);
   }
 
+  /// Reads a `Timesheet`.
   factory TimesheetWeek.fromJson(Map<String, dynamic> json) {
-    final profile = json['profile'];
+    final w = api.Timesheet.fromJson(json);
     return TimesheetWeek(
-      start: _date(json['start']),
-      end: _date(json['end']),
-      profileName: profile is Map<String, dynamic>
-          ? (profile['name'] as String? ?? '')
-          : '',
-      days: ((json['days'] as List<dynamic>?) ?? const [])
-          .whereType<Map<String, dynamic>>()
-          .map(TimesheetDay.fromJson)
-          .toList(),
-      totalMinutes: json['total_minutes'] as int? ?? 0,
-      billableMinutes: json['billable_minutes'] as int? ?? 0,
-      runningCount: json['running_count'] as int? ?? 0,
+      start: _date(w.start),
+      end: _date(w.end),
+      profileName: w.profile?.name ?? '',
+      days: [
+        for (final d in w.days ?? const <api.TimesheetDay>[])
+          TimesheetDay.fromJson(d.json),
+      ],
+      totalMinutes: w.totalMinutes ?? 0,
+      billableMinutes: w.billableMinutes ?? 0,
+      runningCount: w.runningCount ?? 0,
     );
   }
 }
@@ -113,15 +113,17 @@ class TimesheetDay {
       .where((e) => e.billable)
       .fold(0, (sum, e) => sum + e.minutesAt(elapsed));
 
+  /// Reads a `TimesheetDay`.
   factory TimesheetDay.fromJson(Map<String, dynamic> json) {
+    final w = api.TimesheetDay.fromJson(json);
     return TimesheetDay(
-      date: _date(json['date']),
-      entries: ((json['entries'] as List<dynamic>?) ?? const [])
-          .whereType<Map<String, dynamic>>()
-          .map(TimeEntry.fromJson)
-          .toList(),
-      totalMinutes: json['total_minutes'] as int? ?? 0,
-      billableMinutes: json['billable_minutes'] as int? ?? 0,
+      date: _date(w.date),
+      entries: [
+        for (final e in w.entries ?? const <api.TimesheetEntry>[])
+          TimeEntry.fromJson(e.json),
+      ],
+      totalMinutes: w.totalMinutes ?? 0,
+      billableMinutes: w.billableMinutes ?? 0,
     );
   }
 }
@@ -132,7 +134,5 @@ class TimesheetDay {
 /// date, so the value is local midnight and not UTC midnight. Reading a UTC
 /// midnight in a zone behind UTC lands on the previous day, which would label
 /// every column with the wrong weekday west of Greenwich.
-DateTime _date(dynamic value) {
-  final text = value?.toString() ?? '';
-  return DateTime.tryParse('${text}T00:00:00') ?? DateTime.now();
-}
+DateTime _date(String? value) =>
+    DateTime.tryParse('${value ?? ''}T00:00:00') ?? DateTime.now();

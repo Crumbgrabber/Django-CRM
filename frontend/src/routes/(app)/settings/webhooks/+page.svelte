@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * Outbound webhooks: where the org's events are sent.
    *
@@ -18,16 +18,17 @@
   import NextAction from '#lib/v2/components/NextAction.svelte';
   import EmptyState from '#lib/v2/components/EmptyState.svelte';
   import { count, shortDate } from '#lib/v2/format.js';
-  import { enhance } from '$app/forms';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import { Plus, ShieldAlert } from '@lucide/svelte';
   import WebhookFields from './WebhookFields.svelte';
   import SecretOnce from './SecretOnce.svelte';
   import { wordsOn } from '#lib/v2/modules.js';
+  import type { PageProps } from './$types';
+  import type { components } from '#lib/api-schema.js';
 
-  /** @typedef {import('#lib/api-schema.js').components['schemas']['WebhookEndpoint']} WebhookEndpoint */
+  type WebhookEndpoint = components['schemas']['WebhookEndpoint'];
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   // "a lead, deal, ticket or other record", naming only the modules that are on.
   let changedKinds = $derived.by(() => {
@@ -49,8 +50,7 @@
 
   let atLimit = $derived(!data.forbidden && data.endpoints.length >= data.limit);
 
-  /** @type {import('$app/forms').SubmitFunction} */
-  const createSubmit = () => {
+  const createSubmit: SubmitFunction = () => {
     busy = true;
     return async ({ update, result }) => {
       await update({ reset: false });
@@ -62,19 +62,17 @@
   /**
    * Who answers for an endpoint. Nobody once their user has been deleted,
    * which also pauses it.
-   * @param {WebhookEndpoint} e
    */
-  function creatorLabel(e) {
+  function creatorLabel(e: WebhookEndpoint) {
     return e.created_by ? e.created_by.name || e.created_by.email : 'a removed user';
   }
 
-  /** @param {WebhookEndpoint} e */
-  function endpointState(e) {
-    if (e.is_active) return { tone: /** @type {const} */ ('moss'), label: 'Sending' };
+  function endpointState(e: WebhookEndpoint) {
+    if (e.is_active) return { tone: 'moss' as const, label: 'Sending' };
     // The server turned it off: a 410 from the receiver, or its creator lost
     // the standing to own it. Either way an admin can turn it back on.
-    if (e.disabled_reason) return { tone: /** @type {const} */ ('clay'), label: 'Paused' };
-    return { tone: /** @type {const} */ ('slate'), label: 'Off' };
+    if (e.disabled_reason) return { tone: 'clay' as const, label: 'Paused' };
+    return { tone: 'slate' as const, label: 'Off' };
   }
 </script>
 

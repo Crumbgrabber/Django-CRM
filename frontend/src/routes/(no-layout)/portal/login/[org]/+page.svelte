@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * Two steps, one page: ask for the email, then ask for the code that was
    * emailed. The first step's confirmation is deliberately unconditional. It
@@ -8,9 +8,9 @@
    */
   import { enhance } from '$app/forms';
   import PortalShell from '#lib/v2/components/PortalShell.svelte';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { form } = $props();
+  let { form }: PageProps = $props();
 
   let stage = $derived(form?.stage ?? 'request');
   let email = $derived(form?.email ?? '');

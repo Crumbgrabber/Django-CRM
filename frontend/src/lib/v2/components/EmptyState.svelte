@@ -1,16 +1,21 @@
-<script>
+<script lang="ts">
+  import type { Snippet } from 'svelte';
+
   /**
    * Empty and error states. Both say what happened and what to do next.
    * No apologies, no "Something went wrong", no dead ends.
-   *
-   * @type {{
-   *   title: string,
-   *   body: string,
-   *   icon?: import('svelte').Snippet,
-   *   actions?: import('svelte').Snippet
-   * }}
    */
-  let { title, body, icon, actions } = $props();
+  let {
+    title,
+    body,
+    icon,
+    actions
+  }: {
+    title: string;
+    body: string;
+    icon?: Snippet;
+    actions?: Snippet;
+  } = $props();
 </script>
 
 <div class="v2-state">

@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   import { asInternalPath } from '#lib/utils/paths.js';
   import { relativeTime } from '#lib/v2/format.js';
@@ -8,10 +8,14 @@
    * A record's files, newest first, each opening through the download proxy
    * (`attachmentHref`), never a storage URL. A file with no link is named
    * as plain text.
-   *
-   * @type {{ files: { id: string, name: string, at: string | null, href: string | null }[], empty?: string }}
    */
-  let { files = [], empty = 'No files yet.' } = $props();
+  let {
+    files = [],
+    empty = 'No files yet.'
+  }: {
+    files: { id: string; name: string; at: string | null; href: string | null }[];
+    empty?: string;
+  } = $props();
 </script>
 
 {#if files.length === 0}

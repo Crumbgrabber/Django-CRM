@@ -1,3 +1,5 @@
+import '../api/schema.g.dart' as api;
+
 /// Inbound/outbound email associated with a ticket.
 ///
 /// Mirrors `cases.models.EmailMessage`. Read-only for now. Direction is one
@@ -27,38 +29,28 @@ class EmailMessage {
 
   bool get isInbound => direction == 'in';
 
+  /// Reads an `EmailMessage`. The address fields are one string, split on
+  /// commas and semicolons.
   factory EmailMessage.fromJson(Map<String, dynamic> json) {
-    List<String> parseList(dynamic raw) {
-      if (raw is List) {
-        return raw
-            .map((e) => e?.toString() ?? '')
-            .where((s) => s.isNotEmpty)
-            .toList();
-      }
-      if (raw is String && raw.isNotEmpty) {
-        return raw
-            .split(RegExp(r'[;,]'))
-            .map((s) => s.trim())
-            .where((s) => s.isNotEmpty)
-            .toList();
-      }
-      return const [];
-    }
+    final w = api.EmailMessage.fromJson(json);
+    List<String> parseList(String? raw) => raw == null || raw.isEmpty
+        ? const []
+        : raw
+              .split(RegExp(r'[;,]'))
+              .map((s) => s.trim())
+              .where((s) => s.isNotEmpty)
+              .toList();
 
     return EmailMessage(
-      id: json['id']?.toString() ?? '',
-      direction: json['direction'] as String? ?? 'in',
-      fromAddress: json['from_address'] as String?,
-      toAddresses: parseList(json['to_addresses']),
-      ccAddresses: parseList(json['cc_addresses']),
-      subject: json['subject'] as String?,
-      bodyText: json['body_text'] as String?,
-      receivedAt: json['received_at'] != null
-          ? DateTime.tryParse(json['received_at'] as String)
-          : null,
-      createdAt: json['created_at'] != null
-          ? DateTime.tryParse(json['created_at'] as String)
-          : null,
+      id: w.id ?? '',
+      direction: w.direction ?? 'in',
+      fromAddress: w.fromAddress,
+      toAddresses: parseList(w.toAddresses),
+      ccAddresses: parseList(w.ccAddresses),
+      subject: w.subject,
+      bodyText: w.bodyText,
+      receivedAt: DateTime.tryParse(w.receivedAt ?? ''),
+      createdAt: DateTime.tryParse(w.createdAt ?? ''),
     );
   }
 }

@@ -5,6 +5,8 @@
 /// read carries [LeadIntake.keyHint], its last four characters.
 library;
 
+import '../api/schema.g.dart' as api;
+
 const Map<String, String> intakePresetLabels = {
   'generic': 'Any tool that posts JSON or a form',
   'google_ads': 'Google Ads lead form',
@@ -20,16 +22,10 @@ class IntakeMapping {
   final String from;
   final String to;
 
-  static List<IntakeMapping> listFrom(dynamic raw) {
-    if (raw is! List) return const [];
-    return [
-      for (final row in raw.whereType<Map>())
-        IntakeMapping(
-          from: row['from']?.toString() ?? '',
-          to: row['to']?.toString() ?? '',
-        ),
-    ];
-  }
+  static List<IntakeMapping> listFrom(List<api.LeadIntakeMappingRow>? rows) => [
+    for (final row in rows ?? const <api.LeadIntakeMappingRow>[])
+      IntakeMapping(from: row.from ?? '', to: row.to ?? ''),
+  ];
 }
 
 class LeadIntake {
@@ -70,21 +66,23 @@ class LeadIntake {
       ? 'Waiting'
       : 'Receiving';
 
-  factory LeadIntake.fromJson(Map<String, dynamic> json) => LeadIntake(
-    id: json['id']?.toString() ?? '',
-    name: json['name']?.toString() ?? '',
-    preset: json['preset']?.toString() ?? 'generic',
-    url: json['url']?.toString() ?? '',
-    keyHint: json['key_hint']?.toString() ?? '',
-    mapping: IntakeMapping.listFrom(json['mapping']),
-    defaultSource: json['default_source']?.toString() ?? '',
-    sourceDetail: json['source_detail']?.toString() ?? '',
-    isActive: json['is_active'] as bool? ?? true,
-    lastReceivedAt: DateTime.tryParse(
-      json['last_received_at']?.toString() ?? '',
-    )?.toLocal(),
-    lastError: json['last_error']?.toString() ?? '',
-  );
+  /// Reads a `LeadIntake`.
+  factory LeadIntake.fromJson(Map<String, dynamic> json) {
+    final w = api.LeadIntake.fromJson(json);
+    return LeadIntake(
+      id: w.id ?? '',
+      name: w.name ?? '',
+      preset: w.preset ?? 'generic',
+      url: w.url ?? '',
+      keyHint: w.keyHint ?? '',
+      mapping: IntakeMapping.listFrom(w.mapping),
+      defaultSource: w.defaultSource ?? '',
+      sourceDetail: w.sourceDetail ?? '',
+      isActive: w.isActive ?? true,
+      lastReceivedAt: DateTime.tryParse(w.lastReceivedAt ?? '')?.toLocal(),
+      lastError: w.lastError ?? '',
+    );
+  }
 }
 
 class IntakeDelivery {
@@ -116,18 +114,17 @@ class IntakeDelivery {
     _ => result,
   };
 
+  /// Reads a `LeadIntakeDelivery`.
   factory IntakeDelivery.fromJson(Map<String, dynamic> json) {
-    final raw = json['lead'];
-    final lead = (raw is Map ? raw['id'] : raw)?.toString();
+    final w = api.LeadIntakeDelivery.fromJson(json);
+    final lead = w.lead;
     return IntakeDelivery(
-      id: json['id']?.toString() ?? '',
-      receivedAt: DateTime.tryParse(
-        json['received_at']?.toString() ?? '',
-      )?.toLocal(),
-      result: json['result']?.toString() ?? '',
+      id: w.id ?? '',
+      receivedAt: DateTime.tryParse(w.receivedAt ?? '')?.toLocal(),
+      result: w.result ?? '',
       leadId: lead == null || lead.isEmpty ? null : lead,
-      externalId: json['external_id']?.toString() ?? '',
-      error: json['error']?.toString() ?? '',
+      externalId: w.externalId ?? '',
+      error: w.error ?? '',
     );
   }
 }

@@ -3,7 +3,8 @@ import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/api_config.dart';
-import '../data/api_envelope.dart';
+import '../data/api/enterprise_schema.g.dart' as enterprise;
+import '../data/api/schema.g.dart' as api;
 import '../data/models/custom_field_definition.dart';
 import '../data/models/custom_object.dart';
 import '../data/models/lookup_models.dart';
@@ -86,10 +87,10 @@ class ObjectSettingsData {
 /// The object and every field it has, turned-off ones included for admins.
 final objectSettingsProvider = FutureProvider.autoDispose
     .family<ObjectSettingsData, String>((ref, key) async {
-      final api = ApiService();
+      final service = ApiService();
       final results = await Future.wait([
-        api.get(ApiConfig.object(key)),
-        api.get(ApiConfig.objectFields(key)),
+        service.get(ApiConfig.object(key)),
+        service.get(ApiConfig.objectFields(key)),
       ]);
       final object = results[0];
       final fields = results[1];
@@ -99,11 +100,13 @@ final objectSettingsProvider = FutureProvider.autoDispose
       if (!fields.success || fields.data == null) {
         throw Exception(fields.message ?? 'Failed to load its fields');
       }
+      final list = enterprise.CustomObjectFieldList.fromJson(fields.data!);
       return ObjectSettingsData(
         summary: ObjectSummary.fromJson(object.data!),
-        fields: listFromEnvelope(fields.data!, const [
-          'fields',
-        ]).map(ObjectField.fromJson).toList(),
+        fields: [
+          for (final f in list.fields ?? const <enterprise.CustomObjectField>[])
+            ObjectField.fromJson(f.json),
+        ],
       );
     }, retry: (_, _) => null);
 
@@ -152,12 +155,14 @@ class ObjectRecordsNotifier extends AsyncNotifier<ObjectRecordsData> {
     if (!response.success || data == null) {
       throw Exception(response.message ?? 'Failed to load records');
     }
-    final records = listFromEnvelope(data, const [
-      'results',
-    ]).map(ObjectRecord.fromJson).toList();
+    final list = enterprise.CustomRecordList.fromJson(data);
+    final records = [
+      for (final r in list.results ?? const <enterprise.CustomRecord>[])
+        ObjectRecord.fromJson(r.json),
+    ];
     return ObjectRecordsData(
       records: records,
-      count: data['count'] as int? ?? records.length,
+      count: list.count ?? records.length,
       query: query,
     );
   }
@@ -302,8 +307,8 @@ class CustomObjectsApi {
   );
 
   /// Built-in kinds are searched through their community list endpoints and
-  /// read the way the matching lookup in `lookup_provider.dart` reads them.
-  /// A failed request throws, so it never reads as "no matches".
+  /// labelled the way the matching lookup in `lookup_provider.dart` labels
+  /// them. A failed request throws, so it never reads as "no matches".
   Future<List<LinkedRecord>> searchTargets(String target, String query) async {
     final spec = _searchSpec(target);
     if (spec == null) return const [];
@@ -316,24 +321,25 @@ class CustomObjectsApi {
       throw Exception(response.message ?? 'Could not search');
     }
     return [
-      for (final row in listFromEnvelope(
-        data,
-        spec.paths,
-      ).take(linkSearchLimit))
+      for (final row in spec.rows(data).take(linkSearchLimit))
         LinkedRecord(
-          id: row['id']?.toString() ?? '',
+          id: row.id ?? '',
           object: target,
-          name: spec.label(row),
+          name: spec.label(row.json),
         ),
     ];
   }
 }
 
+typedef _Row = ({String? id, Map<String, dynamic> json});
+
 class _SearchSpec {
-  const _SearchSpec(this.url, this.paths, this.label, {this.param = 'search'});
+  const _SearchSpec(this.url, this.rows, this.label, {this.param = 'search'});
 
   final String url;
-  final List<String> paths;
+
+  /// The rows of the answer, read through its response component.
+  final List<_Row> Function(Map<String, dynamic> body) rows;
   final String Function(Map<String, dynamic> row) label;
   final String param;
 }
@@ -346,41 +352,86 @@ _SearchSpec? _searchSpec(String target) {
     case 'lead':
       return _SearchSpec(
         ApiConfig.leads,
-        const ['open_leads.open_leads'],
+        (body) => [
+          for (final r
+              in api.LeadListResponse.fromJson(body).openLeads?.openLeads ??
+                  const <api.Lead>[])
+            (id: r.id, json: r.json),
+        ],
         (row) => EntityLookup.person(
           row,
           fallbackKeys: const ['email', 'company_name'],
         ).label,
       );
     case 'contact':
-      return _SearchSpec(ApiConfig.contacts, const [
-        'results',
-        'contacts',
-      ], (row) => ContactLookup.fromJson(row).fullName);
+      return _SearchSpec(
+        ApiConfig.contacts,
+        (body) => [
+          for (final r
+              in api.ContactListResponse.fromJson(body).results ??
+                  const <api.Contact>[])
+            (id: r.id, json: r.json),
+        ],
+        (row) => ContactLookup.fromJson(row).fullName,
+      );
     case 'account':
-      return _SearchSpec(ApiConfig.accounts, const [
-        'active_accounts.open_accounts',
-        'accounts',
-        'results',
-      ], _name);
+      return _SearchSpec(
+        ApiConfig.accounts,
+        (body) => [
+          for (final r
+              in api.AccountListResponse.fromJson(
+                    body,
+                  ).activeAccounts?.openAccounts ??
+                  const <api.Account>[])
+            (id: r.id, json: r.json),
+        ],
+        _name,
+      );
     case 'deal':
-      return _SearchSpec(ApiConfig.opportunities, const [
-        'opportunities',
-      ], _name);
+      return _SearchSpec(
+        ApiConfig.opportunities,
+        (body) => [
+          for (final r
+              in api.OpportunityListResponse.fromJson(body).opportunities ??
+                  const <api.OpportunityList>[])
+            (id: r.id, json: r.json),
+        ],
+        _name,
+      );
     case 'ticket':
-      return _SearchSpec(ApiConfig.tickets, const ['cases'], _name);
+      return _SearchSpec(
+        ApiConfig.tickets,
+        (body) => [
+          for (final r
+              in api.CaseListResponse.fromJson(body).cases ??
+                  const <api.Case>[])
+            (id: r.id, json: r.json),
+        ],
+        _name,
+      );
     case 'task':
-      return _SearchSpec(ApiConfig.tasks, const [
-        'tasks',
-        'results',
-      ], (row) => EntityLookup.fromJson(row, labelKeys: const ['title']).label);
+      return _SearchSpec(
+        ApiConfig.tasks,
+        (body) => [
+          for (final r
+              in api.TaskListResponse.fromJson(body).tasks ??
+                  const <api.TaskList>[])
+            (id: r.id, json: r.json),
+        ],
+        (row) => EntityLookup.fromJson(row, labelKeys: const ['title']).label,
+      );
   }
   if (target.startsWith('obj:')) {
     final key = target.substring(4);
     try {
       return _SearchSpec(
         ApiConfig.objectRecords(key),
-        const ['results'],
+        (body) => [
+          for (final r
+              in enterprise.CustomRecordList.fromJson(body).results ??
+                  const <enterprise.CustomRecord>[])
+            (id: r.id, json: r.json),
+        ],
         _name,
         param: 'q',
       );

@@ -1,8 +1,7 @@
-<script>
-  import { Dialog as DialogPrimitive } from 'bits-ui';
+<script lang="ts">
+  import { Dialog as DialogPrimitive, type DialogRootProps } from 'bits-ui';
 
-  /** @type {import('bits-ui').DialogRootProps} */
-  let { open = $bindable(false), ...restProps } = $props();
+  let { open = $bindable(false), ...restProps }: DialogRootProps = $props();
 </script>
 
 <DialogPrimitive.Root bind:open {...restProps} />

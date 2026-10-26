@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * Web forms: the list.
    *
@@ -41,9 +41,9 @@
   import { Plus, ShieldAlert } from '@lucide/svelte';
   import { WEBFORM_TARGETS } from '#lib/v2/webform-fields.js';
   import { isOn, OBJECT_MODULES } from '#lib/v2/modules.js';
+  import type { PageProps, SubmitFunction } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   let totals = $derived(data.totals);
   let drafts = $derived(Math.max(totals.count - totals.published, 0));
@@ -55,12 +55,8 @@
   let creating = $state(false);
   let busy = $state(false);
 
-  /**
-   * A submit handler that flips `busy` while the action runs.
-   *
-   * @type {import('./$types').SubmitFunction}
-   */
-  const working = () => {
+  /** A submit handler that flips `busy` while the action runs. */
+  const working: SubmitFunction = () => {
     busy = true;
     return async ({ update }) => {
       await update();

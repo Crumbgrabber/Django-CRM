@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { relativeTime } from '#lib/v2/format.js';
   import ConfirmAction from '#lib/v2/components/ConfirmAction.svelte';
 
@@ -8,10 +8,21 @@
    *
    * An event with `canDelete` is a logged interaction the caller may remove,
    * through the page's `?/deleteActivity`.
-   *
-   * @type {{ events: Array<{ id: string, body: string, at: string | null, by?: string|null, type?: string, detail?: string, canDelete?: boolean, interaction?: string }> }}
    */
-  let { events = [] } = $props();
+  let {
+    events = []
+  }: {
+    events: Array<{
+      id: string;
+      body: string;
+      at: string | null;
+      by?: string | null;
+      type?: string;
+      detail?: string;
+      canDelete?: boolean;
+      interaction?: string;
+    }>;
+  } = $props();
 </script>
 
 <div class="v2-timeline">

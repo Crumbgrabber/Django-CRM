@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   import { untrack, tick } from 'svelte';
   import { enhance } from '$app/forms';
@@ -8,9 +8,9 @@
   import { money } from '#lib/v2/format.js';
   import { sourceOptions } from '#lib/v2/lead-sources.js';
   import { ChevronDown, ChevronRight, TriangleAlert } from '@lucide/svelte';
+  import type { PageProps, SubmitFunction } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form: result } = $props();
+  let { data, form: result }: PageProps = $props();
 
   /**
    * v1's create form asked for 28 fields before it would accept a deal, so
@@ -64,23 +64,20 @@
   /**
    * Picking another pipeline starts the deal on that pipeline's first open
    * stage; a code from the previous pipeline may not exist in this one.
-   *
-   * @param {string} pipelineId
    */
-  function pipelineChanged(pipelineId) {
+  function pipelineChanged(pipelineId: string) {
     const next = pipelines.find((p) => p.id === pipelineId)?.stages ?? [];
     form.stage = next.find((s) => s.kind === 'open')?.code ?? '';
   }
 
   let more = $state(false);
-  let touched = $state(/** @type {Record<string, boolean>} */ ({}));
+  let touched = $state<Record<string, boolean>>({});
   let submitted = $state(false);
 
   const REQUIRED = ['name', 'account', 'amount', 'closed_on'];
 
   let errors = $derived.by(() => {
-    /** @type {Record<string, string>} */
-    const e = {};
+    const e: Record<string, string> = {};
     if (!form.name.trim()) e.name = 'Give the deal a name you would recognise in a list.';
     if (!form.account) e.account = 'Pick the account this deal belongs to.';
 
@@ -101,16 +98,14 @@
   });
 
   let valid = $derived(Object.keys(errors).length === 0);
-  const show = (/** @type {string} */ field) => (touched[field] || submitted) && errors[field];
+  const show = (field: string) => (touched[field] || submitted) && errors[field];
 
   /**
    * On success the action redirects to the new deal, so there is no success
    * state to render here. The next thing anyone does after creating a deal is
    * look at it.
-   *
-   * @type {import('./$types').SubmitFunction}
    */
-  const check = async ({ cancel }) => {
+  const check: SubmitFunction = async ({ cancel }) => {
     submitted = true;
     if (!valid) {
       // Send focus to the first field that needs work rather than only
@@ -119,8 +114,7 @@
       // do not exist until Svelte flushes, so querying now finds nothing.
       cancel();
       await tick();
-      /** @type {HTMLElement | null} */
-      const first = document.querySelector('[aria-invalid="true"]');
+      const first: HTMLElement | null = document.querySelector('[aria-invalid="true"]');
       first?.focus();
     }
   };

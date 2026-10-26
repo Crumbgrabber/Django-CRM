@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   /**
    * Whether a customer's reply can bring a closed ticket back.
@@ -20,9 +20,9 @@
   import { count } from '#lib/v2/format.js';
   import { REOPEN_TO_STATUSES } from '#lib/v2/enums.js';
   import { RotateCcw, MailX } from '@lucide/svelte';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   let editing = $state(false);
 

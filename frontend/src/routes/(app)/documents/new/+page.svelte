@@ -1,13 +1,13 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   import { untrack, tick } from 'svelte';
   import { SvelteSet } from 'svelte/reactivity';
   import { enhance } from '$app/forms';
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
   import { TriangleAlert, Upload, Users, Lock } from '@lucide/svelte';
+  import type { PageProps, SubmitFunction } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form: result } = $props();
+  let { data, form: result }: PageProps = $props();
 
   /**
    * A document is a file, a title, and an audience. This asks for exactly that.
@@ -35,43 +35,40 @@
   let sharedTo = new SvelteSet((previous?.shared_to ?? []).map(String));
   let sharedTeams = new SvelteSet((previous?.teams ?? []).map(String));
 
-  let touched = $state(/** @type {Record<string, boolean>} */ ({}));
+  let touched = $state({} as Record<string, boolean>);
   let submitted = $state(false);
 
   const REQUIRED = ['title', 'file'];
 
   let errors = $derived.by(() => {
-    /** @type {Record<string, string>} */
-    const e = {};
+    const e: Record<string, string> = {};
     if (!title.trim()) e.title = 'Give the document a title you would recognise in a list.';
     if (!fileName) e.file = 'Choose a file to upload.';
     return e;
   });
 
   let valid = $derived(Object.keys(errors).length === 0);
-  const show = (/** @type {string} */ field) => (touched[field] || submitted) && errors[field];
+  const show = (field: string) => (touched[field] || submitted) && errors[field];
 
   let reach = $derived(sharedTo.size + sharedTeams.size);
 
-  function onFile(/** @type {Event} */ ev) {
-    const input = /** @type {HTMLInputElement} */ (ev.currentTarget);
+  function onFile(ev: Event) {
+    const input = ev.currentTarget as HTMLInputElement;
     fileName = input.files?.[0]?.name ?? '';
     touched.file = true;
   }
 
-  function toggle(/** @type {SvelteSet<string>} */ set, /** @type {string} */ id) {
+  function toggle(set: SvelteSet<string>, id: string) {
     if (set.has(id)) set.delete(id);
     else set.add(id);
   }
 
-  /** @type {import('./$types').SubmitFunction} */
-  const check = async ({ cancel }) => {
+  const check: SubmitFunction = async ({ cancel }) => {
     submitted = true;
     if (!valid) {
       cancel();
       await tick();
-      /** @type {HTMLElement | null} */
-      const first = document.querySelector('[aria-invalid="true"]');
+      const first: HTMLElement | null = document.querySelector('[aria-invalid="true"]');
       first?.focus();
     }
   };

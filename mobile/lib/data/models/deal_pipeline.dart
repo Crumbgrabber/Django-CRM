@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' show Color;
 
 import '../../core/theme/app_colors.dart';
+import '../api/schema.g.dart' as api;
 
 /// Deal pipelines and their stages, as `GET /opportunities/pipelines/` serves
 /// them: every pipeline of the org, default first, each with its stages in
@@ -137,16 +138,18 @@ class DealPipelineStage {
     return (yellow, (expected * 1.5).ceil());
   }
 
+  /// Reads a `DealStage`.
   factory DealPipelineStage.fromJson(Map<String, dynamic> json) {
-    final code = (json['code'] ?? '').toString();
+    final w = api.DealStage.fromJson(json);
+    final code = w.code ?? '';
     return DealPipelineStage(
-      id: (json['id'] ?? '').toString(),
+      id: w.id ?? '',
       code: code,
-      label: (json['label'] as String?) ?? legacyDealStageLabel(code),
-      order: (json['order'] as num?)?.toInt() ?? 0,
-      kind: (json['kind'] as String?) ?? legacyDealStageKind(code),
-      expectedDays: (json['expected_days'] as num?)?.toInt(),
-      warningDays: (json['warning_days'] as num?)?.toInt(),
+      label: w.label ?? legacyDealStageLabel(code),
+      order: w.order ?? 0,
+      kind: w.kind ?? legacyDealStageKind(code),
+      expectedDays: w.expectedDays,
+      warningDays: w.warningDays,
     );
   }
 }
@@ -220,17 +223,17 @@ class DealPipeline {
     return dealStageColor(stage.kind, openIndex);
   }
 
+  /// Reads a `DealPipeline`.
   factory DealPipeline.fromJson(Map<String, dynamic> json) {
-    final stages =
-        (json['stages'] as List? ?? const [])
-            .whereType<Map<String, dynamic>>()
-            .map(DealPipelineStage.fromJson)
-            .toList()
-          ..sort((a, b) => a.order.compareTo(b.order));
+    final w = api.DealPipeline.fromJson(json);
+    final stages = [
+      for (final s in w.stages ?? const <api.DealStage>[])
+        DealPipelineStage.fromJson(s.json),
+    ]..sort((a, b) => a.order.compareTo(b.order));
     return DealPipeline(
-      id: (json['id'] ?? '').toString(),
-      name: (json['name'] as String?) ?? 'Pipeline',
-      isDefault: json['is_default'] == true,
+      id: w.id ?? '',
+      name: w.name ?? 'Pipeline',
+      isDefault: w.isDefault ?? false,
       stages: stages,
     );
   }

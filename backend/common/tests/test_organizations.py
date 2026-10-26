@@ -39,7 +39,7 @@ class TestOrgProfileCreateView:
     def test_create_org_response_includes_id(self, admin_client, admin_user):
         """The created org's id must be in the response.
 
-        The frontend (org/new/+page.server.js) reads `org.id` off this
+        The frontend (org/new/+page.server.ts) reads `org.id` off this
         response to set the `org` cookie and to mint an org-scoped token for
         the optional vertical-pack apply call. Before this field was added
         to OrgProfileCreateSerializer.Meta.fields, `org.id` was `undefined`

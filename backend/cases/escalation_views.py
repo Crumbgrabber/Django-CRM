@@ -197,7 +197,7 @@ class EscalationPolicyDetailView(APIView):
 
     @extend_schema(
         tags=["Escalation"],
-        request=EscalationPolicySerializer,
+        request=EscalationPolicySerializer(partial=True),
         responses={200: EscalationPolicySerializer},
     )
     def put(self, request, pk, *args, **kwargs):

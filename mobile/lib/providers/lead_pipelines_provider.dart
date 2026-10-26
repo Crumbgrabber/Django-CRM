@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/api_config.dart';
+import '../data/api/schema.g.dart' as api;
 import '../data/models/lead_pipeline.dart';
 import '../services/api_service.dart';
 import 'lead_board_provider.dart';
@@ -62,13 +63,13 @@ class LeadPipelinesNotifier extends AsyncNotifier<List<LeadPipeline>> {
     if (!response.success || response.data == null) {
       throw Exception(response.message ?? 'Could not load the pipelines.');
     }
-    final rows = response.data!['pipelines'];
-    return rows is List
-        ? rows
-              .whereType<Map<String, dynamic>>()
-              .map(LeadPipeline.fromJson)
-              .toList()
-        : const [];
+    final rows = api.LeadPipelineListResponse.fromJson(
+      response.data!,
+    ).pipelines;
+    return [
+      for (final row in rows ?? const <api.LeadPipelineList>[])
+        LeadPipeline.fromJson(row.json),
+    ];
   }
 
   Future<void> refresh() async {

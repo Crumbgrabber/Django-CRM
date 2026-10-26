@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/api_config.dart';
+import '../data/api/schema.g.dart' as api;
 import '../data/models/app_notification.dart';
 import '../services/api_service.dart';
 
@@ -57,16 +58,15 @@ class NotificationsNotifier extends AsyncNotifier<NotificationFeed> {
     if (!response.success || response.data == null) {
       throw Exception(response.message ?? 'Could not load notifications.');
     }
-    final data = response.data!;
-    final items = ((data['results'] as List<dynamic>?) ?? const [])
-        .whereType<Map<String, dynamic>>()
-        .map(AppNotification.fromJson)
-        .toList();
+    final data = api.NotificationListResponse.fromJson(response.data!);
+    final items = [
+      for (final row in data.results ?? const <api.Notification>[])
+        AppNotification.fromJson(row.json),
+    ];
     return NotificationFeed(
       items: items,
-      unreadCount:
-          data['unread_count'] as int? ?? items.where((n) => n.isUnread).length,
-      total: data['count'] as int? ?? items.length,
+      unreadCount: data.unreadCount ?? items.where((n) => n.isUnread).length,
+      total: data.count ?? items.length,
     );
   }
 

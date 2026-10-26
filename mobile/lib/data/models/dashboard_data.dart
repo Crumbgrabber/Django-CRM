@@ -1,6 +1,5 @@
 // Dashboard data models for BottleCRM
-import 'package:flutter/foundation.dart';
-
+import '../api/schema.g.dart' as api;
 import 'deal_pipeline.dart';
 
 /// Urgent counts from dashboard API
@@ -17,12 +16,14 @@ class UrgentCounts {
     this.hotLeads = 0,
   });
 
+  /// Reads an `ApiHomeUrgentCounts`.
   factory UrgentCounts.fromJson(Map<String, dynamic> json) {
+    final w = api.ApiHomeUrgentCounts.fromJson(json);
     return UrgentCounts(
-      overdueTasks: json['overdue_tasks'] as int? ?? 0,
-      tasksDueToday: json['tasks_due_today'] as int? ?? 0,
-      followupsToday: json['followups_today'] as int? ?? 0,
-      hotLeads: json['hot_leads'] as int? ?? 0,
+      overdueTasks: w.overdueTasks ?? 0,
+      tasksDueToday: w.tasksDueToday ?? 0,
+      followupsToday: w.followupsToday ?? 0,
+      hotLeads: w.hotLeads ?? 0,
     );
   }
 }
@@ -52,19 +53,22 @@ class PipelineStage {
 
   bool get isOpen => kind == dealStageOpen;
 
+  /// Reads an `ApiHomeStageFigures`, keyed by [code] in the map.
+  ///
   /// A server older than configurable pipelines sends neither `kind` nor
   /// `order`; the seeded codes' own meaning and order stand in.
   factory PipelineStage.fromJson(String code, Map<String, dynamic> json) {
+    final w = api.ApiHomeStageFigures.fromJson(json);
     return PipelineStage(
       code: code,
-      label: json['label'] as String? ?? legacyDealStageLabel(code),
-      kind: json['kind'] as String? ?? legacyDealStageKind(code),
+      label: w.label ?? legacyDealStageLabel(code),
+      kind: w.kind ?? legacyDealStageKind(code),
       order:
-          (json['order'] as num?)?.toInt() ??
+          w.order ??
           DealPipeline.legacy.stageByCode(code)?.order ??
           DealPipeline.legacy.stages.length,
-      count: json['count'] as int? ?? 0,
-      value: (json['value'] as num?)?.toDouble() ?? 0,
+      count: w.count ?? 0,
+      value: w.value ?? 0,
     );
   }
 }
@@ -93,16 +97,17 @@ class RevenueMetrics {
     this.otherCurrencyCount = 0,
   });
 
+  /// Reads an `ApiHomeRevenueMetrics`.
   factory RevenueMetrics.fromJson(Map<String, dynamic> json) {
+    final w = api.ApiHomeRevenueMetrics.fromJson(json);
     return RevenueMetrics(
-      pipelineValue: (json['pipeline_value'] as num?)?.toDouble() ?? 0,
-      openOpportunitiesCount:
-          (json['open_opportunities_count'] as num?)?.toInt() ?? 0,
-      weightedPipeline: (json['weighted_pipeline'] as num?)?.toDouble() ?? 0,
-      wonThisMonth: (json['won_this_month'] as num?)?.toDouble() ?? 0,
-      conversionRate: (json['conversion_rate'] as num?)?.toDouble() ?? 0,
-      currency: json['currency'] as String? ?? 'USD',
-      otherCurrencyCount: json['other_currency_count'] as int? ?? 0,
+      pipelineValue: w.pipelineValue ?? 0,
+      openOpportunitiesCount: w.openOpportunitiesCount ?? 0,
+      weightedPipeline: w.weightedPipeline ?? 0,
+      wonThisMonth: w.wonThisMonth ?? 0,
+      conversionRate: w.conversionRate ?? 0,
+      currency: w.currency ?? 'USD',
+      otherCurrencyCount: w.otherCurrencyCount ?? 0,
     );
   }
 }
@@ -129,19 +134,17 @@ class HotLead {
 
   String get fullName => '$firstName $lastName'.trim();
 
+  /// Reads an `ApiHomeHotLead`.
   factory HotLead.fromJson(Map<String, dynamic> json) {
+    final w = api.ApiHomeHotLead.fromJson(json);
     return HotLead(
-      id: json['id']?.toString() ?? '',
-      firstName: json['first_name'] as String? ?? '',
-      lastName: json['last_name'] as String? ?? '',
-      company: json['company'] as String?,
-      rating: json['rating'] as String?,
-      nextFollowUp: json['next_follow_up'] != null
-          ? DateTime.tryParse(json['next_follow_up'] as String)
-          : null,
-      lastContacted: json['last_contacted'] != null
-          ? DateTime.tryParse(json['last_contacted'] as String)
-          : null,
+      id: w.id ?? '',
+      firstName: w.firstName ?? '',
+      lastName: w.lastName ?? '',
+      company: w.company,
+      rating: w.rating,
+      nextFollowUp: DateTime.tryParse(w.nextFollowUp ?? ''),
+      lastContacted: DateTime.tryParse(w.lastContacted ?? ''),
     );
   }
 }
@@ -172,37 +175,18 @@ class DashboardTask {
 
   String? get relatedTo => accountName ?? leadName;
 
+  /// Reads a `Task`, whose `account` is an `{id, name}` link.
   factory DashboardTask.fromJson(Map<String, dynamic> json) {
-    // Backend's TaskSerializer returns `account`/`lead` as plain FK UUIDs
-    // (strings), not nested {id, name} objects. Only extract a display name
-    // when the field is a Map. Otherwise we have a UUID with no name and
-    // skip the related-entity badge rather than crashing on String indexing.
-    String? accountName;
-    final account = json['account'];
-    if (account is Map<String, dynamic>) {
-      accountName = account['name'] as String?;
-    }
-
-    String? leadName;
-    final lead = json['lead'];
-    if (lead is Map<String, dynamic>) {
-      final first = (lead['first_name'] as String?) ?? '';
-      final last = (lead['last_name'] as String?) ?? '';
-      final joined = '$first $last'.trim();
-      if (joined.isNotEmpty) leadName = joined;
-    }
-
+    final w = api.Task.fromJson(json);
     return DashboardTask(
-      id: json['id']?.toString() ?? '',
-      title: json['title'] as String? ?? 'Untitled',
-      description: json['description'] as String?,
-      status: json['status'] as String? ?? 'New',
-      priority: json['priority'] as String? ?? 'Medium',
-      dueDate: json['due_date'] != null
-          ? DateTime.tryParse(json['due_date'] as String)
-          : null,
-      accountName: accountName,
-      leadName: leadName,
+      id: w.id ?? '',
+      title: w.title ?? 'Untitled',
+      description: w.description,
+      status: w.status ?? 'New',
+      priority: w.priority ?? 'Medium',
+      dueDate: DateTime.tryParse(w.dueDate ?? ''),
+      accountName: w.account?.name,
+      leadName: w.lead?.name,
     );
   }
 }
@@ -238,17 +222,18 @@ class DashboardActivity {
     return '${(diff.inDays / 7).floor()}w ago';
   }
 
+  /// Reads a `DashboardActivity`. It carries no `activity_type`,
+  /// `created_at` or `created_by` (its own names are `action`, `timestamp`
+  /// and `user`), so those three keep their defaults.
   factory DashboardActivity.fromJson(Map<String, dynamic> json) {
+    final w = api.DashboardActivity.fromJson(json);
     return DashboardActivity(
-      id: json['id']?.toString() ?? '',
-      activityType: json['activity_type'] as String? ?? 'update',
-      description: json['description'] as String? ?? '',
-      createdAt: json['created_at'] != null
-          ? DateTime.tryParse(json['created_at'] as String) ?? DateTime.now()
-          : DateTime.now(),
-      userName: json['created_by']?['user__email'] as String?,
-      entityType: json['entity_type'] as String?,
-      entityName: json['entity_name'] as String?,
+      id: w.id ?? '',
+      activityType: 'update',
+      description: w.description ?? '',
+      createdAt: DateTime.now(),
+      entityType: w.entityType,
+      entityName: w.entityName,
     );
   }
 }
@@ -304,127 +289,51 @@ class DashboardData {
   /// nothing.
   bool get offersImport => emptyWorkspace && canImport;
 
+  /// Reads an `ApiHomeResponse`, the whole `/api/dashboard/` answer.
   factory DashboardData.fromJson(Map<String, dynamic> json) {
-    debugPrint('DashboardData.fromJson: Starting to parse...');
-    debugPrint('DashboardData.fromJson: Keys: ${json.keys.toList()}');
-
-    // Parse pipeline by stage
-    debugPrint('DashboardData.fromJson: Parsing pipeline_by_stage...');
-    final pipelineMap =
-        json['pipeline_by_stage'] as Map<String, dynamic>? ?? {};
-    final pipelineStages = pipelineMap.entries
-        .map(
-          (e) => PipelineStage.fromJson(e.key, e.value as Map<String, dynamic>),
-        )
-        .toList();
-
+    final w = api.ApiHomeResponse.fromJson(json);
+    final pipelineStages = [
+      for (final MapEntry(:key, :value)
+          in (w.pipelineByStage ?? const <String, api.ApiHomeStageFigures>{})
+              .entries)
+        PipelineStage.fromJson(key, value.json),
+    ];
     // The map carries no order of its own, so the board's is restored.
     pipelineStages.sort((a, b) => a.order.compareTo(b.order));
-    debugPrint(
-      'DashboardData.fromJson: Pipeline stages parsed: ${pipelineStages.length}',
-    );
 
-    // Parse urgent counts
-    debugPrint('DashboardData.fromJson: Parsing urgent_counts...');
-    final urgentCounts = json['urgent_counts'] != null
-        ? UrgentCounts.fromJson(json['urgent_counts'] as Map<String, dynamic>)
-        : const UrgentCounts();
-    debugPrint('DashboardData.fromJson: Urgent counts parsed');
-
-    // Parse revenue metrics
-    debugPrint('DashboardData.fromJson: Parsing revenue_metrics...');
-    final revenueMetrics = json['revenue_metrics'] != null
-        ? RevenueMetrics.fromJson(
-            json['revenue_metrics'] as Map<String, dynamic>,
-          )
-        : const RevenueMetrics();
-    debugPrint('DashboardData.fromJson: Revenue metrics parsed');
-
-    // Parse hot leads
-    debugPrint('DashboardData.fromJson: Parsing hot_leads...');
-    final hotLeadsList = <HotLead>[];
-    if (json['hot_leads'] != null) {
-      for (final item in json['hot_leads'] as List<dynamic>) {
-        try {
-          hotLeadsList.add(HotLead.fromJson(item as Map<String, dynamic>));
-        } catch (e) {
-          debugPrint('DashboardData.fromJson: Error parsing hot lead: $e');
-          debugPrint('DashboardData.fromJson: Hot lead data: $item');
-        }
-      }
-    }
-    debugPrint(
-      'DashboardData.fromJson: Hot leads parsed: ${hotLeadsList.length}',
-    );
-
-    // Parse tasks
-    debugPrint('DashboardData.fromJson: Parsing tasks...');
-    final tasksList = <DashboardTask>[];
-    if (json['tasks'] != null) {
-      for (final item in json['tasks'] as List<dynamic>) {
-        try {
-          tasksList.add(DashboardTask.fromJson(item as Map<String, dynamic>));
-        } catch (e) {
-          debugPrint('DashboardData.fromJson: Error parsing task: $e');
-          debugPrint('DashboardData.fromJson: Task data: $item');
-        }
-      }
-    }
-    debugPrint('DashboardData.fromJson: Tasks parsed: ${tasksList.length}');
-
-    // Parse activities
-    debugPrint('DashboardData.fromJson: Parsing activities...');
-    final activitiesList = <DashboardActivity>[];
-    if (json['activities'] != null) {
-      for (final item in json['activities'] as List<dynamic>) {
-        try {
-          activitiesList.add(
-            DashboardActivity.fromJson(item as Map<String, dynamic>),
-          );
-        } catch (e) {
-          debugPrint('DashboardData.fromJson: Error parsing activity: $e');
-          debugPrint('DashboardData.fromJson: Activity data: $item');
-        }
-      }
-    }
-    debugPrint(
-      'DashboardData.fromJson: Activities parsed: ${activitiesList.length}',
-    );
-
-    // Parse goal summary
-    final goalSummaryList = <DashboardGoal>[];
-    if (json['goal_summary'] != null) {
-      for (final item in json['goal_summary'] as List<dynamic>) {
-        try {
-          goalSummaryList.add(
-            DashboardGoal.fromJson(item as Map<String, dynamic>),
-          );
-        } catch (e) {
-          debugPrint('DashboardData.fromJson: Error parsing goal: $e');
-        }
-      }
-    }
-
-    debugPrint('DashboardData.fromJson: All parsing complete!');
-
+    final urgentCounts = w.urgentCounts;
+    final revenueMetrics = w.revenueMetrics;
     return DashboardData(
-      accountsCount: json['accounts_count'] as int? ?? 0,
-      contactsCount: json['contacts_count'] as int? ?? 0,
-      leadsCount: json['leads_count'] as int? ?? 0,
-      opportunitiesCount: json['opportunities_count'] as int? ?? 0,
-      urgentCounts: urgentCounts,
+      accountsCount: w.accountsCount ?? 0,
+      contactsCount: w.contactsCount ?? 0,
+      leadsCount: w.leadsCount ?? 0,
+      opportunitiesCount: w.opportunitiesCount ?? 0,
+      urgentCounts: urgentCounts == null
+          ? const UrgentCounts()
+          : UrgentCounts.fromJson(urgentCounts.json),
       pipelineByStage: pipelineStages,
-      revenueMetrics: revenueMetrics,
-      hotLeads: hotLeadsList,
-      tasks: tasksList,
-      activities: activitiesList,
-      goalSummary: goalSummaryList,
-      emptyWorkspace: json['empty_workspace'] == true,
-      canImport: json['can_import'] == true,
-      unansweredLeads: switch (json['unanswered_leads']) {
-        {'count': final num count} => count.toInt(),
-        _ => null,
-      },
+      revenueMetrics: revenueMetrics == null
+          ? const RevenueMetrics()
+          : RevenueMetrics.fromJson(revenueMetrics.json),
+      hotLeads: [
+        for (final l in w.hotLeads ?? const <api.ApiHomeHotLead>[])
+          HotLead.fromJson(l.json),
+      ],
+      tasks: [
+        for (final t in w.tasks ?? const <api.Task>[])
+          DashboardTask.fromJson(t.json),
+      ],
+      activities: [
+        for (final a in w.activities ?? const <api.DashboardActivity>[])
+          DashboardActivity.fromJson(a.json),
+      ],
+      goalSummary: [
+        for (final g in w.goalSummary ?? const <api.ApiHomeGoal>[])
+          DashboardGoal.fromJson(g.json),
+      ],
+      emptyWorkspace: w.emptyWorkspace ?? false,
+      canImport: w.canImport ?? false,
+      unansweredLeads: w.unansweredLeads?.count,
     );
   }
 }
@@ -466,24 +375,19 @@ class DashboardGoal {
   /// counts.
   final String status;
 
+  /// Reads an `ApiHomeGoal`.
   factory DashboardGoal.fromJson(Map<String, dynamic> json) {
-    final target = json['target_value'];
-    final progress = json['progress_value'];
+    final w = api.ApiHomeGoal.fromJson(json);
+    final currency = w.currency ?? '';
     return DashboardGoal(
-      id: json['id']?.toString() ?? '',
-      name: json['name']?.toString() ?? '',
-      goalType: json['goal_type']?.toString() ?? 'REVENUE',
-      targetValue: target is num
-          ? target.toDouble()
-          : double.tryParse(target?.toString() ?? '') ?? 0,
-      progressValue: progress is num
-          ? progress.toDouble()
-          : double.tryParse(progress?.toString() ?? '') ?? 0,
-      progressPercent: (json['progress_percent'] as num?)?.toInt() ?? 0,
-      status: json['status']?.toString() ?? 'on_track',
-      currency: (json['currency']?.toString() ?? '').isEmpty
-          ? null
-          : json['currency'].toString(),
+      id: w.id ?? '',
+      name: w.name ?? '',
+      goalType: w.goalType ?? 'REVENUE',
+      targetValue: w.targetValue ?? 0,
+      progressValue: w.progressValue ?? 0,
+      progressPercent: w.progressPercent ?? 0,
+      status: w.status ?? 'on_track',
+      currency: currency.isEmpty ? null : currency,
     );
   }
 }

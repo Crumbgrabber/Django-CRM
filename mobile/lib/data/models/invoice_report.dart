@@ -1,3 +1,5 @@
+import '../api/schema.g.dart' as api;
+
 /// The invoice reports, from `/invoices/reports/dashboard/` and
 /// `/invoices/reports/aging/`.
 ///
@@ -33,34 +35,46 @@ class InvoiceDashboard {
   final int estimatesAccepted;
   final int estimatesDeclined;
 
+  /// Reads an `InvoiceDashboard`.
   factory InvoiceDashboard.fromJson(Map<String, dynamic> json) {
-    final estimates = _map(json['estimates']);
-    final counts = _map(json['status_counts']);
-    final summary = _byCurrency(json['summary']);
-    final overdue = _byCurrency(json['overdue']);
-    final recent = _byCurrency(json['recent_activity']);
+    final w = api.InvoiceDashboard.fromJson(json);
+    final summary = _byCurrency(
+      w.summary?.json,
+      w.summary?.byCurrency,
+      (r) => r.currency,
+      api.InvoiceDashboardSummaryCurrency.fromJson,
+    );
+    final overdue = _byCurrency(
+      w.overdue?.json,
+      w.overdue?.byCurrency,
+      (r) => r.currency,
+      api.InvoiceDashboardOverdueCurrency.fromJson,
+    );
+    final recent = _byCurrency(
+      w.recentActivity?.json,
+      w.recentActivity?.byCurrency,
+      (r) => r.currency,
+      api.InvoiceDashboardRecentCurrency.fromJson,
+    );
     return InvoiceDashboard(
       money: {
         for (final code in {...summary.keys, ...overdue.keys, ...recent.keys})
           code: DashboardMoney(
-            totalInvoiced: _num(summary[code]?['total_invoiced']),
-            totalPaid: _num(summary[code]?['total_paid']),
-            totalDue: _num(summary[code]?['total_due']),
-            overdueCount: overdue[code]?['count'] as int? ?? 0,
-            overdueAmount: _num(overdue[code]?['amount']),
-            revenue30d: _num(recent[code]?['revenue_30d']),
-            invoiced30d: _num(recent[code]?['invoiced_30d']),
+            totalInvoiced: _num(summary[code]?.totalInvoiced),
+            totalPaid: _num(summary[code]?.totalPaid),
+            totalDue: _num(summary[code]?.totalDue),
+            overdueCount: overdue[code]?.count ?? 0,
+            overdueAmount: _num(overdue[code]?.amount),
+            revenue30d: _num(recent[code]?.revenue30d),
+            invoiced30d: _num(recent[code]?.invoiced30d),
           ),
       },
-      invoiceCount: json['invoice_count'] as int? ?? 0,
-      averageDaysToPay: json['average_days_to_pay'] as int? ?? 0,
-      statusCounts: {
-        for (final entry in counts.entries)
-          if (entry.value is int) entry.key: entry.value as int,
-      },
-      estimatesPending: estimates['pending'] as int? ?? 0,
-      estimatesAccepted: estimates['accepted'] as int? ?? 0,
-      estimatesDeclined: estimates['declined'] as int? ?? 0,
+      invoiceCount: w.invoiceCount ?? 0,
+      averageDaysToPay: w.averageDaysToPay ?? 0,
+      statusCounts: w.statusCounts ?? const {},
+      estimatesPending: w.estimates?.pending ?? 0,
+      estimatesAccepted: w.estimates?.accepted ?? 0,
+      estimatesDeclined: w.estimates?.declined ?? 0,
     );
   }
 }
@@ -96,12 +110,13 @@ class AgingBucket {
   final int count;
   final double amount;
 
-  factory AgingBucket.fromJson(String label, dynamic node) {
-    final map = _map(node);
+  /// Reads one currency's `AgingBucketCurrency` row of a bucket.
+  factory AgingBucket.fromJson(String label, Map<String, dynamic>? json) {
+    final w = api.AgingBucketCurrency.fromJson(json ?? const {});
     return AgingBucket(
       label: label,
-      count: map['count'] as int? ?? 0,
-      amount: _num(map['amount']),
+      count: w.count ?? 0,
+      amount: _num(w.amount),
     );
   }
 }
@@ -124,61 +139,82 @@ class AgingReport {
   /// Past the due date only, so `total` minus what is merely not yet due.
   final double overdue;
 
-  static const _buckets = {
-    'current': 'Not yet due',
-    '1_30_days': '1 to 30 days',
-    '31_60_days': '31 to 60 days',
-    '61_90_days': '61 to 90 days',
-    'over_90_days': 'Over 90 days',
-  };
+  /// The buckets' labels, in the order [byCurrencyFromJson] reads them.
+  static const _labels = [
+    'Not yet due',
+    '1 to 30 days',
+    '31 to 60 days',
+    '61 to 90 days',
+    'Over 90 days',
+  ];
 
-  /// One report per currency code the response has unpaid money in.
+  /// Reads an `AgingReport`: one report per currency code the response has
+  /// unpaid money in.
   static Map<String, AgingReport> byCurrencyFromJson(
     Map<String, dynamic> json,
   ) {
-    final total = _byCurrency(json['total']);
-    final overdue = _byCurrency(json['overdue']);
-    final buckets = {
-      for (final key in _buckets.keys) key: _byCurrency(json[key]),
-    };
+    final w = api.AgingReport.fromJson(json);
+    final total = _byCurrency(
+      w.total?.json,
+      w.total?.byCurrency,
+      (r) => r.currency,
+      api.AgingTallyCurrency.fromJson,
+    );
+    final overdue = _byCurrency(
+      w.overdue?.json,
+      w.overdue?.byCurrency,
+      (r) => r.currency,
+      api.AgingTallyCurrency.fromJson,
+    );
+    final buckets = [
+      for (final b in [
+        w.current,
+        w.v130Days,
+        w.v3160Days,
+        w.v6190Days,
+        w.over90Days,
+      ])
+        _byCurrency(
+          b?.json,
+          b?.byCurrency,
+          (r) => r.currency,
+          api.AgingBucketCurrency.fromJson,
+        ),
+    ];
     return {
       for (final code in total.keys)
         code: AgingReport(
           buckets: [
-            for (final MapEntry(:key, :value) in _buckets.entries)
-              AgingBucket.fromJson(value, buckets[key]![code]),
+            for (final (i, label) in _labels.indexed)
+              AgingBucket.fromJson(label, buckets[i][code]?.json),
           ],
-          total: _num(total[code]?['amount']),
-          overdue: _num(overdue[code]?['amount']),
+          total: _num(total[code]?.amount),
+          overdue: _num(overdue[code]?.amount),
         ),
     };
   }
 
   /// Every bucket at zero, for a currency with nothing unpaid.
   static final empty = AgingReport(
-    buckets: [for (final label in _buckets.values) AgingBucket(label: label)],
+    buckets: [for (final label in _labels) AgingBucket(label: label)],
   );
 }
 
-Map<String, dynamic> _map(dynamic value) =>
-    value is Map<String, dynamic> ? value : const {};
-
-double _num(dynamic value) {
-  if (value is num) return value.toDouble();
-  return double.tryParse(value?.toString() ?? '') ?? 0;
-}
+double _num(String? value) => double.tryParse(value ?? '') ?? 0;
 
 /// A report block's `by_currency` rows, keyed by currency code.
 ///
 /// A server older than the per-currency reports sends only the plain figures;
-/// those are kept under an empty code, which the screen labels with the org's
-/// own currency, as it always did.
-Map<String, Map<String, dynamic>> _byCurrency(dynamic block) {
-  final map = _map(block);
-  final rows = map['by_currency'];
-  if (rows is! List) return map.isEmpty ? const {} : {'': map};
-  return {
-    for (final row in rows.whereType<Map<String, dynamic>>())
-      if (row['currency'] is String) row['currency'] as String: row,
-  };
+/// the block itself is then read as one row under an empty code, which the
+/// screen labels with the org's own currency, as it always did.
+Map<String, R> _byCurrency<R>(
+  Map<String, dynamic>? block,
+  List<R>? rows,
+  String? Function(R row) currency,
+  R Function(Map<String, dynamic> json) row,
+) {
+  if (rows == null) {
+    return block == null || block.isEmpty ? const {} : {'': row(block)};
+  }
+  return {for (final r in rows) ?currency(r): r};
 }

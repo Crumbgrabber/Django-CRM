@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   /**
    * A new invoice template: name, the two brand colours, an optional logo, and
@@ -24,18 +24,22 @@
   import { enhance } from '$app/forms';
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
   import { ChevronRight, Lock } from '@lucide/svelte';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
-  /**
-   * What the form is filled from: the echoed values of a refused save.
-   *
-   * @typedef {{ name?: string, primary_color?: string, secondary_color?: string, default_notes?: string, default_terms?: string, footer_text?: string, is_default?: boolean }} TemplateValues
-   */
+  /** What the form is filled from: the echoed values of a refused save. */
+  type TemplateValues = {
+    name?: string;
+    primary_color?: string;
+    secondary_color?: string;
+    default_notes?: string;
+    default_terms?: string;
+    footer_text?: string;
+    is_default?: boolean;
+  };
 
-  /** @type {TemplateValues} */
-  let values = $derived(form?.values ?? {});
+  let values: TemplateValues = $derived(form?.values ?? {});
 
   /* True from submit until the response lands, so a second press during a
      slow save cannot post the template again and create two templates. */
@@ -109,7 +113,7 @@
             class="color-swatch"
             type="color"
             name="primary_color"
-            value={values.primary_color || '#3B82F6'}
+            defaultValue={values.primary_color || '#3B82F6'}
           />
         </label>
         <label class="color-field">
@@ -118,7 +122,7 @@
             class="color-swatch"
             type="color"
             name="secondary_color"
-            value={values.secondary_color || '#1E40AF'}
+            defaultValue={values.secondary_color || '#1E40AF'}
           />
         </label>
       </div>

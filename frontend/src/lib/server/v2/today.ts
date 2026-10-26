@@ -1,0 +1,69 @@
+/**
+ * The Today queue: the wiring behind the v2 home (`/`).
+ *
+ * Server-only. Reads one endpoint, `GET /dashboard/today/`, which rolls four
+ * sources into a single prioritised action list: support cases still awaiting a
+ * first reply, invoices past due, deals that have gone quiet (stage-aging), and
+ * tasks overdue or due today, plus the unanswered-leads figure. The endpoint is org-scoped from the JWT and, for a
+ * member, narrowed to rows whose action they can take (a ticket they only watch
+ * is left out, since they cannot reply to it), so nothing here decides
+ * visibility; the API does.
+ *
+ * This is read-only: the home page links out to each item's own module, where
+ * the writes already live. There is no write path to wire here.
+ *
+ * The response shape IS the page's shape (`{ queue, summary, later }`), so
+ * there is nothing to reshape; the fixture that preceded it was built to match
+ * this contract. `queue[].href` is always an internal `/...` path the server
+ * built (never a stored value), so there is no untrusted-link concern here.
+ */
+import { apiRequest } from '#lib/api-helpers.js';
+import type { Cookies } from '@sveltejs/kit';
+import type { components } from '#lib/api-schema.js';
+
+type Schemas = components['schemas'];
+
+/**
+ * Null hides the lead card: an API older than response tracking has no
+ * `unanswered_leads`.
+ */
+function unansweredBlock(
+  block: Schemas['UnansweredLeads'] | null | undefined
+): { count: number; oldest_since: string | null } | null {
+  if (!block || !Number.isInteger(block.count)) return null;
+  return {
+    count: block.count,
+    oldest_since: typeof block.oldest_since === 'string' ? block.oldest_since : null
+  };
+}
+
+/** The current user's Today queue, shaped for the page. */
+export async function getToday({ cookies }: { cookies: Cookies }): Promise<{
+  queue: Schemas['ApiTodayQueueItem'][];
+  summary: Schemas['ApiTodaySummary'];
+  later: Schemas['ApiTodayLaterItem'][];
+  unanswered: { count: number; oldest_since: string | null } | null;
+}> {
+  const resp: Schemas['ApiTodayResponse'] = await apiRequest('/dashboard/today/', {}, { cookies });
+  const queue = resp.queue ?? [];
+  const summary: Partial<Schemas['ApiTodaySummary']> = resp.summary ?? {};
+  return {
+    queue,
+    summary: {
+      count: summary.count ?? 0,
+      // `shown` is what the page is about to render and `count` is the org's
+      // real total; the page compares them before it can claim to have shown
+      // everything. Defaulting `shown` to the queue length rather than 0 keeps
+      // that comparison honest if the field is ever missing.
+      shown: summary.shown ?? queue.length,
+      sources: summary.sources ?? [],
+      quiet_deals: summary.quiet_deals ?? 0,
+      quiet_value: summary.quiet_value ?? 0,
+      cleared_yesterday: summary.cleared_yesterday ?? 0,
+      empty_workspace: summary.empty_workspace ?? false,
+      can_import: summary.can_import ?? false
+    },
+    later: resp.later ?? [],
+    unanswered: unansweredBlock(resp.unanswered_leads)
+  };
+}

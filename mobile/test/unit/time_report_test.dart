@@ -145,10 +145,10 @@ void main() {
       }
     });
 
-    test('a share sent as a string still parses', () {
+    test('a whole share reads as 100 percent', () {
       final row = TimeReportRow.fromJson({
         'name': 'Ada',
-        'billable_share': '1',
+        'billable_share': 1.0,
       });
       expect(row.billableSharePercent, 100);
     });

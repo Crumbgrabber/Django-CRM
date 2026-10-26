@@ -96,42 +96,9 @@ void main() {
       );
     });
 
-    test('sorts fields by order even when the server sends them out of it', () {
-      final form = WebForm.fromJson({
-        'id': 'f1',
-        'fields': [
-          {
-            'source': 'lead',
-            'lead_field': 'phone',
-            'label': 'Phone',
-            'order': 2,
-          },
-          {
-            'source': 'lead',
-            'lead_field': 'email',
-            'label': 'Email',
-            'order': 0,
-          },
-          {
-            'source': 'lead',
-            'lead_field': 'first_name',
-            'label': 'First',
-            'order': 1,
-          },
-        ],
-      });
-
-      expect(form.fields.map((f) => f.leadField), [
-        'email',
-        'first_name',
-        'phone',
-      ]);
-    });
-
     test('keeps the given order when no order key is present', () {
-      // The list endpoint orders by `order` already, so an absent key means
-      // "as sent". Falling back to 0 for all of them and then sorting would be
-      // a stable no-op, which is exactly what is wanted; this pins it.
+      // The API serves the rows in `order` and never sends the key itself,
+      // so the list is kept as served.
       final form = WebForm.fromJson({
         'id': 'f1',
         'fields': [
@@ -164,7 +131,7 @@ void main() {
 
     test('a row is complete only with a label and a target', () {
       // Mirrors `isFieldComplete` in
-      // `frontend/src/lib/v2/webform-fields.js`, and behind both of them the
+      // `frontend/src/lib/v2/webform-fields.ts`, and behind both of them the
       // `web_form_field_exactly_one_target` check constraint.
       const withTarget = WebFormField(
         source: WebFormField.sourceLead,
@@ -398,7 +365,7 @@ void main() {
   group('WEBFORM_LEAD_FIELDS', () {
     test('mirrors the backend whitelist, in the backend order', () {
       // `backend/webforms/constants.py::LEAD_FIELD_CHOICES`, and
-      // `frontend/src/lib/v2/webform-fields.js` carries the same list.
+      // `frontend/src/lib/v2/webform-fields.ts` carries the same list.
       // `validate_lead_field` rejects anything outside it, so a stale entry
       // here is a clean 400 rather than a bad write, but the picker would
       // still be wrong.

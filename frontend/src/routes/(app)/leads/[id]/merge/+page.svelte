@@ -1,8 +1,8 @@
-<script>
+<script lang="ts">
   import MergeCompare from '#lib/v2/components/MergeCompare.svelte';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 </script>
 
 <svelte:head>

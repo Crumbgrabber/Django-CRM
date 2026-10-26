@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * Who a new ticket lands on.
    *
@@ -31,16 +31,15 @@
   import { missingOptions, inactiveOptionLabel } from '#lib/v2/pickers.js';
   import { nextInRotation } from './rotation.js';
   import { Plus, GripVertical, TriangleAlert, UserX } from '@lucide/svelte';
+  import type { PageProps } from './$types';
+  import type { RoutingRuleRow } from '#lib/server/v2/routing.js';
 
-  /** @typedef {import('#lib/server/v2/routing.js').RoutingRuleRow} RoutingRuleRow */
-
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   // `null` when the panel is closed, `'new'` when adding, or the rule object
   // when editing that row. One panel, two modes, so two rows can never be
   // open for edit at once.
-  let editing = $state(/** @type {'new' | RoutingRuleRow | null} */ (null));
+  let editing = $state<'new' | RoutingRuleRow | null>(null);
 
   // The strategy currently selected in the form, so the target picker below
   // it (team vs. people) can switch without a round trip. Seeded from the
@@ -50,7 +49,7 @@
   // The repeating condition rows being edited, as `{ field, op, value }`.
   // Held here, rather than read off `editing`, so a row can be added or
   // removed before submitting.
-  let conditionRows = $state(/** @type {{ field: string, op: string, value: string }[]} */ ([]));
+  let conditionRows = $state<{ field: string; op: string; value: string }[]>([]);
 
   function openCreate() {
     editing = 'new';
@@ -58,8 +57,7 @@
     conditionRows = [];
   }
 
-  /** @param {RoutingRuleRow} r */
-  function openEdit(r) {
+  function openEdit(r: RoutingRuleRow) {
     editing = r;
     strategy = r.strategy;
     // Joining an array value into a comma-separated string is the right
@@ -99,10 +97,8 @@
    * `CONDITION_FIELD_LABEL` only carries the six fixed ones, so without this
    * the select would have no matching option, would submit nothing, and the
    * row would be dropped or, worse, shift its neighbours.
-   *
-   * @param {string} field
    */
-  function unlistedField(field) {
+  function unlistedField(field: string) {
     if (!field || field in CONDITION_FIELD_LABEL) return null;
     return field.startsWith('custom_fields.')
       ? `Custom field: ${field.slice('custom_fields.'.length)}`
@@ -126,11 +122,8 @@
     });
   });
 
-  /**
-   * The conditions as one clause. No conditions means every ticket.
-   * @param {RoutingRuleRow} r
-   */
-  function when(r) {
+  /** The conditions as one clause. No conditions means every ticket. */
+  function when(r: RoutingRuleRow) {
     if (!r.conditions.length) return 'Any ticket';
     return r.conditions
       .map((c) => {
@@ -141,11 +134,8 @@
       .join(' and ');
   }
 
-  /**
-   * The action as one clause: verb phrase from the strategy, then its object.
-   * @param {RoutingRuleRow} r
-   */
-  function then(r) {
+  /** The action as one clause: verb phrase from the strategy, then its object. */
+  function then(r: RoutingRuleRow) {
     const verb = ROUTING_STRATEGY_LABEL[r.strategy];
     if (r.strategy === 'by_team') return `${verb} ${r.target_team?.name ?? '—'}`;
     return `${verb} ${r.target_assignees.map((a) => a.name).join(', ') || '—'}`;

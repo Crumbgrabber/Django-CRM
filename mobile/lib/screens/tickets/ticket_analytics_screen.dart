@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/theme/theme.dart';
+import '../../data/api/schema.g.dart' as api;
 import '../../data/models/ticket.dart';
 import '../../providers/analytics_provider.dart';
 import '../../services/org_date.dart';
@@ -153,11 +154,11 @@ class _TicketAnalyticsScreenState extends ConsumerState<TicketAnalyticsScreen> {
     VoidCallback retryOf(AnalyticsSection s) =>
         () => notifier.retry(s);
 
-    final frt = data.frt;
-    final nrt = data.nrt;
-    final mttr = data.mttr;
+    final frt = api.AnalyticsFrtResponse.fromJson(data.frt ?? {});
+    final nrt = api.AnalyticsNrtResponse.fromJson(data.nrt ?? {});
+    final mttr = api.AnalyticsMttrResponse.fromJson(data.mttr ?? {});
     final backlog = data.backlog;
-    final sla = data.sla;
+    final sla = api.AnalyticsSlaResponse.fromJson(data.sla ?? {});
 
     return RefreshIndicator(
       onRefresh: () async => _apply(),
@@ -171,10 +172,10 @@ class _TicketAnalyticsScreenState extends ConsumerState<TicketAnalyticsScreen> {
             children: [
               _MetricTile(
                 title: 'First Response',
-                value: _hours(frt?['median_hours']),
+                value: _hours(frt.medianHours),
                 subtitle:
-                    'p90 ${_hours(frt?['p90_hours'])} · ${frt?['count'] ?? 0} tickets',
-                breachLabel: '${frt?['breach_count'] ?? 0} breached',
+                    'p90 ${_hours(frt.p90Hours)} · ${frt.count ?? 0} tickets',
+                breachLabel: '${frt.breachCount ?? 0} breached',
                 icon: LucideIcons.zap,
                 color: AppColors.primary600,
                 error: errorOf(AnalyticsSection.frt),
@@ -182,10 +183,10 @@ class _TicketAnalyticsScreenState extends ConsumerState<TicketAnalyticsScreen> {
               ),
               _MetricTile(
                 title: 'Next Response',
-                value: _hours(nrt?['median_hours']),
+                value: _hours(nrt.medianHours),
                 subtitle:
-                    'p90 ${_hours(nrt?['p90_hours'])} · ${nrt?['count'] ?? 0} answered',
-                breachLabel: '${nrt?['breach_count'] ?? 0} breached',
+                    'p90 ${_hours(nrt.p90Hours)} · ${nrt.count ?? 0} answered',
+                breachLabel: '${nrt.breachCount ?? 0} breached',
                 icon: LucideIcons.messageSquareReply,
                 color: AppColors.teal600,
                 error: errorOf(AnalyticsSection.nrt),
@@ -198,9 +199,9 @@ class _TicketAnalyticsScreenState extends ConsumerState<TicketAnalyticsScreen> {
             children: [
               _MetricTile(
                 title: 'Resolution',
-                value: _hours(mttr?['median_hours']),
+                value: _hours(mttr.medianHours),
                 subtitle:
-                    'p90 ${_hours(mttr?['p90_hours'])} · ${mttr?['count'] ?? 0} resolved',
+                    'p90 ${_hours(mttr.p90Hours)} · ${mttr.count ?? 0} resolved',
                 icon: LucideIcons.checkCircle,
                 color: AppColors.success600,
                 error: errorOf(AnalyticsSection.mttr),
@@ -222,11 +223,11 @@ class _TicketAnalyticsScreenState extends ConsumerState<TicketAnalyticsScreen> {
           // Full width: three rates, and the headline one is first response.
           _MetricTile(
             title: 'SLA breach rate',
-            value: _rate(sla?['frt_breach_rate']),
+            value: _rate(sla.frtBreachRate),
             subtitle:
                 'First response above · Resolution '
-                '${_rate(sla?['resolution_breach_rate'])} · Next response '
-                '${_rate(sla?['nrt_breach_rate'])}',
+                '${_rate(sla.resolutionBreachRate)} · Next response '
+                '${_rate(sla.nrtBreachRate)}',
             icon: LucideIcons.alertTriangle,
             color: AppColors.danger600,
             error: errorOf(AnalyticsSection.sla),
@@ -263,23 +264,22 @@ class _TicketAnalyticsScreenState extends ConsumerState<TicketAnalyticsScreen> {
     return '${(d * 100).toStringAsFixed(1)}%';
   }
 
+  List<api.AnalyticsBacklogDay> _backlogSeries(Map<String, dynamic>? backlog) =>
+      backlog == null
+      ? const []
+      : api.AnalyticsBacklogResponse.fromJson(backlog).series ?? const [];
+
   int _backlogCurrent(Map<String, dynamic>? backlog) {
-    if (backlog == null) return 0;
-    final series = backlog['series'] as List<dynamic>? ?? const [];
+    final series = _backlogSeries(backlog);
     if (series.isEmpty) return 0;
-    final last = series.last as Map<String, dynamic>;
-    return last['open_count'] as int? ?? 0;
+    return series.last.openCount ?? 0;
   }
 
   int _backlogPeakUrgent(Map<String, dynamic>? backlog) {
-    if (backlog == null) return 0;
-    final series = backlog['series'] as List<dynamic>? ?? const [];
     int peak = 0;
-    for (final p in series) {
-      if (p is Map<String, dynamic>) {
-        final u = p['urgent_count'] as int? ?? 0;
-        if (u > peak) peak = u;
-      }
+    for (final day in _backlogSeries(backlog)) {
+      final u = day.urgentCount ?? 0;
+      if (u > peak) peak = u;
     }
     return peak;
   }
@@ -401,11 +401,10 @@ class _CsatSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final count = csat?['count'] as int? ?? 0;
-    final average = csat?['average'] as num?;
-    final distribution = csat?['distribution'] is Map
-        ? csat!['distribution'] as Map
-        : const {};
+    final w = api.CsatAggregateResponse.fromJson(csat ?? {});
+    final count = w.count ?? 0;
+    final average = w.average;
+    final d = w.distribution;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -468,8 +467,14 @@ class _CsatSection extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
-            for (final rating in const [5, 4, 3, 2, 1])
-              _ratingBar(rating, distribution['$rating'] as int? ?? 0, count),
+            for (final (rating, n) in [
+              (5, d?.v5),
+              (4, d?.v4),
+              (3, d?.v3),
+              (2, d?.v2),
+              (1, d?.v1),
+            ])
+              _ratingBar(rating, n ?? 0, count),
           ],
         ],
       ),
@@ -551,11 +556,12 @@ class _AgentsSection extends StatelessWidget {
     );
   }
 
-  Widget _agentRow(Map<String, dynamic> a) {
-    final email = a['email'] as String? ?? a['name'] as String? ?? '—';
-    final handled = a['handled'] as int? ?? 0;
-    final avgFrt = a['avg_frt_hours'];
-    final breachRate = a['breach_rate'];
+  Widget _agentRow(Map<String, dynamic> json) {
+    final a = api.AnalyticsAgent.fromJson(json);
+    final email = a.email ?? a.name ?? '\u2014';
+    final handled = a.handled ?? 0;
+    final avgFrt = a.avgFrtHours;
+    final breachRate = a.breachRate;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(

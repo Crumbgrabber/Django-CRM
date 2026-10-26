@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { SvelteMap } from 'svelte/reactivity';
   /**
    * Fields this organisation added to records that shipped without them.
@@ -24,11 +24,12 @@
   import { isOn, TARGET_MODULES } from '#lib/v2/modules.js';
   import { FIELD_TYPE_LABEL, TARGET_MODEL_LABEL } from '#lib/v2/enums.js';
   import { Plus, TriangleAlert, Filter } from '@lucide/svelte';
+  import type { PageProps } from './$types';
+  import type { components } from '#lib/api-schema.js';
 
-  /** @typedef {import('#lib/api-schema.js').components['schemas']['CustomFieldDefinitionRow']} FieldRow */
+  type FieldRow = components['schemas']['CustomFieldDefinitionRow'];
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   let targetOptions = $derived(
     Object.entries(TARGET_MODEL_LABEL).filter(
@@ -39,13 +40,13 @@
   // `null` when the panel is closed, `'new'` when adding, or the field object
   // when editing that row. One panel, two modes, so two rows can never be
   // open for edit at once.
-  let editing = $state(/** @type {'new' | FieldRow | null} */ (null));
+  let editing = $state<'new' | FieldRow | null>(null);
 
   // The dropdown options being edited, as `{ value, label }` rows. Held here
   // rather than read off `editing` so a row can be added or removed before
   // submitting. A new row has an empty `value`; the server module slugifies
   // one from the label, and never rewrites an existing value.
-  let optionRows = $state(/** @type {{ value: string, label: string }[]} */ ([]));
+  let optionRows = $state<{ value: string; label: string }[]>([]);
 
   // The type currently selected in the form, so the options editor appears
   // only for a dropdown. Seeded from the row being edited.
@@ -57,8 +58,7 @@
     optionRows = [];
   }
 
-  /** @param {FieldRow} f */
-  function openEdit(f) {
+  function openEdit(f: FieldRow) {
     editing = f;
     fieldType = f.field_type;
     // A non-dropdown field may be stored with `{}` for its options.
@@ -72,8 +72,7 @@
 
   /** One group per extended model, fields kept in display_order. */
   let groups = $derived.by(() => {
-    /** @type {Map<string, FieldRow[]>} */
-    const byModel = new SvelteMap();
+    const byModel: Map<string, FieldRow[]> = new SvelteMap();
     for (const f of data.fields) {
       byModel.set(f.target_model, [...(byModel.get(f.target_model) ?? []), f]);
     }

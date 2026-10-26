@@ -300,6 +300,8 @@ class LeadCreateSerializer(serializers.ModelSerializer):
 
 
 class LeadCreateSwaggerSerializer(serializers.ModelSerializer):
+    custom_fields = serializers.DictField(required=False)
+
     class Meta:
         model = Lead
         fields = [
@@ -340,7 +342,15 @@ class LeadCreateSwaggerSerializer(serializers.ModelSerializer):
             "description",
             # System
             "company_name",
+            "custom_fields",
         ]
+
+
+class LeadPatchSwaggerSerializer(LeadCreateSwaggerSerializer):
+    is_converted = serializers.BooleanField(required=False)
+
+    class Meta(LeadCreateSwaggerSerializer.Meta):
+        fields = [*LeadCreateSwaggerSerializer.Meta.fields, "is_converted"]
 
 
 class CreateLeadFromSiteSwaggerSerializer(serializers.Serializer):
@@ -355,8 +365,9 @@ class CreateLeadFromSiteSwaggerSerializer(serializers.Serializer):
 
 
 class LeadDetailEditSwaggerSerializer(serializers.Serializer):
-    comment = serializers.CharField()
-    lead_attachment = serializers.FileField()
+    # A comment, a file, or both.
+    comment = serializers.CharField(required=False)
+    lead_attachment = serializers.FileField(required=False)
 
 
 class LeadCommentEditSwaggerSerializer(serializers.Serializer):

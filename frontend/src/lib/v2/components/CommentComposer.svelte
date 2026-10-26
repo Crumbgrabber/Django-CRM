@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { enhance } from '$app/forms';
   import { Paperclip, X } from '@lucide/svelte';
 
@@ -6,20 +6,19 @@
    * Add a comment, a file, or both, to the record on this page through its
    * `?/comment` action (`commentAction`, `#lib/server/v2/record-notes.js`).
    * A failed save keeps the words and the file; a saved one clears both.
-   *
-   * @type {{ error?: string | null, placeholder?: string }}
    */
-  let { error = null, placeholder = 'Write a comment…' } = $props();
+  let {
+    error = null,
+    placeholder = 'Write a comment…'
+  }: { error?: string | null; placeholder?: string } = $props();
 
   let text = $state('');
   let fileName = $state('');
-  /** @type {HTMLInputElement | undefined} */
-  let fileInput = $state();
+  let fileInput: HTMLInputElement | undefined = $state();
   let saving = $state(false);
 
-  /** @param {Event} e */
-  function pickFile(e) {
-    fileName = /** @type {HTMLInputElement} */ (e.currentTarget).files?.[0]?.name ?? '';
+  function pickFile(e: Event) {
+    fileName = (e.currentTarget as HTMLInputElement).files?.[0]?.name ?? '';
   }
   function clearFile() {
     if (fileInput) fileInput.value = '';

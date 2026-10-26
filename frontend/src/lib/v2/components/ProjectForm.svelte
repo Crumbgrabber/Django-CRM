@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { enhance } from '$app/forms';
   import { resolve } from '$app/paths';
   import { untrack } from 'svelte';
@@ -11,10 +11,13 @@
     PROJECT_STATUS_LABEL,
     BILLING_TYPES,
     BILLING_TYPE_LABEL,
-    hoursText
+    hoursText,
+    type ProjectFormValues,
+    type ProjectValues
   } from '#lib/v2/projects.js';
   import { money } from '#lib/v2/format.js';
   import { Plus, X } from '@lucide/svelte';
+  import type { pairForEdit } from '#lib/server/v2/record-fields.js';
 
   /**
    * The new and edit project form. Values are what the record holds (or the
@@ -30,24 +33,6 @@
    * a member's form shows them read-only on edit, hides them on create, and
    * sends none of them. The account is set by anyone on create, then only by
    * an admin. The API ignores what a member sends for any of these anyway.
-   *
-   * @type {{
-   *   action: string,
-   *   submitLabel: string,
-   *   values: import('#lib/v2/projects.js').ProjectFormValues,
-   *   typed?: import('#lib/v2/projects.js').ProjectValues | null,
-   *   error?: string | null,
-   *   accounts: { id: string, name: string }[],
-   *   deals?: { id: string, name: string }[] | null,
-   *   people: { id: string, name: string }[],
-   *   peopleFailed?: boolean,
-   *   stored?: { account?: { id: string, name: string } | null, deal?: { id: string, name: string } | null, people?: { id: string, name: string }[] },
-   *   customFields?: ReturnType<typeof import('#lib/server/v2/record-fields.js').pairForEdit>,
-   *   fieldErrors?: Record<string, string> | null,
-   *   edit?: boolean,
-   *   isAdmin?: boolean,
-   *   cancelHref: string
-   * }}
    */
   let {
     action,
@@ -65,6 +50,26 @@
     edit = false,
     isAdmin = false,
     cancelHref
+  }: {
+    action: string;
+    submitLabel: string;
+    values: ProjectFormValues;
+    typed?: ProjectValues | null;
+    error?: string | null;
+    accounts: { id: string; name: string }[];
+    deals?: { id: string; name: string }[] | null;
+    people: { id: string; name: string }[];
+    peopleFailed?: boolean;
+    stored?: {
+      account?: { id: string; name: string } | null;
+      deal?: { id: string; name: string } | null;
+      people?: { id: string; name: string }[];
+    };
+    customFields?: ReturnType<typeof pairForEdit>;
+    fieldErrors?: Record<string, string> | null;
+    edit?: boolean;
+    isAdmin?: boolean;
+    cancelHref: string;
   } = $props();
 
   let v = $derived({ ...values, ...(typed ?? {}) });
@@ -72,8 +77,7 @@
   let billingType = $state(
     untrack(() => typed?.billing_type || values.billing_type || 'time_and_materials')
   );
-  /** @type {{ key: number, profile: string, hourly_rate: string }[]} */
-  let rates = $state(
+  let rates: { key: number; profile: string; hourly_rate: string }[] = $state(
     untrack(() =>
       (typed?.rates ?? values.rates ?? []).map((r, i) => ({
         key: i,
@@ -101,18 +105,14 @@
   let accountName = $derived(
     [...accounts, stored.account].find((a) => a?.id === v.account)?.name ?? ''
   );
-  let personName = $derived(
-    (/** @type {string} */ id) => allPeople.find((p) => p.id === id)?.name ?? 'Someone'
-  );
-  /** @param {unknown} value */
-  const isSet = (value) => value !== null && value !== undefined && value !== '';
+  let personName = $derived((id: string) => allPeople.find((p) => p.id === id)?.name ?? 'Someone');
+  const isSet = (value: unknown) => value !== null && value !== undefined && value !== '';
 
   function addRate() {
     rates.push({ key: nextKey, profile: '', hourly_rate: '' });
     nextKey += 1;
   }
-  /** @param {number} key */
-  function dropRate(key) {
+  function dropRate(key: number) {
     rates = rates.filter((r) => r.key !== key);
   }
 </script>

@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   /**
    * What happens when a ticket blows its target.
@@ -54,11 +54,10 @@
   } from './outcome.js';
   import { missingOption, inactiveOptionLabel } from '#lib/v2/pickers.js';
   import { TriangleAlert, BellOff, Plus } from '@lucide/svelte';
+  import type { PageProps } from './$types';
+  import type { EscalationPolicyRow } from '#lib/server/v2/escalation.js';
 
-  /** @typedef {import('#lib/server/v2/escalation.js').EscalationPolicyRow} EscalationPolicyRow */
-
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   /**
    * By severity, not by the model's `ordering = ("priority",)`. That sorts
@@ -82,7 +81,7 @@
   // `null` when the panel is closed, `'new'` when adding, or the policy
   // object when editing that row. One panel, two modes, so two rows can
   // never be open for edit at once.
-  let editing = $state(/** @type {'new' | EscalationPolicyRow | null} */ (null));
+  let editing = $state<'new' | EscalationPolicyRow | null>(null);
 
   // Mirrors of the four action/target fields, so the "does nothing" hint can
   // react to what is currently picked in the form, before the policy is saved,
@@ -94,12 +93,9 @@
   let firstResponseTarget = $state('');
   let resolutionTarget = $state('');
   // A number once an edit prefills them or a number input binds them.
-  /** @type {number | string} */
-  let firstResponseHours = $state('');
-  /** @type {number | string} */
-  let resolutionHours = $state('');
-  /** @type {number | string} */
-  let nextResponseHours = $state('');
+  let firstResponseHours: number | string = $state('');
+  let resolutionHours: number | string = $state('');
+  let nextResponseHours: number | string = $state('');
   // Tracked so the hour placeholders follow the priority select on a create,
   // where the built-in default changes as you pick.
   let formPriority = $state('Urgent');
@@ -108,12 +104,12 @@
   /**
    * "6h" for a target this org set, "4h default" for one it never touched.
    * The distinction is the point: an unlabelled number reads as a decision.
-   *
-   * @param {EscalationPolicyRow} policy
-   * @param {'first_response' | 'resolution' | 'next_response'} half
    */
-  function targetLabel(policy, half) {
-    const configured = policy[/** @type {const} */ (`${half}_hours`)];
+  function targetLabel(
+    policy: EscalationPolicyRow,
+    half: 'first_response' | 'resolution' | 'next_response'
+  ) {
+    const configured = policy[`${half}_hours` as const];
     if (configured) return `${configured}h`;
     const fallback = (DEFAULT_SLA_HOURS[policy.priority] ?? DEFAULT_SLA_HOURS.Normal)[half];
     return `${fallback}h default`;
@@ -131,8 +127,7 @@
     nextResponseHours = '';
   }
 
-  /** @param {EscalationPolicyRow} p */
-  function openEdit(p) {
+  function openEdit(p: EscalationPolicyRow) {
     editing = p;
     firstResponseAction = p.first_response_action;
     resolutionAction = p.resolution_action;
@@ -177,7 +172,7 @@
   );
   // A failed people fetch leaves every stored target unlisted too. Kept all the
   // same, but not labelled "no longer active", which would be untrue.
-  const unlistedTargetLabel = (/** @type {string} */ name) =>
+  const unlistedTargetLabel = (name: string) =>
     data.options_failed ? name : inactiveOptionLabel(name);
 </script>
 

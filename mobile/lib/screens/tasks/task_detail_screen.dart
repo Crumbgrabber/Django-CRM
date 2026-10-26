@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../core/theme/theme.dart';
+import '../../data/api/schema.g.dart' as api;
 import '../../data/models/models.dart';
 import '../../providers/deals_provider.dart';
 import '../../providers/leads_provider.dart';
@@ -660,17 +661,9 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
   }
 
   String _assigneeDisplayName(Map<String, dynamic> profile) {
-    // ProfileSerializer wraps the user under `user_details` ({email, name, …}).
-    // Some older endpoints still return user__email at the top level. Keep
-    // that fallback so a payload shape change doesn't blank out the avatar.
-    final details = profile['user_details'];
-    String? email;
-    String? name;
-    if (details is Map<String, dynamic>) {
-      email = details['email'] as String?;
-      name = (details['name'] as String?)?.trim();
-    }
-    email ??= profile['user__email'] as String?;
+    final details = api.Profile.fromJson(profile).userDetails;
+    final email = details?.email;
+    final name = details?.name?.trim();
     if (name != null && name.isNotEmpty) return name;
     if (email != null && email.isNotEmpty) return email.split('@').first;
     return 'Unassigned';
@@ -1168,19 +1161,17 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
     // spinner (since _fetchTask always sets _isLoading=true) and would
     // silently fail if getTaskDetail returned null, leaving the new comment
     // invisible even though the server saved it.
-    final data = response.data;
-    final commentsData = data?['comments'];
-    final attachmentsData = data?['attachments'];
-    if (_detail != null && commentsData is List) {
-      final newComments = commentsData
-          .whereType<Map<String, dynamic>>()
-          .map(Comment.fromJson)
-          .toList();
-      final newAttachments = attachmentsData is List
-          ? attachmentsData
-                .whereType<Map<String, dynamic>>()
-                .map(Attachment.fromJson)
-                .toList()
+    final data = api.TaskCommentAttachmentResponse.fromJson(
+      response.data ?? const {},
+    );
+    final commentsData = data.comments;
+    final attachmentsData = data.attachments;
+    if (_detail != null && commentsData != null) {
+      final newComments = [
+        for (final c in commentsData) Comment.fromJson(c.json),
+      ];
+      final newAttachments = attachmentsData != null
+          ? [for (final a in attachmentsData) Attachment.fromJson(a.json)]
           : _detail!.attachments;
       setState(() {
         _detail = _detail!.copyWith(
@@ -1315,14 +1306,15 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
       return;
     }
 
-    final attachmentsData = result.data?['attachments'];
-    if (_detail != null && attachmentsData is List) {
+    final attachmentsData = api.TaskCommentAttachmentResponse.fromJson(
+      result.data ?? const {},
+    ).attachments;
+    if (_detail != null && attachmentsData != null) {
       setState(() {
         _detail = _detail!.copyWith(
-          attachments: attachmentsData
-              .whereType<Map<String, dynamic>>()
-              .map(Attachment.fromJson)
-              .toList(),
+          attachments: [
+            for (final a in attachmentsData) Attachment.fromJson(a.json),
+          ],
         );
       });
     } else {

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/theme/theme.dart';
+import '../../data/api/enterprise_schema.g.dart' as enterprise;
 import '../../data/models/custom_object.dart';
 import '../../data/models/lookup_models.dart';
 import '../../providers/custom_objects_provider.dart';
@@ -205,7 +206,7 @@ class _ObjectRecordFormScreenState
       context.pop();
       return;
     }
-    final id = response.data?['id']?.toString();
+    final id = enterprise.CustomRecordDetail.fromJson(response.data ?? {}).id;
     if (id == null || id.isEmpty) {
       context.pop();
     } else {

@@ -1,6 +1,8 @@
 // Lookup models for deal form selectors
 // These are simplified models used for dropdowns and multi-selects
 
+import '../api/schema.g.dart' as api;
+
 /// Account model for selector
 class AccountLookup {
   final String id;
@@ -15,12 +17,14 @@ class AccountLookup {
     this.phone,
   });
 
+  /// Reads an `Account`, a row of the accounts list.
   factory AccountLookup.fromJson(Map<String, dynamic> json) {
+    final w = api.Account.fromJson(json);
     return AccountLookup(
-      id: json['id']?.toString() ?? '',
-      name: json['name'] as String? ?? '',
-      website: json['website'] as String?,
-      phone: json['phone'] as String?,
+      id: w.id ?? '',
+      name: w.name ?? '',
+      website: w.website,
+      phone: w.phone,
     );
   }
 
@@ -80,21 +84,21 @@ class ContactLookup {
     return '$first$last'.toUpperCase();
   }
 
+  /// Reads a `Contact`, a row of the contacts list. A deal's `ContactLink`
+  /// is a narrower shape of it.
   factory ContactLookup.fromJson(Map<String, dynamic> json) {
+    final w = api.Contact.fromJson(json);
+    // `account_detail` is the resolved FK, `{id, name}` or null. The bare
+    // `account` key is read too so a leaner payload still populates this.
+    final detail = w.accountDetail;
     return ContactLookup(
-      id: json['id']?.toString() ?? '',
-      firstName: json['first_name'] as String? ?? '',
-      lastName: json['last_name'] as String? ?? '',
-      email: json['primary_email'] as String? ?? json['email'] as String?,
-      phone: json['mobile_number'] as String? ?? json['phone'] as String?,
-      // `account_detail` is the resolved FK, `{id, name}` or null. The bare
-      // `account` key is read too so a leaner payload still populates this.
-      accountId: json['account_detail'] is Map<String, dynamic>
-          ? (json['account_detail'] as Map<String, dynamic>)['id']?.toString()
-          : json['account']?.toString(),
-      accountName: json['account_detail'] is Map<String, dynamic>
-          ? (json['account_detail'] as Map<String, dynamic>)['name'] as String?
-          : null,
+      id: w.id ?? '',
+      firstName: w.firstName ?? '',
+      lastName: w.lastName ?? '',
+      email: w.email,
+      phone: w.phone,
+      accountId: detail != null ? detail.id : w.account,
+      accountName: detail?.name,
     );
   }
 
@@ -149,19 +153,19 @@ class UserLookup {
         : name.toUpperCase();
   }
 
+  /// Reads a `Profile`, or the flat `{id, email, name}` that web forms
+  /// (`WebFormMember`) and approval rules (`ApprovalRuleApprover`) send.
   factory UserLookup.fromJson(Map<String, dynamic> json) {
-    // Handle nested user_details structure from the API
-    final userDetails = json['user_details'] as Map<String, dynamic>?;
-
+    final w = api.Profile.fromJson(json);
+    final flat = api.WebFormMember.fromJson(json);
+    final details = w.userDetails;
     return UserLookup(
-      id: json['id']?.toString() ?? '',
-      email: userDetails?['email'] as String? ?? json['email'] as String? ?? '',
-      name: userDetails?['name'] as String? ?? json['name'] as String? ?? '',
-      profilePic:
-          userDetails?['profile_pic'] as String? ??
-          json['profile_pic'] as String?,
-      role: json['role'] as String? ?? 'USER',
-      isActive: json['is_active'] as bool? ?? true,
+      id: w.id ?? '',
+      email: details?.email ?? flat.email ?? '',
+      name: details?.name ?? flat.name ?? '',
+      profilePic: details?.profilePic,
+      role: w.role ?? 'USER',
+      isActive: w.isActive ?? true,
     );
   }
 
@@ -182,11 +186,14 @@ class TeamLookup {
 
   const TeamLookup({required this.id, required this.name, this.description});
 
+  /// Reads a `Teams`. An approval rule's `ApprovalRuleTeam` is a narrower
+  /// shape of it.
   factory TeamLookup.fromJson(Map<String, dynamic> json) {
+    final w = api.Teams.fromJson(json);
     return TeamLookup(
-      id: json['id']?.toString() ?? '',
-      name: json['name'] as String? ?? '',
-      description: json['description'] as String?,
+      id: w.id ?? '',
+      name: w.name ?? '',
+      description: w.description,
     );
   }
 
@@ -213,12 +220,14 @@ class TagLookup {
     required this.color,
   });
 
+  /// Reads a `TagsListRow`.
   factory TagLookup.fromJson(Map<String, dynamic> json) {
+    final w = api.TagsListRow.fromJson(json);
     return TagLookup(
-      id: json['id']?.toString() ?? '',
-      name: json['name'] as String? ?? '',
-      slug: json['slug'] as String? ?? '',
-      color: json['color'] as String? ?? 'gray',
+      id: w.id ?? '',
+      name: w.name ?? '',
+      slug: w.slug ?? '',
+      color: w.color ?? 'gray',
     );
   }
 

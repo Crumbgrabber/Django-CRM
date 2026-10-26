@@ -1,0 +1,91 @@
+/**
+ * The security audit log: the wiring behind `/settings/audit-log`.
+ *
+ * Server-only. `GET /api/org/audit-log/` is admin-only
+ * (`common/views/audit_log_views.py`), so a member's 403 folds into
+ * `forbidden` and the page says "Admins only" instead of crashing, the shape
+ * `listWebhooks` uses. A 400 is a filter the API refused (a hand-edited URL);
+ * the page shows the reason beside an empty list rather than an error page.
+ *
+ * Filters travel in the page URL and are passed on as they are. The API is
+ * what validates them. Token refreshes are hidden by the API unless
+ * `include_token_refresh=true` is sent (or `event_type=TOKEN_REFRESH`).
+ */
+import { apiRequest } from '#lib/api-helpers.js';
+import { apiStatus } from '#lib/api-errors.js';
+import type { Cookies } from '@sveltejs/kit';
+import type { components } from '#lib/api-schema.js';
+
+type Schemas = components['schemas'];
+
+/** Entries per page. */
+export const AUDIT_PAGE = 25;
+
+/** The query parameters the API filters on. Nothing else is forwarded. */
+export const AUDIT_FILTERS = [
+  'event_type',
+  'actor',
+  'from',
+  'to',
+  'include_token_refresh'
+] as const;
+
+/** The filters set in the page URL, blank ones left out. */
+export function auditFilters(params: URLSearchParams): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const key of AUDIT_FILTERS) {
+    const value = params.get(key)?.trim();
+    if (value) out[key] = value;
+  }
+  return out;
+}
+
+type AuditLogPage = {
+  forbidden: false;
+  filters: Record<string, string>;
+  offset: number;
+  pageSize: number;
+  error: string | null;
+  entries: Schemas['AuditLogEntry'][];
+  count: number;
+  eventTypes: Schemas['AuditLogEventType'][];
+};
+
+/** One page of the caller's org's audit log. */
+export async function listAuditLog(
+  { cookies }: { cookies: Cookies },
+  filters: Record<string, string>,
+  offset = 0
+): Promise<{ forbidden: true } | AuditLogPage> {
+  const query = new URLSearchParams({
+    ...filters,
+    limit: String(AUDIT_PAGE),
+    offset: String(offset)
+  });
+  const page = { filters, offset, pageSize: AUDIT_PAGE };
+  let resp: Schemas['AuditLogListResponse'];
+  try {
+    resp = await apiRequest(`/org/audit-log/?${query}`, {}, { cookies });
+  } catch (err) {
+    if (apiStatus(err) === 403) return { forbidden: true };
+    if (apiStatus(err) === 400) {
+      return {
+        forbidden: false,
+        ...page,
+        error: (err instanceof Error && err.message) || 'That filter is not valid.',
+        entries: [],
+        count: 0,
+        eventTypes: []
+      };
+    }
+    throw err;
+  }
+  return {
+    forbidden: false,
+    ...page,
+    error: null,
+    entries: resp?.results ?? [],
+    count: resp?.count ?? 0,
+    eventTypes: resp?.event_types ?? []
+  };
+}

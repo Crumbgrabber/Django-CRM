@@ -12,6 +12,7 @@ from django.db.models import Count, Q, Sum
 from django.http import HttpResponse
 from django.utils import timezone
 from django.utils.decorators import method_decorator
+from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema, inline_serializer
 from rest_framework import serializers, status
 from rest_framework.exceptions import ValidationError
@@ -21,6 +22,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.models import Account
+from cases.services.billing import GROUPINGS
 from common.custom_fields import validate_payload as validate_custom_fields_payload
 from common.lookups import get_on_visible_record_or_404
 from common.models import Attachments, Comment, CustomFieldDefinition
@@ -313,6 +315,34 @@ _AGING_REPORT = inline_serializer(
 
 
 # =============================================================================
+# REQUEST SCHEMAS
+# =============================================================================
+# The write bodies carry `custom_fields` beside the serializer's own fields;
+# the views validate it against the org's definitions, not the serializer.
+
+
+class InvoiceBodySerializer(InvoiceCreateSerializer):
+    custom_fields = serializers.DictField(required=False)
+
+    class Meta(InvoiceCreateSerializer.Meta):
+        fields = (*InvoiceCreateSerializer.Meta.fields, "custom_fields")
+
+
+class EstimateBodySerializer(EstimateCreateSerializer):
+    custom_fields = serializers.DictField(required=False)
+
+    class Meta(EstimateCreateSerializer.Meta):
+        fields = (*EstimateCreateSerializer.Meta.fields, "custom_fields")
+
+
+class RecurringInvoiceBodySerializer(RecurringInvoiceCreateSerializer):
+    custom_fields = serializers.DictField(required=False)
+
+    class Meta(RecurringInvoiceCreateSerializer.Meta):
+        fields = (*RecurringInvoiceCreateSerializer.Meta.fields, "custom_fields")
+
+
+# =============================================================================
 # INVOICE VIEWS
 # =============================================================================
 
@@ -479,6 +509,7 @@ class InvoiceListView(APIView, LimitOffsetPagination):
     @extend_schema(
         tags=["Invoices"],
         operation_id="invoices_create",
+        request=InvoiceBodySerializer,
         responses={201: _INVOICE_SAVED},
     )
     def post(self, request, *args, **kwargs):
@@ -593,6 +624,7 @@ class InvoiceDetailView(APIView):
     @extend_schema(
         tags=["Invoices"],
         operation_id="invoices_update",
+        request=InvoiceBodySerializer(partial=True),
         responses=_INVOICE_SAVED,
     )
     def put(self, request, pk, format=None):
@@ -671,6 +703,7 @@ class InvoiceSendView(APIView):
     @extend_schema(
         tags=["Invoices"],
         operation_id="invoices_send",
+        request=None,
         responses=_MESSAGE,
     )
     def post(self, request, pk):
@@ -720,6 +753,8 @@ class InvoiceMarkPaidView(APIView):
     @extend_schema(
         tags=["Invoices"],
         operation_id="invoices_mark_paid",
+        # Every field is optional: no amount settles the whole balance.
+        request=PaymentCreateSerializer(partial=True),
         responses=_INVOICE_SAVED,
     )
     @method_decorator(transaction.atomic)
@@ -771,6 +806,7 @@ class InvoiceDuplicateView(APIView):
     @extend_schema(
         tags=["Invoices"],
         operation_id="invoices_duplicate",
+        request=None,
         responses={201: _INVOICE_SAVED},
     )
     def post(self, request, pk):
@@ -854,6 +890,7 @@ class InvoiceCancelView(APIView):
     @extend_schema(
         tags=["Invoices"],
         operation_id="invoices_cancel",
+        request=None,
         responses=_INVOICE_SAVED,
     )
     @method_decorator(transaction.atomic)
@@ -901,7 +938,11 @@ class InvoicePDFView(APIView):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
-    @extend_schema(tags=["Invoices"], operation_id="invoices_pdf")
+    @extend_schema(
+        tags=["Invoices"],
+        operation_id="invoices_pdf",
+        responses={(200, "application/pdf"): OpenApiTypes.BINARY},
+    )
     def get(self, request, pk):
         invoice, error = get_invoice_or_error(request, pk)
         if error:
@@ -978,6 +1019,7 @@ class InvoiceLineItemListView(APIView):
     @extend_schema(
         tags=["Invoice Line Items"],
         operation_id="line_items_create",
+        request=InvoiceLineItemCreateSerializer,
         responses={201: _LINE_ITEM_SAVED},
     )
     @method_decorator(transaction.atomic)
@@ -1031,6 +1073,7 @@ class InvoiceLineItemDetailView(APIView):
     @extend_schema(
         tags=["Invoice Line Items"],
         operation_id="line_items_update",
+        request=InvoiceLineItemCreateSerializer(partial=True),
         responses=_LINE_ITEM_SAVED,
     )
     @method_decorator(transaction.atomic)
@@ -1139,6 +1182,7 @@ class PaymentListView(APIView, LimitOffsetPagination):
     @extend_schema(
         tags=["Payments"],
         operation_id="payments_create",
+        request=PaymentCreateSerializer,
         responses={201: _PAYMENT_SAVED},
     )
     @method_decorator(transaction.atomic)
@@ -1267,6 +1311,7 @@ class ProductListView(APIView, LimitOffsetPagination):
     @extend_schema(
         tags=["Products"],
         operation_id="products_create",
+        request=ProductCreateSerializer,
         responses={201: _PRODUCT_SAVED},
     )
     def post(self, request):
@@ -1341,6 +1386,7 @@ class ProductDetailView(APIView):
     @extend_schema(
         tags=["Products"],
         operation_id="products_update",
+        request=ProductCreateSerializer(partial=True),
         responses=_PRODUCT_SAVED,
     )
     def put(self, request, pk):
@@ -1462,6 +1508,7 @@ class EstimateListView(APIView, LimitOffsetPagination):
     @extend_schema(
         tags=["Estimates"],
         operation_id="estimates_create",
+        request=EstimateBodySerializer,
         responses={201: _ESTIMATE_SAVED},
     )
     def post(self, request):
@@ -1531,6 +1578,7 @@ class EstimateDetailView(APIView):
     @extend_schema(
         tags=["Estimates"],
         operation_id="estimates_update",
+        request=EstimateBodySerializer(partial=True),
         responses=_ESTIMATE_SAVED,
     )
     @method_decorator(transaction.atomic)
@@ -1611,6 +1659,7 @@ class EstimateConvertView(APIView):
     @extend_schema(
         tags=["Estimates"],
         operation_id="estimates_convert",
+        request=None,
         responses={201: _INVOICE_SAVED},
     )
     @method_decorator(transaction.atomic)
@@ -1700,6 +1749,7 @@ class EstimateSendView(APIView):
     @extend_schema(
         tags=["Estimates"],
         operation_id="estimates_send",
+        request=None,
         responses=_MESSAGE,
     )
     def post(self, request, pk):
@@ -1771,7 +1821,11 @@ class EstimatePDFView(APIView):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
-    @extend_schema(tags=["Estimates"], operation_id="estimates_pdf")
+    @extend_schema(
+        tags=["Estimates"],
+        operation_id="estimates_pdf",
+        responses={(200, "application/pdf"): OpenApiTypes.BINARY},
+    )
     def get(self, request, pk):
         # The old inline check compared request.profile (a Profile) to
         # estimate.created_by (a User), which is always unequal -- so the
@@ -1841,6 +1895,7 @@ class RecurringInvoiceListView(APIView, LimitOffsetPagination):
     @extend_schema(
         tags=["Recurring Invoices"],
         operation_id="recurring_create",
+        request=RecurringInvoiceBodySerializer,
         responses={201: _RECURRING_SAVED},
     )
     def post(self, request):
@@ -1910,6 +1965,7 @@ class RecurringInvoiceDetailView(APIView):
     @extend_schema(
         tags=["Recurring Invoices"],
         operation_id="recurring_update",
+        request=RecurringInvoiceBodySerializer(partial=True),
         responses=_RECURRING_SAVED,
     )
     @method_decorator(transaction.atomic)
@@ -1991,6 +2047,7 @@ class RecurringInvoicePauseView(APIView):
     @extend_schema(
         tags=["Recurring Invoices"],
         operation_id="recurring_toggle",
+        request=None,
         responses=_saved(
             "RecurringInvoiceToggled",
             "recurring_invoice",
@@ -2087,6 +2144,7 @@ class InvoiceTemplateListView(APIView, LimitOffsetPagination):
     @extend_schema(
         tags=["Invoice Templates"],
         operation_id="templates_create",
+        request=InvoiceTemplateCreateSerializer,
         responses={201: _TEMPLATE_SAVED},
     )
     def post(self, request):
@@ -2142,6 +2200,7 @@ class InvoiceTemplateDetailView(APIView):
     @extend_schema(
         tags=["Invoice Templates"],
         operation_id="templates_update",
+        request=InvoiceTemplateCreateSerializer(partial=True),
         responses=_TEMPLATE_SAVED,
     )
     def put(self, request, pk):
@@ -2256,6 +2315,9 @@ class InvoiceCommentView(APIView):
     @extend_schema(
         tags=["Invoice Comments"],
         operation_id="comments_create",
+        request=inline_serializer(
+            "InvoiceCommentRequest", {"comment": serializers.CharField()}
+        ),
         responses={201: _COMMENT_SAVED},
     )
     def post(self, request, invoice_id):
@@ -2323,6 +2385,10 @@ class InvoiceCommentDetailView(APIView):
     @extend_schema(
         tags=["Invoice Comments"],
         operation_id="comments_update",
+        request=inline_serializer(
+            "InvoiceCommentUpdateRequest",
+            {"comment": serializers.CharField(required=False)},
+        ),
         responses=_COMMENT_SAVED,
     )
     def put(self, request, pk):
@@ -2373,6 +2439,11 @@ class InvoiceAttachmentView(APIView):
     @extend_schema(
         tags=["Invoice Attachments"],
         operation_id="attachments_create",
+        request={
+            "multipart/form-data": inline_serializer(
+                "InvoiceAttachmentRequest", {"file": serializers.FileField()}
+            )
+        },
         responses={
             201: _saved("InvoiceAttachmentSaved", "attachment", AttachmentsSerializer())
         },
@@ -2873,7 +2944,11 @@ class AccountStatementPDFView(APIView):
 
     permission_classes = (IsAuthenticated, HasOrgContext)
 
-    @extend_schema(tags=["Reports"], operation_id="account_statement_pdf")
+    @extend_schema(
+        tags=["Reports"],
+        operation_id="account_statement_pdf",
+        responses={(200, "application/pdf"): OpenApiTypes.BINARY},
+    )
     def get(self, request, account_id):
         account, statement, error = _statement_or_error(request, account_id)
         if error:
@@ -2917,6 +2992,7 @@ class InvoiceFromOpportunityView(APIView):
 
     @extend_schema(
         operation_id="invoice_from_opportunity",
+        request=None,
         tags=["Invoices"],
         description="Create an invoice from a won opportunity with line items",
         responses={
@@ -3083,6 +3159,18 @@ class InvoiceFromTimeEntriesView(APIView):
     permission_classes = (IsAuthenticated, HasOrgContext)
 
     @extend_schema(
+        request=inline_serializer(
+            "InvoiceFromTimeEntriesRequest",
+            {
+                "account_id": serializers.UUIDField(required=False),
+                "project_id": serializers.UUIDField(required=False),
+                "entry_ids": serializers.ListField(
+                    child=serializers.UUIDField(), required=False
+                ),
+                "group_by": serializers.ChoiceField(choices=GROUPINGS, required=False),
+                "up_to": serializers.DateField(required=False),
+            },
+        ),
         responses={
             201: inline_serializer(
                 "InvoiceFromTimeEntries",
@@ -3102,7 +3190,6 @@ class InvoiceFromTimeEntriesView(APIView):
     def post(self, request, *args, **kwargs):
         from cases.models import TimeEntry
         from cases.services.billing import (
-            GROUPINGS,
             TimeEntryInvoicingError,
             attach_entries_to_invoice,
             build_invoice_lines_from_entries,

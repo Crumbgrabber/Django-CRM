@@ -236,6 +236,22 @@ class TestRecordDuplicates:
         assert body["can_delete"] is True
         assert [d["id"] for d in body["duplicates"]] == [str(two.id)]
 
+    def test_lists_a_contacts_matches(self, admin_client, org_a):
+        one = _contact(org_a, email="ann@x.com")
+        two = _contact(org_a, first="ann", last="LEE", email="lee@y.com")
+        response = admin_client.get(f"/api/contacts/{one.id}/duplicates/")
+        assert response.status_code == 200
+        assert [d["id"] for d in response.json()["duplicates"]] == [str(two.id)]
+
+    def test_lists_an_accounts_matches(self, admin_client, org_a):
+        one = Account.objects.create(org=org_a, name="Acme", website="https://acme.com")
+        two = Account.objects.create(
+            org=org_a, name="Rocket", website="www.acme.com/about"
+        )
+        response = admin_client.get(f"/api/accounts/{one.id}/duplicates/")
+        assert response.status_code == 200
+        assert [d["id"] for d in response.json()["duplicates"]] == [str(two.id)]
+
     def test_hidden_missing_and_foreign_records_are_the_same_404(
         self, user_client, org_a, org_b, other_user
     ):

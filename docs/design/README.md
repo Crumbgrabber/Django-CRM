@@ -89,7 +89,7 @@ default, and a design preview is the weakest possible reason to punch a hole
 in it. Do not add `/v2` to `PUBLIC_ROUTES`.
 
 Second-level navigation is a tab strip (`SectionTabs`), not a nested sidebar.
-The sidebar stays one level deep. Tab sets live in `src/lib/v2/tabs.js`.
+The sidebar stays one level deep. Tab sets live in `src/lib/v2/tabs.ts`.
 **Settings deliberately has no tab set**: twelve pages are not peers you flip
 between, so the hub at `/v2/settings` is the index and each page carries a
 `SettingsCrumb` back to it.

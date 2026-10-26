@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * One webhook: test it, switch it, rotate its secret, edit it, and read what
    * happened to each delivery.
@@ -16,17 +16,16 @@
   import NextAction from '#lib/v2/components/NextAction.svelte';
   import ConfirmAction from '#lib/v2/components/ConfirmAction.svelte';
   import { count, relativeTime } from '#lib/v2/format.js';
-  import { enhance } from '$app/forms';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import WebhookFields from '../WebhookFields.svelte';
   import SecretOnce from '../SecretOnce.svelte';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   let busy = $state(false);
 
-  /** @type {import('$app/forms').SubmitFunction} */
-  const working = () => {
+  const working: SubmitFunction = () => {
     busy = true;
     return async ({ update }) => {
       await update({ reset: false });
@@ -34,11 +33,11 @@
     };
   };
 
-  const DELIVERY_TONE = /** @type {const} */ ({
+  const DELIVERY_TONE = {
     succeeded: 'moss',
     pending: 'slate',
     failed: 'rust'
-  });
+  } as const;
 
   let actionError = $derived(
     form?.update?.error ??
@@ -197,9 +196,8 @@
                   </td>
                   <td data-m="tag">
                     <Pill
-                      tone={DELIVERY_TONE[
-                        /** @type {'succeeded'|'pending'|'failed'} */ (d.status)
-                      ] ?? 'slate'}
+                      tone={DELIVERY_TONE[d.status as 'succeeded' | 'pending' | 'failed'] ??
+                        'slate'}
                     >
                       {d.status === 'succeeded'
                         ? 'Delivered'

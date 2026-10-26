@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/api_config.dart';
-import '../data/api_envelope.dart';
+import '../data/api/schema.g.dart' as api;
 import '../data/models/access_token.dart';
 import '../data/models/approval_rule.dart';
 import '../data/models/business_calendar.dart';
@@ -111,29 +111,25 @@ class CustomFieldsNotifier extends AsyncNotifier<CustomFieldsState> {
     if (!response.success || response.data == null) {
       throw Exception(response.message ?? 'Failed to load custom fields');
     }
-    final body = response.data!;
-    final fields = listFromEnvelope(body, const [
-      'definitions',
-    ]).map(CustomFieldDefinition.fromJson).toList(growable: false);
-    final totals = body['totals'];
+    final body = api.CustomFieldDefinitionListResponse.fromJson(response.data!);
+    final fields = (body.definitions ?? const <api.CustomFieldDefinitionRow>[])
+        .map((row) => CustomFieldDefinition.fromJson(row.json))
+        .toList(growable: false);
+    final totals = body.totals;
     return CustomFieldsState(
       fields: fields,
-      count: _int(totals, 'count', fields.length),
-      active: _int(totals, 'active', fields.where((f) => f.isActive).length),
-      modelsExtended: _int(
-        totals,
-        'models_extended',
-        fields
-            .where((f) => f.isActive)
-            .map((f) => f.targetModel)
-            .toSet()
-            .length,
-      ),
-      requiredWithGaps: _int(
-        totals,
-        'required_with_gaps',
-        fields.where((f) => f.isRequired && f.recordsMissingValue > 0).length,
-      ),
+      count: totals?.count ?? fields.length,
+      active: totals?.active ?? fields.where((f) => f.isActive).length,
+      modelsExtended:
+          totals?.modelsExtended ??
+          fields
+              .where((f) => f.isActive)
+              .map((f) => f.targetModel)
+              .toSet()
+              .length,
+      requiredWithGaps:
+          totals?.requiredWithGaps ??
+          fields.where((f) => f.isRequired && f.recordsMissingValue > 0).length,
     );
   }
 
@@ -233,40 +229,23 @@ class MacrosNotifier extends AsyncNotifier<MacrosState> {
     if (!response.success || response.data == null) {
       throw Exception(response.message ?? 'Failed to load saved replies');
     }
-    final body = response.data!;
-    final macros = listFromEnvelope(body, const [
-      'results',
-    ]).map(Macro.fromJson).toList(growable: false);
-    final totals = body['totals'];
-    final rawPlaceholders = body['placeholders'];
+    final body = api.MacroListResponse.fromJson(response.data!);
+    final macros = _macrosIn(body);
+    final totals = body.totals;
     return MacrosState(
       macros: macros,
-      placeholders: rawPlaceholders is List
-          ? [
-              for (final p in rawPlaceholders)
-                if (p is Map)
-                  MacroPlaceholder(
-                    token: p['token']?.toString() ?? '',
-                    resolves: p['resolves']?.toString() ?? '',
-                  ),
-            ]
-          : const [],
-      orgCount: _int(totals, 'org', macros.where((m) => !m.isPersonal).length),
-      personalCount: _int(
-        totals,
-        'personal',
-        macros.where((m) => m.isPersonal).length,
-      ),
-      inactiveCount: _int(
-        totals,
-        'inactive',
-        macros.where((m) => !m.isActive).length,
-      ),
-      brokenCount: _int(
-        totals,
-        'with_unknown_placeholders',
-        macros.where((m) => m.unknownPlaceholders.isNotEmpty).length,
-      ),
+      placeholders: [
+        for (final p in body.placeholders ?? const <api.MacroPlaceholder>[])
+          MacroPlaceholder(token: p.token ?? '', resolves: p.resolves ?? ''),
+      ],
+      orgCount: totals?.org ?? macros.where((m) => !m.isPersonal).length,
+      personalCount:
+          totals?.personal ?? macros.where((m) => m.isPersonal).length,
+      inactiveCount:
+          totals?.inactive ?? macros.where((m) => !m.isActive).length,
+      brokenCount:
+          totals?.withUnknownPlaceholders ??
+          macros.where((m) => m.unknownPlaceholders.isNotEmpty).length,
     );
   }
 
@@ -318,10 +297,13 @@ final activeMacrosProvider = FutureProvider<List<Macro>>((ref) async {
   if (!response.success || response.data == null) {
     throw Exception(response.message ?? 'Failed to load saved replies');
   }
-  return listFromEnvelope(response.data!, const [
-    'results',
-  ]).map(Macro.fromJson).toList(growable: false);
+  return _macrosIn(api.MacroListResponse.fromJson(response.data!));
 });
+
+List<Macro> _macrosIn(api.MacroListResponse body) =>
+    (body.results ?? const <api.Macro>[])
+        .map((row) => Macro.fromJson(row.json))
+        .toList(growable: false);
 
 /// Expand a macro against a ticket and return the text to insert.
 ///
@@ -339,8 +321,10 @@ Future<({String? text, String? error})> renderMacro({
   if (!response.success) {
     return (text: null, error: _macroMessage(response));
   }
-  final rendered = response.data?['rendered_body'];
-  if (rendered is! String) {
+  final rendered = api.MacroRenderResponse.fromJson(
+    response.data ?? {},
+  ).renderedBody;
+  if (rendered == null) {
     return (text: null, error: 'The saved reply came back empty.');
   }
   return (text: rendered, error: null);
@@ -377,11 +361,6 @@ String _macroMessage(dynamic response) {
   final detail = response.data?['detail'];
   if (detail is String && detail.trim().isNotEmpty) return detail;
   return _message(response);
-}
-
-int _int(dynamic totals, String key, int fallback) {
-  if (totals is Map && totals[key] is int) return totals[key] as int;
-  return fallback;
 }
 
 // ---------------------------------------------------------------------------
@@ -435,23 +414,18 @@ class TagsNotifier extends AsyncNotifier<TagsState> {
     if (!response.success || response.data == null) {
       throw Exception(response.message ?? 'Failed to load tags');
     }
-    final body = response.data!;
-    final tags = sortedTags(
-      listFromEnvelope(body, const [
-        'tags',
-        'results',
-      ]).map(Tag.fromJson).toList(),
-    );
-    final totals = body['totals'];
+    final body = api.TagsListResponse.fromJson(response.data!);
+    final tags = sortedTags([
+      for (final row in body.tags ?? const <api.TagsListRow>[])
+        Tag.fromJson(row.json),
+    ]);
+    final totals = body.totals;
     return TagsState(
       tags: tags,
-      count: _int(totals, 'count', tags.length),
-      active: _int(totals, 'active', tags.where((t) => t.isActive).length),
-      unused: _int(
-        totals,
-        'unused',
-        tags.where((t) => t.isActive && t.used == 0).length,
-      ),
+      count: totals?.count ?? tags.length,
+      active: totals?.active ?? tags.where((t) => t.isActive).length,
+      unused:
+          totals?.unused ?? tags.where((t) => t.isActive && t.used == 0).length,
     );
   }
 
@@ -504,9 +478,9 @@ class TagsNotifier extends AsyncNotifier<TagsState> {
       tagMergePayload(into),
     );
     if (!response.success) return (error: _message(response), moved: 0);
-    final moved = response.data?['moved'];
+    final moved = api.TagMergeResponse.fromJson(response.data ?? {}).moved;
     await refresh();
-    return (error: null, moved: moved is int ? moved : 0);
+    return (error: null, moved: moved ?? 0);
   }
 }
 
@@ -564,16 +538,16 @@ class RoutingRulesNotifier extends AsyncNotifier<RoutingRulesState> {
     if (!response.success || response.data == null) {
       throw Exception(response.message ?? 'Failed to load routing rules');
     }
-    final body = response.data!;
-    final rules = listFromEnvelope(body, const [
-      'rules',
-    ]).map(RoutingRule.fromJson).toList(growable: false);
-    final totals = body['totals'];
+    final body = api.RoutingRuleListResponse.fromJson(response.data!);
+    final rules = (body.rules ?? const <api.RoutingRuleListRow>[])
+        .map((row) => RoutingRule.fromJson(row.json))
+        .toList(growable: false);
+    final totals = body.totals;
     return RoutingRulesState(
       rules: rules,
-      count: _int(totals, 'count', rules.length),
-      active: _int(totals, 'active', rules.where((r) => r.isActive).length),
-      unroutedLast30d: _int(totals, 'unrouted_last_30d', 0),
+      count: totals?.count ?? rules.length,
+      active: totals?.active ?? rules.where((r) => r.isActive).length,
+      unroutedLast30d: totals?.unroutedLast30d ?? 0,
     );
   }
 
@@ -653,9 +627,11 @@ class EscalationNotifier extends AsyncNotifier<EscalationState> {
     if (!response.success || response.data == null) {
       throw Exception(response.message ?? 'Failed to load escalation policies');
     }
-    final policies = listFromEnvelope(response.data!, const [
-      'policies',
-    ]).map(EscalationPolicy.fromJson).toList();
+    final body = api.EscalationPolicyListResponse.fromJson(response.data!);
+    final policies = [
+      for (final row in body.policies ?? const <api.EscalationPolicyListRow>[])
+        EscalationPolicy.fromJson(row.json),
+    ];
     return EscalationState(policies: sortedEscalationPolicies(policies));
   }
 
@@ -772,7 +748,7 @@ class BusinessHoursNotifier extends AsyncNotifier<BusinessCalendar> {
       return (error: _businessMessage(response), existingName: null);
     }
     final wasExisting = response.statusCode == 200;
-    final returnedName = response.data?['name']?.toString();
+    final returnedName = api.BusinessHoliday.fromJson(response.data ?? {}).name;
     await refresh();
     return (
       error: null,
@@ -891,14 +867,14 @@ class AccessTokensNotifier extends AsyncNotifier<AccessTokensState> {
     if (!response.success || response.data == null) {
       throw Exception(response.message ?? 'Failed to load tokens');
     }
-    final rows = listFromEnvelope(response.data!, [
-      'tokens',
-    ]).map(AccessToken.fromJson).toList();
+    final body = api.OrgAccessTokenListResponse.fromJson(response.data!);
+    final rows = [
+      for (final row in body.tokens ?? const <api.OrgAccessToken>[])
+        AccessToken.fromJson(row.json),
+    ];
     return AccessTokensState(
       tokens: sortedTokens(rows),
-      totals: TokenTotals.fromJson(
-        (response.data!['totals'] as Map?)?.cast<String, dynamic>() ?? const {},
-      ),
+      totals: TokenTotals.fromJson(body.totals?.json ?? const {}),
     );
   }
 
@@ -924,7 +900,10 @@ class AccessTokensNotifier extends AsyncNotifier<AccessTokensState> {
     if (!response.success) {
       return (error: _message(response), value: null, name: null);
     }
-    final raw = response.data?['token']?.toString();
+    final created = api.PersonalAccessTokenCreated.fromJson(
+      response.data ?? {},
+    );
+    final raw = created.token;
     await refresh();
     if (raw == null || raw.isEmpty) {
       // A 2xx with no value should not happen, and silently showing nothing
@@ -937,11 +916,7 @@ class AccessTokensNotifier extends AsyncNotifier<AccessTokensState> {
         name: null,
       );
     }
-    return (
-      error: null,
-      value: raw,
-      name: response.data?['name']?.toString() ?? name.trim(),
-    );
+    return (error: null, value: raw, name: created.name ?? name.trim());
   }
 
   /// Revoke one token: admin-scoped, so an admin can retire a colleague's.
@@ -1013,11 +988,11 @@ class MyAccessTokensNotifier extends AsyncNotifier<List<AccessToken>> {
     if (!response.success || response.data == null) {
       throw Exception(response.message ?? 'Failed to load your tokens');
     }
-    return sortedTokens(
-      listFromEnvelope(response.data!, [
-        'tokens',
-      ]).map(AccessToken.fromJson).toList(),
-    );
+    final body = api.AccessTokenListResponse.fromJson(response.data!);
+    return sortedTokens([
+      for (final row in body.tokens ?? const <api.PersonalAccessTokenList>[])
+        AccessToken.fromJson(row.json),
+    ]);
   }
 
   /// Create one for yourself and return the raw value, once. Same endpoint the
@@ -1039,7 +1014,10 @@ class MyAccessTokensNotifier extends AsyncNotifier<List<AccessToken>> {
     if (!response.success) {
       return (error: _message(response), value: null, name: null);
     }
-    final raw = response.data?['token']?.toString();
+    final created = api.PersonalAccessTokenCreated.fromJson(
+      response.data ?? {},
+    );
+    final raw = created.token;
     await refresh();
     if (raw == null || raw.isEmpty) {
       return (
@@ -1050,11 +1028,7 @@ class MyAccessTokensNotifier extends AsyncNotifier<List<AccessToken>> {
         name: null,
       );
     }
-    return (
-      error: null,
-      value: raw,
-      name: response.data?['name']?.toString() ?? name.trim(),
-    );
+    return (error: null, value: raw, name: created.name ?? name.trim());
   }
 
   /// Revoke one of your own. The self-scoped path, so somebody else's id 404s
@@ -1137,9 +1111,11 @@ final orgSettingsProvider =
 final orgPacksProvider = FutureProvider<List<VerticalPack>>((ref) async {
   final response = await ApiService().get(ApiConfig.packs);
   if (!response.success || response.data == null) return const [];
-  return listFromEnvelope(response.data!, [
-    'packs',
-  ]).map(VerticalPack.fromJson).toList();
+  final body = api.PackListResponse.fromJson(response.data!);
+  return [
+    for (final pack in body.packs ?? const <api.PackSummary>[])
+      VerticalPack.fromJson(pack.json),
+  ];
 });
 
 // ---------------------------------------------------------------------------
@@ -1204,24 +1180,26 @@ class MailboxesNotifier extends AsyncNotifier<MailboxesState> {
     if (!response.success || response.data == null) {
       throw Exception(response.message ?? 'Failed to load inbound email');
     }
-    final body = response.data!;
-    final raw = body['generated_domain'];
-    final domain = raw is String && raw.isNotEmpty ? raw : null;
-    final json = listFromEnvelope(body, const ['mailboxes']);
+    final body = api.InboundMailboxListResponse.fromJson(response.data!);
+    final raw = body.generatedDomain ?? '';
+    final domain = raw.isNotEmpty ? raw : null;
+    final wire = body.mailboxes ?? const <api.InboundMailboxListRow>[];
     final rows = [
-      for (final row in json) Mailbox.fromJson(row, generatedDomain: domain),
+      for (final row in wire)
+        Mailbox.fromJson(row.json, generatedDomain: domain),
     ];
-    final totals = body['totals'];
-    final limit = body['daily_limit'];
+    final totals = body.totals;
     return MailboxesState(
       mailboxes: sortedMailboxes(rows),
-      count: _int(totals, 'count', rows.length),
-      casesLast30d: _int(totals, 'cases_last_30d', 0),
+      count: totals?.count ?? rows.length,
+      casesLast30d: totals?.casesLast30d ?? 0,
+      // Key presence, not value: `generated_domain` is null on a server that
+      // has lead addresses and no domain of its own.
       leadsOffered:
-          body.containsKey('generated_domain') ||
-          json.any((row) => row.containsKey('creates')),
+          body.json.containsKey('generated_domain') ||
+          wire.any((row) => row.json.containsKey('creates')),
       generatedDomain: domain,
-      dailyLimit: limit is num ? limit.round() : null,
+      dailyLimit: body.dailyLimit,
     );
   }
 
@@ -1308,16 +1286,16 @@ class ApprovalRulesNotifier extends AsyncNotifier<ApprovalRulesState> {
     if (!response.success || response.data == null) {
       throw Exception(response.message ?? 'Failed to load approval rules');
     }
-    final body = response.data!;
-    final rules = listFromEnvelope(body, const [
-      'rules',
-    ]).map(ApprovalRule.fromJson).toList(growable: false);
-    final totals = body['totals'];
+    final body = api.ApprovalRuleListResponse.fromJson(response.data!);
+    final rules = (body.rules ?? const <api.ApprovalRuleListRow>[])
+        .map((row) => ApprovalRule.fromJson(row.json))
+        .toList(growable: false);
+    final totals = body.totals;
     return ApprovalRulesState(
       rules: rules,
-      count: _int(totals, 'count', rules.length),
-      active: _int(totals, 'active', rules.where((r) => r.isActive).length),
-      pending: _int(totals, 'pending', 0),
+      count: totals?.count ?? rules.length,
+      active: totals?.active ?? rules.where((r) => r.isActive).length,
+      pending: totals?.pending ?? 0,
     );
   }
 
@@ -1374,9 +1352,11 @@ final orgTimezonesProvider = FutureProvider<List<TimezoneOption>>((ref) async {
   if (!response.success || response.data == null) {
     return const [TimezoneOption(name: 'UTC', offsetMinutes: 0)];
   }
-  final zones = listFromEnvelope(response.data!, [
-    'timezones',
-  ]).map(TimezoneOption.fromJson).toList();
+  final body = api.TimezoneListResponse.fromJson(response.data!);
+  final zones = [
+    for (final zone in body.timezones ?? const <api.TimezoneOption>[])
+      TimezoneOption.fromJson(zone.json),
+  ];
   return zones.isEmpty
       ? const [TimezoneOption(name: 'UTC', offsetMinutes: 0)]
       : zones;

@@ -1,17 +1,17 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   import '../../../app.css';
   import '#lib/v2/styles/v2.css';
   import imgLogo from '#lib/assets/images/logo.png';
   import { Building2, LogOut, Plus, ChevronRight } from '@lucide/svelte';
   import { enhance } from '$app/forms';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data = { orgs: [] } } = $props();
+  let { data = { orgs: [] } }: PageProps = $props();
   let orgs = $derived(data?.orgs ?? []);
 
   let loading = $state(false);
-  let selectedOrgId = $state(null);
+  let selectedOrgId = $state<string | null>(null);
 </script>
 
 <svelte:head>

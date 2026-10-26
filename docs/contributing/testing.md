@@ -82,9 +82,11 @@ database outside the suite.
 ## The schema contract
 
 The web app's API types are generated from the OpenAPI schema, so a schema that is missing or
-wrong becomes a wrong type there. An autouse fixture in `backend/conftest.py` checks every JSON
-response a test receives from an `/api/` endpoint against that schema
-(`backend/common/schema_contract.py`). A response the schema does not describe, or describes
+wrong becomes a wrong type there. An autouse fixture, `_schema_contract` in
+`backend/common/testing.py` (re-exported by `backend/conftest.py`), checks every JSON response a test
+receives from an `/api/` endpoint against that schema (`backend/common/schema_contract.py`). The
+schema is generated from the running URLconf, so a downstream suite that imports the fixture checks
+its own endpoints as well. A response the schema does not describe, or describes
 wrongly, fails the test with a teardown error that starts `SCHEMA-GAP`, followed by the operation,
 the place in the body and what is wrong.
 
@@ -95,8 +97,10 @@ conform, so a new endpoint ships with its response described.
 
 Two things to know:
 
-- **Only exercised operations are checked.** An endpoint no test calls is not verified, so a
-  response you describe should have at least one test that calls it.
+- **Only exercised operations are checked, and CI makes sure that is all of them.** The SQLite run
+  passes `--contract-coverage`, which fails an otherwise green run and lists every JSON success
+  reply in the schema that no test response was checked against. Run it locally the same way:
+  `uv run pytest --no-cov --contract-coverage`.
 - **Every field of a model serializer's response is required**, since a `ModelSerializer` always
   sends every field. The `AutoSchema` subclass in `backend/common/custom_openapi.py` marks them so.
   A model serializer that leaves a key out for some callers lists it in
@@ -110,7 +114,7 @@ Two things to know:
 1. **SQLite**, the fast run that produces coverage, after the migration check:
    ```bash
    uv run python manage.py makemigrations --check --dry-run
-   uv run pytest -m "not postgres_only" --tb=short -v
+   uv run pytest -m "not postgres_only" --tb=short -v --contract-coverage
    ```
 2. **PostgreSQL as the superuser**: the whole suite minus `postgres_only`, for what SQLite cannot
    see (declared string lengths, constraints, real type coercion). RLS is inert under a superuser,

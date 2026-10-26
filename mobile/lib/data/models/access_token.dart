@@ -10,6 +10,8 @@
 /// same rules.
 library;
 
+import '../api/schema.g.dart' as api;
+
 /// Who a token authenticates as. A token inherits its owner's role and org,
 /// which is why the row has to name them.
 class TokenOwner {
@@ -33,12 +35,16 @@ class TokenOwner {
 
   String get roleLabel => isAdmin ? 'Admin' : 'Member';
 
-  factory TokenOwner.fromJson(Map<String, dynamic> json) => TokenOwner(
-    id: json['id']?.toString() ?? '',
-    name: json['name']?.toString() ?? 'Unknown',
-    role: json['role']?.toString() ?? 'USER',
-    isActive: json['is_active'] as bool? ?? true,
-  );
+  /// Reads an `OrgAccessTokenOwner`, the org list's `owner` block.
+  factory TokenOwner.fromJson(Map<String, dynamic> json) {
+    final w = api.OrgAccessTokenOwner.fromJson(json);
+    return TokenOwner(
+      id: w.id ?? '',
+      name: w.name ?? 'Unknown',
+      role: w.role ?? 'USER',
+      isActive: w.isActive ?? true,
+    );
+  }
 
   /// The first word of the display name, for "Everything Ada can".
   String get firstName {
@@ -83,28 +89,28 @@ class AccessToken {
   /// Server-computed: not revoked and not past its expiry.
   final bool isLive;
 
-  factory AccessToken.fromJson(Map<String, dynamic> json) => AccessToken(
-    id: json['id']?.toString() ?? '',
-    name: json['name']?.toString() ?? '',
-    tokenPrefix: json['token_prefix']?.toString() ?? '',
-    owner: TokenOwner.fromJson(
-      (json['owner'] as Map?)?.cast<String, dynamic>() ?? const {},
-    ),
-    scopes:
-        (json['scopes'] as List?)?.map((s) => s.toString()).toList() ??
-        const [],
-    expiresAt: _date(json['expires_at']),
-    lastUsedAt: _date(json['last_used_at']),
-    createdAt: _date(json['created_at']),
-    revokedAt: _date(json['revoked_at']),
-    // `is_live` is a derived flag the ORG oversight endpoint computes; the
-    // self-scoped list does not send it. Defaulting to true drew every revoked
-    // and expired token on that list as Live, so absent means "work it out"
-    // from the two stored facts rather than "assume the best".
-    isLive:
-        json['is_live'] as bool? ??
-        _derivedIsLive(_date(json['revoked_at']), _date(json['expires_at'])),
-  );
+  /// Reads an `OrgAccessToken`. The self-scoped list sends a
+  /// `PersonalAccessTokenList`, the same row without `owner` and `is_live`.
+  factory AccessToken.fromJson(Map<String, dynamic> json) {
+    final w = api.OrgAccessToken.fromJson(json);
+    final expiresAt = _date(w.expiresAt);
+    final revokedAt = _date(w.revokedAt);
+    return AccessToken(
+      id: w.id ?? '',
+      name: w.name ?? '',
+      tokenPrefix: w.tokenPrefix ?? '',
+      owner: TokenOwner.fromJson(w.owner?.json ?? const {}),
+      scopes: w.scopes ?? const [],
+      expiresAt: expiresAt,
+      lastUsedAt: _date(w.lastUsedAt),
+      createdAt: _date(w.createdAt),
+      revokedAt: revokedAt,
+      // Defaulting an absent `is_live` to true drew every revoked and expired
+      // token on the self-scoped list as Live, so absent means "work it out"
+      // from the two stored facts rather than "assume the best".
+      isLive: w.isLive ?? _derivedIsLive(revokedAt, expiresAt),
+    );
+  }
 
   static bool _derivedIsLive(DateTime? revokedAt, DateTime? expiresAt) {
     if (revokedAt != null) return false;
@@ -191,25 +197,20 @@ class TokenTotals {
   /// used, is more than 90 days old.
   final int unused90d;
 
-  factory TokenTotals.fromJson(Map<String, dynamic> json) => TokenTotals(
-    count: _int(json['count']),
-    live: _int(json['live']),
-    orphaned: _int(json['orphaned']),
-    unused90d: _int(json['unused_90d']),
-  );
+  /// Reads an `OrgAccessTokenTotals`.
+  factory TokenTotals.fromJson(Map<String, dynamic> json) {
+    final w = api.OrgAccessTokenTotals.fromJson(json);
+    return TokenTotals(
+      count: w.count ?? 0,
+      live: w.live ?? 0,
+      orphaned: w.orphaned ?? 0,
+      unused90d: w.unused90d ?? 0,
+    );
+  }
 }
 
-DateTime? _date(dynamic value) {
-  if (value == null) return null;
-  return DateTime.tryParse(value.toString())?.toLocal();
-}
-
-int _int(dynamic value) {
-  if (value is int) return value;
-  if (value is num) return value.round();
-  if (value is String) return int.tryParse(value) ?? 0;
-  return 0;
-}
+DateTime? _date(String? value) =>
+    value == null ? null : DateTime.tryParse(value)?.toLocal();
 
 /// Live first, then most-recently-active first, which is the order an admin
 /// scans in. The dormant and revoked rows sink to the bottom.

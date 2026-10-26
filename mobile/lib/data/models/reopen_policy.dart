@@ -6,6 +6,8 @@
 /// metrics are for.
 library;
 
+import '../api/schema.g.dart' as api;
+
 /// `ReopenPolicySerializer.NON_TERMINAL_STATUSES`. A ticket reopened into a
 /// terminal status would close again on arrival, so only these three.
 const List<String> reopenToStatuses = ['New', 'Assigned', 'Pending'];
@@ -55,22 +57,20 @@ class ReopenPolicy {
   /// happening.
   bool get missedWindowIsMeasured => isEnabled;
 
-  factory ReopenPolicy.fromJson(Map<String, dynamic> json) => ReopenPolicy(
-    isEnabled: json['is_enabled'] as bool? ?? true,
-    windowDays: _int(json['reopen_window_days'], 7),
-    reopenToStatus: json['reopen_to_status']?.toString() ?? 'Pending',
-    notifyAssigned: json['notify_assigned'] as bool? ?? true,
-    reopenedLast30d: _int(json['reopened_last_30d'], 0),
-    repliesAfterWindow30d: _int(json['replies_after_window_30d'], 0),
-    medianDaysToReply: _int(json['median_days_to_reply'], 0),
-  );
-}
-
-int _int(dynamic value, int fallback) {
-  if (value is int) return value;
-  if (value is num) return value.round();
-  if (value is String) return int.tryParse(value) ?? fallback;
-  return fallback;
+  /// Reads a `ReopenPolicyWithStats`, the GET's policy plus its metrics. The
+  /// median is a float and is rounded to whole days.
+  factory ReopenPolicy.fromJson(Map<String, dynamic> json) {
+    final w = api.ReopenPolicyWithStats.fromJson(json);
+    return ReopenPolicy(
+      isEnabled: w.isEnabled ?? true,
+      windowDays: w.reopenWindowDays ?? 7,
+      reopenToStatus: w.reopenToStatus ?? 'Pending',
+      notifyAssigned: w.notifyAssigned ?? true,
+      reopenedLast30d: w.reopenedLast30d ?? 0,
+      repliesAfterWindow30d: w.repliesAfterWindow30d ?? 0,
+      medianDaysToReply: w.medianDaysToReply?.round() ?? 0,
+    );
+  }
 }
 
 /// The body for `PUT /cases/reopen-policy/`.

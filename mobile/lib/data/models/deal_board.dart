@@ -1,3 +1,4 @@
+import '../api/schema.g.dart' as api;
 import 'deal.dart';
 import 'deal_pipeline.dart';
 
@@ -12,15 +13,14 @@ class DealBoard {
 
   final List<DealBoardColumn> columns;
 
+  /// Reads an `OpportunityKanbanResponse`.
   factory DealBoard.fromJson(Map<String, dynamic> json) {
-    final raw = json['columns'];
+    final w = api.OpportunityKanbanResponse.fromJson(json);
     return DealBoard(
-      columns: raw is List
-          ? raw
-                .whereType<Map<String, dynamic>>()
-                .map(DealBoardColumn.fromJson)
-                .toList()
-          : const [],
+      columns: [
+        for (final c in w.columns ?? const <api.OpportunityKanbanColumn>[])
+          DealBoardColumn.fromJson(c.json),
+      ],
     );
   }
 
@@ -90,18 +90,17 @@ class DealBoardColumn {
   bool get isTruncated => itemCount > cards.length;
   bool get isClosed => kind == dealStageWon || kind == dealStageLost;
 
+  /// Reads an `OpportunityKanbanColumn`, whose `id` is the stage code.
   factory DealBoardColumn.fromJson(Map<String, dynamic> json) {
-    final raw = json['items'];
-    final cards = raw is List
-        ? raw
-              .whereType<Map<String, dynamic>>()
-              .map(DealBoardCard.fromJson)
-              .toList()
-        : <DealBoardCard>[];
+    final w = api.OpportunityKanbanColumn.fromJson(json);
+    final cards = [
+      for (final card in w.items ?? const <api.OpportunityKanbanCard>[])
+        DealBoardCard.fromJson(card.json),
+    ];
     return DealBoardColumn(
-      code: (json['id'] ?? '').toString(),
-      kind: json['kind'] as String? ?? dealStageOpen,
-      itemCount: json['item_count'] as int? ?? cards.length,
+      code: w.id ?? '',
+      kind: w.kind ?? dealStageOpen,
+      itemCount: w.itemCount ?? cards.length,
       cards: cards,
     );
   }
@@ -126,8 +125,9 @@ class DealBoardCard {
   /// move the server may refuse.
   final bool canMove;
 
+  /// Reads an `OpportunityKanbanCard`.
   factory DealBoardCard.fromJson(Map<String, dynamic> json) => DealBoardCard(
     deal: Deal.fromJson(json),
-    canMove: json['can_move'] == true,
+    canMove: api.OpportunityKanbanCard.fromJson(json).canMove ?? false,
   );
 }

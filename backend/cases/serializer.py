@@ -506,6 +506,8 @@ class CaseCreateSerializer(serializers.ModelSerializer):
 
 
 class CaseCreateSwaggerSerializer(serializers.ModelSerializer):
+    custom_fields = serializers.DictField(required=False)
+
     class Meta:
         model = Case
         fields = (
@@ -520,12 +522,15 @@ class CaseCreateSwaggerSerializer(serializers.ModelSerializer):
             "contacts",
             "tags",
             "description",
+            "custom_fields",
         )
 
 
 class CaseDetailEditSwaggerSerializer(serializers.Serializer):
-    comment = serializers.CharField()
-    case_attachment = serializers.FileField()
+    # A comment, a file, or both.
+    comment = serializers.CharField(required=False)
+    case_attachment = serializers.FileField(required=False)
+    is_internal = serializers.BooleanField(required=False)
 
 
 class CaseCommentEditSwaggerSerializer(serializers.Serializer):

@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   import { page } from '$app/state';
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
@@ -13,9 +13,9 @@
   import { enhance } from '$app/forms';
   import { Download, Plus, Receipt } from '@lucide/svelte';
   import { isOn } from '#lib/v2/modules.js';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   let invoices = $derived(data.invoices);
   let totals = $derived(data.totals);
@@ -24,10 +24,8 @@
    * The money is per currency: there are no exchange rates, so the header
    * shows one currency at a time with a switch when there are several. The
    * picked one, else the org's own, else the first one invoiced in.
-   *
-   * @type {string | null}
    */
-  let picked = $state(null);
+  let picked: string | null = $state(null);
   let cur = $derived(
     picked !== null && totals.currencies.includes(picked)
       ? picked
@@ -38,7 +36,7 @@
   let m = $derived(totals.byCurrency[cur] ?? totals.blank);
 
   /** Rows with a send in flight, so the button can show it is working. */
-  let sending = $state(/** @type {Record<string, boolean>} */ ({}));
+  let sending = $state<Record<string, boolean>>({});
 
   /**
    * Days past due, or days remaining. A settled invoice has no age, once it
@@ -47,9 +45,9 @@
    */
   const SETTLED = ['Paid', 'Cancelled'];
 
-  /** @typedef {{ status: string, due_date: string | null }} Dated */
+  type Dated = { status: string; due_date: string | null };
 
-  function ageLabel(/** @type {Dated} */ inv) {
+  function ageLabel(inv: Dated) {
     if (SETTLED.includes(inv.status)) return '—';
     const n = daysSince(inv.due_date);
     if (n === null) return '—';
@@ -58,7 +56,7 @@
     return `${Math.abs(n)}d left`;
   }
 
-  const isLate = (/** @type {Dated} */ inv) =>
+  const isLate = (inv: Dated) =>
     !SETTLED.includes(inv.status) && inv.due_date && (daysSince(inv.due_date) ?? 0) > 0;
 </script>
 

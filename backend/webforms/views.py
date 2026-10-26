@@ -176,7 +176,7 @@ class WebFormDetailView(WebFormBaseView):
 
     @extend_schema(
         tags=["Web forms"],
-        request=WebFormDetailSerializer,
+        request=WebFormDetailSerializer(partial=True),
         responses=WebFormDetailSerializer,
     )
     def put(self, request, pk):
