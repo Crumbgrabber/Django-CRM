@@ -31,8 +31,9 @@ export const actions = {
     if (custom.refusal) return fail(503, { values, ...custom.refusal });
     if (custom.values) values.custom_fields = custom.values;
 
+    let created;
     try {
-      await createLead(event, values);
+      created = await createLead(event, values);
     } catch (err) {
       // Values go back so a rejected form is not a blank form.
       return fail(400, {
@@ -41,8 +42,6 @@ export const actions = {
       });
     }
 
-    // `LeadListView.post` answers without the new lead's id, so there is
-    // nothing to open: the list is where a created lead lands.
-    redirect(303, '/leads');
+    redirect(303, `/leads/${created.id}`);
   }
 };

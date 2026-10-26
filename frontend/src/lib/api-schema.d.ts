@@ -10910,6 +10910,8 @@ export interface components {
         LeadCreateResponse: {
             error: boolean;
             message: string;
+            /** Format: uuid */
+            id: string;
             account_id?: string;
             contact_id?: string | null;
             opportunity_id?: string | null;

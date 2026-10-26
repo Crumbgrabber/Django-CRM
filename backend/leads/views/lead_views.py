@@ -403,6 +403,7 @@ class LeadListView(APIView, LimitOffsetPagination):
                 fields={
                     "error": serializers.BooleanField(),
                     "message": serializers.CharField(),
+                    "id": serializers.UUIDField(),
                     "account_id": serializers.CharField(required=False),
                     "contact_id": serializers.CharField(
                         required=False, allow_null=True
@@ -537,6 +538,7 @@ class LeadListView(APIView, LimitOffsetPagination):
                     {
                         "error": False,
                         "message": "Lead Converted Successfully",
+                        "id": str(lead_obj.id),
                         "account_id": str(account.id),
                         "contact_id": str(contact.id) if contact else None,
                         "opportunity_id": str(opportunity.id) if opportunity else None,
@@ -544,7 +546,11 @@ class LeadListView(APIView, LimitOffsetPagination):
                     status=status.HTTP_200_OK,
                 )
             return Response(
-                {"error": False, "message": "Lead Created Successfully"},
+                {
+                    "error": False,
+                    "message": "Lead Created Successfully",
+                    "id": str(lead_obj.id),
+                },
                 status=status.HTTP_200_OK,
             )
         return Response(

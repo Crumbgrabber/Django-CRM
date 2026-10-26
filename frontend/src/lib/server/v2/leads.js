@@ -547,13 +547,8 @@ export async function deleteLead({ cookies }, id) {
  *
  * @param {{ cookies: import('@sveltejs/kit').Cookies }} event
  * @param {Record<string, unknown>} values
- * @returns {Promise<Schemas['LeadCreateResponse']>} the `LeadListView.post` response body.
- *   Confirmed against the running backend: on success this is
- *   `{ error: false, message: "Lead Created Successfully" }`, with no `id` field. Unlike
- *   `createDeal`'s response, which does carry one (`OpportunityListView.post` adds it
- *   deliberately), a caller here cannot read `.id` off the result to open the record it just
- *   created. `+page.server.js` accounts for this and falls back to the list rather than
- *   assuming an id that is not there.
+ * @returns {Promise<Schemas['LeadCreateResponse']>} the `LeadListView.post` response body,
+ *   carrying the new lead's `id`.
  */
 export async function createLead({ cookies }, values) {
   /** @type {Record<string, unknown>} */
