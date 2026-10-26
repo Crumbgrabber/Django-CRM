@@ -133,13 +133,13 @@ describe('mergeTicket and unmergeTicket', () => {
   it('POSTs an empty body to the merge endpoint, source first', async () => {
     await mergeTicket(event, 'a', 'b');
     expect(apiRequest.mock.calls[0][0]).toBe('/cases/a/merge/b/');
-    expect(apiRequest.mock.calls[0][1]).toEqual({ method: 'POST', body: {} });
+    expect(apiRequest.mock.calls[0][1]).toEqual({ method: 'POST' });
   });
 
   it('POSTs an empty body to the source ticket unmerge endpoint', async () => {
     await unmergeTicket(event, 's-1');
     expect(apiRequest.mock.calls[0][0]).toBe('/cases/s-1/unmerge/');
-    expect(apiRequest.mock.calls[0][1]).toEqual({ method: 'POST', body: {} });
+    expect(apiRequest.mock.calls[0][1]).toEqual({ method: 'POST' });
   });
 });
 

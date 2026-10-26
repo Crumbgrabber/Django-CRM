@@ -40,6 +40,7 @@ from contacts.serializer import (
     ContactCommentEditSwaggerSerializer,
     ContactDetailEditSwaggerSerializer,
     ContactSerializer,
+    ContactWriteSerializer,
     CreateContactSerializer,
 )
 from contacts.services.account_link import link_primary_account
@@ -215,7 +216,7 @@ class ContactsListView(APIView, LimitOffsetPagination):
         operation_id="contacts_create",
         tags=["contacts"],
         parameters=swagger_params.organization_params,
-        request=CreateContactSerializer,
+        request=ContactWriteSerializer,
         responses={
             200: inline_serializer(
                 name="ContactCreateResponse",
@@ -433,7 +434,7 @@ class ContactDetailView(APIView):
         operation_id="contacts_update",
         tags=["contacts"],
         parameters=swagger_params.contact_create_post_params,
-        request=CreateContactSerializer,
+        request=ContactWriteSerializer,
         responses={
             200: inline_serializer(
                 name="ContactUpdateResponse",
@@ -848,7 +849,7 @@ class ContactDetailView(APIView):
     @extend_schema(
         tags=["contacts"],
         parameters=swagger_params.organization_params,
-        request=CreateContactSerializer,
+        request=ContactWriteSerializer,
         description="Partial Contact Update",
         responses={
             200: inline_serializer(

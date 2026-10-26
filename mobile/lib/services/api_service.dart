@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:jwt_decoder/jwt_decoder.dart';
 import '../config/api_config.dart';
 import '../core/app_info.dart';
+import 'api_contract.dart';
 
 /// Callback invoked when the access token has aged out (or, as a fallback, when
 /// a request comes back 401). Should hit the refresh endpoint and update the
@@ -312,6 +313,7 @@ class ApiService {
     bool requiresAuth = true,
     Map<String, String>? queryParams,
   }) async {
+    debugCheckApiRequest('GET', url);
     try {
       final uri = queryParams != null
           ? Uri.parse(url).replace(queryParameters: queryParams)
@@ -351,6 +353,7 @@ class ApiService {
     String url, {
     bool requiresAuth = true,
   }) async {
+    debugCheckApiRequest('GET', url);
     try {
       final uri = Uri.parse(url);
       debugPrint('GET (bytes) $uri');
@@ -385,6 +388,7 @@ class ApiService {
     bool requiresAuth = true,
     Map<String, String>? queryParams,
   }) async {
+    debugCheckApiRequest('GET', url);
     try {
       final uri = queryParams != null
           ? Uri.parse(url).replace(queryParameters: queryParams)
@@ -424,6 +428,7 @@ class ApiService {
     Map<String, dynamic> body, {
     bool requiresAuth = true,
   }) async {
+    debugCheckApiRequest('POST', url, body.keys);
     try {
       // The URL only. A request body is never safe to log here: the refresh
       // call carries the refresh token, sign-in carries the Google id token,
@@ -496,6 +501,7 @@ class ApiService {
     // same whatever the verb; which fields go is the caller's decision.
     String method = 'POST',
   }) async {
+    debugCheckApiRequest(method, url, [fileField, ...fields.keys]);
     assert(
       (filePath == null) != (fileBytes == null),
       'Pass filePath or fileBytes, not both and not neither',
@@ -561,6 +567,7 @@ class ApiService {
     Map<String, dynamic> body, {
     bool requiresAuth = true,
   }) async {
+    debugCheckApiRequest('PUT', url, body.keys);
     try {
       debugPrint('PUT $url');
 
@@ -599,6 +606,7 @@ class ApiService {
     Map<String, dynamic> body, {
     bool requiresAuth = true,
   }) async {
+    debugCheckApiRequest('PATCH', url, body.keys);
     try {
       debugPrint('PATCH $url');
 
@@ -636,6 +644,7 @@ class ApiService {
     String url, {
     bool requiresAuth = true,
   }) async {
+    debugCheckApiRequest('DELETE', url);
     try {
       debugPrint('DELETE $url');
 

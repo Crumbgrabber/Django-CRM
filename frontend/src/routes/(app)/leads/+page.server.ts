@@ -5,7 +5,7 @@ import { getTags } from '#lib/server/v2/tags.js';
 import { forwardCsvImport } from '#lib/server/v2/csv-import.js';
 import { loadSavedViews, savedViewActions } from '#lib/server/v2/saved-views.js';
 import { getLeadSources } from '#lib/server/v2/lead-sources.js';
-import type { PageServerLoad } from './$types';
+import type { Actions, PageServerLoad } from './$types';
 
 /**
  * Server load, not a universal one. The access token is an httpOnly cookie;
@@ -52,4 +52,4 @@ export const actions = {
   ...savedViewActions('leads'),
   importPreview: (event) => forwardCsvImport(event, '/leads/import/preview/', 'importPreview'),
   importCommit: (event) => forwardCsvImport(event, '/leads/import/commit/', 'importCommit')
-};
+} satisfies Actions;

@@ -23,8 +23,8 @@ export const actions: Actions = {
    */
   edit: async ({ cookies, request }) => {
     const form = await request.formData();
-    const body: Record<string, string> = {};
-    for (const field of ['name', 'phone']) {
+    const body: components['schemas']['PatchedProfileSelfUpdateRequest'] = {};
+    for (const field of ['name', 'phone'] as const) {
       if (form.has(field)) body[field] = form.get(field)?.toString().trim() ?? '';
     }
 

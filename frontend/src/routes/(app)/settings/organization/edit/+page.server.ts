@@ -9,6 +9,8 @@ import {
 import { readableError } from '#lib/server/v2/form-errors.js';
 import { apiStatus } from '#lib/api-errors.js';
 import type { Actions, PageServerLoad } from './$types';
+import type { FormBody } from '#lib/api-helpers.js';
+import type { components } from '#lib/api-schema.js';
 
 /**
  * Editing organization settings.
@@ -31,7 +33,7 @@ export const actions: Actions = {
   save: async ({ cookies, request }) => {
     const form = await request.formData();
 
-    const body: Record<string, unknown> = {};
+    const body: FormBody<components['schemas']['PatchedOrgSettingsRequest']> = {};
 
     // Text and select fields: only what the form actually submitted, trimmed.
     // An absent field is left alone (PATCH is partial), never blanked.

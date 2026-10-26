@@ -15,7 +15,7 @@
  * any of these anywhere the backend wouldn't, the org, the board and the role
  * are all checked server-side; this layer only carries the request.
  */
-import { apiRequest } from '#lib/api-helpers.js';
+import { apiRequest, type FormBody } from '#lib/api-helpers.js';
 import type { Cookies } from '@sveltejs/kit';
 import type { components } from '#lib/api-schema.js';
 
@@ -116,7 +116,7 @@ export async function createColumn(
   boardId: string,
   { name, color, order }: { name: string; color?: string; order?: number }
 ): Promise<Schemas['BoardColumn']> {
-  const body: Record<string, string | number> = { name };
+  const body: Schemas['BoardColumnRequest'] = { name };
   if (color) body.color = color;
   if (order !== undefined && Number.isFinite(order)) body.order = order;
   return apiRequest(`/boards/${boardId}/columns/`, { method: 'POST', body }, { cookies });
@@ -138,7 +138,7 @@ export async function createBoard(
   { cookies }: { cookies: Cookies },
   { name, description }: { name: string; description?: string }
 ): Promise<Schemas['Board']> {
-  const body: Record<string, string> = { name };
+  const body: Schemas['BoardRequest'] = { name };
   if (description) body.description = description;
   return apiRequest('/boards/', { method: 'POST', body }, { cookies });
 }
@@ -154,7 +154,8 @@ export async function createCard(
   columnId: string,
   { title, description, priority }: { title: string; description?: string; priority?: string }
 ): Promise<Schemas['BoardTask']> {
-  const body: Record<string, string> = { title };
+  // `priority` is the form's string; the API checks it is one it knows.
+  const body: FormBody<Schemas['BoardTaskRequest']> = { title };
   if (description) body.description = description;
   if (priority) body.priority = priority;
   return apiRequest(`/boards/columns/${columnId}/tasks/`, { method: 'POST', body }, { cookies });
@@ -174,7 +175,7 @@ export async function moveBoardTask(
 ): Promise<Schemas['BoardTask']> {
   return apiRequest(
     `/boards/tasks/${id}/`,
-    { method: 'PUT', body: { column, order } },
+    { method: 'PUT', body: { column, order } satisfies Schemas['PatchedBoardTaskMoveRequest'] },
     { cookies }
   );
 }

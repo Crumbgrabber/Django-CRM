@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/api_config.dart';
-import '../data/api_envelope.dart';
+import '../data/api/schema.g.dart' as api;
 import '../data/models/contact.dart';
 import '../data/models/custom_field_definition.dart';
 import '../services/api_service.dart';
@@ -10,8 +10,8 @@ import '../services/api_service.dart';
 ///
 /// `/api/contacts/` does publish `results`, which is why the deal form's
 /// contact picker has always worked while the account one beside it sat empty.
-/// `contact_obj_list` carries the same rows under a second key, so both are
-/// passed to `listFromEnvelope` with the real one first.
+/// `contact_obj_list` carries the same rows under a second key, read only when
+/// `results` is missing.
 class ContactsListData {
   const ContactsListData({
     this.contacts = const [],
@@ -97,14 +97,12 @@ class ContactsNotifier extends AsyncNotifier<ContactsListData> {
       throw Exception(response.message ?? 'Failed to load contacts');
     }
 
-    final body = response.data!;
-    final rows = listFromEnvelope(body, const ['results', 'contact_obj_list']);
-    final total = body['contacts_count'] is int
-        ? body['contacts_count'] as int
-        : (body['count'] is int ? body['count'] as int : rows.length);
+    final body = api.ContactListResponse.fromJson(response.data!);
+    final rows = body.results ?? body.contactObjList ?? const <api.Contact>[];
+    final total = body.contactsCount ?? body.count ?? rows.length;
 
     return ContactsListData(
-      contacts: rows.map(Contact.fromJson).toList(growable: false),
+      contacts: [for (final row in rows) Contact.fromJson(row.json)],
       totalCount: total,
       hasMore: offset + rows.length < total,
       offset: offset,
@@ -119,11 +117,12 @@ class ContactsNotifier extends AsyncNotifier<ContactsListData> {
       if (response.statusCode == 404) onNotFound?.call();
       return null;
     }
-    final raw = response.data!['contact_obj'] ?? response.data!;
-    if (raw is! Map<String, dynamic>) return null;
+    final body = api.ContactDetailResponse.fromJson(response.data!);
+    final contact = body.contactObj;
+    if (contact == null) return null;
     return Contact.fromJson(
-      raw,
-      canDelete: response.data!['can_delete'] == true,
+      contact.json,
+      canDelete: body.canDelete ?? false,
       customFieldDefinitions: customFieldDefinitionsIn(response.data),
     );
   }
@@ -136,7 +135,10 @@ class ContactsNotifier extends AsyncNotifier<ContactsListData> {
       return (id: null, error: _message(response));
     }
     await refresh();
-    return (id: response.data?['id']?.toString(), error: null);
+    return (
+      id: api.ContactCreateResponse.fromJson(response.data ?? {}).id,
+      error: null,
+    );
   }
 
   /// PATCH, never PUT. `ContactDetailView.put` clears `teams`, `assigned_to`

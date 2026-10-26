@@ -1,3 +1,5 @@
+import '../api/schema.g.dart' as api;
+
 /// A call, meeting, email, WhatsApp, SMS or enquiry logged on a record, from
 /// `/api/interactions/`.
 enum InteractionKind {
@@ -125,34 +127,35 @@ class Interaction {
     return durationEstimated ? 'about $text' : text;
   }
 
+  /// Reads an `Interaction`.
   factory Interaction.fromJson(Map<String, dynamic> json) {
-    final logger = json['logged_by_details'];
+    final w = api.Interaction.fromJson(json);
+    final logger = w.loggedByDetails;
     String? loggerName;
-    if (logger is Map) {
-      final name = logger['name']?.toString().trim() ?? '';
-      final email = logger['email']?.toString().trim() ?? '';
+    if (logger != null) {
+      final name = logger.name?.trim() ?? '';
+      final email = logger.email?.trim() ?? '';
       loggerName = name.isNotEmpty
           ? name
           : (email.isNotEmpty ? email.split('@').first : null);
     }
-    final duration = json['duration_seconds'];
     return Interaction(
-      id: json['id']?.toString() ?? '',
-      kindValue: json['kind']?.toString() ?? '',
-      inbound: json['direction'] == 'inbound',
+      id: w.id ?? '',
+      kindValue: w.kind ?? '',
+      inbound: w.direction == 'inbound',
       occurredAt:
-          DateTime.tryParse(json['occurred_at']?.toString() ?? '') ??
-          DateTime.tryParse(json['created_at']?.toString() ?? '') ??
+          DateTime.tryParse(w.occurredAt ?? '') ??
+          DateTime.tryParse(w.createdAt ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0),
-      durationSeconds: duration is num ? duration.toInt() : null,
-      durationEstimated: json['duration_estimated'] == true,
-      outcome: json['outcome']?.toString() ?? '',
-      subject: json['subject']?.toString() ?? '',
-      body: json['body']?.toString() ?? '',
-      loggedById: json['logged_by']?.toString(),
+      durationSeconds: w.durationSeconds,
+      durationEstimated: w.durationEstimated == true,
+      outcome: w.outcome ?? '',
+      subject: w.subject ?? '',
+      body: w.body ?? '',
+      loggedById: w.loggedBy,
       loggedByName: loggerName,
-      origin: json['origin']?.toString() ?? '',
-      canEdit: json['can_edit'] == true,
+      origin: w.origin ?? '',
+      canEdit: w.canEdit == true,
     );
   }
 }

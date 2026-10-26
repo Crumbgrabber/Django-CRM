@@ -1,4 +1,4 @@
-import { sequence } from '@sveltejs/kit/hooks';
+import { sequence, type Handle } from '@sveltejs/kit/hooks';
 import * as Sentry from '@sentry/sveltekit';
 /**
  * SvelteKit Server Hooks with JWT Authentication
@@ -17,6 +17,9 @@ import { isOrgAdmin } from '#lib/admin.js';
 import { describeError } from '#lib/server/log-safe.js';
 import { moduleOffError } from '#lib/server/v2/modules.js';
 import { relayHeaders } from '#lib/server/relay.js';
+import type { components } from '#lib/api-schema.js';
+
+type Schemas = components['schemas'];
 
 const API_BASE_URL = `${env.PUBLIC_DJANGO_API_URL}/api`;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -40,8 +43,6 @@ type JWTPayload = {
   iat?: number;
   org_settings?: OrgSettingsPayload;
 };
-type OrgInfo = { id: string; name: string };
-type SwitchOrgResult = { access_token: string; refresh_token: string; current_org?: OrgInfo };
 
 /**
  * Decode JWT payload without verification (for reading claims only)
@@ -151,9 +152,9 @@ async function performTokenRefresh(
   event: { getClientAddress: () => string; request: Request }
 ): Promise<{ access: string; refresh?: string } | null> {
   try {
-    const response = await axios.post(
+    const response = await axios.post<Schemas['OrgAwareTokenRefreshResponse']>(
       `${API_BASE_URL}/auth/refresh-token/`,
-      { refresh: refreshToken },
+      { refresh: refreshToken } satisfies Schemas['OrgAwareTokenRefreshRequestRequest'],
       { headers: relayHeaders(event) }
     );
 
@@ -190,11 +191,13 @@ async function switchOrg(
   orgId: string,
   refreshToken: string | undefined,
   event: { getClientAddress: () => string; request: Request }
-): Promise<SwitchOrgResult | null> {
+): Promise<Schemas['OrgSwitchResponse'] | null> {
   try {
-    const response = await axios.post(
+    const response = await axios.post<Schemas['OrgSwitchResponse']>(
       `${API_BASE_URL}/auth/switch-org/`,
-      refreshToken ? { org_id: orgId, refresh: refreshToken } : { org_id: orgId },
+      (refreshToken
+        ? { org_id: orgId, refresh: refreshToken }
+        : { org_id: orgId }) satisfies Schemas['OrgSwitchRequestRequest'],
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -232,187 +235,191 @@ const reportError = Sentry.handleErrorWithSentry(
 export const handleError = (input: Parameters<typeof reportError>[0]) =>
   moduleOffError(input.error) ?? reportError(input);
 
-export const handle = sequence(Sentry.sentryHandle(), async function _handle({ event, resolve }) {
-  // Get tokens from cookies
-  let accessToken: string | undefined = event.cookies.get('jwt_access');
-  // Reassigned if we rotate below, so later calls hand on the live token rather
-  // than the one we just spent.
-  let refreshToken = event.cookies.get('jwt_refresh');
-  const orgId = event.cookies.get('org');
+// Sentry 11.7's typings import `Handle` from `@sveltejs/kit`; Kit 3 moved it to `/hooks`.
+export const handle = sequence(
+  Sentry.sentryHandle() as Handle,
+  async function _handle({ event, resolve }) {
+    // Get tokens from cookies
+    let accessToken: string | undefined = event.cookies.get('jwt_access');
+    // Reassigned if we rotate below, so later calls hand on the live token rather
+    // than the one we just spent.
+    let refreshToken = event.cookies.get('jwt_refresh');
+    const orgId = event.cookies.get('org');
 
-  let jwtPayload: JWTPayload | null = null;
+    let jwtPayload: JWTPayload | null = null;
 
-  // Try to authenticate user (LOCAL JWT DECODE - no API call!)
-  if (accessToken) {
-    jwtPayload = verifyTokenLocally(accessToken);
+    // Try to authenticate user (LOCAL JWT DECODE - no API call!)
+    if (accessToken) {
+      jwtPayload = verifyTokenLocally(accessToken);
 
-    // If access token expired, try to refresh
-    if (!jwtPayload && refreshToken) {
-      const refreshed = await refreshAccessToken(refreshToken, event);
-      if (refreshed) {
-        // Update cookie with new access token
-        event.cookies.set('jwt_access', refreshed.access, {
-          path: '/',
-          httpOnly: true,
-          sameSite: 'lax',
-          secure: process.env.NODE_ENV === 'production',
-          maxAge: 60 * 60 * 24 // 1 day
-        });
-        // Persist the rotated refresh token. The one we just spent is
-        // blacklisted server-side, so keeping it would 401 the next refresh
-        // and bounce the user to /login an hour later.
-        if (refreshed.refresh) {
-          event.cookies.set('jwt_refresh', refreshed.refresh, {
-            path: '/',
-            httpOnly: true,
-            sameSite: 'lax',
-            secure: process.env.NODE_ENV === 'production',
-            maxAge: 60 * 60 * 24 * 365 // 1 year
-          });
-          refreshToken = refreshed.refresh;
-        }
-        accessToken = refreshed.access;
-        jwtPayload = verifyTokenLocally(refreshed.access);
-      } else {
-        // Refresh failed, clear cookies
-        event.cookies.delete('jwt_access', { path: '/' });
-        event.cookies.delete('jwt_refresh', { path: '/' });
-        event.cookies.delete('org', { path: '/' });
-      }
-    }
-  }
-
-  // Set user in locals from JWT payload (no API call needed!)
-  if (jwtPayload) {
-    // Build user object from JWT claims
-    event.locals.user = {
-      id: jwtPayload.user_id,
-      name: jwtPayload.user_name || '',
-      email: jwtPayload.user_email || '',
-      profilePhoto: jwtPayload.user_profile_pic || ''
-    };
-
-    // Check if org cookie is set and token has org context
-    if (orgId && !UUID_RE.test(orgId)) {
-      // Invalid org cookie value, clear it
-      event.cookies.delete('org', { path: '/' });
-    } else if (orgId) {
-      const token = accessToken as string;
-
-      if (tokenHasOrgContext(token, orgId)) {
-        // Token has org context - extract org info from JWT (no API call!)
-        event.locals.org = {
-          id: jwtPayload.org_id || orgId,
-          name: jwtPayload.org_name || 'Organization'
-        };
-        event.locals.profile = {
-          org: event.locals.org,
-          role: jwtPayload.role || 'USER',
-          // The admin fact every admin gate reads (`#lib/admin.js`). Server
-          // derived and signed; `role` stays for display only.
-          is_organization_admin: isOrgAdmin(jwtPayload)
-        };
-        event.locals.org_name = jwtPayload.org_name || 'Organization';
-        // Extract org settings for currency/locale
-        event.locals.org_settings = jwtPayload.org_settings || {
-          default_currency: 'USD',
-          currency_symbol: '$',
-          default_country: null
-        };
-      } else {
-        // Token doesn't have org context, need to switch (1 API call)
-        const switchResult = await switchOrg(token, orgId, refreshToken, event);
-
-        if (switchResult) {
-          // Update cookies with new tokens that have org context
-          event.cookies.set('jwt_access', switchResult.access_token, {
+      // If access token expired, try to refresh
+      if (!jwtPayload && refreshToken) {
+        const refreshed = await refreshAccessToken(refreshToken, event);
+        if (refreshed) {
+          // Update cookie with new access token
+          event.cookies.set('jwt_access', refreshed.access, {
             path: '/',
             httpOnly: true,
             sameSite: 'lax',
             secure: process.env.NODE_ENV === 'production',
             maxAge: 60 * 60 * 24 // 1 day
           });
-          event.cookies.set('jwt_refresh', switchResult.refresh_token, {
-            path: '/',
-            httpOnly: true,
-            sameSite: 'lax',
-            secure: process.env.NODE_ENV === 'production',
-            maxAge: 60 * 60 * 24 * 365 // 1 year
-          });
+          // Persist the rotated refresh token. The one we just spent is
+          // blacklisted server-side, so keeping it would 401 the next refresh
+          // and bounce the user to /login an hour later.
+          if (refreshed.refresh) {
+            event.cookies.set('jwt_refresh', refreshed.refresh, {
+              path: '/',
+              httpOnly: true,
+              sameSite: 'lax',
+              secure: process.env.NODE_ENV === 'production',
+              maxAge: 60 * 60 * 24 * 365 // 1 year
+            });
+            refreshToken = refreshed.refresh;
+          }
+          accessToken = refreshed.access;
+          jwtPayload = verifyTokenLocally(refreshed.access);
+        } else {
+          // Refresh failed, clear cookies
+          event.cookies.delete('jwt_access', { path: '/' });
+          event.cookies.delete('jwt_refresh', { path: '/' });
+          event.cookies.delete('org', { path: '/' });
+        }
+      }
+    }
 
-          // Extract org info from switch result (no additional API call!)
-          event.locals.org = switchResult.current_org;
-          // The freshly-issued token carries this org's role and settings, so
-          // read both from it. Assuming 'USER' here would drop an admin's
-          // admin-only nav for the one navigation right after an org switch.
-          const newPayload = decodeJwtPayload(switchResult.access_token);
-          event.locals.profile = {
-            org: switchResult.current_org,
-            role: newPayload?.role || 'USER',
-            is_organization_admin: isOrgAdmin(newPayload)
+    // Set user in locals from JWT payload (no API call needed!)
+    if (jwtPayload) {
+      // Build user object from JWT claims
+      event.locals.user = {
+        id: jwtPayload.user_id,
+        name: jwtPayload.user_name || '',
+        email: jwtPayload.user_email || '',
+        profilePhoto: jwtPayload.user_profile_pic || ''
+      };
+
+      // Check if org cookie is set and token has org context
+      if (orgId && !UUID_RE.test(orgId)) {
+        // Invalid org cookie value, clear it
+        event.cookies.delete('org', { path: '/' });
+      } else if (orgId) {
+        const token = accessToken as string;
+
+        if (tokenHasOrgContext(token, orgId)) {
+          // Token has org context - extract org info from JWT (no API call!)
+          event.locals.org = {
+            id: jwtPayload.org_id || orgId,
+            name: jwtPayload.org_name || 'Organization'
           };
-          event.locals.org_name = switchResult.current_org?.name || 'Organization';
-          event.locals.org_settings = newPayload?.org_settings || {
+          event.locals.profile = {
+            org: event.locals.org,
+            role: jwtPayload.role || 'USER',
+            // The admin fact every admin gate reads (`#lib/admin.js`). Server
+            // derived and signed; `role` stays for display only.
+            is_organization_admin: isOrgAdmin(jwtPayload)
+          };
+          event.locals.org_name = jwtPayload.org_name || 'Organization';
+          // Extract org settings for currency/locale
+          event.locals.org_settings = jwtPayload.org_settings || {
             default_currency: 'USD',
             currency_symbol: '$',
             default_country: null
           };
         } else {
-          // Org switch failed, clear org cookie and redirect
-          event.cookies.delete('org', { path: '/' });
-          throw redirect(303, '/org');
+          // Token doesn't have org context, need to switch (1 API call)
+          const switchResult = await switchOrg(token, orgId, refreshToken, event);
+
+          if (switchResult) {
+            // Update cookies with new tokens that have org context
+            event.cookies.set('jwt_access', switchResult.access_token, {
+              path: '/',
+              httpOnly: true,
+              sameSite: 'lax',
+              secure: process.env.NODE_ENV === 'production',
+              maxAge: 60 * 60 * 24 // 1 day
+            });
+            event.cookies.set('jwt_refresh', switchResult.refresh_token, {
+              path: '/',
+              httpOnly: true,
+              sameSite: 'lax',
+              secure: process.env.NODE_ENV === 'production',
+              maxAge: 60 * 60 * 24 * 365 // 1 year
+            });
+
+            // Extract org info from switch result (no additional API call!)
+            event.locals.org = switchResult.current_org;
+            // The freshly-issued token carries this org's role and settings, so
+            // read both from it. Assuming 'USER' here would drop an admin's
+            // admin-only nav for the one navigation right after an org switch.
+            const newPayload = decodeJwtPayload(switchResult.access_token);
+            event.locals.profile = {
+              org: switchResult.current_org,
+              role: newPayload?.role || 'USER',
+              is_organization_admin: isOrgAdmin(newPayload)
+            };
+            event.locals.org_name = switchResult.current_org?.name || 'Organization';
+            event.locals.org_settings = newPayload?.org_settings || {
+              default_currency: 'USD',
+              currency_symbol: '$',
+              default_country: null
+            };
+          } else {
+            // Org switch failed, clear org cookie and redirect
+            event.cookies.delete('org', { path: '/' });
+            throw redirect(303, '/org');
+          }
         }
       }
     }
+
+    // Route protection
+    const pathname = event.url.pathname;
+
+    // Define public routes (no auth required).
+    //
+    // `/portal` and `/csat` are the customer-facing pages reached from an emailed
+    // link, the invoice/estimate portals and the CSAT survey. They are anonymous
+    // by design: the only credential is the token in the URL, and the pages read
+    // nothing from the session or org (only the token-scoped public Django
+    // endpoints). Without them here the guard redirects every customer who clicks
+    // a link to /login, so the portal is unreachable. Server-side token→org
+    // resolution + RLS is what actually protects the data (see docs/PORTAL_RLS.md).
+    //
+    // `/help-center` is an org's public help center: anonymous and indexable,
+    // opted into per org. Its pages read only `/api/public/help/<slug>/`, which
+    // answers the same 404 for an unknown, disabled or inactive org. It is NOT
+    // `/help`: that prefix is the signed-in user's own support tickets
+    // (`(app)/help`), and listing it here would strip the guard from them.
+    const PUBLIC_ROUTES = ['/login', '/logout', '/bounce', '/portal', '/csat', '/help-center'];
+
+    // Define semi-protected routes (auth required, but no org)
+    const AUTH_ONLY_ROUTES = ['/org'];
+
+    // Check if public route
+    const isPublicRoute = PUBLIC_ROUTES.some(
+      (route) => pathname === route || pathname.startsWith(route + '/')
+    );
+
+    // Check if auth-only route
+    const isAuthOnlyRoute = AUTH_ONLY_ROUTES.some(
+      (route) => pathname === route || pathname.startsWith(route + '/')
+    );
+
+    if (isAuthOnlyRoute) {
+      // Auth-only route - require user
+      if (!jwtPayload) {
+        throw redirect(307, '/login');
+      }
+    } else if (!isPublicRoute) {
+      // Protected route - require user + org
+      if (!jwtPayload) {
+        throw redirect(307, '/login');
+      }
+      if (!event.locals.org) {
+        throw redirect(307, '/org');
+      }
+    }
+
+    return resolve(event);
   }
-
-  // Route protection
-  const pathname = event.url.pathname;
-
-  // Define public routes (no auth required).
-  //
-  // `/portal` and `/csat` are the customer-facing pages reached from an emailed
-  // link, the invoice/estimate portals and the CSAT survey. They are anonymous
-  // by design: the only credential is the token in the URL, and the pages read
-  // nothing from the session or org (only the token-scoped public Django
-  // endpoints). Without them here the guard redirects every customer who clicks
-  // a link to /login, so the portal is unreachable. Server-side token→org
-  // resolution + RLS is what actually protects the data (see docs/PORTAL_RLS.md).
-  //
-  // `/help-center` is an org's public help center: anonymous and indexable,
-  // opted into per org. Its pages read only `/api/public/help/<slug>/`, which
-  // answers the same 404 for an unknown, disabled or inactive org. It is NOT
-  // `/help`: that prefix is the signed-in user's own support tickets
-  // (`(app)/help`), and listing it here would strip the guard from them.
-  const PUBLIC_ROUTES = ['/login', '/logout', '/bounce', '/portal', '/csat', '/help-center'];
-
-  // Define semi-protected routes (auth required, but no org)
-  const AUTH_ONLY_ROUTES = ['/org'];
-
-  // Check if public route
-  const isPublicRoute = PUBLIC_ROUTES.some(
-    (route) => pathname === route || pathname.startsWith(route + '/')
-  );
-
-  // Check if auth-only route
-  const isAuthOnlyRoute = AUTH_ONLY_ROUTES.some(
-    (route) => pathname === route || pathname.startsWith(route + '/')
-  );
-
-  if (isAuthOnlyRoute) {
-    // Auth-only route - require user
-    if (!jwtPayload) {
-      throw redirect(307, '/login');
-    }
-  } else if (!isPublicRoute) {
-    // Protected route - require user + org
-    if (!jwtPayload) {
-      throw redirect(307, '/login');
-    }
-    if (!event.locals.org) {
-      throw redirect(307, '/org');
-    }
-  }
-
-  return resolve(event);
-});
+);

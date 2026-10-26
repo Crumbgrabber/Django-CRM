@@ -33,7 +33,7 @@
  *   here from the fetched goals (sum over the active subset), arithmetic on
  *   fields already in the payload, never a second aggregate query.
  */
-import { apiRequest } from '#lib/api-helpers.js';
+import { apiRequest, type FormBody } from '#lib/api-helpers.js';
 import { viewerIsAdmin } from './organization.js';
 import { getOrgPeopleAndTeams } from './org-people.js';
 import type { Cookies } from '@sveltejs/kit';
@@ -423,7 +423,7 @@ export async function getGoalForEdit({ cookies }: { cookies: Cookies }, id: stri
  * two can never both be set from the UI.
  */
 function writeBody(values: GoalValues) {
-  const body: Record<string, unknown> = {};
+  const body: FormBody<Schemas['SalesGoalCreateRequest']> = {};
   for (const field of EDITABLE_FIELDS) {
     if (field in values) body[field] = values[field];
   }

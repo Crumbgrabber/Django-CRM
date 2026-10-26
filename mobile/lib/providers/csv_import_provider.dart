@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/api_config.dart';
+import '../data/api/schema.g.dart' as api;
 import '../services/api_service.dart';
 
 /// Spreadsheet import for contacts, tickets and leads: preview, then commit.
@@ -221,32 +222,43 @@ enum CsvImportTarget {
   String get skippedFileName => '$plural-skipped-rows.csv';
 
   /// One valid row of a preview as the web drawer's sample table shows it:
-  /// the name, then the other columns it prints, blanks left out. The keys
-  /// are the ones the import views put in `valid[]` for this module.
+  /// the name, then the other columns it prints, blanks left out. The row is
+  /// this module's `valid[]` item: a `ContactImportRow`, `CaseImportValidRow`
+  /// or `LeadImportRow`.
   ({String title, String details}) sampleLine(Map<String, dynamic> row) {
-    String text(String key) => row[key]?.toString().trim() ?? '';
+    String text(String? value) => value?.trim() ?? '';
     final List<String> details;
     final String title;
     switch (this) {
       case CsvImportTarget.contacts:
-        title = '${text('first_name')} ${text('last_name')}'.trim();
-        details = [text('email'), text('phone'), text('organization')];
+        final r = api.ContactImportRow.fromJson(row);
+        title = '${text(r.firstName)} ${text(r.lastName)}'.trim();
+        details = [text(r.email), text(r.phone), text(r.organization)];
       case CsvImportTarget.tickets:
-        title = text('name');
+        final r = api.CaseImportValidRow.fromJson(row);
+        title = text(r.name);
         details = [
-          text('status'),
-          text('priority'),
-          if (row['account_id'] != null) 'account linked',
+          text(r.status),
+          text(r.priority),
+          if (r.accountId != null) 'account linked',
         ];
       case CsvImportTarget.leads:
-        title = '${text('first_name')} ${text('last_name')}'.trim();
-        details = [text('email'), text('company_name'), text('status')];
+        final r = api.LeadImportRow.fromJson(row);
+        title = '${text(r.firstName)} ${text(r.lastName)}'.trim();
+        details = [text(r.email), text(r.companyName), text(r.status)];
     }
     return (
       title: title.isEmpty ? 'Unnamed' : title,
       details: details.where((d) => d.isNotEmpty).join(' \u00b7 '),
     );
   }
+
+  /// The file's row number of one valid row (see [sampleLine]), if it says.
+  int? sampleRow(Map<String, dynamic> row) => switch (this) {
+    CsvImportTarget.contacts => api.ContactImportRow.fromJson(row).row,
+    CsvImportTarget.tickets => api.CaseImportValidRow.fromJson(row).row,
+    CsvImportTarget.leads => api.LeadImportRow.fromJson(row).row,
+  };
 
   /// The template as CSV text, quoting a cell only when it holds a comma, as
   /// the web does.
@@ -307,11 +319,16 @@ class CsvRowError {
     required this.message,
   });
 
-  factory CsvRowError.fromJson(Map<String, dynamic> json) => CsvRowError(
-    row: (json['row'] as num?)?.toInt() ?? 0,
-    field: json['field']?.toString() ?? '',
-    message: json['message']?.toString() ?? '',
-  );
+  /// Reads a `LeadImportRowError`; the contacts and tickets ones are the
+  /// same shape.
+  factory CsvRowError.fromJson(Map<String, dynamic> json) {
+    final w = api.LeadImportRowError.fromJson(json);
+    return CsvRowError(
+      row: w.row ?? 0,
+      field: w.field ?? '',
+      message: w.message ?? '',
+    );
+  }
 
   final int row;
   final String field;
@@ -329,13 +346,16 @@ class CsvImportColumn {
     required this.samples,
   });
 
-  factory CsvImportColumn.fromJson(Map<String, dynamic> json) =>
-      CsvImportColumn(
-        index: (json['index'] as num?)?.toInt() ?? 0,
-        header: json['header']?.toString() ?? '',
-        field: json['field']?.toString(),
-        samples: _strings(json['samples']),
-      );
+  /// Reads an `ImportColumn`.
+  factory CsvImportColumn.fromJson(Map<String, dynamic> json) {
+    final w = api.ImportColumn.fromJson(json);
+    return CsvImportColumn(
+      index: w.index ?? 0,
+      header: w.header ?? '',
+      field: w.field,
+      samples: w.samples ?? const [],
+    );
+  }
 
   final int index;
   final String header;
@@ -358,11 +378,15 @@ class CsvImportField {
     required this.required,
   });
 
-  factory CsvImportField.fromJson(Map<String, dynamic> json) => CsvImportField(
-    name: json['name']?.toString() ?? '',
-    label: json['label']?.toString() ?? '',
-    required: json['required'] == true,
-  );
+  /// Reads an `ImportField`.
+  factory CsvImportField.fromJson(Map<String, dynamic> json) {
+    final w = api.ImportField.fromJson(json);
+    return CsvImportField(
+      name: w.name ?? '',
+      label: w.label ?? '',
+      required: w.required_ == true,
+    );
+  }
 
   final String name;
   final String label;
@@ -385,13 +409,17 @@ class CsvSkippedRow {
     required this.kind,
   });
 
-  factory CsvSkippedRow.fromJson(Map<String, dynamic> json) => CsvSkippedRow(
-    row: (json['row'] as num?)?.toInt() ?? 0,
-    field: json['field']?.toString() ?? '',
-    message: json['message']?.toString() ?? '',
-    cells: _strings(json['cells']),
-    kind: json['kind']?.toString() ?? '',
-  );
+  /// Reads an `ImportSkippedRow`.
+  factory CsvSkippedRow.fromJson(Map<String, dynamic> json) {
+    final w = api.ImportSkippedRow.fromJson(json);
+    return CsvSkippedRow(
+      row: w.row ?? 0,
+      field: w.field ?? '',
+      message: w.message ?? '',
+      cells: w.cells ?? const [],
+      kind: w.kind ?? '',
+    );
+  }
 
   final int row;
   final String field;
@@ -399,10 +427,6 @@ class CsvSkippedRow {
   final List<String> cells;
   final String kind;
 }
-
-List<String> _strings(Object? raw) => raw is List
-    ? raw.map((v) => v?.toString() ?? '').toList(growable: false)
-    : const [];
 
 List<T> _objects<T>(Object? raw, T Function(Map<String, dynamic>) read) =>
     raw is List
@@ -417,9 +441,9 @@ List<CsvSkippedRow> _skippedRows(Object? raw) =>
 
 /// `dropped` as the server sends it, `[{field, count}]`, keyed by field in the
 /// server's order.
-Map<String, int> _droppedCounts(Object? raw) => {
-  for (final d in _objects(raw, (d) => d))
-    d['field']?.toString() ?? '': (d['count'] as num?)?.toInt() ?? 0,
+Map<String, int> _droppedCounts(List<api.ImportDropped>? rows) => {
+  for (final d in rows ?? const <api.ImportDropped>[])
+    d.field ?? '': d.count ?? 0,
 };
 
 /// One cell of a CSV this app writes, with the two rules the web
@@ -563,29 +587,43 @@ class CsvImportPreview {
     this.skippedCount = 0,
   });
 
+  /// Reads a `LeadImportPreviewResponse`, which is one of two shapes:
+  /// `LeadImportTemplatePreview` (the shape `CaseImportPreviewResponse` has
+  /// too) or `LeadImportMappedPreview`. The contacts ones match field for
+  /// field.
   factory CsvImportPreview.fromJson(Map<String, dynamic> json) {
-    final summary = json['summary'] is Map<String, dynamic>
-        ? json['summary'] as Map<String, dynamic>
-        : const <String, dynamic>{};
-    int count(String key) => (summary[key] as num?)?.toInt() ?? 0;
-    final headerError = json['header_error']?.toString();
-    final columns = json['columns'];
+    final template = api.LeadImportTemplatePreview.fromJson(json);
+    final mapped = api.LeadImportMappedPreview.fromJson(json);
+    final headerError = template.headerError;
+    final columns = mapped.columns;
     return CsvImportPreview(
-      total: count('total'),
-      valid: count('valid'),
-      invalid: count('invalid'),
-      errors: _rowErrors(json['errors']),
-      validRows: _objects(json['valid'], (row) => row),
+      total: template.summary?.total ?? 0,
+      valid: template.summary?.valid ?? 0,
+      invalid: template.summary?.invalid ?? 0,
+      errors: [
+        for (final e in template.errors ?? const <api.LeadImportRowError>[])
+          CsvRowError.fromJson(e.json),
+      ],
+      validRows: [
+        for (final row in template.valid ?? const <api.LeadImportRow>[])
+          row.json,
+      ],
       headerError: (headerError == null || headerError.isEmpty)
           ? null
           : headerError,
-      columns: columns is List
-          ? _objects(columns, CsvImportColumn.fromJson)
-          : null,
-      fields: _objects(json['fields'], CsvImportField.fromJson),
-      skipped: _skippedRows(json['skipped']),
-      dropped: _droppedCounts(json['dropped']),
-      skippedCount: count('skipped'),
+      columns: columns == null
+          ? null
+          : [for (final c in columns) CsvImportColumn.fromJson(c.json)],
+      fields: [
+        for (final f in mapped.fields ?? const <api.ImportField>[])
+          CsvImportField.fromJson(f.json),
+      ],
+      skipped: [
+        for (final r in mapped.skipped ?? const <api.ImportSkippedRow>[])
+          CsvSkippedRow.fromJson(r.json),
+      ],
+      dropped: _droppedCounts(mapped.dropped),
+      skippedCount: mapped.summary?.skipped ?? 0,
     );
   }
 
@@ -642,12 +680,19 @@ class CsvImportResult {
     this.dropped = const {},
   });
 
-  factory CsvImportResult.fromJson(Map<String, dynamic> json) =>
-      CsvImportResult(
-        created: (json['created'] as num?)?.toInt() ?? 0,
-        skipped: _skippedRows(json['skipped']),
-        dropped: _droppedCounts(json['dropped']),
-      );
+  /// Reads a `LeadImportCommitResponse`; the contacts and tickets ones are
+  /// the same shape.
+  factory CsvImportResult.fromJson(Map<String, dynamic> json) {
+    final w = api.LeadImportCommitResponse.fromJson(json);
+    return CsvImportResult(
+      created: w.created ?? 0,
+      skipped: [
+        for (final row in w.skipped ?? const <api.ImportSkippedRow>[])
+          CsvSkippedRow.fromJson(row.json),
+      ],
+      dropped: _droppedCounts(w.dropped),
+    );
+  }
 
   final int created;
   final List<CsvSkippedRow> skipped;

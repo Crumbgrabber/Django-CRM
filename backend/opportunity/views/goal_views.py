@@ -106,7 +106,7 @@ class SalesGoalListView(APIView, LimitOffsetPagination):
             }
         )
 
-    @extend_schema(responses={201: _MESSAGE})
+    @extend_schema(request=SalesGoalCreateSerializer, responses={201: _MESSAGE})
     def post(self, request, *args, **kwargs):
         if not is_org_admin(request.profile):
             return Response(
@@ -163,7 +163,7 @@ class SalesGoalDetailView(APIView):
         serializer = SalesGoalSerializer(goal)
         return Response(serializer.data)
 
-    @extend_schema(responses=_MESSAGE)
+    @extend_schema(request=SalesGoalCreateSerializer(partial=True), responses=_MESSAGE)
     def put(self, request, pk, *args, **kwargs):
         goal = self.get_object(pk, request)
         if not goal:

@@ -4,7 +4,7 @@ import { getOrgPeopleAndTeams, resolveMe } from '#lib/server/v2/org-people.js';
 import { getTags } from '#lib/server/v2/tags.js';
 import { forwardCsvImport } from '#lib/server/v2/csv-import.js';
 import { loadSavedViews, savedViewActions } from '#lib/server/v2/saved-views.js';
-import type { PageServerLoad } from './$types';
+import type { Actions, PageServerLoad } from './$types';
 
 /**
  * Only filters the API actually applies are forwarded. A parameter that
@@ -50,4 +50,4 @@ export const actions = {
   ...savedViewActions('contacts'),
   importPreview: (event) => forwardCsvImport(event, '/contacts/import/preview/', 'importPreview'),
   importCommit: (event) => forwardCsvImport(event, '/contacts/import/commit/', 'importCommit')
-};
+} satisfies Actions;

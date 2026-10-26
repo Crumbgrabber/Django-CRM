@@ -189,5 +189,5 @@ export async function cancelApproval(
   { cookies }: { cookies: Cookies },
   id: string
 ): Promise<Schemas['Approval']> {
-  return apiRequest(`/cases/approvals/${id}/cancel/`, { method: 'POST', body: {} }, { cookies });
+  return apiRequest(`/cases/approvals/${id}/cancel/`, { method: 'POST' }, { cookies });
 }

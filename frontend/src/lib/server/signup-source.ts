@@ -5,10 +5,13 @@
  */
 
 import type { Cookies } from '@sveltejs/kit';
+import type { components } from '#lib/api-schema.js';
+
+type SignupSource = components['schemas']['SignupSourceRequest'];
 
 export const SIGNUP_SOURCE_COOKIE = 'signup_source';
 
-const TAGS = ['utm_source', 'utm_medium', 'utm_campaign'];
+const TAGS = ['utm_source', 'utm_medium', 'utm_campaign'] as const;
 const MAX_LENGTH = 100;
 const THIRTY_DAYS = 60 * 60 * 24 * 30;
 
@@ -52,16 +55,26 @@ export function rememberSignupSource(
   });
 }
 
-/** The remembered source, or undefined when there is none or it will not parse. */
+/**
+ * The remembered source, or undefined when there is none or it will not parse.
+ * Only the string keys the API keeps are passed on: the cookie can be edited.
+ */
 export function readSignupSource(cookies: {
   get: (name: string) => string | undefined;
-}): Record<string, unknown> | undefined {
+}): SignupSource | undefined {
   const raw = cookies.get(SIGNUP_SOURCE_COOKIE);
   if (!raw) return undefined;
+  let value: unknown;
   try {
-    const value = JSON.parse(raw);
-    return value && typeof value === 'object' && !Array.isArray(value) ? value : undefined;
+    value = JSON.parse(raw);
   } catch {
     return undefined;
   }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const fields = value as Record<string, unknown>;
+  const source: SignupSource = {};
+  for (const key of [...TAGS, 'referrer'] as const) {
+    if (typeof fields[key] === 'string') source[key] = fields[key];
+  }
+  return source;
 }

@@ -29,7 +29,7 @@
  * hint (`viewerIsAdmin` below); the server is what actually refuses.
  */
 import { isOrgAdmin } from '#lib/admin.js';
-import { apiRequest } from '#lib/api-helpers.js';
+import { apiRequest, type FormBody } from '#lib/api-helpers.js';
 import type { Cookies } from '@sveltejs/kit';
 import type { components } from '#lib/api-schema.js';
 
@@ -41,7 +41,7 @@ type Schemas = components['schemas'];
  * `is_active`, `id` and the read-only header fields are never sent from the
  * client even if someone adds them to the request body.
  */
-export const EDITABLE_FIELDS = [
+export const EDITABLE_FIELDS: (keyof Schemas['PatchedOrgSettingsRequest'])[] = [
   'name',
   'company_name',
   'address_line',
@@ -71,7 +71,10 @@ export const EDITABLE_FIELDS = [
  * 'true'/'false', and the action coerces them, so "unchecked" is a real value
  * and not the "field absent → leave alone" convention the text fields use.
  */
-export const BOOLEAN_FIELDS = ['csat_enabled', 'auto_close_children_on_parent_close'];
+export const BOOLEAN_FIELDS: (keyof Schemas['PatchedOrgSettingsRequest'])[] = [
+  'csat_enabled',
+  'auto_close_children_on_parent_close'
+];
 
 /**
  * Whether the signed-in user administers the org, from the access token's
@@ -84,14 +87,22 @@ export const BOOLEAN_FIELDS = ['csat_enabled', 'auto_close_children_on_parent_cl
  * verified; verifying our own freshly-read cookie would buy nothing.
  */
 export function viewerIsAdmin(cookies: Cookies): boolean {
+  return isOrgAdmin(accessClaims(cookies));
+}
+
+/**
+ * The access token's claims, decoded but not verified, the same as
+ * `viewerIsAdmin`; empty when there is no readable token.
+ */
+export function accessClaims(cookies: Cookies): Record<string, unknown> {
   const token = cookies.get('jwt_access');
-  if (!token) return false;
+  if (!token) return {};
   try {
     const payload = token.split('.')[1];
-    const json = Buffer.from(payload, 'base64url').toString('utf-8');
-    return isOrgAdmin(JSON.parse(json));
+    const claims: unknown = JSON.parse(Buffer.from(payload, 'base64url').toString('utf-8'));
+    return claims && typeof claims === 'object' ? (claims as Record<string, unknown>) : {};
   } catch {
-    return false;
+    return {};
   }
 }
 
@@ -111,7 +122,7 @@ export async function getOrgSettings({ cookies }: { cookies: Cookies }) {
  */
 export function updateOrgSettings(
   { cookies }: { cookies: Cookies },
-  body: Record<string, unknown>
+  body: FormBody<Schemas['PatchedOrgSettingsRequest']>
 ): Promise<Schemas['OrgSettings']> {
   return apiRequest('/org/settings/', { method: 'PATCH', body }, { cookies });
 }

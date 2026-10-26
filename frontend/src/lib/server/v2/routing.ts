@@ -17,7 +17,7 @@
  * object; the page wants `{ id, name, is_active }` / `{ id, name }`, so
  * flatten here.
  */
-import { apiRequest } from '#lib/api-helpers.js';
+import { apiRequest, type FormBody } from '#lib/api-helpers.js';
 import { viewerIsAdmin } from './organization.js';
 import { CONDITION_FIELD_LABEL, CONDITION_OP_LABEL, ROUTING_STRATEGY_NAME } from '#lib/v2/enums.js';
 import type { Cookies } from '@sveltejs/kit';
@@ -78,7 +78,7 @@ export async function getRoutingRules({ cookies }: { cookies: Cookies }) {
 }
 
 /** Everything a create may set. `org` is the JWT's, never the body's. */
-const CREATE_FIELDS = [
+const CREATE_FIELDS: (keyof Schemas['RoutingRuleRequest'])[] = [
   'name',
   'priority_order',
   'is_active',
@@ -200,17 +200,17 @@ function cleanConditions(
     });
 }
 
-function buildBody(allowed: string[], values: RuleValues) {
-  const body: RuleValues = {};
+function buildBody(allowed: typeof CREATE_FIELDS, values: RuleValues) {
+  const body: FormBody<Schemas['RoutingRuleRequest']> = {};
   for (const field of allowed) {
     if (values[field] === undefined) continue;
     body[field] = values[field];
   }
   if (body.priority_order !== undefined) body.priority_order = Number(body.priority_order) || 0;
-  for (const flag of ['is_active', 'stop_processing']) {
+  for (const flag of ['is_active', 'stop_processing'] as const) {
     if (body[flag] !== undefined) body[flag] = Boolean(body[flag]);
   }
-  if (body.conditions !== undefined) body.conditions = cleanConditions(body.conditions);
+  if (body.conditions !== undefined) body.conditions = cleanConditions(values.conditions);
 
   // `by_team` routes to a team and nothing else; the other three route to
   // people. Sending the half that does not apply is not rejected by the
@@ -226,7 +226,7 @@ function buildBody(allowed: string[], values: RuleValues) {
   // `allow_null=True`, so null clears it; `''` is a 400.
   if (body.target_team_id === '') body.target_team_id = null;
   if (body.target_assignee_ids !== undefined) {
-    const ids = (body.target_assignee_ids ?? []).filter(Boolean);
+    const ids = (values.target_assignee_ids ?? []).filter(Boolean);
     // An empty multi-select omits the key rather than sending `[]`, because
     // `[]` disarms the backend's own guard. `RoutingRuleSerializer.validate`
     // reads `assignees = attrs.get("target_assignees")` and only raises when
@@ -285,7 +285,7 @@ export async function updateRoutingRule(
   // nothing the admin asked to change, which is a silent no-op on a control
   // they just operated. Refuse instead, and say which constraint refused.
   //
-  // Both conditions are required. `body.strategy` alone is not enough: a
+  // Both conditions are required. `strategy` alone is not enough: a
   // partial update that names a strategy without touching the assignee
   // picker (or the turn-on path, which sends `{ is_active: true }` and
   // nothing else) must still go through untouched. And an empty list under
@@ -295,10 +295,10 @@ export async function updateRoutingRule(
   if (
     submittedAssignees &&
     body.target_assignee_ids === undefined &&
-    body.strategy !== undefined &&
-    PEOPLE_STRATEGIES.includes(body.strategy)
+    values.strategy !== undefined &&
+    PEOPLE_STRATEGIES.includes(values.strategy)
   ) {
-    const name = ROUTING_STRATEGY_NAME[body.strategy].toLowerCase();
+    const name = ROUTING_STRATEGY_NAME[values.strategy].toLowerCase();
     throw new Error(`A ${name} rule needs at least one assignee.`);
   }
 

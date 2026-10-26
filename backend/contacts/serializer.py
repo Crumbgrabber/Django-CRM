@@ -254,9 +254,29 @@ class CreateContactSerializer(serializers.ModelSerializer):
         )
 
 
+class ContactWriteSerializer(CreateContactSerializer):
+    """The contact write body, for the schema: `CreateContactSerializer`'s
+    fields plus the relations and custom fields the views apply themselves."""
+
+    assigned_to = serializers.ListField(child=serializers.UUIDField(), required=False)
+    tags = serializers.ListField(child=serializers.UUIDField(), required=False)
+    teams = serializers.ListField(child=serializers.UUIDField(), required=False)
+    custom_fields = serializers.DictField(required=False)
+
+    class Meta(CreateContactSerializer.Meta):
+        fields = (
+            *CreateContactSerializer.Meta.fields,
+            "assigned_to",
+            "tags",
+            "teams",
+            "custom_fields",
+        )
+
+
 class ContactDetailEditSwaggerSerializer(serializers.Serializer):
-    comment = serializers.CharField()
-    contact_attachment = serializers.FileField()
+    # A comment, a file, or both.
+    comment = serializers.CharField(required=False)
+    contact_attachment = serializers.FileField(required=False)
 
 
 class ContactCommentEditSwaggerSerializer(serializers.Serializer):

@@ -23,6 +23,7 @@
 /// the same rules.
 library;
 
+import '../api/schema.g.dart' as api;
 import 'lookup_models.dart';
 
 /// The `approver_role` values a profile can actually hold.
@@ -79,27 +80,26 @@ class ApprovalRule {
   /// fallback.
   final DateTime? createdAt;
 
+  /// Reads an `ApprovalRuleListRow`, the list's `ApprovalRule` plus its
+  /// `pending_count`.
   factory ApprovalRule.fromJson(Map<String, dynamic> json) {
-    final team = json['match_team'];
+    final w = api.ApprovalRuleListRow.fromJson(json);
+    final team = w.matchTeam;
     return ApprovalRule(
-      id: json['id']?.toString() ?? '',
-      name: json['name']?.toString() ?? '',
-      isActive: json['is_active'] as bool? ?? true,
-      approverRole: json['approver_role']?.toString() ?? 'ADMIN',
+      id: w.id ?? '',
+      name: w.name ?? '',
+      isActive: w.isActive ?? true,
+      approverRole: w.approverRole ?? 'ADMIN',
       approvers: [
-        for (final approver in (json['approvers'] as List?) ?? const [])
-          if (approver is Map && approver['id'] != null)
-            UserLookup.fromJson(approver.cast<String, dynamic>()),
+        for (final approver
+            in w.approvers ?? const <api.ApprovalRuleApprover>[])
+          if (approver.id != null) UserLookup.fromJson(approver.json),
       ],
-      matchPriority: _blankToNull(json['match_priority']),
-      matchCaseType: _blankToNull(json['match_case_type']),
-      matchTeam: team is Map
-          ? TeamLookup.fromJson(team.cast<String, dynamic>())
-          : null,
-      pendingCount: (json['pending_count'] as num?)?.round() ?? 0,
-      createdAt: json['created_at'] == null
-          ? null
-          : DateTime.tryParse(json['created_at'].toString()),
+      matchPriority: _blankToNull(w.matchPriority),
+      matchCaseType: _blankToNull(w.matchCaseType),
+      matchTeam: team == null ? null : TeamLookup.fromJson(team.json),
+      pendingCount: w.pendingCount ?? 0,
+      createdAt: DateTime.tryParse(w.createdAt ?? ''),
     );
   }
 
@@ -156,8 +156,8 @@ class ApprovalRule {
       '${matchPriority ?? ''}|${matchCaseType ?? ''}|${matchTeam?.id ?? ''}';
 }
 
-String? _blankToNull(dynamic value) {
-  final text = value?.toString().trim() ?? '';
+String? _blankToNull(String? value) {
+  final text = value?.trim() ?? '';
   return text.isEmpty ? null : text;
 }
 
@@ -282,7 +282,8 @@ const String approvalRuleDeleteExplanation =
 /// the notifier so it can be pinned: `pendingCount` cannot predict it, since it
 /// counts only the pending state while the backend's check counts every state.
 bool approvalRuleWasTurnedOff(Map<String, dynamic>? body) =>
-    body?['is_active'] == false;
+    body != null &&
+    api.ApprovalRuleDeactivatedResponse.fromJson(body).isActive == false;
 
 /// What actually happened, once the server has decided.
 String approvalRuleDeleteResult({required bool turnedOff}) => turnedOff

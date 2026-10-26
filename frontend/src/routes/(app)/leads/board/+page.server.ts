@@ -2,7 +2,7 @@ import { fail } from '@sveltejs/kit';
 import { getLeadBoard, moveLead } from '#lib/server/v2/lead-board.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
 import { apiStatus } from '#lib/api-errors.js';
-import type { PageServerLoad } from './$types';
+import type { Actions, PageServerLoad } from './$types';
 
 /**
  * Leads grouped by the stages of one lead pipeline. `?pipeline=<id>` picks
@@ -37,4 +37,4 @@ export const actions = {
       return fail(400, { error: readableError(err, 'Could not move the lead.') });
     }
   }
-};
+} satisfies Actions;

@@ -17,7 +17,7 @@
  */
 import { fail, redirect, type Cookies, type RequestEvent } from '@sveltejs/kit';
 import { apiRequest } from '#lib/api-helpers.js';
-import { apiErrorBody, apiStatus, type ApiErrorBody } from '#lib/api-errors.js';
+import { apiErrorBody, apiStatus, firstMessage, type ApiErrorBody } from '#lib/api-errors.js';
 import { pickFilters, type Spec } from '#lib/v2/saved-views.js';
 import { readableError } from './form-errors.js';
 import { FILTER_FIELDS as LEAD_FIELDS } from './leads.js';
@@ -96,7 +96,7 @@ export function savedViewSpec(module: keyof typeof SAVED_VIEW_KEYS, params: URLS
  */
 function firstSentence(body: ApiErrorBody | undefined): string | null {
   const first = body && typeof body === 'object' ? Object.values(body)[0] : null;
-  const text = Array.isArray(first) ? first[0] : first;
+  const text = firstMessage(first);
   return typeof text === 'string' && text.trim() ? text : null;
 }
 
@@ -137,19 +137,17 @@ function backTo(url: URL, form: FormData) {
 
 /** `saveView`, `renameView` and `deleteView` for one list page. */
 export function savedViewActions(module: keyof typeof SAVED_VIEW_KEYS) {
-  /** @param build the API call, or a sentence refusing it */
+  /** @param send makes the API call, or returns a sentence refusing it */
   async function run(
     { request, cookies, url }: RequestEvent,
-    build: (
-      form: FormData
-    ) => { path: string; method: string; body?: Record<string, unknown> } | string,
+    send: (form: FormData, cookies: Cookies) => Promise<unknown> | string,
     fallback: string
   ) {
     const form = await request.formData();
-    const call = build(form);
+    const call = send(form, cookies);
     if (typeof call === 'string') return fail(400, { savedViewError: call });
     try {
-      await apiRequest(call.path, { method: call.method, body: call.body }, { cookies });
+      await call;
     } catch (err) {
       const status = apiStatus(err);
       if (!status) throw err;
@@ -172,12 +170,19 @@ export function savedViewActions(module: keyof typeof SAVED_VIEW_KEYS) {
     saveView: (event: RequestEvent) =>
       run(
         event,
-        (form) => {
+        (form, cookies) => {
           const name = String(form.get('name') ?? '').trim();
           if (!name) return 'Give the view a name.';
           const query = new URLSearchParams(String(form.get('query') ?? ''));
           const filters = pickFilters(query, savedViewSpec(module, query));
-          return { path: '/saved-views/', method: 'POST', body: { module, name, filters } };
+          return apiRequest<Schemas['SavedView']>(
+            '/saved-views/',
+            {
+              method: 'POST',
+              body: { module, name, filters } satisfies Schemas['SavedViewRequest']
+            },
+            { cookies }
+          );
         },
         'Could not save the view.'
       ),
@@ -185,12 +190,16 @@ export function savedViewActions(module: keyof typeof SAVED_VIEW_KEYS) {
     renameView: (event: RequestEvent) =>
       run(
         event,
-        (form) => {
+        (form, cookies) => {
           const id = viewId(form);
           const name = String(form.get('name') ?? '').trim();
           if (!id) return 'Which view?';
           if (!name) return 'Give the view a name.';
-          return { path: `/saved-views/${id}/`, method: 'PATCH', body: { name } };
+          return apiRequest<Schemas['SavedView']>(
+            `/saved-views/${id}/`,
+            { method: 'PATCH', body: { name } satisfies Schemas['PatchedSavedViewRequest'] },
+            { cookies }
+          );
         },
         'Could not rename the view.'
       ),
@@ -198,10 +207,10 @@ export function savedViewActions(module: keyof typeof SAVED_VIEW_KEYS) {
     deleteView: (event: RequestEvent) =>
       run(
         event,
-        (form) => {
+        (form, cookies) => {
           const id = viewId(form);
           if (!id) return 'Which view?';
-          return { path: `/saved-views/${id}/`, method: 'DELETE' };
+          return apiRequest(`/saved-views/${id}/`, { method: 'DELETE' }, { cookies });
         },
         'Could not delete the view.'
       )

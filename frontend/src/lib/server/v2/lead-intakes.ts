@@ -12,7 +12,7 @@
  * `key_hint`, even if a response starts carrying more.
  */
 import { error, type Cookies } from '@sveltejs/kit';
-import { apiRequest } from '#lib/api-helpers.js';
+import { apiRequest, type FormBody } from '#lib/api-helpers.js';
 import { apiErrorBody, apiStatus } from '#lib/api-errors.js';
 import { rethrowModuleOff } from '#lib/server/v2/modules.js';
 import { viewerIsAdmin } from '#lib/server/v2/organization.js';
@@ -153,7 +153,7 @@ export async function getIntake(
 }
 
 /** The fields an admin edits. `key`, `url`, `id` and the org never go up. */
-const WRITABLE = [
+const WRITABLE: (keyof Schemas['LeadIntakeRequest'])[] = [
   'name',
   'preset',
   'mapping',
@@ -165,7 +165,7 @@ const WRITABLE = [
 ];
 
 export function intakeBody(values: Record<string, unknown>) {
-  const body: Record<string, unknown> = {};
+  const body: FormBody<Schemas['LeadIntakeRequest']> = {};
   for (const key of WRITABLE) {
     if (values[key] !== undefined) body[key] = values[key];
   }
@@ -179,7 +179,7 @@ export function intakeBody(values: Record<string, unknown>) {
   }
   if (body.assignee !== undefined) body.assignee = body.assignee || null;
   if (body.is_active !== undefined) body.is_active = body.is_active === true;
-  for (const key of ['default_source', 'source_detail']) {
+  for (const key of ['default_source', 'source_detail'] as const) {
     if (body[key] !== undefined) body[key] = String(body[key] ?? '').trim();
   }
   return body;

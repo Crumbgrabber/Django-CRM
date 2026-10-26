@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../api/enterprise_schema.g.dart' as enterprise;
 
 enum SupportCategory {
   technical('technical', 'Technical issue'),
@@ -60,18 +61,21 @@ class SupportMessage {
 
   bool get hasAttachment => (attachmentName ?? '').isNotEmpty;
 
-  factory SupportMessage.fromJson(Map<String, dynamic> json) => SupportMessage(
-    id: json['id']?.toString() ?? '',
-    authorLabel: json['author_label']?.toString() ?? 'Unknown',
-    isStaff: json['author_type'] == 'staff',
-    body: json['body']?.toString() ?? '',
-    attachmentName: json['attachment_name']?.toString().isEmpty ?? true
-        ? null
-        : json['attachment_name'].toString(),
-    createdAt:
-        DateTime.tryParse(json['created_at']?.toString() ?? '') ??
-        DateTime.fromMillisecondsSinceEpoch(0),
-  );
+  /// Reads a `SupportMessage`.
+  factory SupportMessage.fromJson(Map<String, dynamic> json) {
+    final w = enterprise.SupportMessage.fromJson(json);
+    final attachmentName = w.attachmentName ?? '';
+    return SupportMessage(
+      id: w.id ?? '',
+      authorLabel: w.authorLabel ?? 'Unknown',
+      isStaff: w.authorType == 'staff',
+      body: w.body ?? '',
+      attachmentName: attachmentName.isEmpty ? null : attachmentName,
+      createdAt:
+          DateTime.tryParse(w.createdAt ?? '') ??
+          DateTime.fromMillisecondsSinceEpoch(0),
+    );
+  }
 }
 
 class SupportTicket {
@@ -105,31 +109,29 @@ class SupportTicket {
 
   bool get canReply => status != SupportStatus.closed;
 
+  /// Reads a `SupportTicketDetail`. A list row is a `SupportTicketList`, the
+  /// same without `assigned`, `first_response_at` and the messages.
   factory SupportTicket.fromJson(Map<String, dynamic> json) {
-    final rawMessages = json['messages'];
-    final messages = rawMessages is List
-        ? rawMessages
-              .whereType<Map<String, dynamic>>()
-              .map(SupportMessage.fromJson)
-              .toList()
-        : <SupportMessage>[];
+    final w = enterprise.SupportTicketDetail.fromJson(json);
+    final messages = [
+      for (final m in w.messages ?? const <enterprise.SupportMessage>[])
+        SupportMessage.fromJson(m.json),
+    ];
     return SupportTicket(
-      id: json['id']?.toString() ?? '',
-      reference: json['reference']?.toString() ?? '',
-      subject: json['subject']?.toString() ?? '',
-      category: SupportCategory.fromValue(json['category']?.toString()),
-      status: SupportStatus.fromValue(json['status']?.toString()),
-      priorityLabel: json['priority_label']?.toString() ?? 'Normal',
-      messageCount: json['message_count'] as int? ?? messages.length,
-      assigned: json['assigned'] as bool? ?? false,
-      firstResponseAt: DateTime.tryParse(
-        json['first_response_at']?.toString() ?? '',
-      ),
+      id: w.id ?? '',
+      reference: w.reference ?? '',
+      subject: w.subject ?? '',
+      category: SupportCategory.fromValue(w.category),
+      status: SupportStatus.fromValue(w.status),
+      priorityLabel: w.priorityLabel ?? 'Normal',
+      messageCount: w.messageCount ?? messages.length,
+      assigned: w.assigned ?? false,
+      firstResponseAt: DateTime.tryParse(w.firstResponseAt ?? ''),
       lastActivityAt:
-          DateTime.tryParse(json['last_activity_at']?.toString() ?? '') ??
+          DateTime.tryParse(w.lastActivityAt ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0),
       createdAt:
-          DateTime.tryParse(json['created_at']?.toString() ?? '') ??
+          DateTime.tryParse(w.createdAt ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0),
       messages: messages,
     );

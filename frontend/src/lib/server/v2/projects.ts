@@ -10,7 +10,7 @@
  * as null: a project without a budget is not a project with a budget of 0.
  */
 import { error, type Cookies } from '@sveltejs/kit';
-import { apiRequest } from '#lib/api-helpers.js';
+import { apiRequest, type FormBody } from '#lib/api-helpers.js';
 import { apiStatus } from '#lib/api-errors.js';
 import { rethrowModuleOff } from '#lib/server/v2/modules.js';
 import { attachmentHref } from '#lib/server/v2/files.js';
@@ -232,7 +232,7 @@ export async function getProject({ cookies }: { cookies: Cookies }, id: string) 
 /** @param body from `projectBody` */
 export async function createProject(
   { cookies }: { cookies: Cookies },
-  body: Record<string, unknown>
+  body: FormBody<Schemas['ProjectBodyRequest']>
 ): Promise<{ id: string | null }> {
   const response: Schemas['ProjectSaved'] = await apiRequest(
     '/projects/',
@@ -251,7 +251,7 @@ export async function createProject(
 export async function updateProject(
   { cookies }: { cookies: Cookies },
   id: string,
-  body: Record<string, unknown>
+  body: FormBody<Schemas['ProjectBodyRequest']>
 ): Promise<Schemas['ProjectSaved']> {
   return await apiRequest(`/projects/${id}/`, { method: 'PATCH', body }, { cookies });
 }
@@ -368,7 +368,10 @@ export async function logProjectTime(
     task?: string;
   }
 ): Promise<Schemas['TimeEntry']> {
-  const body = loggedEntryBody({ ...entry, currency: null });
+  const body: FormBody<Schemas['ProjectTimeEntryBodyRequest']> = loggedEntryBody({
+    ...entry,
+    currency: null
+  });
   if (entry.task) body.task = entry.task;
   return await apiRequest(`/projects/${id}/time-entries/`, { method: 'POST', body }, { cookies });
 }
@@ -410,7 +413,10 @@ export async function billProjectTime(
   id: string,
   { upTo, groupBy }: { upTo?: string; groupBy?: string }
 ) {
-  const body: Record<string, string> = { project_id: id, group_by: billGrouping(groupBy) };
+  const body: Schemas['InvoiceFromTimeEntriesRequestRequest'] = {
+    project_id: id,
+    group_by: billGrouping(groupBy)
+  };
   const date = isoDateOrNull(upTo);
   if (date) body.up_to = date;
   return await invoiceFromTimeEntries(event, body);
@@ -424,7 +430,7 @@ export async function billProjectTime(
 export async function invoiceProjectAmount(
   { cookies }: { cookies: Cookies },
   id: string,
-  body: Record<string, string>
+  body: Schemas['InvoiceAmountRequest']
 ): Promise<Schemas['ProjectInvoiceAmount']> {
   return await apiRequest(`/projects/${id}/invoice-amount/`, { method: 'POST', body }, { cookies });
 }

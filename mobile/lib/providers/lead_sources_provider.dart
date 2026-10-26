@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/api_config.dart';
-import '../data/api_envelope.dart';
+import '../data/api/schema.g.dart' as api;
 import '../data/models/lead_source.dart';
 import '../services/api_service.dart';
 
@@ -22,9 +22,11 @@ class LeadSourcesNotifier extends AsyncNotifier<LeadSourcesAnswer> {
     if (!response.success || data == null) {
       throw Exception(response.message ?? 'Could not load the lead sources.');
     }
-    final sources = listFromEnvelope(data, const [
-      'sources',
-    ]).map(LeadSource.fromJson).toList();
+    final rows = api.LeadSourceListResponse.fromJson(data).sources;
+    final sources = [
+      for (final row in rows ?? const <api.LeadSource>[])
+        LeadSource.fromJson(row.json),
+    ];
     sources.sort((a, b) => a.order.compareTo(b.order));
     return LeadSourcesAnswer(sources: sources);
   }

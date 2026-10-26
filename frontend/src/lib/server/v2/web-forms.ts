@@ -30,7 +30,7 @@
  * over every form in the org, so "3 published" stays true past the tenth form.
  * Nothing here recounts the page.
  */
-import { apiRequest } from '#lib/api-helpers.js';
+import { apiRequest, type FormBody } from '#lib/api-helpers.js';
 import { missingOption, missingOptions } from '#lib/v2/pickers.js';
 import { builtinFor } from '#lib/v2/webform-fields.js';
 import { viewerIsAdmin } from './organization.js';
@@ -208,7 +208,7 @@ function asOption(details: Schemas['WebFormMember']) {
  * comes to believe this page sets it. `fields` is nested
  * and handled separately below because its shape needs its own pass.
  */
-const WRITABLE_FIELDS = [
+const WRITABLE_FIELDS: (keyof Schemas['WebFormDetailRequest'])[] = [
   'name',
   'target',
   'allowed_origins',
@@ -234,7 +234,7 @@ const WRITABLE_FIELDS = [
 /** The per-row keys the field serializer accepts. `order` is not among them:
  *  the server assigns it from list position, so a client cannot reorder a form
  *  by lying about it. `id` is read-only; the list is replaced wholesale. */
-const WRITABLE_FIELD_KEYS = [
+const WRITABLE_FIELD_KEYS: (keyof Schemas['WebFormFieldRequest'])[] = [
   'source',
   'lead_field',
   'ticket_field',
@@ -252,7 +252,7 @@ const WRITABLE_FIELD_KEYS = [
  * everything here regardless of what this lets through.
  */
 function buildBody(values: Record<string, unknown>) {
-  const body: Record<string, unknown> = {};
+  const body: FormBody<Schemas['WebFormDetailRequest']> = {};
   for (const field of WRITABLE_FIELDS) {
     if (values[field] === undefined) continue;
     body[field] = values[field];
@@ -265,7 +265,7 @@ function buildBody(values: Record<string, unknown>) {
 
   if (Array.isArray(values.fields)) {
     body.fields = values.fields.map((row: Record<string, unknown>) => {
-      const out: Record<string, unknown> = {};
+      const out: FormBody<Schemas['WebFormFieldRequest']> = {};
       for (const key of WRITABLE_FIELD_KEYS) {
         if (row[key] === undefined) continue;
         out[key] = row[key];

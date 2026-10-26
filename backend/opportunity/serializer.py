@@ -650,6 +650,7 @@ class OpportunityMoveSerializer(serializers.Serializer):
 
 class OpportunityCreateSwaggerSerializer(serializers.ModelSerializer):
     closed_on = serializers.DateField()
+    custom_fields = serializers.DictField(required=False)
 
     class Meta:
         model = Opportunity
@@ -671,11 +672,14 @@ class OpportunityCreateSwaggerSerializer(serializers.ModelSerializer):
             "contacts",
             "teams",
             "tags",
+            "custom_fields",
         )
 
 
 class OpportunityDetailEditSwaggerSerializer(serializers.Serializer):
-    comment = serializers.CharField()
+    # A comment, a file, or both.
+    comment = serializers.CharField(required=False)
+    opportunity_attachment = serializers.FileField(required=False)
 
 
 class OpportunityCommentEditSwaggerSerializer(serializers.Serializer):

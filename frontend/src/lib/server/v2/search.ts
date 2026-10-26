@@ -11,7 +11,7 @@ import type { Cookies } from '@sveltejs/kit';
 import type { components } from '#lib/api-schema.js';
 
 type Schemas = components['schemas'];
-type SearchHit = { kind: string; id: string; title: string; meta: string; href: string };
+export type SearchHit = { kind: string; id: string; title: string; meta: string; href: string };
 
 /** Backend `type` → palette group label + detail route. */
 const MAP = {

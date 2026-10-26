@@ -14,7 +14,7 @@
  * once. The page's own `+page.server.ts` action turns a rejected save into a
  * message the user reads.
  */
-import { apiRequest } from '#lib/api-helpers.js';
+import { apiRequest, type FormBody } from '#lib/api-helpers.js';
 import { viewerIsAdmin } from './organization.js';
 import { REOPEN_TO_STATUSES } from '#lib/v2/enums.js';
 import type { Cookies } from '@sveltejs/kit';
@@ -37,7 +37,12 @@ export async function getReopenPolicy({
 
 /** The four fields the serializer accepts. Everything else in the GET
  *  response is a computed metric and is not writable. */
-const EDITABLE_FIELDS = ['is_enabled', 'reopen_window_days', 'reopen_to_status', 'notify_assigned'];
+const EDITABLE_FIELDS: (keyof Schemas['PatchedReopenPolicyRequest'])[] = [
+  'is_enabled',
+  'reopen_window_days',
+  'reopen_to_status',
+  'notify_assigned'
+];
 
 /**
  * Update the org's reopen policy.
@@ -70,7 +75,7 @@ export async function updateReopenPolicy(
     throw new Error('A reopened ticket has to come back as New, Assigned or Pending.');
   }
 
-  const body: Record<string, unknown> = {};
+  const body: FormBody<Schemas['PatchedReopenPolicyRequest']> = {};
   for (const field of EDITABLE_FIELDS) {
     body[field] = values[field];
   }

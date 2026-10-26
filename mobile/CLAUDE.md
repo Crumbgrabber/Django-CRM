@@ -6,7 +6,8 @@ Flutter client for the BottleCRM API: Riverpod 3 (hand-written `AsyncNotifier` a
 
 - **The app is not a security boundary.** Any rule enforced here (required fields, role-based hiding, ownership) must also exist in the DRF serializer or view. If the backend does not enforce it, say so.
 - **Tokens live only in `lib/services/token_storage.dart`** (Keystore/Keychain). Never in `SharedPreferences`, logs, crash reports or analytics; never `print()` a JWT, refresh token or PII. Never disable TLS validation, even behind a debug flag.
-- **Screens do not call the network.** A provider in `lib/providers/` calls `ApiService()` (`lib/services/api_service.dart`) with a URL from `ApiConfig` (`lib/config/api_config.dart`). Unwrap lists with `listFromEnvelope()` (`lib/data/api_envelope.dart`). Models live in `lib/data/models/`.
+- **Screens do not call the network.** A provider in `lib/providers/` calls `ApiService()` (`lib/services/api_service.dart`) with a URL from `ApiConfig` (`lib/config/api_config.dart`). Models live in `lib/data/models/`.
+- **API responses are read through the generated wire types in `lib/data/api/`, never by key.** A model's `fromJson` starts with `final w = api.<Component>.fromJson(json);` and a provider reads its envelope the same way. Regenerate with `dart run tool/api_models.dart` after any API change (the enterprise file comes from enterprise-crm's `deploy/web-api-types.sh`); never edit the `.g.dart` files. A field missing from a wire class is a backend schema gap: fix the schema.
 - **Icons are `LucideIcons.*`.** `lib/` names zero Material `Icons.*`; keep it that way.
 - **Style comes from `lib/core/theme/theme.dart`** (`AppColors`, `AppTypography`, `AppSpacing`, `AppLayout`), whose values follow `DESIGN_SYSTEM.md`. Cards are flat: a bordered `Container`, no elevation or shadow.
 - **Mobile first is the baseline, so check the other direction**: a new screen at tablet width and with the system font scaled up, with tap targets of about 44px or more.
@@ -35,6 +36,7 @@ flutter build appbundle --release --dart-define=API_BASE_URL=https://crm.example
 
 ## Tests
 
+- Every request a test sends is checked against the schema (`lib/services/api_contract.dart`): its path, method and body field names. `test/flutter_test_config.dart` fails the test otherwise. A failure means the request is wrong, or the fixture is; never loosen the check.
 - Layout: `test/unit/`, `test/screens/<feature>/`, `test/widgets/`. Fake file picks: `test/helpers/fake_platform_file.dart`. JWTs carrying an org timezone: `test/support/org_zone.dart`.
 - `test/screens/phone_viewport_test.dart` renders screens at 390x844 at two text scales (`usePhone()`), asserting no overflow. Add a case for every new screen: it catches overflows that review misses.
 

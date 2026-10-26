@@ -1,5 +1,7 @@
 <script lang="ts">
   import { resolve } from '$app/paths';
+  import type { FormBody } from '#lib/api-helpers.js';
+  import type { components } from '#lib/api-schema.js';
   /**
    * New invoice.
    *
@@ -55,6 +57,8 @@
   } from '#lib/v2/line-items.js';
   import { Info } from '@lucide/svelte';
   import type { PageProps } from './$types';
+
+  type Schemas = components['schemas'];
 
   let { data, form }: PageProps = $props();
 
@@ -154,7 +158,7 @@
    * status is server-forced to Draft, so none are here.
    */
   let payload = $derived.by(() => {
-    const body: Record<string, unknown> = {
+    const body: FormBody<Schemas['InvoiceBodyRequest']> = {
       account_id: accountId,
       contact_id: contactId,
       currency,

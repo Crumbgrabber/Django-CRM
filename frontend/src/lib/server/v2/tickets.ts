@@ -44,7 +44,7 @@
  * nothing in the codebase ever wrote. See `cases/signals.py`.
  */
 import { error, redirect, type Cookies } from '@sveltejs/kit';
-import { apiRequest } from '#lib/api-helpers.js';
+import { apiRequest, type FormBody } from '#lib/api-helpers.js';
 import { apiStatus } from '#lib/api-errors.js';
 import { fieldsForDetail, fieldsForEdit } from '#lib/server/v2/record-custom-fields.js';
 import { rethrowModuleOff } from '#lib/server/v2/modules.js';
@@ -477,11 +477,7 @@ export async function mergeTicket(
   id: string,
   intoId: string
 ): Promise<Schemas['CaseMergeResponse']> {
-  return await apiRequest(
-    `/cases/${id}/merge/${intoId}/`,
-    { method: 'POST', body: {} },
-    { cookies }
-  );
+  return await apiRequest(`/cases/${id}/merge/${intoId}/`, { method: 'POST' }, { cookies });
 }
 
 /**
@@ -492,7 +488,7 @@ export async function unmergeTicket(
   { cookies }: { cookies: Cookies },
   sourceId: string
 ): Promise<Schemas['CaseUnmergeResponse']> {
-  return await apiRequest(`/cases/${sourceId}/unmerge/`, { method: 'POST', body: {} }, { cookies });
+  return await apiRequest(`/cases/${sourceId}/unmerge/`, { method: 'POST' }, { cookies });
 }
 
 /** Scalar fields the ticket forms own. Everything else is server-derived. */
@@ -630,7 +626,7 @@ export async function getTicketForEdit({ cookies }: { cookies: Cookies }, id: st
  * leaves alone, which is the whole reason for PATCH below.
  */
 function toBody(values: TicketValues) {
-  const body: Record<string, unknown> = {};
+  const body: FormBody<Schemas['CaseCreateSwaggerRequest']> = {};
   for (const field of EDITABLE_FIELDS) {
     if (!(field in values)) continue;
     const value = values[field];

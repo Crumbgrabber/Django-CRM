@@ -45,7 +45,7 @@
  * delete) is derived from the rows. `limit=1000`; an org has a handful of
  * templates, and that ceiling is called out where it is set.
  */
-import { apiRequest } from '#lib/api-helpers.js';
+import { apiRequest, type FormBody } from '#lib/api-helpers.js';
 import { viewerIsAdmin } from '#lib/server/v2/organization.js';
 import type { Cookies } from '@sveltejs/kit';
 import type { components } from '#lib/api-schema.js';
@@ -143,7 +143,7 @@ type TemplateValues = Record<string, string | boolean>;
  * excluded because every read serializer stripped them, so a value written
  * here could never be read back. The editor route fixed that.
  */
-export const CREATE_FIELDS = [
+export const CREATE_FIELDS: (keyof Schemas['InvoiceTemplateCreateRequest'])[] = [
   'name',
   'primary_color',
   'secondary_color',
@@ -162,7 +162,7 @@ export const CREATE_FIELDS = [
  * save, which on the org's current default would quietly demote it and leave
  * the org with none.
  */
-export const UPDATE_FIELDS = [
+export const UPDATE_FIELDS: (keyof Schemas['InvoiceTemplateCreateRequest'])[] = [
   'name',
   'primary_color',
   'secondary_color',
@@ -220,7 +220,7 @@ export async function createInvoiceTemplate(
     }
   }
 
-  const fields: TemplateValues = {};
+  const fields: FormBody<Schemas['InvoiceTemplateCreateRequest']> = {};
   for (const key of CREATE_FIELDS) {
     if (values[key] === undefined) continue;
     // An empty colour is omitted rather than sent as `''`. The model has no
@@ -235,7 +235,7 @@ export async function createInvoiceTemplate(
   if (logoFile) {
     const body = new FormData();
     for (const [key, value] of Object.entries(fields)) {
-      body.append(key, typeof value === 'boolean' ? String(value) : value);
+      body.append(key, String(value));
     }
     body.append('logo', logoFile);
     const resp: Schemas['InvoiceTemplateSaved'] = await apiRequest(
@@ -322,7 +322,7 @@ export async function updateInvoiceTemplate(
     }
   }
 
-  const fields: TemplateValues = {};
+  const fields: FormBody<Schemas['InvoiceTemplateCreateRequest']> = {};
   for (const key of UPDATE_FIELDS) {
     if (values[key] === undefined) continue;
     if ((key === 'primary_color' || key === 'secondary_color') && values[key] === '') continue;
@@ -332,7 +332,7 @@ export async function updateInvoiceTemplate(
   if (logoFile) {
     const body = new FormData();
     for (const [key, value] of Object.entries(fields)) {
-      body.append(key, typeof value === 'boolean' ? String(value) : value);
+      body.append(key, String(value));
     }
     body.append('logo', logoFile);
     const resp: Schemas['InvoiceTemplateSaved'] = await apiRequest(

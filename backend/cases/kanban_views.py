@@ -553,7 +553,7 @@ class CasePipelineDetailView(APIView):
 
     @extend_schema(
         tags=["Case Pipelines"],
-        request=CasePipelineSerializer,
+        request=CasePipelineSerializer(partial=True),
         responses={200: CasePipelineSerializer},
     )
     @transaction.atomic
@@ -651,7 +651,7 @@ class CaseStageDetailView(APIView):
 
     @extend_schema(
         tags=["Case Stages"],
-        request=CaseStageSerializer,
+        request=CaseStageSerializer(partial=True),
         responses={200: CaseStageSerializer},
     )
     def put(self, request, pk):

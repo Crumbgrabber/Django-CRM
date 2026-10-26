@@ -169,7 +169,7 @@ class OpportunityLineItemDetailView(APIView):
     @extend_schema(
         operation_id="opportunity_line_items_update",
         tags=["Opportunity Line Items"],
-        request=OpportunityLineItemCreateSerializer,
+        request=OpportunityLineItemCreateSerializer(partial=True),
         responses={
             200: inline_serializer(
                 name="OpportunityLineItemUpdateResponse",

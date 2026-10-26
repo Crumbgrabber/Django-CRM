@@ -20,6 +20,7 @@ import pytest
 from common.testing import (  # noqa: F401
     _make_authenticated_client,
     _restore_rls_context_after_each_request,
+    _schema_contract,
     _use_db,
     admin_client,
     admin_profile,
@@ -40,27 +41,26 @@ from common.testing import (  # noqa: F401
 )
 
 
-@pytest.fixture(autouse=True)
-def _schema_contract(monkeypatch):
-    """Fail a test whose API responses do not match the OpenAPI schema.
+def pytest_addoption(parser):
+    parser.addoption(
+        "--contract-coverage",
+        action="store_true",
+        help="Fail a passing full run if any JSON success reply in the API "
+        "schema was never checked against a test response.",
+    )
 
-    Community only: the leading underscore keeps it out of the enterprise
-    suite's star import, since enterprise endpoints have their own schema.
-    See common/schema_contract.py.
-    """
-    from django.test import Client
 
-    from common.schema_contract import check_response
+def pytest_sessionfinish(session, exitstatus):
+    if exitstatus != 0 or not session.config.getoption("--contract-coverage"):
+        return
+    from common.schema_contract import unchecked_operations
 
-    problems = []
-    original = Client.request
-
-    def request(self, **kwargs):
-        response = original(self, **kwargs)
-        problems.extend(check_response(response))
-        return response
-
-    monkeypatch.setattr(Client, "request", request)
-    yield
-    if problems:
-        pytest.fail("\n".join(dict.fromkeys(problems)), pytrace=False)
+    missing = unchecked_operations()
+    if missing:
+        report = session.config.pluginmanager.get_plugin("terminalreporter")
+        report.write_line(
+            "\nCONTRACT-COVERAGE: no test checks the success reply of:", red=True
+        )
+        for key in missing:
+            report.write_line(f"  {key}", red=True)
+        session.exitstatus = pytest.ExitCode.TESTS_FAILED

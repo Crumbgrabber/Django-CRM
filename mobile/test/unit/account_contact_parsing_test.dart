@@ -1,4 +1,4 @@
-import 'package:bottle_crm/data/api_envelope.dart';
+import 'package:bottle_crm/data/api/schema.g.dart' as api;
 import 'package:bottle_crm/data/models/account.dart';
 import 'package:bottle_crm/data/models/contact.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -36,9 +36,8 @@ void main() {
 
     test('open rows are two levels down, not at results', () {
       // The trap: `/api/accounts/` publishes neither `results` nor `accounts`.
-      expect(listFromEnvelope(body, const ['results']), isEmpty);
       expect(
-        listFromEnvelope(body, const ['active_accounts.open_accounts']),
+        api.AccountListResponse.fromJson(body).activeAccounts?.openAccounts,
         hasLength(2),
       );
     });
@@ -47,7 +46,7 @@ void main() {
       // `close_accounts`, not `closed_accounts`. Reusing the outer name here
       // would give an empty Closed tab that looks like a tidy org.
       expect(
-        listFromEnvelope(body, const ['closed_accounts.close_accounts']),
+        api.AccountListResponse.fromJson(body).closedAccounts?.closeAccounts,
         hasLength(1),
       );
     });

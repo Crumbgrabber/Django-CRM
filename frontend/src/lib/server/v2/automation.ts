@@ -3,8 +3,8 @@
  * The contract is the code in `backend/automation/`.
  */
 import { error, fail, type Cookies } from '@sveltejs/kit';
-import { apiRequest } from '#lib/api-helpers.js';
-import { apiErrorBody, apiStatus } from '#lib/api-errors.js';
+import { apiRequest, type FormBody } from '#lib/api-helpers.js';
+import { apiErrorBody, apiStatus, firstMessage } from '#lib/api-errors.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
 import { checkId } from '#lib/server/v2/custom-objects.js';
 import { isPlanRefusal } from '#lib/server/v2/billing.js';
@@ -73,7 +73,7 @@ export async function getRule({ cookies }: Event, id: string): Promise<Schemas['
 
 export async function createRule(
   { cookies }: Event,
-  body: Record<string, unknown>
+  body: FormBody<Schemas['RuleRequest']>
 ): Promise<Schemas['Rule']> {
   return await apiRequest('/automation/rules/', { method: 'POST', body }, { cookies });
 }
@@ -81,7 +81,7 @@ export async function createRule(
 export async function updateRule(
   { cookies }: Event,
   id: string,
-  body: Record<string, unknown>
+  body: FormBody<Schemas['PatchedRuleRequest']>
 ): Promise<Schemas['Rule']> {
   checkId(id);
   return await apiRequest(`/automation/rules/${id}/`, { method: 'PATCH', body }, { cookies });
@@ -170,9 +170,9 @@ function record(source: unknown): Record<string, unknown> {
   return source as Record<string, unknown>;
 }
 
-function pick(source: unknown, keys: string[]) {
+function pick<K extends string>(source: unknown, keys: K[]) {
   const from = record(source);
-  const out: Record<string, unknown> = {};
+  const out: { [P in K]?: unknown } = {};
   for (const key of keys) if (Object.hasOwn(from, key)) out[key] = from[key];
   return out;
 }
@@ -192,7 +192,13 @@ const ACTION_KEYS: Record<string, string[]> = {
 
 /** A rule rebuilt key by key from parsed JSON; the server validates the values. */
 export function ruleBody(raw: unknown, { create }: { create: boolean }) {
-  const body = pick(raw, ['name', 'match', 'trigger', 'conditions', 'actions']);
+  const body: FormBody<Schemas['RuleRequest']> = pick<keyof Schemas['RuleRequest']>(raw, [
+    'name',
+    'match',
+    'trigger',
+    'conditions',
+    'actions'
+  ]);
   const source = record(raw);
   if (create && Object.hasOwn(source, 'object_key')) body.object_key = source.object_key;
   if (Object.hasOwn(source, 'trigger'))
@@ -266,7 +272,7 @@ export function ruleErrors(err: unknown): {
   const errors = body?.errors;
   if (apiStatus(err) === 400 && errors && typeof errors === 'object' && !Array.isArray(errors)) {
     for (const [path, messages] of Object.entries(errors)) {
-      const message = Array.isArray(messages) ? messages[0] : messages;
+      const message = firstMessage(messages);
       const key = rowKey(path);
       if (typeof message === 'string' && !Object.hasOwn(rows, key)) rows[key] = message;
     }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../api/schema.g.dart' as api;
 import 'attachment.dart';
 import 'comment.dart';
 import 'invoice.dart' show InvoiceStatus;
@@ -51,22 +52,20 @@ enum ProjectBillingType {
   }
 }
 
-/// `{"id", "name"}`, or a bare id from a leaner payload.
+/// A project's account or deal: `{"id", "name"}`.
 class ProjectRef {
   const ProjectRef({required this.id, this.name = ''});
 
   final String id;
   final String name;
 
+  /// Reads a `ProjectRef`, or null without one.
   static ProjectRef? fromJson(Object? json) {
-    if (json is Map) {
-      final id = json['id']?.toString() ?? '';
-      if (id.isEmpty) return null;
-      final name = json['name'];
-      return ProjectRef(id: id, name: name is String ? name : '');
-    }
-    if (json is String && json.isNotEmpty) return ProjectRef(id: json);
-    return null;
+    if (json is! Map<String, dynamic>) return null;
+    final w = api.ProjectRef.fromJson(json);
+    final id = w.id ?? '';
+    if (id.isEmpty) return null;
+    return ProjectRef(id: id, name: w.name ?? '');
   }
 }
 
@@ -89,16 +88,9 @@ double? decimalOrNull(Object? value) {
 double _decimal(Object? value) => decimalOrNull(value) ?? 0;
 
 /// The decimal's text as sent, or null when absent or blank.
-String? _decimalText(Object? value) {
-  if (value is num) return value.toString();
-  if (value is String && value.trim().isNotEmpty) return value.trim();
-  return null;
-}
-
-int? _percent(Object? value) {
-  if (value is num) return value.round();
-  if (value is String) return double.tryParse(value)?.round();
-  return null;
+String? _decimalText(String? value) {
+  final text = value?.trim() ?? '';
+  return text.isEmpty ? null : text;
 }
 
 /// A `YYYY-MM-DD` date as local midnight, so a zone behind Greenwich does not
@@ -118,16 +110,12 @@ String hoursLabel(double hours) {
   return fixed.replaceFirst(RegExp(r'\.?0+$'), '');
 }
 
-/// A profile map's display name: the name, else the email's local part.
+/// A `Profile` map's display name: the name, else the email's local part.
 String profileName(Map<String, dynamic> profile) {
-  final details = profile['user_details'];
-  if (details is Map) {
-    final name = (details['name'] as String?)?.trim() ?? '';
-    if (name.isNotEmpty) return name;
-    final email = (details['email'] as String?)?.trim() ?? '';
-    if (email.isNotEmpty) return email.split('@').first;
-  }
-  final email = (profile['email'] as String?)?.trim() ?? '';
+  final details = api.Profile.fromJson(profile).userDetails;
+  final name = details?.name?.trim() ?? '';
+  if (name.isNotEmpty) return name;
+  final email = details?.email?.trim() ?? '';
   if (email.isNotEmpty) return email.split('@').first;
   return 'Someone';
 }
@@ -177,16 +165,18 @@ class ProjectBurn {
   final int? hoursPercent;
   final int? amountPercent;
 
+  /// Reads a `ProjectBurn`, or all zeros without one.
   factory ProjectBurn.fromJson(Object? json) {
-    if (json is! Map) return const ProjectBurn();
+    if (json is! Map<String, dynamic>) return const ProjectBurn();
+    final w = api.ProjectBurn.fromJson(json);
     return ProjectBurn(
-      loggedHours: _decimal(json['logged_hours']),
-      billableHours: _decimal(json['billable_hours']),
-      billableValue: _decimal(json['billable_value']),
-      unbilledValue: _decimal(json['unbilled_value']),
-      invoicedAmount: decimalOrNull(json['invoiced_amount']),
-      hoursPercent: _percent(json['hours_percent']),
-      amountPercent: _percent(json['amount_percent']),
+      loggedHours: _decimal(w.loggedHours),
+      billableHours: _decimal(w.billableHours),
+      billableValue: _decimal(w.billableValue),
+      unbilledValue: _decimal(w.unbilledValue),
+      invoicedAmount: decimalOrNull(w.invoicedAmount),
+      hoursPercent: w.hoursPercent,
+      amountPercent: w.amountPercent,
     );
   }
 
@@ -212,14 +202,14 @@ class ProjectRate {
 
   double? get value => decimalOrNull(hourlyRate);
 
+  /// Reads a `ProjectRateRow`.
   factory ProjectRate.fromJson(Map<String, dynamic> json) {
-    final profile = json['profile'];
+    final w = api.ProjectRateRow.fromJson(json);
+    final profile = w.profile;
     return ProjectRate(
-      profileId: profile is Map
-          ? profile['id']?.toString() ?? ''
-          : profile?.toString() ?? '',
-      name: profile is Map<String, dynamic> ? profileName(profile) : '',
-      hourlyRate: _decimalText(json['hourly_rate']),
+      profileId: profile?.id ?? '',
+      name: profile == null ? '' : profileName(profile.json),
+      hourlyRate: _decimalText(w.hourlyRate),
     );
   }
 }
@@ -246,14 +236,18 @@ class ProjectInvoice {
 
   String get statusLabel => status?.label ?? rawStatus.replaceAll('_', ' ');
 
-  factory ProjectInvoice.fromJson(Map<String, dynamic> json) => ProjectInvoice(
-    id: json['id']?.toString() ?? '',
-    invoiceNumber: json['invoice_number']?.toString() ?? '',
-    rawStatus: json['status']?.toString() ?? '',
-    totalAmount: _decimal(json['total_amount']),
-    currency: json['currency'] as String?,
-    issueDate: _day(json['issue_date']),
-  );
+  /// Reads a `ProjectInvoiceRow`.
+  factory ProjectInvoice.fromJson(Map<String, dynamic> json) {
+    final w = api.ProjectInvoiceRow.fromJson(json);
+    return ProjectInvoice(
+      id: w.id ?? '',
+      invoiceNumber: w.invoiceNumber ?? '',
+      rawStatus: w.status ?? '',
+      totalAmount: _decimal(w.totalAmount),
+      currency: w.currency,
+      issueDate: _day(w.issueDate),
+    );
+  }
 }
 
 class Project {
@@ -340,58 +334,65 @@ class Project {
 
   List<String> get assignedToIds => [
     for (final p in assignedTo)
-      if ((p['id']?.toString() ?? '').isNotEmpty) p['id'].toString(),
+      if (api.Profile.fromJson(p).id case final id? when id.isNotEmpty) id,
   ];
 
+  /// Reads a `ProjectDetail`. A `ProjectList` row is the same object without
+  /// the detail's fields, which then read as empty.
   factory Project.fromJson(Map<String, dynamic> json) {
-    final tagIds = <String>[];
-    final tagNames = <String>[];
-    for (final t in (json['tags'] as List?) ?? const []) {
-      if (t is Map) {
-        final id = t['id']?.toString() ?? '';
-        final name = t['name']?.toString() ?? '';
-        if (id.isNotEmpty) tagIds.add(id);
-        if (name.isNotEmpty) tagNames.add(name);
-      } else if (t is String && t.isNotEmpty) {
-        tagNames.add(t);
-      }
-    }
-    List<T> rows<T>(String key, T Function(Map<String, dynamic>) parse) => [
-      for (final r in (json[key] as List?) ?? const [])
-        if (r is Map<String, dynamic>) parse(r),
-    ];
+    final w = api.ProjectDetail.fromJson(json);
+    final tags = w.tags ?? const <api.Tags>[];
+    final customFields = w.customFields;
     return Project(
-      id: json['id']?.toString() ?? '',
-      name: json['name'] as String? ?? '',
-      account: ProjectRef.fromJson(json['account']),
-      deal: ProjectRef.fromJson(json['deal']),
-      rawStatus: json['status'] as String? ?? 'active',
-      billingType: ProjectBillingType.fromValue(
-        json['billing_type'] as String?,
-      ),
-      currency: json['currency'] as String? ?? '',
-      budgetHours: _decimalText(json['budget_hours']),
-      budgetAmount: _decimalText(json['budget_amount']),
-      hourlyRate: _decimalText(json['hourly_rate']),
-      startDate: _day(json['start_date']),
-      dueDate: _day(json['due_date']),
-      assignedTo: rows('assigned_to', (p) => p),
-      tagIds: tagIds,
-      tagNames: tagNames,
-      burn: ProjectBurn.fromJson(json['burn']),
-      createdAt: DateTime.tryParse(json['created_at']?.toString() ?? ''),
-      updatedAt: DateTime.tryParse(json['updated_at']?.toString() ?? ''),
-      description: json['description'] as String? ?? '',
-      customFields: json['custom_fields'] is Map
-          ? Map<String, dynamic>.from(json['custom_fields'] as Map)
+      id: w.id ?? '',
+      name: w.name ?? '',
+      account: ProjectRef.fromJson(w.account?.json),
+      deal: ProjectRef.fromJson(w.deal?.json),
+      rawStatus: w.status ?? 'active',
+      billingType: ProjectBillingType.fromValue(w.billingType),
+      currency: w.currency ?? '',
+      budgetHours: _decimalText(w.budgetHours),
+      budgetAmount: _decimalText(w.budgetAmount),
+      hourlyRate: _decimalText(w.hourlyRate),
+      startDate: _day(w.startDate),
+      dueDate: _day(w.dueDate),
+      assignedTo: [
+        for (final p in w.assignedTo ?? const <api.Profile>[]) p.json,
+      ],
+      tagIds: [
+        for (final t in tags)
+          if (t.id case final id? when id.isNotEmpty) id,
+      ],
+      tagNames: [
+        for (final t in tags)
+          if (t.name case final name? when name.isNotEmpty) name,
+      ],
+      burn: ProjectBurn.fromJson(w.burn?.json),
+      createdAt: DateTime.tryParse(w.createdAt ?? ''),
+      updatedAt: DateTime.tryParse(w.updatedAt ?? ''),
+      description: w.description ?? '',
+      customFields: customFields is Map
+          ? Map<String, dynamic>.from(customFields)
           : const {},
-      rates: rows('rates', ProjectRate.fromJson),
-      comments: rows('comments', Comment.fromJson),
-      attachments: rows('attachments', Attachment.fromJson),
-      invoices: rows('invoices', ProjectInvoice.fromJson),
-      canEdit: json['can_edit'] == true,
-      canDelete: json['can_delete'] == true,
-      canBill: json['can_bill'] == true,
+      rates: [
+        for (final r in w.rates ?? const <api.ProjectRateRow>[])
+          ProjectRate.fromJson(r.json),
+      ],
+      comments: [
+        for (final c in w.comments ?? const <api.Comment>[])
+          Comment.fromJson(c.json),
+      ],
+      attachments: [
+        for (final a in w.attachments ?? const <api.Attachments>[])
+          Attachment.fromJson(a.json),
+      ],
+      invoices: [
+        for (final i in w.invoices ?? const <api.ProjectInvoiceRow>[])
+          ProjectInvoice.fromJson(i.json),
+      ],
+      canEdit: w.canEdit ?? false,
+      canDelete: w.canDelete ?? false,
+      canBill: w.canBill ?? false,
     );
   }
 
@@ -448,21 +449,22 @@ class ProjectDraft {
   final ProjectBillingType billingType;
   final String? budgetAmount;
 
-  factory ProjectDraft.fromJson(Map<String, dynamic> json) => ProjectDraft(
-    name: json['name'] as String? ?? '',
-    account: ProjectRef.fromJson(json['account']),
-    deal: ProjectRef.fromJson(json['deal']),
-    currency: json['currency'] as String?,
-    assignedToIds: [
-      for (final p in (json['assigned_to'] as List?) ?? const [])
-        if (p is Map && p['id'] != null)
-          p['id'].toString()
-        else if (p is String && p.isNotEmpty)
-          p,
-    ],
-    billingType: ProjectBillingType.fromValue(json['billing_type'] as String?),
-    budgetAmount: _decimalText(json['budget_amount']),
-  );
+  /// Reads a `ProjectDraft`.
+  factory ProjectDraft.fromJson(Map<String, dynamic> json) {
+    final w = api.ProjectDraft.fromJson(json);
+    return ProjectDraft(
+      name: w.name ?? '',
+      account: ProjectRef.fromJson(w.account?.json),
+      deal: ProjectRef.fromJson(w.deal?.json),
+      currency: w.currency,
+      assignedToIds: [
+        for (final id in w.assignedTo ?? const <String>[])
+          if (id.isNotEmpty) id,
+      ],
+      billingType: ProjectBillingType.fromValue(w.billingType),
+      budgetAmount: _decimalText(w.budgetAmount),
+    );
+  }
 }
 
 /// `GET /api/projects/<id>/unbilled/`: what Bill time would take.
@@ -483,12 +485,15 @@ class ProjectUnbilled {
   /// Entries with no rate, which bill at 0. Absent from an older API.
   final int unratedCount;
 
-  factory ProjectUnbilled.fromJson(Map<String, dynamic> json) =>
-      ProjectUnbilled(
-        entryCount: (json['entry_count'] as num?)?.toInt() ?? 0,
-        hours: _decimal(json['hours']),
-        value: _decimal(json['value']),
-        currency: json['currency'] as String?,
-        unratedCount: (json['unrated_count'] as num?)?.toInt() ?? 0,
-      );
+  /// Reads a `ProjectUnbilled`.
+  factory ProjectUnbilled.fromJson(Map<String, dynamic> json) {
+    final w = api.ProjectUnbilled.fromJson(json);
+    return ProjectUnbilled(
+      entryCount: w.entryCount ?? 0,
+      hours: _decimal(w.hours),
+      value: _decimal(w.value),
+      currency: w.currency,
+      unratedCount: w.unratedCount ?? 0,
+    );
+  }
 }

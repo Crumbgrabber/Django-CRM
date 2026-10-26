@@ -17,7 +17,7 @@
   import { isOn, labelOf } from '#lib/v2/modules.js';
   import type { PageData, PageProps } from './$types';
 
-  let { data }: PageProps = $props();
+  let { data, form }: PageProps = $props();
 
   let tickets = $derived(data.tickets);
   let totals = $derived(data.totals);
@@ -157,7 +157,7 @@
     ondone={async () => {
       // The form action returned; show its summary (or why the API refused
       // the batch), refresh, clear selection.
-      const r = page.form;
+      const r = form;
       if (r?.ok) banner = summaryText(r.kind, r.summary);
       else if (r?.message) banner = r.message;
       selected.clear();

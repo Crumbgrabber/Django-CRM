@@ -26,6 +26,7 @@ from rest_framework.views import APIView
 
 from common.import_mapping import (
     MappingError,
+    mapped_commit_schema,
     mapped_preview_schema,
     read_mapped_upload,
 )
@@ -205,14 +206,7 @@ class LeadImportCommitView(APIView):
             fields={"file": serializers.FileField(), "mapping": _MAPPING_FIELD},
         ),
         responses={
-            200: inline_serializer(
-                name="LeadImportCommitResponse",
-                fields={
-                    "error": serializers.BooleanField(),
-                    "created": serializers.IntegerField(),
-                    "ids": serializers.ListField(child=serializers.CharField()),
-                },
-            )
+            200: mapped_commit_schema("LeadImportCommitResponse"),
         },
     )
     def post(self, request, *args, **kwargs):

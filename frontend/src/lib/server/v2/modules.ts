@@ -177,7 +177,7 @@ export function rethrowModuleOff(err: unknown) {
 export async function moduleOffDetail(response: Response): Promise<string | null> {
   if (response.status !== 404) return null;
   try {
-    const body = await response.json();
+    const body = (await response.json()) as { code?: unknown; detail?: unknown } | null;
     return body?.code === 'module_off' && typeof body.detail === 'string' ? body.detail : null;
   } catch {
     return null;

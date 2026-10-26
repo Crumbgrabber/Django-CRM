@@ -219,7 +219,7 @@ class ApprovalRuleDetailView(APIView):
 
     @extend_schema(
         tags=["Approvals"],
-        request=ApprovalRuleSerializer,
+        request=ApprovalRuleSerializer(partial=True),
         responses={200: ApprovalRuleSerializer},
     )
     def put(self, request, pk):

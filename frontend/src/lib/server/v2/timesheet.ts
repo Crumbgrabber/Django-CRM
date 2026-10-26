@@ -23,7 +23,7 @@
  * the caller's own rows for a non-admin, and answers 403 on someone else's
  * entry. Nothing below should be read as having re-checked that.
  */
-import { apiRequest } from '#lib/api-helpers.js';
+import { apiRequest, type FormBody } from '#lib/api-helpers.js';
 import type { Cookies } from '@sveltejs/kit';
 import type { components } from '#lib/api-schema.js';
 
@@ -229,7 +229,7 @@ export function loggedEntryBody(entry: {
   billable?: boolean;
   hourlyRate?: string | number | null;
   currency?: string | null;
-}): Record<string, unknown> {
+}): FormBody<Schemas['TimeEntryCreateRequest']> {
   const minutes = Number(entry.minutes);
   if (!Number.isInteger(minutes) || minutes < 1 || minutes > MAX_ENTRY_MINUTES) {
     throw new Error(`Minutes must be a whole number between 1 and ${MAX_ENTRY_MINUTES}.`);
@@ -240,7 +240,7 @@ export function loggedEntryBody(entry: {
   const ended = new Date();
   const started = new Date(ended.getTime() - minutes * 60000);
 
-  const body: Record<string, unknown> = {
+  const body: FormBody<Schemas['TimeEntryCreateRequest']> = {
     started_at: started.toISOString(),
     ended_at: ended.toISOString(),
     description,

@@ -12,7 +12,7 @@ import { parseBulkForm } from '#lib/server/v2/bulk-form.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
 import { forwardCsvImport } from '#lib/server/v2/csv-import.js';
 import { loadSavedViews, savedViewActions } from '#lib/server/v2/saved-views.js';
-import type { PageServerLoad } from './$types';
+import type { Actions, PageServerLoad } from './$types';
 
 /**
  * Only filters the API actually applies are forwarded. A parameter that
@@ -66,7 +66,7 @@ export const actions = {
     if (ids.length === 0) return fail(400, { message: 'Select at least one ticket.' });
     try {
       const res = await bulkUpdateTickets({ cookies }, ids, fields);
-      return { ok: true, kind: 'update', summary: summarizeBulk(res.results) };
+      return { ok: true, kind: 'update' as const, summary: summarizeBulk(res.results) };
     } catch (err) {
       return fail(400, { message: readableError(err, 'Could not update these tickets.') });
     }
@@ -76,7 +76,7 @@ export const actions = {
     if (ids.length === 0) return fail(400, { message: 'Select at least one ticket.' });
     try {
       const res = await bulkDeleteTickets({ cookies }, ids);
-      return { ok: true, kind: 'delete', summary: summarizeBulk(res.results) };
+      return { ok: true, kind: 'delete' as const, summary: summarizeBulk(res.results) };
     } catch (err) {
       return fail(400, { message: readableError(err, 'Could not delete these tickets.') });
     }
@@ -84,4 +84,4 @@ export const actions = {
   // The CSV import drawer's two steps; see `forwardCsvImport`.
   importPreview: (event) => forwardCsvImport(event, '/cases/import/preview/', 'importPreview'),
   importCommit: (event) => forwardCsvImport(event, '/cases/import/commit/', 'importCommit')
-};
+} satisfies Actions;

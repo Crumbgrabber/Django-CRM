@@ -96,42 +96,9 @@ void main() {
       );
     });
 
-    test('sorts fields by order even when the server sends them out of it', () {
-      final form = WebForm.fromJson({
-        'id': 'f1',
-        'fields': [
-          {
-            'source': 'lead',
-            'lead_field': 'phone',
-            'label': 'Phone',
-            'order': 2,
-          },
-          {
-            'source': 'lead',
-            'lead_field': 'email',
-            'label': 'Email',
-            'order': 0,
-          },
-          {
-            'source': 'lead',
-            'lead_field': 'first_name',
-            'label': 'First',
-            'order': 1,
-          },
-        ],
-      });
-
-      expect(form.fields.map((f) => f.leadField), [
-        'email',
-        'first_name',
-        'phone',
-      ]);
-    });
-
     test('keeps the given order when no order key is present', () {
-      // The list endpoint orders by `order` already, so an absent key means
-      // "as sent". Falling back to 0 for all of them and then sorting would be
-      // a stable no-op, which is exactly what is wanted; this pins it.
+      // The API serves the rows in `order` and never sends the key itself,
+      // so the list is kept as served.
       final form = WebForm.fromJson({
         'id': 'f1',
         'fields': [

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../core/theme/theme.dart';
+import '../../data/api/schema.g.dart' as api;
 import '../../data/models/interaction.dart';
 import '../../data/models/models.dart';
 import '../../providers/auth_provider.dart';
@@ -1129,14 +1130,16 @@ class _DealDetailScreenState extends ConsumerState<DealDetailScreen>
       return;
     }
 
-    final attachmentsData = result.data?['attachments'];
-    if (attachmentsData is List && _deal != null) {
+    final body = result.data;
+    final attachments = body == null
+        ? null
+        : api.OpportunityCommentAttachmentResponse.fromJson(body).attachments;
+    if (attachments != null && _deal != null) {
       setState(() {
         _deal = _deal!.copyWith(
-          attachments: attachmentsData
-              .whereType<Map<String, dynamic>>()
-              .map(Attachment.fromJson)
-              .toList(),
+          attachments: [
+            for (final a in attachments) Attachment.fromJson(a.json),
+          ],
         );
       });
     } else {

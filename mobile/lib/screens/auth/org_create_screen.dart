@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../config/api_config.dart';
+import '../../data/api/schema.g.dart' as api;
 import '../../data/models/org_settings.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/org_apps_provider.dart';
@@ -56,18 +57,15 @@ class _OrgCreateScreenState extends ConsumerState<OrgCreateScreen> {
     final response = await ApiService().get(ApiConfig.timezones);
     if (!mounted) return;
 
-    // Not written as a single ternary: `cond ? map?['k'] : null` makes the
-    // Dart parser read the null-aware index as the conditional's own `?`.
-    var zones = const <_Zone>[];
-    if (response.success) {
-      final raw = response.data?['timezones'];
-      if (raw is List) {
-        zones = raw
-            .whereType<Map<String, dynamic>>()
-            .map(_Zone.fromJson)
-            .toList(growable: false);
-      }
-    }
+    final body = response.data;
+    final zones = response.success && body != null
+        ? [
+            for (final zone
+                in api.TimezoneListResponse.fromJson(body).timezones ??
+                    const <api.TimezoneOption>[])
+              _Zone.fromJson(zone.json),
+          ]
+        : const <_Zone>[];
 
     setState(() {
       _zones = zones;
@@ -298,10 +296,11 @@ class _Zone {
   final String name;
   final int offsetMinutes;
 
-  factory _Zone.fromJson(Map<String, dynamic> json) => _Zone(
-    name: json['name'] as String? ?? 'UTC',
-    offsetMinutes: (json['offset_minutes'] as num?)?.toInt() ?? 0,
-  );
+  /// Reads a `TimezoneOption`.
+  factory _Zone.fromJson(Map<String, dynamic> json) {
+    final w = api.TimezoneOption.fromJson(json);
+    return _Zone(name: w.name ?? 'UTC', offsetMinutes: w.offsetMinutes ?? 0);
+  }
 
   /// "Asia/Kolkata (UTC+05:30)". The offset is what makes a 490-entry list
   /// readable; the name alone tells most people very little.

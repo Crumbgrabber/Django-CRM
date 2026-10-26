@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
+import '../api/schema.g.dart' as api;
 
 /// Approval request for a ticket close (Tier 3).
 class Approval {
@@ -45,41 +46,35 @@ class Approval {
 
   bool get isPending => state == ApprovalState.pending;
 
+  /// Reads an `Approval`, as the inbox lists them.
   factory Approval.fromJson(Map<String, dynamic> json) {
+    final w = api.Approval.fromJson(json);
+    final caseSummary = w.caseSummary;
+    final ruleSummary = w.ruleSummary;
+    final requestedBy = w.requestedBy;
+    final approver = w.approver;
     return Approval(
-      id: json['id']?.toString() ?? '',
-      state: ApprovalState.fromString(json['state'] as String?),
-      note: json['note'] as String?,
-      reason: json['reason'] as String?,
-      decidedAt: json['decided_at'] != null
-          ? DateTime.tryParse(json['decided_at'].toString())
-          : null,
-      createdAt: json['created_at'] != null
-          ? DateTime.tryParse(json['created_at'].toString())
-          : null,
-      caseSummary: json['case_summary'] is Map<String, dynamic>
-          ? ApprovalCaseSummary.fromJson(
-              json['case_summary'] as Map<String, dynamic>,
-            )
-          : null,
-      ruleSummary: json['rule_summary'] is Map<String, dynamic>
-          ? ApprovalRuleSummary.fromJson(
-              json['rule_summary'] as Map<String, dynamic>,
-            )
-          : null,
-      requestedBy: json['requested_by'] is Map<String, dynamic>
-          ? ApprovalProfileRef.fromJson(
-              json['requested_by'] as Map<String, dynamic>,
-            )
-          : null,
-      approver: json['approver'] is Map<String, dynamic>
-          ? ApprovalProfileRef.fromJson(
-              json['approver'] as Map<String, dynamic>,
-            )
-          : null,
-      canAct: json['can_act'] == true,
-      canCancel: json['can_cancel'] == true,
-      isOwnRequest: json['is_own_request'] == true,
+      id: w.id ?? '',
+      state: ApprovalState.fromString(w.state),
+      note: w.note,
+      reason: w.reason,
+      decidedAt: DateTime.tryParse(w.decidedAt ?? ''),
+      createdAt: DateTime.tryParse(w.createdAt ?? ''),
+      caseSummary: caseSummary == null
+          ? null
+          : ApprovalCaseSummary.fromJson(caseSummary.json),
+      ruleSummary: ruleSummary == null
+          ? null
+          : ApprovalRuleSummary.fromJson(ruleSummary.json),
+      requestedBy: requestedBy == null
+          ? null
+          : ApprovalProfileRef.fromJson(requestedBy.json),
+      approver: approver == null
+          ? null
+          : ApprovalProfileRef.fromJson(approver.json),
+      canAct: w.canAct ?? false,
+      canCancel: w.canCancel ?? false,
+      isOwnRequest: w.isOwnRequest ?? false,
     );
   }
 }
@@ -114,12 +109,15 @@ class ApprovalCaseSummary {
     this.status,
     this.priority,
   });
+
+  /// Reads an `ApprovalCaseSummary`.
   factory ApprovalCaseSummary.fromJson(Map<String, dynamic> json) {
+    final w = api.ApprovalCaseSummary.fromJson(json);
     return ApprovalCaseSummary(
-      id: json['id']?.toString() ?? '',
-      name: json['name'] as String? ?? '',
-      status: json['status'] as String?,
-      priority: json['priority'] as String?,
+      id: w.id ?? '',
+      name: w.name ?? '',
+      status: w.status,
+      priority: w.priority,
     );
   }
 }
@@ -133,11 +131,15 @@ class ApprovalRuleSummary {
     required this.name,
     this.approverRole,
   });
+
+  /// Reads an `ApprovalRuleSummary`. The ticket detail's `approval_rule` is a
+  /// `CaseApprovalRuleRef`, the same without `approver_role`.
   factory ApprovalRuleSummary.fromJson(Map<String, dynamic> json) {
+    final w = api.ApprovalRuleSummary.fromJson(json);
     return ApprovalRuleSummary(
-      id: json['id']?.toString() ?? '',
-      name: json['name'] as String? ?? '',
-      approverRole: json['approver_role'] as String?,
+      id: w.id ?? '',
+      name: w.name ?? '',
+      approverRole: w.approverRole,
     );
   }
 }
@@ -146,10 +148,10 @@ class ApprovalProfileRef {
   final String id;
   final String email;
   const ApprovalProfileRef({required this.id, required this.email});
+
+  /// Reads an `ApprovalProfileLabel`.
   factory ApprovalProfileRef.fromJson(Map<String, dynamic> json) {
-    return ApprovalProfileRef(
-      id: json['id']?.toString() ?? '',
-      email: json['email'] as String? ?? '',
-    );
+    final w = api.ApprovalProfileLabel.fromJson(json);
+    return ApprovalProfileRef(id: w.id ?? '', email: w.email ?? '');
   }
 }

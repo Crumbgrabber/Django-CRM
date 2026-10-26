@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../config/api_config.dart';
+import '../data/api/schema.g.dart' as api;
 import '../data/models/attachment.dart';
 import '../data/models/comment.dart';
 import '../data/models/custom_field_definition.dart';
@@ -257,30 +258,14 @@ class TasksNotifier extends AsyncNotifier<TasksListData> {
       throw Exception(response.message ?? 'Failed to load tasks');
     }
 
-    final data = response.data!;
-    debugPrint('TasksNotifier: API response keys: ${data.keys.toList()}');
+    final data = api.TaskListResponse.fromJson(response.data!);
+    debugPrint('TasksNotifier: API response keys: ${data.json.keys.toList()}');
 
-    List<dynamic> tasksList = [];
-    int tasksCount = 0;
-
-    if (data['tasks'] != null) {
-      tasksList = data['tasks'] as List<dynamic>? ?? [];
-      tasksCount = data['tasks_count'] as int? ?? tasksList.length;
-    } else if (data['results'] != null) {
-      tasksList = data['results'] as List<dynamic>? ?? [];
-      tasksCount = data['count'] as int? ?? tasksList.length;
-    }
-
-    final newTasks = <Task>[];
-    for (final item in tasksList) {
-      try {
-        if (item is Map<String, dynamic>) {
-          newTasks.add(Task.fromJson(item));
-        }
-      } catch (e) {
-        debugPrint('TasksNotifier: Error parsing task: $e');
-      }
-    }
+    final newTasks = [
+      for (final row in data.tasks ?? const <api.TaskList>[])
+        Task.fromJson(row.json),
+    ];
+    final tasksCount = data.tasksCount ?? newTasks.length;
 
     debugPrint('TasksNotifier: loaded ${newTasks.length} tasks');
 
@@ -310,28 +295,26 @@ class TasksNotifier extends AsyncNotifier<TasksListData> {
         debugPrint('TasksNotifier: detail fetch failed - ${response.message}');
         return null;
       }
-      final data = response.data!;
-      final taskData = data['task_obj'] as Map<String, dynamic>?;
-      if (taskData == null) return null;
+      final data = api.TaskDetailResponse.fromJson(response.data!);
+      final taskObj = data.taskObj;
+      if (taskObj == null) return null;
 
-      final comments = <Comment>[];
-      for (final c in (data['comments'] as List<dynamic>? ?? [])) {
-        if (c is Map<String, dynamic>) comments.add(Comment.fromJson(c));
-      }
-      final attachments = <Attachment>[];
-      for (final a in (data['attachments'] as List<dynamic>? ?? [])) {
-        if (a is Map<String, dynamic>) attachments.add(Attachment.fromJson(a));
-      }
-      final defs = [...customFieldDefinitionsIn(data)];
+      final defs = [...customFieldDefinitionsIn(response.data!)];
       defs.sort((a, b) {
         final byOrder = a.displayOrder.compareTo(b.displayOrder);
         return byOrder != 0 ? byOrder : a.label.compareTo(b.label);
       });
 
       return TaskDetailResult(
-        task: Task.fromJson(taskData),
-        comments: comments,
-        attachments: attachments,
+        task: Task.fromJson(taskObj.json),
+        comments: [
+          for (final c in data.comments ?? const <api.Comment>[])
+            Comment.fromJson(c.json),
+        ],
+        attachments: [
+          for (final a in data.attachments ?? const <api.Attachments>[])
+            Attachment.fromJson(a.json),
+        ],
         customFieldDefinitions: defs,
       );
     } catch (e) {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
+import '../api/schema.g.dart' as api;
 
 /// Knowledge Base solution: a reusable answer that can be linked to tickets.
 /// Mirrors `cases.models.Solution`.
@@ -40,23 +41,26 @@ class Solution {
     this.canDelete = false,
   });
 
+  /// Reads a `SolutionDetail`, the detail route's answer. A list row
+  /// (`Solution`) is the same without `can_edit` and `can_delete`; of a
+  /// `SolutionSuggestion`, only `id`, `title` and `updated_at` match.
   factory Solution.fromJson(Map<String, dynamic> json) {
+    final w = api.SolutionDetail.fromJson(json);
     return Solution(
-      id: json['id']?.toString() ?? '',
-      title: json['title']?.toString() ?? '',
-      description: json['description']?.toString() ?? '',
-      status: SolutionStatus.fromString(json['status'] as String?),
-      isPublished: json['is_published'] as bool? ?? false,
-      caseCount: json['case_count'] as int? ?? 0,
-      tagIds: _tagIds(json['tags']),
-      createdAt: json['created_at'] != null
-          ? DateTime.tryParse(json['created_at'].toString())
-          : null,
-      updatedAt: json['updated_at'] != null
-          ? DateTime.tryParse(json['updated_at'].toString())
-          : null,
-      canEdit: json['can_edit'] == true,
-      canDelete: json['can_delete'] == true,
+      id: w.id ?? '',
+      title: w.title ?? '',
+      description: w.description ?? '',
+      status: SolutionStatus.fromString(w.status),
+      isPublished: w.isPublished ?? false,
+      caseCount: w.caseCount ?? 0,
+      tagIds: [
+        for (final t in w.tags ?? const <api.Tags>[])
+          if (t.id case final id? when id.isNotEmpty) id,
+      ],
+      createdAt: DateTime.tryParse(w.createdAt ?? ''),
+      updatedAt: DateTime.tryParse(w.updatedAt ?? ''),
+      canEdit: w.canEdit ?? false,
+      canDelete: w.canDelete ?? false,
     );
   }
 
@@ -102,17 +106,6 @@ class Solution {
 
   @override
   int get hashCode => id.hashCode;
-}
-
-/// The API nests `tags` as objects, not bare ids. Mirrors the helper of the
-/// same shape in `account.dart`.
-List<String> _tagIds(dynamic raw) {
-  if (raw is! List) return const [];
-  return raw
-      .map((e) => e is Map ? e['id']?.toString() : e?.toString())
-      .whereType<String>()
-      .where((s) => s.isNotEmpty)
-      .toList(growable: false);
 }
 
 enum SolutionStatus {

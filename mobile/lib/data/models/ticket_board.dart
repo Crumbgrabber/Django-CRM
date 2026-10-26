@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../api/schema.g.dart' as api;
 import 'lead_board.dart';
 import 'ticket.dart';
 
@@ -49,26 +50,21 @@ class TicketBoardCard {
   /// without the field offers no move rather than one the server refuses.
   final bool canMove;
 
+  /// Reads a `CaseKanbanCard`.
   factory TicketBoardCard.fromJson(Map<String, dynamic> json) {
-    final assigned = json['assigned_to'];
-    String assignee = '';
-    if (assigned is List && assigned.isNotEmpty && assigned.first is Map) {
-      final details = (assigned.first as Map)['user_details'];
-      if (details is Map) {
-        final name = (details['name'] as String?) ?? '';
-        assignee = name.isNotEmpty ? name : (details['email'] as String?) ?? '';
-      }
-    }
-    final name = (json['name'] as String?)?.trim() ?? '';
+    final w = api.CaseKanbanCard.fromJson(json);
+    final details = w.assignedTo?.firstOrNull?.userDetails;
+    final assigneeName = details?.name ?? '';
+    final name = w.name?.trim() ?? '';
     return TicketBoardCard(
-      id: (json['id'] ?? '').toString(),
+      id: w.id ?? '',
       name: name.isNotEmpty ? name : 'Untitled ticket',
-      accountName: (json['account_name'] as String?) ?? '',
-      assignee: assignee,
-      priority: TicketPriority.fromString(json['priority'] as String?),
-      slaBreached: json['is_sla_breached'] == true,
-      slaAtRisk: json['is_sla_at_risk'] == true,
-      canMove: json['can_move'] == true,
+      accountName: w.accountName ?? '',
+      assignee: assigneeName.isNotEmpty ? assigneeName : details?.email ?? '',
+      priority: TicketPriority.fromString(w.priority),
+      slaBreached: w.isSlaBreached ?? false,
+      slaAtRisk: w.isSlaAtRisk ?? false,
+      canMove: w.canMove ?? false,
     );
   }
 }
@@ -103,44 +99,39 @@ class TicketBoardLane {
   Map<String, dynamic> get moveBody =>
       isStatus ? {'status': id} : {'stage_id': id};
 
+  /// Reads a `CaseKanbanColumn`.
   factory TicketBoardLane.fromJson(
     Map<String, dynamic> json, {
     required bool isStatus,
   }) {
-    final raw = json['cases'];
-    final cards = raw is List
-        ? raw
-              .whereType<Map<String, dynamic>>()
-              .map(TicketBoardCard.fromJson)
-              .toList()
-        : <TicketBoardCard>[];
+    final w = api.CaseKanbanColumn.fromJson(json);
+    final cards = [
+      for (final c in w.cases ?? const <api.CaseKanbanCard>[])
+        TicketBoardCard.fromJson(c.json),
+    ];
     return TicketBoardLane(
-      id: (json['id'] ?? '').toString(),
-      name: (json['name'] as String?) ?? 'Stage',
+      id: w.id ?? '',
+      name: w.name ?? 'Stage',
       isStatus: isStatus,
-      color: leadStageSwatch(json['color'] as String?),
-      count: json['case_count'] as int? ?? cards.length,
-      wipLimit: json['wip_limit'] as int?,
+      color: leadStageSwatch(w.color),
+      count: w.caseCount ?? cards.length,
+      wipLimit: w.wipLimit,
       cards: cards,
     );
   }
 
   /// The lanes in their `order`, without the status-mode Duplicate lane.
   static List<TicketBoardLane> fromKanbanJson(Map<String, dynamic> json) {
-    final isStatus = json['mode'] != 'pipeline';
+    final w = api.CaseKanbanResponse.fromJson(json);
+    final isStatus = w.mode != 'pipeline';
     final columns =
-        (json['columns'] as List? ?? const [])
-            .whereType<Map<String, dynamic>>()
-            .where(
-              (c) => !(isStatus && c['id'] == TicketStatus.duplicate.value),
-            )
+        (w.columns ?? const <api.CaseKanbanColumn>[])
+            .where((c) => !(isStatus && c.id == TicketStatus.duplicate.value))
             .toList()
-          ..sort(
-            (a, b) =>
-                (a['order'] as int? ?? 0).compareTo(b['order'] as int? ?? 0),
-          );
-    return columns
-        .map((c) => TicketBoardLane.fromJson(c, isStatus: isStatus))
-        .toList();
+          ..sort((a, b) => (a.order ?? 0).compareTo(b.order ?? 0));
+    return [
+      for (final c in columns)
+        TicketBoardLane.fromJson(c.json, isStatus: isStatus),
+    ];
   }
 }

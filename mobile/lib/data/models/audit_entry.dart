@@ -6,6 +6,8 @@
 /// built from those.
 library;
 
+import '../api/schema.g.dart' as api;
+
 /// One option in the event filter.
 class AuditEventType {
   const AuditEventType({required this.value, required this.label});
@@ -13,10 +15,11 @@ class AuditEventType {
   final String value;
   final String label;
 
-  factory AuditEventType.fromJson(Map<String, dynamic> json) => AuditEventType(
-    value: json['value']?.toString() ?? '',
-    label: json['label']?.toString() ?? '',
-  );
+  /// Reads an `AuditLogEventType`.
+  factory AuditEventType.fromJson(Map<String, dynamic> json) {
+    final w = api.AuditLogEventType.fromJson(json);
+    return AuditEventType(value: w.value ?? '', label: w.label ?? '');
+  }
 }
 
 class AuditEntry {
@@ -111,23 +114,21 @@ class AuditEntry {
     return id is String && id.isNotEmpty ? id : null;
   }
 
+  /// Reads an `AuditLogEntry`.
   factory AuditEntry.fromJson(Map<String, dynamic> json) {
-    final actor = json['actor'];
-    final details = json['details'];
+    final w = api.AuditLogEntry.fromJson(json);
+    final actor = w.actor;
     return AuditEntry(
-      id: json['id']?.toString() ?? '',
-      eventType: json['event_type']?.toString() ?? '',
-      eventLabel:
-          json['event_label']?.toString() ??
-          json['event_type']?.toString() ??
-          '',
-      createdAt: DateTime.tryParse(json['created_at']?.toString() ?? ''),
-      success: json['success'] != false,
-      actorId: actor is Map ? actor['id']?.toString() : null,
-      actorName: actor is Map ? actor['name']?.toString() ?? '' : '',
-      actorEmail: actor is Map ? actor['email']?.toString() ?? '' : '',
-      ipAddress: json['ip_address']?.toString() ?? '',
-      details: details is Map<String, dynamic> ? details : const {},
+      id: w.id ?? '',
+      eventType: w.eventType ?? '',
+      eventLabel: w.eventLabel ?? w.eventType ?? '',
+      createdAt: DateTime.tryParse(w.createdAt ?? ''),
+      success: w.success != false,
+      actorId: actor?.id,
+      actorName: actor?.name ?? '',
+      actorEmail: actor?.email ?? '',
+      ipAddress: w.ipAddress ?? '',
+      details: w.details ?? const {},
     );
   }
 }

@@ -49,7 +49,7 @@
       const res = await fetch(url);
       if (mine !== ticket) return;
       failed = !res.ok;
-      matches = res.ok ? await res.json() : [];
+      matches = res.ok ? ((await res.json()) as { id: string; name: string }[]) : [];
     } catch {
       if (mine !== ticket) return;
       failed = true;

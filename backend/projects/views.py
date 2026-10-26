@@ -345,6 +345,14 @@ class ProjectFromDealView(APIView):
         )
 
 
+class ProjectTimeEntryBodySerializer(TimeEntryCreateSerializer):
+    # A task on the project, checked by `task_on_project` in the view.
+    task = serializers.UUIDField(required=False, allow_null=True)
+
+    class Meta(TimeEntryCreateSerializer.Meta):
+        fields = (*TimeEntryCreateSerializer.Meta.fields, "task")
+
+
 class ProjectTimeEntriesView(APIView):
     permission_classes = (IsAuthenticated, HasOrgContext)
 
@@ -367,7 +375,7 @@ class ProjectTimeEntriesView(APIView):
     @extend_schema(
         tags=["Projects"],
         operation_id="projects_time_entries_create",
-        request=TimeEntryCreateSerializer,
+        request=ProjectTimeEntryBodySerializer,
         responses={201: TimeEntrySerializer},
     )
     def post(self, request, pk):
@@ -384,7 +392,14 @@ class ProjectTimerStartView(APIView):
     @extend_schema(
         tags=["Projects"],
         operation_id="projects_time_entries_start",
-        request=None,
+        request=inline_serializer(
+            "ProjectTimerStartRequest",
+            {
+                "description": serializers.CharField(required=False),
+                "billable": serializers.BooleanField(required=False),
+                "task": serializers.UUIDField(required=False, allow_null=True),
+            },
+        ),
         responses={201: TimeEntrySerializer},
     )
     @transaction.atomic

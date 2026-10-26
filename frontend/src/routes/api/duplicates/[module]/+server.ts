@@ -14,12 +14,16 @@ import type { RequestHandler } from './$types';
  * form must still save.
  */
 export const POST: RequestHandler = async ({ params, request, cookies }) => {
-  let criteria: Record<string, unknown>;
+  let parsed: unknown;
   try {
-    criteria = await request.json();
+    parsed = await request.json();
   } catch {
     return Response.json({ duplicates: [] }, { status: 400 });
   }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return Response.json({ duplicates: [] }, { status: 400 });
+  }
+  const criteria = parsed as Record<string, unknown>;
   try {
     return Response.json({
       duplicates: await checkDuplicates({ cookies }, params.module, criteria)

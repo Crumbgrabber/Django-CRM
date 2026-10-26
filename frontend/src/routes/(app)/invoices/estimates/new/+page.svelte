@@ -1,5 +1,7 @@
 <script lang="ts">
   import { resolve } from '$app/paths';
+  import type { FormBody } from '#lib/api-helpers.js';
+  import type { components } from '#lib/api-schema.js';
   /**
    * New estimate.
    *
@@ -41,6 +43,8 @@
   import { numberPattern } from '#lib/v2/document-numbers.js';
   import { isOn } from '#lib/v2/modules.js';
   import type { PageProps } from './$types';
+
+  type Schemas = components['schemas'];
 
   let { data, form }: PageProps = $props();
 
@@ -135,7 +139,7 @@
 
   /** The builder as the API body; only what `EstimateCreateSerializer` accepts. */
   let payload = $derived.by(() => {
-    const body: Record<string, unknown> = {
+    const body: FormBody<Schemas['EstimateBodyRequest']> = {
       title: title.trim(),
       account_id: accountId,
       contact_id: contactId,

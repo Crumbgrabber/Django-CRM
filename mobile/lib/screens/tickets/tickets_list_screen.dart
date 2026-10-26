@@ -8,6 +8,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/api_config.dart';
 import '../../core/theme/theme.dart';
+import '../../data/api/schema.g.dart' as api;
 import '../../data/models/lookup_models.dart';
 import '../../data/models/ticket.dart';
 import '../../providers/csv_import_provider.dart';
@@ -837,11 +838,12 @@ class _TicketsListScreenState extends ConsumerState<TicketsListScreen> {
     required bool isDelete,
   }) async {
     if (!mounted) return;
+    final body = response.data ?? const {};
+    final results = isDelete
+        ? api.BulkDeleteCasesResponse.fromJson(body).results
+        : api.BulkUpdateCasesResponse.fromJson(body).results;
     final text = response.success
-        ? _bulkSummary(
-            (response.data?['results'] as List<dynamic>?) ?? const [],
-            isDelete: isDelete,
-          )
+        ? _bulkSummary(results ?? const [], isDelete: isDelete)
         : (response.message ?? 'Bulk ${isDelete ? 'delete' : 'update'} failed');
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
     setState(() {
@@ -856,7 +858,10 @@ class _TicketsListScreenState extends ConsumerState<TicketsListScreen> {
   /// `summaryText` in frontend/src/lib/server/v2/tickets.ts and
   /// frontend/src/routes/(app)/tickets/+page.svelte: one headline count, then
   /// a part per nonzero bucket, joined with " · ".
-  String _bulkSummary(List<dynamic> results, {required bool isDelete}) {
+  String _bulkSummary(
+    List<api.BulkCaseOutcome> results, {
+    required bool isDelete,
+  }) {
     var updated = 0;
     var deleted = 0;
     var noAccess = 0;
@@ -864,8 +869,7 @@ class _TicketsListScreenState extends ConsumerState<TicketsListScreen> {
     var merged = 0;
     var invalid = 0;
     for (final row in results) {
-      if (row is! Map) continue;
-      switch (row['status']) {
+      switch (row.status) {
         case 'updated':
           updated++;
         case 'deleted':

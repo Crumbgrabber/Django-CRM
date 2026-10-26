@@ -13,16 +13,28 @@
 import { fail, type Cookies } from '@sveltejs/kit';
 import { apiRequest } from '#lib/api-helpers.js';
 import { apiErrorBody, apiStatus } from '#lib/api-errors.js';
+import type { components } from '#lib/api-schema.js';
+import type { Skipped } from '#lib/import/mapping.js';
+import type { RowError } from '#lib/utils/csv.js';
+
+type Schemas = components['schemas'];
+type ImportReply = {
+  '/cases/import/preview/': Schemas['CaseImportPreviewResponse'];
+  '/cases/import/commit/': Schemas['CaseImportCommitResponse'];
+  '/contacts/import/preview/': Schemas['ContactImportPreviewResponse'];
+  '/contacts/import/commit/': Schemas['ContactImportCommitResponse'];
+  '/leads/import/preview/': Schemas['LeadImportPreviewResponse'];
+  '/leads/import/commit/': Schemas['LeadImportCommitResponse'];
+};
 
 /**
  * @param path Django endpoint, e.g. `/contacts/import/preview/`
  * @param key where the client reads the success body
  */
-export async function forwardCsvImport(
-  { request, cookies }: { request: Request; cookies: Cookies },
-  path: string,
-  key: 'importPreview' | 'importCommit'
-) {
+export async function forwardCsvImport<
+  P extends keyof ImportReply,
+  K extends 'importPreview' | 'importCommit'
+>({ request, cookies }: { request: Request; cookies: Cookies }, path: P, key: K) {
   const form = await request.formData();
   const file = form.get('file');
   if (!(file instanceof File) || file.size === 0) {
@@ -35,9 +47,12 @@ export async function forwardCsvImport(
   try {
     // Quiet: an import's error reply carries the skipped rows' cells, which
     // must not reach the server log.
-    return {
-      [key]: await apiRequest(path, { method: 'POST', body, quietErrors: true }, { cookies })
-    };
+    const reply: ImportReply[P] = await apiRequest(
+      path,
+      { method: 'POST', body, quietErrors: true },
+      { cookies }
+    );
+    return { [key]: reply } as Record<K, ImportReply[P]>;
   } catch (err) {
     const status = apiStatus(err);
     if (!status) throw err;
@@ -49,10 +64,10 @@ export async function forwardCsvImport(
           : status === 429
             ? 'Too many tries in a minute. Wait a moment, then try again.'
             : String(data.message || data.header_error || 'Import failed'),
-      importErrors: Array.isArray(data.errors) ? data.errors : [],
+      importErrors: (Array.isArray(data.errors) ? data.errors : []) as RowError[],
       // A mapped commit with nothing importable answers 400 with the rows it
       // skipped, so the client can still say why.
-      importSkipped: Array.isArray(data.skipped) ? data.skipped : []
+      importSkipped: (Array.isArray(data.skipped) ? data.skipped : []) as Skipped[]
     });
   }
 }

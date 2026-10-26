@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/api_config.dart';
-import '../data/api_envelope.dart';
+import '../data/api/schema.g.dart' as api;
 import '../data/models/interaction.dart';
 import '../services/after_tap.dart';
 import '../services/api_service.dart';
@@ -23,15 +23,12 @@ class InteractionsApi {
     if (!response.success || data == null) {
       throw Exception(response.message ?? 'Could not load the activity.');
     }
-    final items = listFromEnvelope(data, const [
-      'interactions',
-      'results',
-    ]).map(Interaction.fromJson).toList(growable: false);
-    final count = data['count'];
-    return RecordInteractions(
-      items: items,
-      count: count is num ? count.toInt() : items.length,
-    );
+    final body = api.InteractionListResponse.fromJson(data);
+    final items = [
+      for (final row in body.interactions ?? const <api.Interaction>[])
+        Interaction.fromJson(row.json),
+    ];
+    return RecordInteractions(items: items, count: body.count ?? items.length);
   }
 
   /// Null when saved, else the sentence to show.

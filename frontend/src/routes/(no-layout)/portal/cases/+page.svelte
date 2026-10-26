@@ -38,8 +38,9 @@
         `${resolve('portal/articles/suggestions')}?q=${encodeURIComponent(query)}`
       );
       if (!response.ok) return;
-      const body: { articles: { id: string; title: string; snippet: string }[] } =
-        await response.json();
+      const body = (await response.json()) as {
+        articles?: { id: string; title: string; snippet: string }[];
+      };
       if (ticket === latestQuery) suggestions = body.articles ?? [];
     }, 300);
   }

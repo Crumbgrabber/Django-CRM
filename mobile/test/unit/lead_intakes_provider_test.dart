@@ -146,7 +146,7 @@ void main() {
       expect(result.error, 'You do not have permission.');
     });
 
-    test('deliveries parse, a nested lead included', () async {
+    test('deliveries parse, with and without a lead', () async {
       routes['GET ${path(ApiConfig.leadIntakeDeliveries(_id))}'] = () =>
           http.Response(
             jsonEncode({
@@ -167,11 +167,7 @@ void main() {
                   'external_id': '',
                   'error': 'No email or phone.',
                 },
-                {
-                  'id': 'e3',
-                  'result': 'merged',
-                  'lead': {'id': 'l2'},
-                },
+                {'id': 'e3', 'result': 'merged', 'lead': 'l2'},
               ],
             }),
             200,

@@ -2,7 +2,7 @@ import { fail } from '@sveltejs/kit';
 import { getTicketBoard, moveTicket } from '#lib/server/v2/ticket-board.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
 import { apiStatus } from '#lib/api-errors.js';
-import type { PageServerLoad } from './$types';
+import type { Actions, PageServerLoad } from './$types';
 
 /**
  * Tickets by status, or by the stages of one case pipeline when
@@ -41,4 +41,4 @@ export const actions = {
       return fail(apiStatus(err) === 403 ? 403 : 400, { error: message });
     }
   }
-};
+} satisfies Actions;

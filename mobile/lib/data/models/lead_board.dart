@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../api/schema.g.dart' as api;
+
 /// The lead pipeline board: leads grouped by the stages of one `LeadPipeline`.
 ///
 /// Read from `GET /leads/pipelines/` (the picker) and
@@ -26,10 +28,12 @@ class LeadPipelineSummary {
   final String id;
   final String name;
 
+  /// Reads a `LeadPipelineList` row.
   factory LeadPipelineSummary.fromJson(Map<String, dynamic> json) {
+    final w = api.LeadPipelineList.fromJson(json);
     return LeadPipelineSummary(
-      id: (json['id'] ?? '').toString(),
-      name: (json['name'] as String?) ?? 'Untitled pipeline',
+      id: w.id ?? '',
+      name: w.name ?? 'Untitled pipeline',
     );
   }
 }
@@ -63,27 +67,20 @@ class LeadBoardCard {
   /// no move rather than one the server may refuse.
   final bool canMove;
 
+  /// Reads a `LeadKanbanCard`.
   factory LeadBoardCard.fromJson(Map<String, dynamic> json) {
-    final assigned = json['assigned_to'];
-    String owner = '';
-    if (assigned is List && assigned.isNotEmpty && assigned.first is Map) {
-      final details = (assigned.first as Map)['user_details'];
-      if (details is Map) {
-        final name = (details['name'] as String?) ?? '';
-        owner = name.isNotEmpty ? name : (details['email'] as String?) ?? '';
-      }
-    }
-    final fullName = (json['full_name'] as String?)?.trim() ?? '';
+    final w = api.LeadKanbanCard.fromJson(json);
+    final details = w.assignedTo?.firstOrNull?.userDetails;
+    final ownerName = details?.name ?? '';
+    final fullName = w.fullName?.trim() ?? '';
     return LeadBoardCard(
-      id: (json['id'] ?? '').toString(),
-      name: fullName.isNotEmpty
-          ? fullName
-          : ((json['title'] as String?) ?? 'Unnamed lead'),
-      company: (json['company_name'] as String?) ?? '',
-      rating: (json['rating'] as String?) ?? '',
-      owner: owner,
-      followUpOverdue: json['is_follow_up_overdue'] == true,
-      canMove: json['can_move'] == true,
+      id: w.id ?? '',
+      name: fullName.isNotEmpty ? fullName : (w.title ?? 'Unnamed lead'),
+      company: w.companyName ?? '',
+      rating: w.rating ?? '',
+      owner: ownerName.isNotEmpty ? ownerName : (details?.email ?? ''),
+      followUpOverdue: w.isFollowUpOverdue == true,
+      canMove: w.canMove == true,
     );
   }
 }
@@ -119,49 +116,47 @@ class LeadBoardLane {
   /// "No stage", which takes the lead out of its pipeline.
   String? get moveStageId => isUnstaged ? null : id;
 
-  static List<LeadBoardCard> _cards(Object? raw) => raw is List
-      ? raw
-            .whereType<Map<String, dynamic>>()
-            .map(LeadBoardCard.fromJson)
-            .toList()
-      : const [];
+  static List<LeadBoardCard> _cards(List<api.LeadKanbanCard>? rows) => [
+    for (final row in rows ?? const <api.LeadKanbanCard>[])
+      LeadBoardCard.fromJson(row.json),
+  ];
 
+  /// Reads a `LeadKanbanColumn`.
   factory LeadBoardLane.fromStageJson(Map<String, dynamic> json) {
-    final cards = _cards(json['leads']);
+    final w = api.LeadKanbanColumn.fromJson(json);
+    final cards = _cards(w.leads);
     return LeadBoardLane(
-      id: (json['id'] ?? '').toString(),
-      name: (json['name'] as String?) ?? 'Stage',
-      color: leadStageSwatch(json['color'] as String?),
-      count: json['lead_count'] as int? ?? cards.length,
-      wipLimit: json['wip_limit'] as int?,
+      id: w.id ?? '',
+      name: w.name ?? 'Stage',
+      color: leadStageSwatch(w.color),
+      count: w.leadCount ?? cards.length,
+      wipLimit: w.wipLimit,
       cards: cards,
     );
   }
 
+  /// Reads the kanban answer's `unstaged`, a `LeadKanbanUnstaged`.
   factory LeadBoardLane.unstaged(Map<String, dynamic>? json) {
-    final cards = _cards(json?['leads']);
+    final w = api.LeadKanbanUnstaged.fromJson(json ?? const {});
+    final cards = _cards(w.leads);
     return LeadBoardLane(
       id: '',
       name: 'No stage',
-      count: json?['lead_count'] as int? ?? cards.length,
+      count: w.leadCount ?? cards.length,
       cards: cards,
       isUnstaged: true,
     );
   }
 
-  /// "No stage" first, then the stages in their `order`.
+  /// "No stage" first, then the stages in their `order`. Reads a
+  /// `LeadKanbanResponse`.
   static List<LeadBoardLane> fromKanbanJson(Map<String, dynamic> json) {
-    final columns =
-        (json['columns'] as List? ?? const [])
-            .whereType<Map<String, dynamic>>()
-            .toList()
-          ..sort(
-            (a, b) =>
-                (a['order'] as int? ?? 0).compareTo(b['order'] as int? ?? 0),
-          );
+    final w = api.LeadKanbanResponse.fromJson(json);
+    final columns = [...?w.columns]
+      ..sort((a, b) => (a.order ?? 0).compareTo(b.order ?? 0));
     return [
-      LeadBoardLane.unstaged(json['unstaged'] as Map<String, dynamic>?),
-      ...columns.map(LeadBoardLane.fromStageJson),
+      LeadBoardLane.unstaged(w.unstaged?.json),
+      for (final column in columns) LeadBoardLane.fromStageJson(column.json),
     ];
   }
 }
@@ -179,13 +174,14 @@ class LeadStageRef {
   final String pipelineName;
   final Color color;
 
+  /// Reads a `LeadPipelineStageRef`, the detail's `pipeline_stage`.
   static LeadStageRef? fromJson(Object? json) {
     if (json is! Map<String, dynamic>) return null;
-    final pipeline = json['pipeline'];
+    final w = api.LeadPipelineStageRef.fromJson(json);
     return LeadStageRef(
-      name: (json['name'] as String?) ?? 'Stage',
-      pipelineName: pipeline is Map ? (pipeline['name'] as String?) ?? '' : '',
-      color: leadStageSwatch(json['color'] as String?),
+      name: w.name ?? 'Stage',
+      pipelineName: w.pipeline?.name ?? '',
+      color: leadStageSwatch(w.color),
     );
   }
 }

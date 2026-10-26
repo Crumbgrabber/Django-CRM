@@ -195,7 +195,7 @@ class CustomFieldDefinitionDetailView(APIView):
 
     @extend_schema(
         tags=["CustomFields"],
-        request=CustomFieldDefinitionSerializer,
+        request=CustomFieldDefinitionSerializer(partial=True),
         responses={200: CustomFieldDefinitionSerializer},
     )
     def put(self, request, pk, *args, **kwargs):

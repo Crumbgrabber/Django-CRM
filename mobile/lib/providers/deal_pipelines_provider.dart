@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/api_config.dart';
+import '../data/api/schema.g.dart' as api;
 import '../data/models/deal_pipeline.dart';
 import '../services/api_service.dart';
 import 'deals_provider.dart';
@@ -54,13 +55,11 @@ class DealPipelinesNotifier extends AsyncNotifier<List<DealPipeline>> {
     if (!response.success || response.data == null) {
       throw Exception(response.message ?? 'Could not load the pipelines.');
     }
-    final rows = response.data!['pipelines'];
-    return rows is List
-        ? rows
-              .whereType<Map<String, dynamic>>()
-              .map(DealPipeline.fromJson)
-              .toList()
-        : const [];
+    final data = api.DealPipelineListResponse.fromJson(response.data!);
+    return [
+      for (final p in data.pipelines ?? const <api.DealPipeline>[])
+        DealPipeline.fromJson(p.json),
+    ];
   }
 
   /// Reload without passing through a loading state, so what is on screen

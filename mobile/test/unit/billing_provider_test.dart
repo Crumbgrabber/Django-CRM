@@ -102,7 +102,7 @@ void main() {
       );
       expect(
         planNameFrom({
-          'plan': {'name': 3},
+          'plan': {'name': false},
         }),
         isNull,
       );

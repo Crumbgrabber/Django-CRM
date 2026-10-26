@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/api_config.dart';
-import '../data/api_envelope.dart';
+import '../data/api/schema.g.dart' as api;
 import '../data/models/audit_entry.dart';
 import '../services/api_service.dart';
 
@@ -77,16 +77,17 @@ final auditLogProvider = FutureProvider.autoDispose
       if (!response.success || response.data == null) {
         throw Exception(response.message ?? 'Could not load the audit log');
       }
-      final body = response.data!;
-      final count = body['count'];
-      final entries = listFromEnvelope(body, const [
-        'results',
-      ]).map(AuditEntry.fromJson).toList(growable: false);
+      final body = api.AuditLogListResponse.fromJson(response.data!);
+      final entries = [
+        for (final row in body.results ?? const <api.AuditLogEntry>[])
+          AuditEntry.fromJson(row.json),
+      ];
       return AuditLogPage(
         entries: entries,
-        count: count is int ? count : entries.length,
-        eventTypes: listFromEnvelope(body, const [
-          'event_types',
-        ]).map(AuditEventType.fromJson).toList(growable: false),
+        count: body.count ?? entries.length,
+        eventTypes: [
+          for (final row in body.eventTypes ?? const <api.AuditLogEventType>[])
+            AuditEventType.fromJson(row.json),
+        ],
       );
     });

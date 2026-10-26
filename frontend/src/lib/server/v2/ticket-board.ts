@@ -15,7 +15,7 @@
  * `stage_id` (pipeline mode). The backend checks write access, the WIP limit
  * and the close gate; nothing here decides any of that.
  */
-import { apiRequest } from '#lib/api-helpers.js';
+import { apiRequest, type FormBody } from '#lib/api-helpers.js';
 import { canMoveCard } from '#lib/v2/board-drag.js';
 import type { Cookies } from '@sveltejs/kit';
 import type { components } from '#lib/api-schema.js';
@@ -125,16 +125,10 @@ export async function moveTicket(
     belowId
   }: { mode: string; laneId: string; aboveId?: string; belowId?: string }
 ): Promise<Schemas['CaseMoveResponse']> {
-  return await apiRequest(
-    `/cases/${id}/move/`,
-    {
-      method: 'PATCH',
-      body: {
-        ...(mode === 'pipeline' ? { stage_id: laneId } : { status: laneId }),
-        ...(aboveId ? { above_case_id: aboveId } : {}),
-        ...(belowId ? { below_case_id: belowId } : {})
-      }
-    },
-    { cookies }
-  );
+  // A status lane's id is the status name; the API checks it is one.
+  const body: FormBody<Schemas['PatchedCaseMoveRequest']> =
+    mode === 'pipeline' ? { stage_id: laneId } : { status: laneId };
+  if (aboveId) body.above_case_id = aboveId;
+  if (belowId) body.below_case_id = belowId;
+  return await apiRequest(`/cases/${id}/move/`, { method: 'PATCH', body }, { cookies });
 }

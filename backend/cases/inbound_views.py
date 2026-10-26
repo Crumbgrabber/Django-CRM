@@ -855,7 +855,7 @@ class InboundMailboxDetailView(APIView):
 
     @extend_schema(
         tags=["InboundEmail"],
-        request=InboundMailboxSerializer,
+        request=InboundMailboxSerializer(partial=True),
         responses={200: InboundMailboxSerializer},
     )
     def put(self, request, pk, *args, **kwargs):

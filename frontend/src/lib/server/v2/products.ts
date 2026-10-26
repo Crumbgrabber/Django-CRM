@@ -33,7 +33,7 @@
  *   the list to avoid an N+1, because it is the whole reason a retired product
  *   is still listed rather than deleted.
  */
-import { apiRequest } from '#lib/api-helpers.js';
+import { apiRequest, type FormBody } from '#lib/api-helpers.js';
 import { viewerIsAdmin } from './organization.js';
 import type { Cookies } from '@sveltejs/kit';
 import type { components } from '#lib/api-schema.js';
@@ -169,7 +169,7 @@ function toPayload(values: {
   category?: string;
   is_active: boolean;
 }) {
-  const body: Record<string, unknown> = {
+  const body: FormBody<Schemas['ProductCreateRequest']> = {
     name: values.name,
     price: values.price,
     is_active: values.is_active,

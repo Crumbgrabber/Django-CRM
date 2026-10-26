@@ -16,6 +16,7 @@
   } from '@lucide/svelte';
   import { paletteActions, searchPlaceholder, noHitsText } from '#lib/v2/nav.js';
   import type { ModuleRow } from '#lib/v2/modules.js';
+  import type { SearchHit } from '#lib/server/v2/search.js';
 
   /**
    * One search across every record type, opened with ⌘K.
@@ -51,15 +52,8 @@
   };
 
   let query = $state('');
-  /** A palette row: a search hit (`#lib/server/v2/search.js`) or an action. */
-  type PaletteRow = {
-    kind: string;
-    id: string;
-    title: string;
-    meta: string;
-    href: string;
-    icon?: typeof Plus;
-  };
+  /** A palette row: a search hit or an action. */
+  type PaletteRow = SearchHit & { icon?: typeof Plus };
   let hits = $state<PaletteRow[]>([]);
   let cursor = $state(0);
   let input: HTMLInputElement | undefined = $state();
@@ -91,7 +85,7 @@
       return;
     }
     fetch(`/api/search?q=${encodeURIComponent(q)}`)
-      .then((r) => r.json())
+      .then((r) => r.json() as Promise<{ results?: SearchHit[] }>)
       .then((r) => {
         if (mine !== seq) return;
         hits = r.results || [];

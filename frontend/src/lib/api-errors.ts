@@ -33,3 +33,8 @@ export function apiErrorBody(err: unknown): ApiErrorBody | undefined {
   const body = (err as { body?: unknown } | null | undefined)?.body;
   return body && typeof body === 'object' ? (body as ApiErrorBody) : undefined;
 }
+
+/** A DRF error value's first entry: it sends a field's messages as a list. */
+export function firstMessage(value: unknown): unknown {
+  return Array.isArray(value) ? (value as unknown[])[0] : value;
+}

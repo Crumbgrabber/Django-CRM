@@ -218,7 +218,11 @@ class InteractionDetailView(APIView):
         change_interaction(interaction, serializer.validated_data)
         return Response(_out(interaction, request.profile))
 
-    @extend_schema(tags=["Interactions"], operation_id="interactions_delete")
+    @extend_schema(
+        tags=["Interactions"],
+        operation_id="interactions_delete",
+        responses={204: None},
+    )
     def delete(self, request, pk):
         interaction, refused = self._changeable(request, pk)
         if refused is not None:

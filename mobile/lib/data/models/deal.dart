@@ -1,4 +1,5 @@
 import '../../services/org_date.dart';
+import '../api/schema.g.dart' as api;
 import 'attachment.dart';
 import 'comment.dart';
 import 'deal_pipeline.dart';
@@ -84,13 +85,14 @@ class DealNextActivity {
 
   const DealNextActivity({required this.id, required this.title, this.dueDate});
 
+  /// Reads a `NextActivity`.
   static DealNextActivity? fromJson(Object? json) {
     if (json is! Map<String, dynamic>) return null;
-    final due = json['due_date'];
+    final w = api.NextActivity.fromJson(json);
     return DealNextActivity(
-      id: json['id']?.toString() ?? '',
-      title: json['title'] as String? ?? '',
-      dueDate: due is String ? DateTime.tryParse(due) : null,
+      id: w.id ?? '',
+      title: w.title ?? '',
+      dueDate: DateTime.tryParse(w.dueDate ?? ''),
     );
   }
 }
@@ -252,274 +254,133 @@ class Deal {
     this.nextActivityKnown = false,
   });
 
-  /// Factory constructor to create Deal from JSON (backend API)
+  /// Reads an `OpportunityList` row, the widest of the three shapes this is
+  /// fed: the detail's `opportunity_obj` is an `Opportunity` (the same row
+  /// without `next_activity`), and a board card an `OpportunityKanbanCard`
+  /// (fewer fields, plus `updated_at`).
   factory Deal.fromJson(Map<String, dynamic> json) {
-    // Parse tags - both names and IDs
-    List<String> parsedTags = [];
-    List<String> parsedTagIds = [];
-    if (json['tags'] != null) {
-      final tagsList = json['tags'] as List<dynamic>? ?? [];
-      for (final t in tagsList) {
-        if (t is Map<String, dynamic>) {
-          final name = t['name'] as String? ?? '';
-          final id = t['id']?.toString() ?? '';
-          if (name.isNotEmpty) parsedTags.add(name);
-          if (id.isNotEmpty) parsedTagIds.add(id);
-        }
-      }
-    }
+    final w = api.OpportunityList.fromJson(json);
+    final tags = w.tags ?? const <api.Tags>[];
+    final assigned = w.assignedTo ?? const <api.Profile>[];
+    final contacts = w.contacts ?? const <api.ContactLink>[];
+    final teams = w.teams ?? const <api.Teams>[];
 
-    // Parse assigned_to. Two outputs:
-    //   - assignedToIds: just the profile IDs (used by writes / filters)
-    //   - assignedToRaw: the original profile maps (used by detail rendering)
-    //   - assignedToName: a single display name for the *first* assignee
-    //     (used by the list card where there's no room for more than one).
+    // One display name for the first assignee that has one, for the list
+    // card, where there is no room for more.
     String assignedToName = 'Unassigned';
-    List<String> assignedToIds = [];
-    List<Map<String, dynamic>> assignedToRaw = [];
-    if (json['assigned_to'] != null) {
-      final assignedList = json['assigned_to'] as List<dynamic>? ?? [];
-      for (final item in assignedList) {
-        if (item is Map<String, dynamic>) {
-          assignedToRaw.add(item);
-          final id = item['id']?.toString() ?? '';
-          if (id.isNotEmpty) assignedToIds.add(id);
-          if (assignedToName == 'Unassigned') {
-            // Prefer the detail-endpoint user_details.name; fall back to
-            // legacy fields when the response shape is the list endpoint's.
-            final userDetails = item['user_details'];
-            String name = '';
-            String email = '';
-            if (userDetails is Map<String, dynamic>) {
-              name = (userDetails['name'] as String? ?? '').trim();
-              email = (userDetails['email'] as String? ?? '').trim();
-            }
-            email = email.isNotEmpty
-                ? email
-                : (item['user']?['email'] as String? ??
-                          item['user__email'] as String? ??
-                          '')
-                      .trim();
-            if (name.isNotEmpty) {
-              assignedToName = name;
-            } else if (email.isNotEmpty) {
-              assignedToName = email.split('@').first;
-            }
-            if (assignedToName.isEmpty) assignedToName = 'Assigned';
-          }
-        }
+    for (final p in assigned) {
+      if (assignedToName != 'Unassigned') break;
+      final name = (p.userDetails?.name ?? '').trim();
+      final email = (p.userDetails?.email ?? '').trim();
+      if (name.isNotEmpty) {
+        assignedToName = name;
+      } else if (email.isNotEmpty) {
+        assignedToName = email.split('@').first;
       }
+      if (assignedToName.isEmpty) assignedToName = 'Assigned';
     }
 
-    // Parse contacts - both IDs (for writes) and full records (for display).
-    List<String> contactIds = [];
-    List<ContactLookup> contactsList = [];
-    if (json['contacts'] != null) {
-      final rawContacts = json['contacts'] as List<dynamic>? ?? [];
-      for (final c in rawContacts) {
-        if (c is Map<String, dynamic>) {
-          final id = c['id']?.toString() ?? '';
-          if (id.isNotEmpty) contactIds.add(id);
-          try {
-            contactsList.add(ContactLookup.fromJson(c));
-          } catch (_) {
-            // Skip unparsable contact; ID list still wins.
-          }
-        }
-      }
-    }
+    final closedBy = w.closedBy?.userDetails;
+    final closedByName = (closedBy?.name ?? '').trim();
 
-    // Parse teams - both IDs (for writes) and names (for display).
-    final List<String> teamIds = [];
-    final List<String> teamNames = [];
-    if (json['teams'] != null) {
-      final rawTeams = json['teams'] as List<dynamic>? ?? [];
-      for (final t in rawTeams) {
-        if (t is Map<String, dynamic>) {
-          final id = t['id']?.toString() ?? '';
-          final name = t['name'] as String? ?? '';
-          if (id.isNotEmpty) teamIds.add(id);
-          if (name.isNotEmpty) teamNames.add(name);
-        }
-      }
-    }
-
-    // created_by and closed_by, full user / profile maps.
-    String? createdByName;
-    String? createdByEmail;
-    final cb = json['created_by'];
-    if (cb is Map<String, dynamic>) {
-      createdByEmail = cb['email'] as String?;
-      final first = (cb['first_name'] as String? ?? '').trim();
-      final last = (cb['last_name'] as String? ?? '').trim();
-      final composed = [
-        first,
-        last,
-      ].where((s) => s.isNotEmpty).join(' ').trim();
-      if (composed.isNotEmpty) createdByName = composed;
-    }
-
-    String? closedByName;
-    String? closedByEmail;
-    final clb = json['closed_by'];
-    if (clb is Map<String, dynamic>) {
-      final userDetails = clb['user_details'];
-      if (userDetails is Map<String, dynamic>) {
-        closedByEmail = userDetails['email'] as String?;
-        final n = (userDetails['name'] as String? ?? '').trim();
-        if (n.isNotEmpty) closedByName = n;
-      }
-      closedByEmail ??= clb['email'] as String?;
-    }
-
-    // line_items_total. Backend pre-computes; may be int, double, string,
-    // or null.
-    double? lineItemsTotal;
-    final lit = json['line_items_total'];
-    if (lit is num) {
-      lineItemsTotal = lit.toDouble();
-    } else if (lit is String) {
-      lineItemsTotal = double.tryParse(lit);
-    }
-
-    int? daysInStageServer;
-    final dis = json['days_in_stage'];
-    if (dis is num) {
-      daysInStageServer = dis.toInt();
-    } else if (dis is String) {
-      daysInStageServer = int.tryParse(dis);
-    }
-
-    // Parse account/company name and ID
-    String companyName = 'No Account';
-    String? accountId;
-    if (json['account'] != null && json['account'] is Map<String, dynamic>) {
-      companyName = json['account']['name'] as String? ?? 'No Account';
-      accountId = json['account']['id']?.toString();
-    }
-
-    // Parse products/line_items
-    List<DealProduct> products = [];
-    if (json['line_items'] != null) {
-      final lineItems = json['line_items'] as List<dynamic>? ?? [];
-      products = lineItems
-          .map((item) {
-            if (item is Map<String, dynamic>) {
-              // DRF sends decimals as strings ("2.00"); a bare num is taken too.
-              // An int parse of "2.00" fails, which used to read every line
-              // as a quantity of 1.
-              double decimal(Object? raw, double fallback) => raw is num
-                  ? raw.toDouble()
-                  : double.tryParse(raw?.toString() ?? '') ?? fallback;
-              return DealProduct(
-                id: item['id']?.toString() ?? '',
-                name: item['name'] as String? ?? '',
-                quantity: decimal(item['quantity'], 1),
-                unitPrice: decimal(item['unit_price'], 0),
-                discountType: item['discount_type'] as String? ?? '',
-                discountValue: decimal(item['discount_value'], 0),
-              );
-            }
-            return const DealProduct(
-              id: '',
-              name: '',
-              quantity: 0,
-              unitPrice: 0,
-            );
-          })
-          .where((p) => p.id.isNotEmpty)
-          .toList();
-    }
-
-    // Parse close date
-    DateTime? closeDate;
-    if (json['closed_on'] != null) {
-      closeDate = DateTime.tryParse(json['closed_on'] as String);
-    }
-
-    // Parse amount - can be num or string
-    double amount = 0.0;
-    if (json['amount'] != null) {
-      if (json['amount'] is num) {
-        amount = (json['amount'] as num).toDouble();
-      } else if (json['amount'] is String) {
-        amount = double.tryParse(json['amount'] as String) ?? 0.0;
-      }
-    }
-
-    // Parse probability - can be num or string
-    int probability = 0;
-    if (json['probability'] != null) {
-      if (json['probability'] is num) {
-        probability = (json['probability'] as num).toInt();
-      } else if (json['probability'] is String) {
-        probability = int.tryParse(json['probability'] as String) ?? 0;
-      }
-    }
+    // DRF sends decimals as strings ("2.00"). An int parse of "2.00" fails,
+    // which used to read every line as a quantity of 1.
+    double decimal(String? raw, double fallback) =>
+        double.tryParse(raw ?? '') ?? fallback;
 
     // The kind decides closed/won/lost. A row with none (a server older than
     // configurable pipelines, or a code its pipeline no longer has) falls
     // back to what the seeded codes have always meant.
-    final stageCode = json['stage']?.toString() ?? '';
-    final label = json['stage_label'] as String?;
-    final pipeline = json['pipeline']?.toString();
+    final stageCode = w.stage ?? '';
+    final label = w.stageLabel;
+    final pipeline = w.pipeline;
+    final customFields = w.customFields;
 
     return Deal(
-      id: json['id']?.toString() ?? '',
-      title: json['name'] as String? ?? '',
-      value: amount,
+      id: w.id ?? '',
+      title: w.name ?? '',
+      value: double.tryParse(w.amount ?? '') ?? 0.0,
       stage: stageCode,
       stageLabel: (label == null || label.isEmpty)
           ? legacyDealStageLabel(stageCode)
           : label,
-      stageKind:
-          json['stage_kind'] as String? ?? legacyDealStageKind(stageCode),
+      stageKind: w.stageKind ?? legacyDealStageKind(stageCode),
       pipelineId: (pipeline == null || pipeline.isEmpty) ? null : pipeline,
-      probability: probability,
-      closeDate: closeDate,
+      probability: w.probability ?? 0,
+      closeDate: DateTime.tryParse(w.closedOn ?? ''),
       leadId: null, // API doesn't have lead reference directly
-      companyName: companyName,
-      accountId: accountId,
-      products: products,
+      companyName: w.account?.name ?? 'No Account',
+      accountId: w.account?.id,
+      products: [
+        for (final item in w.lineItems ?? const <api.OpportunityLineItem>[])
+          if (item.id case final id? when id.isNotEmpty)
+            DealProduct(
+              id: id,
+              name: item.name ?? '',
+              quantity: decimal(item.quantity, 1),
+              unitPrice: decimal(item.unitPrice, 0),
+              discountType: item.discountType ?? '',
+              discountValue: decimal(item.discountValue, 0),
+            ),
+      ],
       assignedTo: assignedToName,
-      assignedToIds: assignedToIds,
-      assignedToRaw: assignedToRaw,
+      assignedToIds: [
+        for (final p in assigned)
+          if (p.id case final id? when id.isNotEmpty) id,
+      ],
+      assignedToRaw: [for (final p in assigned) p.json],
       priority: Priority.medium, // API doesn't have priority, default to medium
-      labels: parsedTags,
-      tagIds: parsedTagIds,
-      contactIds: contactIds,
-      notes: json['description'] as String?,
-      opportunityType: OpportunityType.fromString(
-        json['opportunity_type'] as String?,
-      ),
-      leadSource: switch (json['lead_source']?.toString()) {
+      labels: [
+        for (final t in tags)
+          if (t.name case final name? when name.isNotEmpty) name,
+      ],
+      tagIds: [
+        for (final t in tags)
+          if (t.id case final id? when id.isNotEmpty) id,
+      ],
+      contactIds: [
+        for (final c in contacts)
+          if (c.id case final id? when id.isNotEmpty) id,
+      ],
+      notes: w.description,
+      opportunityType: OpportunityType.fromString(w.opportunityType),
+      leadSource: switch (w.leadSource) {
         null || 'NONE' => '',
         final key => key,
       },
-      currency: Currency.fromString(json['currency'] as String?),
-      createdAt: json['created_at'] != null
-          ? DateTime.tryParse(json['created_at'] as String) ?? DateTime.now()
-          : DateTime.now(),
-      updatedAt: json['updated_at'] != null
-          ? DateTime.tryParse(json['updated_at'] as String) ?? DateTime.now()
-          : DateTime.now(),
-      stageChangedAt: json['stage_changed_at'] != null
-          ? DateTime.tryParse(json['stage_changed_at'] as String)
-          : null,
-      customFieldValues: json['custom_fields'] is Map
-          ? Map<String, dynamic>.from(json['custom_fields'] as Map)
+      currency: Currency.fromString(w.currency),
+      createdAt: DateTime.tryParse(w.createdAt ?? '') ?? DateTime.now(),
+      // Only a board card carries it.
+      updatedAt:
+          DateTime.tryParse(
+            api.OpportunityKanbanCard.fromJson(json).updatedAt ?? '',
+          ) ??
+          DateTime.now(),
+      stageChangedAt: DateTime.tryParse(w.stageChangedAt ?? ''),
+      customFieldValues: customFields is Map
+          ? Map<String, dynamic>.from(customFields)
           : const {},
-      contactsList: contactsList,
-      teamIds: teamIds,
-      teamNames: teamNames,
-      createdByName: createdByName,
-      createdByEmail: createdByEmail,
-      closedByName: closedByName,
-      closedByEmail: closedByEmail,
-      daysInStageServer: daysInStageServer,
-      agingStatus: json['aging_status'] as String?,
-      lineItemsTotal: lineItemsTotal,
-      nextActivity: DealNextActivity.fromJson(json['next_activity']),
+      contactsList: [for (final c in contacts) ContactLookup.fromJson(c.json)],
+      teamIds: [
+        for (final t in teams)
+          if (t.id case final id? when id.isNotEmpty) id,
+      ],
+      teamNames: [
+        for (final t in teams)
+          if (t.name case final name? when name.isNotEmpty) name,
+      ],
+      createdByName: (w.createdBy?.name ?? '').trim().isEmpty
+          ? null
+          : w.createdBy!.name!.trim(),
+      createdByEmail: w.createdBy?.email,
+      closedByName: closedByName.isEmpty ? null : closedByName,
+      closedByEmail: closedBy?.email,
+      daysInStageServer: w.daysInStage,
+      agingStatus: w.agingStatus,
+      lineItemsTotal: w.lineItemsTotal,
+      nextActivity: DealNextActivity.fromJson(w.nextActivity?.json),
+      // Presence, not the value: the list sends null for "nothing planned",
+      // and the detail sends no key at all.
       nextActivityKnown: json.containsKey('next_activity'),
     );
   }

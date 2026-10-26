@@ -11,7 +11,8 @@
  */
 import { error, type Cookies } from '@sveltejs/kit';
 import { apiErrorBody, apiStatus } from '#lib/api-errors.js';
-import { apiRequest } from '#lib/api-helpers.js';
+import { apiRequest, type FormBody } from '#lib/api-helpers.js';
+import type { components } from '#lib/enterprise-api-schema.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
 
 const ABSENT_FOR_MS = 5 * 60 * 1000;
@@ -23,31 +24,7 @@ const NOT_OFFERED = 'Billing is not available here.';
 
 type Event = { cookies: Cookies };
 
-/**
- * What the enterprise `billing_body` sends: `plan` and `can_manage` to every
- * member, the rest to admins only. `POST /billing/change/` adds `message`.
- */
-type BillingPlanBody = {
-  key: string;
-  name: string;
-  price_text: string;
-  features: string[];
-  current: boolean;
-  action: 'choose' | 'switch' | 'keep' | null;
-  confirm: string | null;
-};
-
-type BillingBody = {
-  plan: { key: string; name: string };
-  can_manage: boolean;
-  state?: { code: string; sentence: string };
-  notice?: { sentence: string } | null;
-  plans?: BillingPlanBody[];
-};
-
-type BillingChangeBody = BillingBody & { message: string };
-
-type BillingRedirectBody = { url: string };
+type Enterprise = components['schemas'];
 
 export type PlanOffer = {
   key: string;
@@ -77,7 +54,7 @@ export function isSessionId(id: unknown) {
 
 const text = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
 
-function toPlan(raw: BillingPlanBody): PlanOffer | null {
+function toPlan(raw: Enterprise['BillingOffer']): PlanOffer | null {
   if (!isPlanKey(raw?.key) || !text(raw?.name)) return null;
   return {
     key: raw.key,
@@ -90,7 +67,7 @@ function toPlan(raw: BillingPlanBody): PlanOffer | null {
   };
 }
 
-function toBilling(raw: BillingBody): Billing | null {
+function toBilling(raw: Enterprise['Billing']): Billing | null {
   const name = text(raw?.plan?.name);
   if (!name || typeof raw.plan.key !== 'string') return null;
   const sentence = text(raw.state?.sentence);
@@ -105,7 +82,7 @@ function toBilling(raw: BillingBody): Billing | null {
 }
 
 /** Each plan once, by key, since the page keys its cards on it. */
-function toPlans(rows: BillingPlanBody[]): PlanOffer[] {
+function toPlans(rows: Enterprise['BillingOffer'][]): PlanOffer[] {
   const byKey: Map<string, PlanOffer> = new Map();
   for (const plan of rows.map(toPlan)) {
     if (plan && !byKey.has(plan.key)) byKey.set(plan.key, plan);
@@ -133,7 +110,7 @@ export function resetBillingAbsentMemo() {
 export async function getBilling({ cookies }: Event): Promise<Billing | null> {
   if (absent()) return null;
   try {
-    const body: BillingBody = await apiRequest(
+    const body: Enterprise['Billing'] = await apiRequest(
       '/billing/',
       { quietErrors: true, expectedStatuses: [404] },
       { cookies }
@@ -152,7 +129,7 @@ export async function getBilling({ cookies }: Event): Promise<Billing | null> {
  */
 export async function readBilling({ cookies }: Event): Promise<Billing> {
   if (absent()) error(404, NOT_OFFERED);
-  let body: BillingBody;
+  let body: Enterprise['Billing'];
   try {
     body = await apiRequest('/billing/', { expectedStatuses: [404] }, { cookies });
   } catch (err) {
@@ -204,8 +181,11 @@ export function paymentPageUrl(raw: unknown): string | null {
   return url.href;
 }
 
+/** The API says whether `plan` is one it sells. */
+const planBody = (plan: string): FormBody<Enterprise['BillingPlanChoiceRequest']> => ({ plan });
+
 /** A plan that is not a key is refused here, as the API would refuse it. */
-function requirePlanKey(plan: unknown) {
+function requirePlanKey(plan: unknown): asserts plan is string {
   if (!isPlanKey(plan)) {
     throw Object.assign(new Error('That plan is not available.'), {
       status: 400,
@@ -220,9 +200,9 @@ function requirePlanKey(plan: unknown) {
  */
 export async function openCheckout({ cookies }: Event, plan: unknown): Promise<string | null> {
   requirePlanKey(plan);
-  const body: BillingRedirectBody = await apiRequest(
+  const body: Enterprise['BillingRedirect'] = await apiRequest(
     '/billing/checkout/',
-    { method: 'POST', body: { plan }, expectedStatuses: [400, 403, 404, 409] },
+    { method: 'POST', body: planBody(plan), expectedStatuses: [400, 403, 404, 409] },
     { cookies }
   );
   return paymentPageUrl(body?.url);
@@ -233,7 +213,7 @@ export async function openCheckout({ cookies }: Event, plan: unknown): Promise<s
  * the API's refusal as it came.
  */
 export async function openPortal({ cookies }: Event): Promise<string | null> {
-  const body: BillingRedirectBody = await apiRequest(
+  const body: Enterprise['BillingRedirect'] = await apiRequest(
     '/billing/portal/',
     { method: 'POST', expectedStatuses: [403, 404, 409] },
     { cookies }
@@ -248,9 +228,9 @@ export async function openPortal({ cookies }: Event): Promise<string | null> {
  */
 export async function changePlan({ cookies }: Event, plan: unknown): Promise<string> {
   requirePlanKey(plan);
-  const body: BillingChangeBody = await apiRequest(
+  const body: Enterprise['BillingChanged'] = await apiRequest(
     '/billing/change/',
-    { method: 'POST', body: { plan }, expectedStatuses: [400, 402, 403, 404, 409] },
+    { method: 'POST', body: planBody(plan), expectedStatuses: [400, 402, 403, 404, 409] },
     { cookies }
   );
   return text(body?.message);

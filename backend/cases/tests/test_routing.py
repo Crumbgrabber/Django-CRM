@@ -956,3 +956,11 @@ class TestRegexConditionValidation:
         assert resp.status_code == 400, resp.content
         rule.refresh_from_db()
         assert rule.conditions[0]["value"] == "^vip"
+
+
+@pytest.mark.django_db
+def test_reads_one_routing_rule(admin_client, org_a):
+    rule = _rule(org_a, "Urgent first")
+    res = admin_client.get(f"{RULES_URL}{rule.id}/")
+    assert res.status_code == 200
+    assert res.json()["id"] == str(rule.id)

@@ -12,13 +12,14 @@
    */
   import { resolve } from '$app/paths';
   import { TriangleAlert } from '@lucide/svelte';
+  import type { DuplicateMatch } from '#lib/server/v2/duplicates.js';
 
   let {
     module,
     values
   }: { module: 'leads' | 'contacts' | 'accounts'; values: Record<string, string> } = $props();
 
-  let hits: Array<{ id: string; name: string; matched_on: string }> = $state([]);
+  let hits = $state<DuplicateMatch[]>([]);
   let latest = 0;
 
   /**
@@ -53,7 +54,7 @@
           body: JSON.stringify(criteria)
         });
         if (!response.ok) return;
-        const body = await response.json();
+        const body = (await response.json()) as { duplicates?: DuplicateMatch[] };
         if (ticket === latest) hits = body.duplicates ?? [];
       } catch {
         // A hint, not a gate: a failed check leaves the form as it was.

@@ -12,7 +12,10 @@ import { listPacks, applyPack } from '#lib/server/packs.js';
 import { installApp } from '#lib/server/v2/apps.js';
 import { SIGNUP_SOURCE_COOKIE, readSignupSource } from '#lib/server/signup-source.js';
 import { listTimezones } from '#lib/server/v2/organization.js';
+import type { components } from '#lib/api-schema.js';
 import type { Actions, PageServerLoad } from './$types';
+
+type Schemas = components['schemas'];
 
 export const load: PageServerLoad = async ({ cookies }) => {
   // GET /api/packs/ needs IsAuthenticated only, no org context, but a
@@ -99,13 +102,13 @@ export const actions: Actions = {
       // Create organization and profile via Django API
       // Django's OrgProfileCreateView creates both org and profile
       const signupSource = readSignupSource(cookies);
-      const response = await axios.post(
+      const response = await axios.post<Schemas['OrgCreateResponse']>(
         `${apiUrl}/api/org/`,
         {
           name: orgName.trim(),
           ...(timezone ? { timezone } : {}),
           ...(signupSource ? { signup_source: signupSource } : {})
-        },
+        } satisfies Schemas['OrgCreateBodyRequest'],
         {
           headers: {
             Authorization: `Bearer ${jwtAccess}`,
@@ -114,8 +117,7 @@ export const actions: Actions = {
         }
       );
 
-      // Response should contain the created org
-      const newOrg = response.data.org || response.data;
+      const newOrg = response.data.org;
 
       // Spent: a second org this person creates did not come from that visit.
       cookies.delete(SIGNUP_SOURCE_COOKIE, { path: '/' });
@@ -169,9 +171,9 @@ export const actions: Actions = {
           // attempted. `refresh` is optional on this endpoint precisely for
           // callers like this one that only need the org-scoped access
           // token and must not touch the caller's session.
-          const switchResponse = await axios.post(
+          const switchResponse = await axios.post<Schemas['OrgSwitchResponse']>(
             `${apiUrl}/api/auth/switch-org/`,
-            { org_id: newOrg.id },
+            { org_id: newOrg.id } satisfies Schemas['OrgSwitchRequestRequest'],
             {
               headers: {
                 Authorization: `Bearer ${jwtAccess}`,

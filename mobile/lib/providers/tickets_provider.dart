@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../config/api_config.dart';
-import '../data/api_envelope.dart';
+import '../data/api/schema.g.dart' as api;
 import '../data/models/approval.dart';
 import '../data/models/attachment.dart';
 import '../data/models/ticket.dart';
@@ -142,26 +142,29 @@ class TicketsNotifier extends AsyncNotifier<TicketsListData> {
       throw Exception(response.message ?? 'Failed to load tickets');
     }
 
-    final data = response.data!;
-    final ticketsList = data['cases'] as List<dynamic>? ?? [];
-    final newTickets = ticketsList
-        .map((j) => Ticket.fromJson(j as Map<String, dynamic>))
-        .toList();
     // CaseListView returns `cases_count` (total matching) and `offset` (next
     // page offset, or null when this was the final page). The watching view
     // returns `count` and no offset. Treat its response as a single page.
-    final totalCount =
-        (data['cases_count'] as int?) ??
-        (data['count'] as int?) ??
-        newTickets.length;
-    final nextOffset = data['offset'] as int?;
-    final hasMore = filters.watchingOnly ? false : nextOffset != null;
+    final List<api.Case> rows;
+    final int? total;
+    int? nextOffset;
+    if (filters.watchingOnly) {
+      final data = api.CaseWatchingResponse.fromJson(response.data!);
+      rows = data.cases ?? const [];
+      total = data.count;
+    } else {
+      final data = api.CaseListResponse.fromJson(response.data!);
+      rows = data.cases ?? const [];
+      total = data.casesCount;
+      nextOffset = data.offset;
+    }
+    final newTickets = [for (final row in rows) Ticket.fromJson(row.json)];
 
     return TicketsListData(
       tickets: newTickets,
-      totalCount: totalCount,
-      hasMore: hasMore,
-      currentOffset: nextOffset ?? (offset + ticketsList.length),
+      totalCount: total ?? newTickets.length,
+      hasMore: !filters.watchingOnly && nextOffset != null,
+      currentOffset: nextOffset ?? (offset + rows.length),
     );
   }
 
@@ -213,8 +216,10 @@ class TicketsNotifier extends AsyncNotifier<TicketsListData> {
 
     // Followed once: a merge never targets a ticket that is itself merged,
     // and a second hop would mean something is wrong, not a longer chain.
-    final redirectTo = response.data!['redirect_to'];
-    if (redirectTo is String && redirectTo.isNotEmpty) {
+    final redirectTo = api.CaseMergedRedirectResponse.fromJson(
+      response.data!,
+    ).redirectTo;
+    if (redirectTo != null && redirectTo.isNotEmpty) {
       if (followMerge) {
         return _fetchTicketDetail(redirectTo, followMerge: false);
       }
@@ -222,33 +227,22 @@ class TicketsNotifier extends AsyncNotifier<TicketsListData> {
     }
 
     try {
-      final ticketData = response.data!['cases_obj'] as Map<String, dynamic>?;
+      final data = api.CaseDetailResponse.fromJson(response.data!);
+      final ticketData = data.casesObj;
       if (ticketData == null) {
         throw const TicketLoadFailure(TicketLoadFailure.fallback);
       }
-      var ticketObj = Ticket.fromJson(ticketData);
+      var ticketObj = Ticket.fromJson(ticketData.json);
 
       // Public + internal comments are sent in two separate arrays. We tag
       // each so the UI can render an "Internal" badge without an extra
       // round-trip; `Comment` itself doesn't carry that flag yet.
-      final List<_TaggedComment> tagged = [];
-      for (final c in (response.data!['comments'] as List<dynamic>? ?? [])) {
-        tagged.add(
-          _TaggedComment(
-            comment: Comment.fromJson(c as Map<String, dynamic>),
-            isInternal: false,
-          ),
-        );
-      }
-      for (final c
-          in (response.data!['internal_notes'] as List<dynamic>? ?? [])) {
-        tagged.add(
-          _TaggedComment(
-            comment: Comment.fromJson(c as Map<String, dynamic>),
-            isInternal: true,
-          ),
-        );
-      }
+      final List<_TaggedComment> tagged = [
+        for (final c in data.comments ?? const <api.Comment>[])
+          _TaggedComment(comment: Comment.fromJson(c.json), isInternal: false),
+        for (final c in data.internalNotes ?? const <api.Comment>[])
+          _TaggedComment(comment: Comment.fromJson(c.json), isInternal: true),
+      ];
       tagged.sort(
         (a, b) => b.comment.commentedOn.compareTo(a.comment.commentedOn),
       );
@@ -257,51 +251,37 @@ class TicketsNotifier extends AsyncNotifier<TicketsListData> {
           comments: tagged.map((t) => t.comment).toList(),
         );
       }
-
-      final activities = (response.data!['activities'] as List<dynamic>? ?? [])
-          .map((a) => a as Map<String, dynamic>)
-          .toList();
-
-      final emails = (response.data!['email_messages'] as List<dynamic>? ?? [])
-          .whereType<Map<String, dynamic>>()
-          .map(EmailMessage.fromJson)
-          .toList();
-
-      final mergedFrom =
-          (response.data!['merged_from_cases'] as List<dynamic>? ?? [])
-              .whereType<Map<String, dynamic>>()
-              .map(MergedFromSummary.fromJson)
-              .toList();
-
-      final linkedSolutions =
-          (response.data!['solutions'] as List<dynamic>? ?? [])
-              .whereType<Map<String, dynamic>>()
-              .map(Solution.fromJson)
-              .toList();
-
-      // `CaseDetailView` has returned these all along. Nothing on the phone
-      // read them, so a screenshot attached to a ticket was invisible here.
-      final attachments =
-          (response.data!['attachments'] as List<dynamic>? ?? [])
-              .whereType<Map<String, dynamic>>()
-              .map(Attachment.fromJson)
-              .toList();
+      final approvalRule = data.approvalRule;
 
       return TicketDetailResult(
         ticketObj: ticketObj,
-        activities: activities,
-        attachments: attachments,
-        emails: emails,
-        mergedFromCases: mergedFrom,
-        linkedSolutions: linkedSolutions,
-        commentPermission:
-            response.data!['comment_permission'] as bool? ?? false,
-        canMerge: response.data!['can_merge'] == true,
-        approvalRule: response.data!['approval_rule'] is Map<String, dynamic>
-            ? ApprovalRuleSummary.fromJson(
-                response.data!['approval_rule'] as Map<String, dynamic>,
-              )
-            : null,
+        activities: [
+          for (final a in data.activities ?? const <api.Activity>[]) a.json,
+        ],
+        // `CaseDetailView` has returned these all along. Nothing on the phone
+        // read them, so a screenshot attached to a ticket was invisible here.
+        attachments: [
+          for (final a in data.attachments ?? const <api.Attachments>[])
+            Attachment.fromJson(a.json),
+        ],
+        emails: [
+          for (final e in data.emailMessages ?? const <api.EmailMessage>[])
+            EmailMessage.fromJson(e.json),
+        ],
+        mergedFromCases: [
+          for (final m
+              in data.mergedFromCases ?? const <api.CaseMergedSource>[])
+            MergedFromSummary.fromJson(m.json),
+        ],
+        linkedSolutions: [
+          for (final s in data.solutions ?? const <api.Solution>[])
+            Solution.fromJson(s.json),
+        ],
+        commentPermission: data.commentPermission ?? false,
+        canMerge: data.canMerge ?? false,
+        approvalRule: approvalRule == null
+            ? null
+            : ApprovalRuleSummary.fromJson(approvalRule.json),
         internalCommentIds: tagged
             .where((t) => t.isInternal)
             .map((t) => t.comment.id)
@@ -391,10 +371,10 @@ class TicketsNotifier extends AsyncNotifier<TicketsListData> {
     try {
       final response = await _apiService.get(alsoOpenQueryUrl(accountId));
       if (!response.success || response.data == null) return const [];
-      return pickAlsoOpen(
-        listFromEnvelope(response.data!, ['cases']).map(Ticket.fromJson),
-        excludeTicketId: excludeTicketId,
-      );
+      final rows = api.CaseListResponse.fromJson(response.data!).cases;
+      return pickAlsoOpen([
+        for (final row in rows ?? const <api.Case>[]) Ticket.fromJson(row.json),
+      ], excludeTicketId: excludeTicketId);
     } catch (_) {
       return const [];
     }
@@ -404,15 +384,14 @@ class TicketsNotifier extends AsyncNotifier<TicketsListData> {
     try {
       final response = await _apiService.get(ApiConfig.ticketWatchers(id));
       if (!response.success || response.data == null) return null;
-      final data = response.data!;
-      final list = (data['watchers'] as List<dynamic>? ?? [])
-          .whereType<Map<String, dynamic>>()
-          .toList();
+      final data = api.CaseWatchersResponse.fromJson(response.data!);
+      final list = [
+        for (final w in data.watchers ?? const <api.CaseWatcherRow>[]) w.json,
+      ];
       return TicketWatchers(
         watchers: list,
         count: list.length,
-        isCurrentUserWatching:
-            data['is_current_user_watching'] as bool? ?? false,
+        isCurrentUserWatching: data.isCurrentUserWatching ?? false,
       );
     } catch (_) {
       return null;
@@ -497,10 +476,10 @@ class TicketsNotifier extends AsyncNotifier<TicketsListData> {
     try {
       final response = await _apiService.get(ApiConfig.ticketTree(id));
       if (!response.success || response.data == null) return null;
-      final root = response.data!['root'] as Map<String, dynamic>?;
-      final focusId = response.data!['focus_id']?.toString();
+      final data = api.CaseTreeResponse.fromJson(response.data!);
+      final root = data.root;
       if (root == null) return null;
-      return TicketTreeNode.fromJson(root, focusId: focusId);
+      return TicketTreeNode.fromJson(root.json, focusId: data.focusId);
     } catch (_) {
       return null;
     }
@@ -583,16 +562,14 @@ class TicketsNotifier extends AsyncNotifier<TicketsListData> {
         statusCode: response.statusCode,
       );
     }
-    final rows = response.data!['results'];
-    final tickets = rows is List
-        ? rows.whereType<Map<String, dynamic>>().map((row) {
-            final account = row['account_name'];
-            return Ticket.fromJson({
-              ...row,
-              'account': account == null ? null : {'name': account},
-            });
-          }).toList()
-        : <Ticket>[];
+    final rows = api.CaseMergeTargetsResponse.fromJson(response.data!).results;
+    final tickets = [
+      for (final row in rows ?? const <api.CaseMergeTarget>[])
+        Ticket.fromJson({
+          ...row.json,
+          'account': row.accountName == null ? null : {'name': row.accountName},
+        }),
+    ];
     return ApiResponse(
       success: true,
       data: tickets,
@@ -802,24 +779,26 @@ class TicketTreeNode {
 
   bool get isFocused => focusId != null && focusId == id;
 
+  /// Reads a `CaseTreeNodeResponse`.
   factory TicketTreeNode.fromJson(
     Map<String, dynamic> json, {
     String? focusId,
   }) {
-    final restricted = json['restricted'] == true;
+    final w = api.CaseTreeNodeResponse.fromJson(json);
+    final restricted = w.restricted ?? false;
     return TicketTreeNode(
-      id: json['id']?.toString() ?? '',
-      name: restricted ? restrictedName : json['name']?.toString() ?? '',
-      status: json['status'] as String?,
-      priority: json['priority'] as String?,
-      isProblem: json['is_problem'] as bool? ?? false,
-      isActive: json['is_active'] as bool? ?? true,
-      truncated: json['truncated'] as bool? ?? false,
+      id: w.id ?? '',
+      name: restricted ? restrictedName : w.name ?? '',
+      status: w.status,
+      priority: w.priority,
+      isProblem: w.isProblem ?? false,
+      isActive: w.isActive ?? true,
+      truncated: w.truncated ?? false,
       restricted: restricted,
-      children: ((json['children'] as List<dynamic>?) ?? const [])
-          .whereType<Map<String, dynamic>>()
-          .map((c) => TicketTreeNode.fromJson(c, focusId: focusId))
-          .toList(),
+      children: [
+        for (final c in w.children ?? const <api.CaseTreeNodeResponse>[])
+          TicketTreeNode.fromJson(c.json, focusId: focusId),
+      ],
       focusId: focusId,
     );
   }
@@ -901,16 +880,16 @@ class MergedFromSummary {
     this.canUnmerge = false,
   });
 
+  /// Reads a `CaseMergedSource`.
   factory MergedFromSummary.fromJson(Map<String, dynamic> json) {
-    final restricted = json['restricted'] == true;
+    final w = api.CaseMergedSource.fromJson(json);
+    final restricted = w.restricted ?? false;
     return MergedFromSummary(
-      id: json['id']?.toString() ?? '',
-      name: restricted ? restrictedName : json['name']?.toString() ?? '',
-      mergedAt: json['merged_at'] != null
-          ? DateTime.tryParse(json['merged_at'].toString())
-          : null,
+      id: w.id ?? '',
+      name: restricted ? restrictedName : w.name ?? '',
+      mergedAt: DateTime.tryParse(w.mergedAt ?? ''),
       restricted: restricted,
-      canUnmerge: json['can_unmerge'] == true,
+      canUnmerge: w.canUnmerge ?? false,
     );
   }
 }

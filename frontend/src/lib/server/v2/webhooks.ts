@@ -16,7 +16,7 @@
  * `buildBody` is an allow-list. The secret is minted by the server and the
  * serializer refuses a body that names one; `org` comes from the JWT.
  */
-import { apiRequest } from '#lib/api-helpers.js';
+import { apiRequest, type FormBody } from '#lib/api-helpers.js';
 import { apiStatus } from '#lib/api-errors.js';
 import type { Cookies } from '@sveltejs/kit';
 import type { components } from '#lib/api-schema.js';
@@ -27,10 +27,16 @@ type Schemas = components['schemas'];
 export const DELIVERY_PAGE = 20;
 
 /** The fields an admin edits. Nothing else is ever sent. */
-const EDITABLE = ['url', 'description', 'events', 'format', 'is_active'];
+const EDITABLE: (keyof Schemas['WebhookEndpointRequest'])[] = [
+  'url',
+  'description',
+  'events',
+  'format',
+  'is_active'
+];
 
 export function buildBody(values: Record<string, unknown>) {
-  const body: Record<string, unknown> = {};
+  const body: FormBody<Schemas['WebhookEndpointRequest']> = {};
   for (const key of EDITABLE) {
     if (values[key] !== undefined) body[key] = values[key];
   }

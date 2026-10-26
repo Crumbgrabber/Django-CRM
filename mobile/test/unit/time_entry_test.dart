@@ -49,12 +49,13 @@ void main() {
       expect(entry.sourcePath, '/projects/p1');
     });
 
-    test('an expanded project and task read as their ids', () {
+    test('a project and task arrive as bare ids, the name beside them', () {
       final entry = TimeEntry.fromJson(
         _json({
           'case': null,
-          'project': {'id': 'p1', 'name': 'Website rebuild'},
-          'task': {'id': 't1', 'title': 'Design'},
+          'project': 'p1',
+          'project_name': 'Website rebuild',
+          'task': 't1',
         }),
       );
       expect(entry.projectId, 'p1');

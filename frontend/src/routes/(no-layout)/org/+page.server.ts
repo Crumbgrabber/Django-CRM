@@ -14,7 +14,10 @@ import { redirect, fail } from '@sveltejs/kit';
 import axios from 'axios';
 import { describeError } from '#lib/server/log-safe.js';
 import { relayHeaders } from '#lib/server/relay.js';
+import type { components } from '#lib/api-schema.js';
 import type { Actions, PageServerLoad } from './$types';
+
+type Schemas = components['schemas'];
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -35,26 +38,17 @@ export const load: PageServerLoad = async ({ cookies, locals }) => {
 
     // Fetch current user with organization memberships
     // The /api/auth/me/ endpoint returns user data with organizations array
-    const response = await axios.get(`${apiUrl}/api/auth/me/`, {
+    const response = await axios.get<Schemas['UserDetail']>(`${apiUrl}/api/auth/me/`, {
       headers: {
         Authorization: `Bearer ${jwtAccess}`
       }
     });
 
-    // Extract organizations from the user data
-    // Django's MeView returns user with organizations array
-    let orgs = [];
-
-    if (response.data.organizations && Array.isArray(response.data.organizations)) {
-      orgs = response.data.organizations.map(
-        (org: { id: string; name: string; logo?: string | null; role?: string }) => ({
-          id: org.id,
-          name: org.name,
-          logo: org.logo || null,
-          role: org.role || 'USER'
-        })
-      );
-    }
+    const orgs = response.data.organizations.map((org) => ({
+      id: org.id,
+      name: org.name,
+      role: org.role
+    }));
 
     return { orgs };
   } catch (error) {
@@ -86,9 +80,11 @@ export const actions: Actions = {
 
     try {
       // Call switch-org endpoint to get new tokens with org context
-      const response = await axios.post(
+      const response = await axios.post<Schemas['OrgSwitchResponse']>(
         `${apiUrl}/api/auth/switch-org/`,
-        outgoingRefresh ? { org_id: orgId, refresh: outgoingRefresh } : { org_id: orgId },
+        (outgoingRefresh
+          ? { org_id: orgId, refresh: outgoingRefresh }
+          : { org_id: orgId }) satisfies Schemas['OrgSwitchRequestRequest'],
         {
           headers: {
             Authorization: `Bearer ${jwtAccess}`,

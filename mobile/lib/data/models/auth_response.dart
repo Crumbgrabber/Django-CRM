@@ -1,3 +1,5 @@
+import '../api/schema.g.dart' as api;
+
 /// User returned from authentication endpoints
 class AuthUser {
   final String id;
@@ -12,12 +14,16 @@ class AuthUser {
     this.profilePic,
   });
 
+  /// Reads a `User`, the profile's `user`. `GoogleOAuthUser` and
+  /// `UserDetail` are narrower shapes of it. A user without an id or email
+  /// throws.
   factory AuthUser.fromJson(Map<String, dynamic> json) {
+    final w = api.User.fromJson(json);
     return AuthUser(
-      id: json['id'] as String,
-      email: json['email'] as String,
-      name: json['name'] as String?,
-      profilePic: json['profile_pic'] as String?,
+      id: w.id!,
+      email: w.email!,
+      name: w.name,
+      profilePic: w.profilePic,
     );
   }
 
@@ -70,22 +76,29 @@ class Organization {
     this.defaultCountry,
   });
 
+  /// Reads an `AuthOrg`, as the sign-in answers list them and [toJson]
+  /// caches them. `OrgCreated`, `UserOrganization` and the profile's
+  /// `Organization` are narrower shapes of it. An org without an id or name
+  /// throws.
   factory Organization.fromJson(Map<String, dynamic> json) {
+    final w = api.AuthOrg.fromJson(json);
     return Organization(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      role: json['role'] as String?,
+      id: w.id!,
+      // `Org.name` is nullable; an unnamed org must not sink the profile load.
+      name: w.name ?? '',
+      role: w.role,
       // Only a literal `true` counts. The key is absent only from an org
       // cached by a build older than 1.11.0, which stored the role and no
       // fact; for that one case the role (also server-issued) stands in until
-      // the next sign-in or org switch replaces it (see [withMembership]). A superuser holding the USER
-      // role is not recognised from such a cache, which is the old behaviour.
+      // the next sign-in or org switch replaces it (see [withMembership]). A
+      // superuser holding the USER role is not recognised from such a cache,
+      // which is the old behaviour.
       isOrganizationAdmin: json.containsKey('is_organization_admin')
-          ? json['is_organization_admin'] == true
-          : json['role'] == 'ADMIN',
-      defaultCurrency: json['default_currency'] as String?,
-      currencySymbol: json['currency_symbol'] as String?,
-      defaultCountry: json['default_country'] as String?,
+          ? w.isOrganizationAdmin == true
+          : w.role == 'ADMIN',
+      defaultCurrency: w.defaultCurrency,
+      currencySymbol: w.currencySymbol,
+      defaultCountry: w.defaultCountry,
     );
   }
 
@@ -118,13 +131,12 @@ class Organization {
   /// stale in the cache. An absent or malformed value keeps what we had.
   Organization withMembership(Object? profile) {
     if (profile is! Map<String, dynamic>) return this;
-    final admin = profile['is_organization_admin'];
-    final freshRole = profile['role'];
+    final w = api.OrgSwitchProfile.fromJson(profile);
     return Organization(
       id: id,
       name: name,
-      role: freshRole is String ? freshRole : role,
-      isOrganizationAdmin: admin is bool ? admin : isOrganizationAdmin,
+      role: w.role ?? role,
+      isOrganizationAdmin: w.isOrganizationAdmin ?? isOrganizationAdmin,
       defaultCurrency: defaultCurrency,
       currencySymbol: currencySymbol,
       defaultCountry: defaultCountry,
@@ -147,11 +159,13 @@ class AuthResponse {
     required this.user,
   });
 
+  /// Reads a `GoogleOAuthResponse`, from `/api/auth/google/callback/`.
   factory AuthResponse.fromJson(Map<String, dynamic> json) {
+    final w = api.GoogleOAuthResponse.fromJson(json);
     return AuthResponse(
-      accessToken: json['access_token'] as String,
-      refreshToken: json['refresh_token'] as String,
-      user: AuthUser.fromJson(json['user'] as Map<String, dynamic>),
+      accessToken: w.accessToken!,
+      refreshToken: w.refreshToken!,
+      user: AuthUser.fromJson(w.user!.json),
     );
   }
 
@@ -175,19 +189,21 @@ class LoginResponse {
     this.currentOrg,
   });
 
+  /// Reads a `MagicLinkVerifyResponse`, whose `user` (a `UserDetail`) nests
+  /// the orgs.
   factory LoginResponse.fromJson(Map<String, dynamic> json) {
+    final w = api.MagicLinkVerifyResponse.fromJson(json);
+    final user = w.user!;
+    final current = w.currentOrg;
     return LoginResponse(
-      accessToken: json['access_token'] as String,
-      refreshToken: json['refresh_token'] as String,
-      user: AuthUser.fromJson(json['user'] as Map<String, dynamic>),
-      organizations:
-          (json['user']['organizations'] as List<dynamic>?)
-              ?.map((org) => Organization.fromJson(org as Map<String, dynamic>))
-              .toList() ??
-          [],
-      currentOrg: json['current_org'] != null
-          ? Organization.fromJson(json['current_org'] as Map<String, dynamic>)
-          : null,
+      accessToken: w.accessToken!,
+      refreshToken: w.refreshToken!,
+      user: AuthUser.fromJson(user.json),
+      organizations: [
+        for (final org in user.organizations ?? const <api.UserOrganization>[])
+          Organization.fromJson(org.json),
+      ],
+      currentOrg: current == null ? null : Organization.fromJson(current.json),
     );
   }
 

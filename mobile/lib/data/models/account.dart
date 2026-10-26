@@ -1,3 +1,4 @@
+import '../api/schema.g.dart' as api;
 import 'custom_field_definition.dart';
 
 /// An account: the company a contact works for and a deal is booked against.
@@ -123,54 +124,68 @@ class Account {
     return (site == null || site.isEmpty) ? null : site;
   }
 
+  /// Reads an `AccountWithRelated`: the detail's `account_obj`, or a list
+  /// row, which is the same `Account` without the related lists.
   factory Account.fromJson(
     Map<String, dynamic> json, {
     bool canDelete = false,
     List<CustomFieldDefinition> customFieldDefinitions = const [],
   }) {
+    final w = api.AccountWithRelated.fromJson(json);
+    final assigned = w.assignedTo ?? const <api.Profile>[];
+    final tags = w.tags ?? const <api.Tags>[];
+    final rollups = w.rollups;
+    final customFields = w.customFields;
     return Account(
-      id: json['id']?.toString() ?? '',
-      name: json['name'] as String? ?? '',
-      email: _str(json['email']),
-      phone: _str(json['phone']),
-      website: _str(json['website']),
-      industry: _str(json['industry']),
-      numberOfEmployees: _int(json['number_of_employees']),
-      annualRevenue: _str(json['annual_revenue']),
-      currency: _str(json['currency']),
-      addressLine: _str(json['address_line']),
-      city: _str(json['city']),
-      state: _str(json['state']),
-      postcode: _str(json['postcode']),
-      country: _str(json['country']),
-      countryDisplay: _str(json['country_display']),
-      description: _str(json['description']),
-      isActive: json['is_active'] as bool? ?? true,
-      assignedToIds: _ids(json['assigned_to']),
-      assignedToNames: _names(json['assigned_to']),
-      tagIds: _ids(json['tags']),
-      tagNames: _names(json['tags']),
-      contacts: AccountRelation.listFrom(json['contacts'], _contactLabel),
-      opportunities: AccountRelation.listFrom(
-        json['opportunities'],
-        (row) => row['name'] as String?,
-      ),
-      cases: AccountRelation.listFrom(
-        json['cases'],
-        (row) => row['name'] as String?,
-      ),
-      tasks: AccountRelation.listFrom(
-        json['tasks'],
-        (row) => row['title'] as String?,
-      ),
-      rollups: json['rollups'] is Map<String, dynamic>
-          ? AccountRollups.fromJson(json['rollups'] as Map<String, dynamic>)
-          : null,
-      customFields: json['custom_fields'] is Map<String, dynamic>
-          ? Map<String, dynamic>.from(json['custom_fields'] as Map)
+      id: w.id ?? '',
+      name: w.name ?? '',
+      email: _str(w.email),
+      phone: _str(w.phone),
+      website: _str(w.website),
+      industry: _str(w.industry),
+      numberOfEmployees: w.numberOfEmployees,
+      annualRevenue: _str(w.annualRevenue),
+      currency: _str(w.currency),
+      addressLine: _str(w.addressLine),
+      city: _str(w.city),
+      state: _str(w.state),
+      postcode: _str(w.postcode),
+      country: _str(w.country),
+      countryDisplay: _str(w.countryDisplay),
+      description: _str(w.description),
+      isActive: w.isActive ?? true,
+      assignedToIds: _ids([for (final p in assigned) p.id]),
+      assignedToNames: _names([
+        for (final p in assigned) p.userDetails?.name ?? p.userDetails?.email,
+      ]),
+      tagIds: _ids([for (final t in tags) t.id]),
+      tagNames: _names([for (final t in tags) t.name]),
+      contacts: [
+        for (final c in w.contacts ?? const <api.Contact>[])
+          AccountRelation(id: c.id ?? '', label: _label(_contactLabel(c))),
+      ],
+      opportunities: [
+        for (final d in w.opportunities ?? const <api.AccountDealRef>[])
+          AccountRelation(
+            id: d.id ?? '',
+            label: _label(d.name),
+            detail: _str(d.stageLabel) ?? _str(d.stage),
+          ),
+      ],
+      cases: [
+        for (final c in w.cases ?? const <api.AccountCaseRef>[])
+          AccountRelation(id: c.id ?? '', label: _label(c.name)),
+      ],
+      tasks: [
+        for (final t in w.tasks ?? const <api.AccountTaskRef>[])
+          AccountRelation(id: t.id ?? '', label: _label(t.title)),
+      ],
+      rollups: rollups == null ? null : AccountRollups.fromJson(rollups.json),
+      customFields: customFields is Map<String, dynamic>
+          ? Map<String, dynamic>.from(customFields)
           : const {},
       customFieldDefinitions: customFieldDefinitions,
-      createdAt: _date(json['created_at']),
+      createdAt: DateTime.tryParse(w.createdAt ?? ''),
       canDelete: canDelete,
     );
   }
@@ -272,25 +287,6 @@ class AccountRelation {
   /// Stage for a deal, as the org names it (`stage_label`, falling back to
   /// the code from a server that predates it); absent for everything else.
   final String? detail;
-
-  static List<AccountRelation> listFrom(
-    dynamic raw,
-    String? Function(Map<String, dynamic>) label,
-  ) {
-    if (raw is! List) return const [];
-    return raw
-        .whereType<Map<String, dynamic>>()
-        .map((row) {
-          return AccountRelation(
-            id: row['id']?.toString() ?? '',
-            label: label(row)?.trim().isNotEmpty == true
-                ? label(row)!.trim()
-                : 'Untitled',
-            detail: _str(row['stage_label']) ?? _str(row['stage']),
-          );
-        })
-        .toList(growable: false);
-  }
 }
 
 /// The account's totals, from `accounts.views.ROLLUP_FIELDS` and
@@ -329,22 +325,25 @@ class AccountRollups {
       openDealCount == null &&
       openTickets == null;
 
+  /// Reads an `AccountRollups`. Servers from the first rollups (2026-07-31)
+  /// to `by_currency` (2026-09-26) sent only the plain figures.
   factory AccountRollups.fromJson(Map<String, dynamic> json) {
-    final rows = json['by_currency'];
+    final w = api.AccountRollups.fromJson(json);
+    final rows = w.byCurrency;
     final hasPlain = json.containsKey('won_amount');
     return AccountRollups(
-      money: rows is List
+      money: rows != null
           ? [
-              for (final row in rows.whereType<Map<String, dynamic>>())
-                if (row['currency'] is String) RollupMoney.fromJson(row),
+              for (final row in rows)
+                if (row.currency != null) RollupMoney.fromJson(row.json),
             ]
           : [
               if (hasPlain) RollupMoney.fromJson({...json, 'currency': ''}),
             ],
-      wonCount: _int(json['won_count']),
-      openDealCount: _int(json['open_deal_count']),
-      openTickets: _int(json['open_tickets']),
-      firstWonOn: _date(json['first_won_on']),
+      wonCount: w.wonCount,
+      openDealCount: w.openDealCount,
+      openTickets: w.openTickets,
+      firstWonOn: DateTime.tryParse(w.firstWonOn ?? ''),
     );
   }
 }
@@ -370,23 +369,32 @@ class RollupMoney {
   /// Invoiced and past due.
   final double overdueAmount;
 
+  /// Reads an `AccountMoneyRow`, or an older server's plain figures given an
+  /// empty `currency`.
   factory RollupMoney.fromJson(Map<String, dynamic> json) {
+    final w = api.AccountMoneyRow.fromJson(json);
     return RollupMoney(
-      currency: json['currency'] as String,
-      wonAmount: _double(json['won_amount']) ?? 0,
-      openPipeline: _double(json['open_pipeline']) ?? 0,
-      overdueAmount: _double(json['overdue_amount']) ?? 0,
+      currency: w.currency ?? '',
+      wonAmount: double.tryParse(w.wonAmount ?? '') ?? 0,
+      openPipeline: double.tryParse(w.openPipeline ?? '') ?? 0,
+      overdueAmount: double.tryParse(w.overdueAmount ?? '') ?? 0,
     );
   }
 }
 
-String? _contactLabel(Map<String, dynamic> row) {
+/// A linked contact's name, else its email.
+String? _contactLabel(api.Contact contact) {
   final name = [
-    row['first_name'],
-    row['last_name'],
+    contact.firstName,
+    contact.lastName,
   ].whereType<String>().where((s) => s.trim().isNotEmpty).join(' ');
   if (name.isNotEmpty) return name;
-  return row['primary_email'] as String? ?? row['email'] as String?;
+  return contact.email;
+}
+
+String _label(String? raw) {
+  final s = raw?.trim() ?? '';
+  return s.isEmpty ? 'Untitled' : s;
 }
 
 String? _str(dynamic v) {
@@ -400,36 +408,12 @@ String? _orNull(String? v) {
   return (s == null || s.isEmpty) ? null : s;
 }
 
-int? _int(dynamic v) => v is int ? v : int.tryParse(v?.toString() ?? '');
+List<String> _ids(List<String?> ids) => [
+  for (final id in ids)
+    if (id != null && id.isNotEmpty) id,
+];
 
-double? _double(dynamic v) =>
-    v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '');
-
-DateTime? _date(dynamic v) =>
-    v == null ? null : DateTime.tryParse(v.toString());
-
-/// The API nests `assigned_to` and `tags` as objects, not bare ids.
-List<String> _ids(dynamic raw) {
-  if (raw is! List) return const [];
-  return raw
-      .map((e) => e is Map ? e['id']?.toString() : e?.toString())
-      .whereType<String>()
-      .where((s) => s.isNotEmpty)
-      .toList(growable: false);
-}
-
-List<String> _names(dynamic raw) {
-  if (raw is! List) return const [];
-  return raw
-      .map((e) {
-        if (e is! Map) return null;
-        final user = e['user_details'];
-        if (user is Map) {
-          return (user['name'] ?? user['email'])?.toString();
-        }
-        return (e['name'] ?? e['title'])?.toString();
-      })
-      .whereType<String>()
-      .where((s) => s.trim().isNotEmpty)
-      .toList(growable: false);
-}
+List<String> _names(List<String?> names) => [
+  for (final name in names)
+    if (name != null && name.trim().isNotEmpty) name,
+];

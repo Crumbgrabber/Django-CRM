@@ -18,7 +18,10 @@ import { fail, redirect } from '@sveltejs/kit';
 import * as env from '$app/env/private';
 import * as publicEnv from '$app/env/public';
 import { relayHeaders } from '#lib/server/relay.js';
+import type { components } from '#lib/api-schema.js';
 import type { Actions, PageServerLoad } from './$types';
+
+type Schemas = components['schemas'];
 
 const MISSING = 'Missing verification token.';
 
@@ -39,9 +42,9 @@ export const actions: Actions = {
     }
 
     try {
-      const response = await axios.post(
+      const response = await axios.post<Schemas['MagicLinkVerifyResponse']>(
         `${publicEnv.PUBLIC_DJANGO_API_URL}/api/auth/magic-link/verify/`,
-        { token },
+        { token } satisfies Schemas['MagicLinkVerifyRequest'],
         {
           // The sign-in audit row records who signed in; see `#lib/server/relay.js`.
           headers: {

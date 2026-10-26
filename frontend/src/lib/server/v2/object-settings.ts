@@ -3,6 +3,10 @@
  * allow-listed API body, never a spread of the form. They live here, not in
  * the route files, so vitest can load them.
  */
+import type { FormBody } from '#lib/api-helpers.js';
+import type { components } from '#lib/enterprise-api-schema.js';
+
+type Enterprise = components['schemas'];
 
 function text(form: FormData, name: string): string {
   return form.get(name)?.toString().trim() ?? '';
@@ -22,8 +26,8 @@ function slugify(label: string): string {
 export function readObjectForm(
   form: FormData,
   { creating }: { creating: boolean }
-): Record<string, unknown> {
-  const body: Record<string, unknown> = {
+): FormBody<Enterprise['ObjectCreateRequest']> {
+  const body: FormBody<Enterprise['ObjectCreateRequest']> = {
     label: text(form, 'label'),
     label_plural: text(form, 'label_plural'),
     description: text(form, 'description'),
@@ -59,10 +63,10 @@ function readOptions(form: FormData): { value: string; label: string }[] {
 export function readFieldForm(
   form: FormData,
   { creating }: { creating: boolean }
-): Record<string, unknown> {
+): FormBody<Enterprise['FieldCreateRequest']> {
   const fieldType = text(form, 'field_type');
   const isLink = fieldType === 'link';
-  const body: Record<string, unknown> = { label: text(form, 'label') };
+  const body: FormBody<Enterprise['FieldCreateRequest']> = { label: text(form, 'label') };
   if (creating) {
     body.key = text(form, 'key');
     body.field_type = fieldType;

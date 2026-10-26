@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/api_config.dart';
+import '../data/api/schema.g.dart' as api;
 import '../data/models/calendar_feed.dart';
 import '../services/api_service.dart';
 
@@ -33,13 +34,16 @@ class CalendarFeedNotifier extends AsyncNotifier<CalendarFeed> {
   /// as the web does; the fixed sentence covers a success with no URL.
   Future<({String? error, String? url})> issue() async {
     final response = await _api.post(ApiConfig.calendarFeed, const {});
-    final url = response.data?['url'];
-    if (!response.success || url is! String || url.isEmpty) {
+    final url = api.CalendarFeedIssuedResponse.fromJson(
+      response.data ?? const {},
+    ).url;
+    if (!response.success || url == null || url.isEmpty) {
       return (
         error: response.message ?? 'Could not create the calendar feed.',
         url: null,
       );
     }
+    // The answer carries the new state beside `url`.
     state = AsyncValue.data(CalendarFeed.fromJson(response.data!));
     return (error: null, url: url);
   }

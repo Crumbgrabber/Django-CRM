@@ -218,7 +218,7 @@ urlpatterns = [
     ),
     path(
         "<uid:pk>/solutions/<uid:solution_pk>/",
-        views.CaseSolutionLinkView.as_view(),
+        views.CaseSolutionUnlinkView.as_view(),
         name="case_solution_unlink",
     ),
     # Audit-log feed (must be before <uid:pk>/ pattern)

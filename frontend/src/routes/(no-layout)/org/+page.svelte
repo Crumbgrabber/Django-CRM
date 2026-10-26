@@ -11,7 +11,7 @@
   let orgs = $derived(data?.orgs ?? []);
 
   let loading = $state(false);
-  let selectedOrgId = $state(null);
+  let selectedOrgId = $state<string | null>(null);
 </script>
 
 <svelte:head>

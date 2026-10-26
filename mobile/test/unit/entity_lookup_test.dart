@@ -1,5 +1,5 @@
 import 'package:bottle_crm/config/api_config.dart';
-import 'package:bottle_crm/data/api_envelope.dart';
+import 'package:bottle_crm/data/api/schema.g.dart' as api;
 import 'package:bottle_crm/data/models/lookup_models.dart';
 import 'package:bottle_crm/providers/lookup_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -43,34 +43,26 @@ void main() {
         },
       };
 
-      expect(listFromEnvelope(body, const ['results']), isEmpty);
-      expect(
-        listFromEnvelope(body, const ['open_leads.open_leads']),
-        hasLength(1),
-      );
+      final page = api.LeadListResponse.fromJson(body);
+      expect(page.openLeads?.openLeads, hasLength(1));
+      expect(page.closeLeads?.closeLeads, hasLength(1));
     });
 
     test('deals and tickets sit at the top level under their own key', () {
       expect(
-        listFromEnvelope(
-          {
-            'opportunities': [
-              {'id': 'o1', 'name': 'Renewal'},
-            ],
-          },
-          const ['opportunities'],
-        ),
+        api.OpportunityListResponse.fromJson({
+          'opportunities': [
+            {'id': 'o1', 'name': 'Renewal'},
+          ],
+        }).opportunities,
         hasLength(1),
       );
       expect(
-        listFromEnvelope(
-          {
-            'cases': [
-              {'id': 'c1', 'name': 'Login fails'},
-            ],
-          },
-          const ['cases'],
-        ),
+        api.CaseListResponse.fromJson({
+          'cases': [
+            {'id': 'c1', 'name': 'Login fails'},
+          ],
+        }).cases,
         hasLength(1),
       );
     });

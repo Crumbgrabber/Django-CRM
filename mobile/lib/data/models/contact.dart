@@ -1,3 +1,4 @@
+import '../api/schema.g.dart' as api;
 import 'custom_field_definition.dart';
 
 /// A contact: a person at an account.
@@ -123,47 +124,57 @@ class Contact {
     return email;
   }
 
+  /// Reads a `Contact`, the list row and the detail's `contact_obj`.
   factory Contact.fromJson(
     Map<String, dynamic> json, {
     bool canDelete = false,
     List<CustomFieldDefinition> customFieldDefinitions = const [],
   }) {
-    final account = json['account_detail'];
+    final w = api.Contact.fromJson(json);
+    final account = w.accountDetail;
+    final customFields = w.customFields;
     return Contact(
-      id: json['id']?.toString() ?? '',
-      firstName: json['first_name'] as String? ?? '',
-      lastName: json['last_name'] as String? ?? '',
-      email: _str(json['email']) ?? _str(json['primary_email']),
-      phone: _str(json['phone']) ?? _str(json['mobile_number']),
-      phoneE164: json['phone_e164']?.toString() ?? '',
-      organization: _str(json['organization']),
-      title: _str(json['title']),
-      department: _str(json['department']),
-      doNotCall: json['do_not_call'] as bool? ?? false,
-      linkedinUrl: _str(json['linkedin_url']),
-      addressLine: _str(json['address_line']),
-      city: _str(json['city']),
-      state: _str(json['state']),
-      postcode: _str(json['postcode']),
-      country: _str(json['country']),
-      description: _str(json['description']),
-      isActive: json['is_active'] as bool? ?? true,
-      accountId: account is Map
-          ? account['id']?.toString()
-          : _str(json['account']),
-      accountName: account is Map ? _str(account['name']) : null,
-      linkedAccounts: ContactAccountLink.listFrom(json['linked_accounts']),
-      assignedToNames: _profileNames(json['assigned_to']),
-      tagNames: _tagNames(json['tags']),
-      createdAt: json['created_at'] == null
-          ? null
-          : DateTime.tryParse(json['created_at'].toString()),
+      id: w.id ?? '',
+      firstName: w.firstName ?? '',
+      lastName: w.lastName ?? '',
+      email: _str(w.email),
+      phone: _str(w.phone),
+      phoneE164: w.phoneE164 ?? '',
+      organization: _str(w.organization),
+      title: _str(w.title),
+      department: _str(w.department),
+      doNotCall: w.doNotCall ?? false,
+      linkedinUrl: _str(w.linkedinUrl),
+      addressLine: _str(w.addressLine),
+      city: _str(w.city),
+      state: _str(w.state),
+      postcode: _str(w.postcode),
+      country: _str(w.country),
+      description: _str(w.description),
+      isActive: w.isActive ?? true,
+      accountId: account != null ? account.id : _str(w.account),
+      accountName: account != null ? _str(account.name) : null,
+      linkedAccounts: ContactAccountLink.listFrom(
+        w.linkedAccounts?.map((a) => a.json).toList(),
+      ),
+      assignedToNames: [
+        for (final p in w.assignedTo ?? const <api.Profile>[])
+          if (p.userDetails?.name ?? p.userDetails?.email case final name?
+              when name.trim().isNotEmpty)
+            name,
+      ],
+      // `tags` is a list of ids here, not of tags.
+      tagNames: [
+        for (final tag in w.tags ?? const <String>[])
+          if (tag.trim().isNotEmpty) tag,
+      ],
+      createdAt: DateTime.tryParse(w.createdAt ?? ''),
       canDelete: canDelete,
-      source: json['source']?.toString() ?? '',
-      sourceDetail: json['source_detail']?.toString() ?? '',
-      sourceRef: json['source_ref']?.toString() ?? '',
-      customFields: json['custom_fields'] is Map
-          ? Map<String, dynamic>.from(json['custom_fields'] as Map)
+      source: w.source ?? '',
+      sourceDetail: w.sourceDetail ?? '',
+      sourceRef: w.sourceRef ?? '',
+      customFields: customFields is Map
+          ? Map<String, dynamic>.from(customFields)
           : const {},
       customFieldDefinitions: customFieldDefinitions,
     );
@@ -258,19 +269,21 @@ class ContactAccountLink {
   final String id;
   final String name;
 
+  /// Reads `linked_accounts`, a list of `ContactAccountRef`s.
   static List<ContactAccountLink> listFrom(dynamic raw) {
     if (raw is! List) return const [];
-    return raw
-        .whereType<Map<String, dynamic>>()
-        .map(
-          (row) => ContactAccountLink(
-            id: row['id']?.toString() ?? '',
-            name: (row['name'] as String?)?.trim().isNotEmpty == true
-                ? (row['name'] as String).trim()
-                : 'Unnamed account',
-          ),
-        )
-        .toList(growable: false);
+    ContactAccountLink link(api.ContactAccountRef ref) {
+      final name = ref.name?.trim() ?? '';
+      return ContactAccountLink(
+        id: ref.id ?? '',
+        name: name.isNotEmpty ? name : 'Unnamed account',
+      );
+    }
+
+    return [
+      for (final row in raw.whereType<Map<String, dynamic>>())
+        link(api.ContactAccountRef.fromJson(row)),
+    ];
   }
 }
 
@@ -283,29 +296,4 @@ String? _str(dynamic v) {
 String? _orNull(String? v) {
   final s = v?.trim();
   return (s == null || s.isEmpty) ? null : s;
-}
-
-/// `assigned_to` is a list of profiles, whose display name lives one level
-/// down in `user_details`.
-List<String> _profileNames(dynamic raw) {
-  if (raw is! List) return const [];
-  return raw
-      .map((e) {
-        if (e is! Map) return null;
-        final user = e['user_details'];
-        if (user is Map) return (user['name'] ?? user['email'])?.toString();
-        return null;
-      })
-      .whereType<String>()
-      .where((s) => s.trim().isNotEmpty)
-      .toList(growable: false);
-}
-
-List<String> _tagNames(dynamic raw) {
-  if (raw is! List) return const [];
-  return raw
-      .map((e) => e is Map ? e['name']?.toString() : e?.toString())
-      .whereType<String>()
-      .where((s) => s.trim().isNotEmpty)
-      .toList(growable: false);
 }

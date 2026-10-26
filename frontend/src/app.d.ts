@@ -1,5 +1,7 @@
 // See https://svelte.dev/docs/kit/types#app.d.ts
 // for information about these interfaces
+import type { ModuleRow } from '#lib/v2/modules.js';
+
 declare global {
   namespace App {
     interface Error {
@@ -24,7 +26,11 @@ declare global {
         is_organization_admin?: boolean;
       };
     }
-    // interface PageData {}
+    /** What the `(app)` layout gives every page, which shared components read from `page.data`. */
+    interface PageData {
+      counts?: Record<string, number>;
+      modules?: ModuleRow[] | null;
+    }
     // interface PageState {}
     // interface Platform {}
   }

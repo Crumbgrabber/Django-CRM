@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../core/theme/app_colors.dart';
+import '../api/schema.g.dart' as api;
 import 'comment.dart';
 
 /// Ticket status enumeration matching backend STATUS_CHOICE
@@ -223,140 +224,84 @@ class Ticket {
   /// Assigned-to display name (first assignee or "Unassigned").
   String get assignedToName {
     if (assignedTo.isEmpty) return 'Unassigned';
-    final first = assignedTo.first;
-    final email =
-        (first['user_details']?['email'] as String?) ??
-        (first['email'] as String?) ??
-        '';
-    if (email.isEmpty) return 'Unassigned';
+    final email = api.Profile.fromJson(assignedTo.first).userDetails?.email;
+    if (email == null || email.isEmpty) return 'Unassigned';
     return email.split('@').first;
   }
 
+  /// Reads a `Case`, the row the list, the watching list and the detail's
+  /// `cases_obj` share. Comments travel beside it in the detail answer, and
+  /// the provider adds them.
   factory Ticket.fromJson(Map<String, dynamic> json) {
-    String? accountId;
-    String? accountName;
-    final accountJson = json['account'];
-    if (accountJson is Map<String, dynamic>) {
-      accountId = accountJson['id']?.toString();
-      accountName = accountJson['name'] as String?;
-    } else if (accountJson != null) {
-      accountId = accountJson.toString();
-    }
-
-    List<Map<String, dynamic>> parsedAssignedTo = [];
-    List<String> parsedAssignedToIds = [];
-    if (json['assigned_to'] is List) {
-      for (final a in (json['assigned_to'] as List)) {
-        if (a is Map<String, dynamic>) {
-          parsedAssignedTo.add(a);
-          final id = a['id']?.toString() ?? '';
-          if (id.isNotEmpty) parsedAssignedToIds.add(id);
-        }
-      }
-    }
-
-    final List<String> parsedTags = [];
-    final List<String> parsedTagIds = [];
-    if (json['tags'] is List) {
-      for (final t in (json['tags'] as List)) {
-        if (t is Map<String, dynamic>) {
-          final n = t['name'] as String?;
-          if (n != null && n.isNotEmpty) parsedTags.add(n);
-          final tid = t['id']?.toString();
-          if (tid != null && tid.isNotEmpty) parsedTagIds.add(tid);
-        } else if (t is String) {
-          parsedTags.add(t);
-        }
-      }
-    }
-
-    final List<String> parsedContactIds = [];
-    final List<String> parsedContactNames = [];
-    if (json['contacts'] is List) {
-      for (final c in (json['contacts'] as List)) {
-        if (c is Map<String, dynamic>) {
-          final cid = c['id']?.toString();
-          if (cid != null && cid.isNotEmpty) parsedContactIds.add(cid);
-          final name = [c['first_name'], c['last_name']]
-              .whereType<String>()
-              .where((part) => part.trim().isNotEmpty)
-              .join(' ');
-          parsedContactNames.add(
-            name.trim().isNotEmpty
-                ? name.trim()
-                : (c['email'] as String? ?? 'Contact'),
-          );
-        }
-      }
-    }
-
-    final Map<String, dynamic> parsedCustomFields = {};
-    final cfRaw = json['custom_fields'];
-    if (cfRaw is Map) {
-      cfRaw.forEach((k, v) {
-        if (k is String) parsedCustomFields[k] = v;
-      });
-    }
-
+    final w = api.Case.fromJson(json);
+    final tags = w.tags ?? const <api.Tags>[];
+    final assigned = w.assignedTo ?? const <api.Profile>[];
+    final contacts = w.contacts ?? const <api.ContactLink>[];
+    final customFields = w.customFields;
+    final parent = w.parentSummary;
     return Ticket(
-      id: json['id']?.toString() ?? '',
-      name: json['name'] as String? ?? '',
-      status: TicketStatus.fromString(json['status'] as String?),
-      priority: TicketPriority.fromString(json['priority'] as String?),
-      ticketType: TicketType.fromString(json['case_type'] as String?),
-      description: json['description'] as String?,
-      accountId: accountId,
-      accountName: accountName,
-      assignedTo: parsedAssignedTo,
-      assignedToIds: parsedAssignedToIds,
-      tags: parsedTags,
-      tagIds: parsedTagIds,
-      contactIds: parsedContactIds,
-      contactNames: parsedContactNames,
-      customFields: parsedCustomFields,
-      createdAt: json['created_at'] != null
-          ? DateTime.tryParse(json['created_at'] as String) ?? DateTime.now()
-          : DateTime.now(),
-      closedOn: json['closed_on'] != null
-          ? DateTime.tryParse(json['closed_on'] as String)
-          : null,
-      slaFirstResponseHours: json['sla_first_response_hours'] as int?,
-      slaResolutionHours: json['sla_resolution_hours'] as int?,
-      firstResponseAt: json['first_response_at'] != null
-          ? DateTime.tryParse(json['first_response_at'] as String)
-          : null,
-      resolvedAt: json['resolved_at'] != null
-          ? DateTime.tryParse(json['resolved_at'] as String)
-          : null,
-      isFirstResponseSlaBreachedFromApi:
-          json['is_sla_first_response_breached'] as bool? ?? false,
-      isResolutionSlaBreachedFromApi:
-          json['is_sla_resolution_breached'] as bool? ?? false,
-      isFirstResponseSlaAtRisk:
-          json['is_sla_first_response_at_risk'] as bool? ?? false,
-      isResolutionSlaAtRisk:
-          json['is_sla_resolution_at_risk'] as bool? ?? false,
-      firstResponseSlaDeadline: json['first_response_sla_deadline'] != null
-          ? DateTime.tryParse(json['first_response_sla_deadline'] as String)
-          : null,
-      resolutionSlaDeadline: json['resolution_sla_deadline'] != null
-          ? DateTime.tryParse(json['resolution_sla_deadline'] as String)
-          : null,
-      slaPausedAt: json['sla_paused_at'] != null
-          ? DateTime.tryParse(json['sla_paused_at'] as String)
-          : null,
-      escalationCount: json['escalation_count'] as int? ?? 0,
-      lastEscalationFiredAt: json['last_escalation_fired_at'] != null
-          ? DateTime.tryParse(json['last_escalation_fired_at'] as String)
-          : null,
-      parentSummary: json['parent_summary'] is Map<String, dynamic>
-          ? TicketParentSummary.fromJson(
-              json['parent_summary'] as Map<String, dynamic>,
-            )
-          : null,
-      childCount: json['child_count'] as int? ?? 0,
-      isProblem: json['is_problem'] as bool? ?? false,
+      id: w.id ?? '',
+      name: w.name ?? '',
+      status: TicketStatus.fromString(w.status),
+      priority: TicketPriority.fromString(w.priority),
+      ticketType: TicketType.fromString(w.caseType),
+      description: w.description,
+      accountId: w.account?.id,
+      accountName: w.account?.name,
+      assignedTo: [for (final p in assigned) p.json],
+      assignedToIds: [
+        for (final p in assigned)
+          if (p.id case final id? when id.isNotEmpty) id,
+      ],
+      tags: [
+        for (final t in tags)
+          if (t.name case final name? when name.isNotEmpty) name,
+      ],
+      tagIds: [
+        for (final t in tags)
+          if (t.id case final id? when id.isNotEmpty) id,
+      ],
+      contactIds: [
+        for (final c in contacts)
+          if (c.id case final id? when id.isNotEmpty) id,
+      ],
+      contactNames: [for (final c in contacts) _contactName(c)],
+      customFields: {
+        if (customFields is Map)
+          for (final MapEntry(:key, :value) in customFields.entries)
+            if (key is String) key: value,
+      },
+      createdAt: DateTime.tryParse(w.createdAt ?? '') ?? DateTime.now(),
+      closedOn: DateTime.tryParse(w.closedOn ?? ''),
+      slaFirstResponseHours: w.slaFirstResponseHours,
+      slaResolutionHours: w.slaResolutionHours,
+      firstResponseAt: DateTime.tryParse(w.firstResponseAt ?? ''),
+      resolvedAt: DateTime.tryParse(w.resolvedAt ?? ''),
+      isFirstResponseSlaBreachedFromApi: w.isSlaFirstResponseBreached ?? false,
+      isResolutionSlaBreachedFromApi: w.isSlaResolutionBreached ?? false,
+      isFirstResponseSlaAtRisk: w.isSlaFirstResponseAtRisk ?? false,
+      isResolutionSlaAtRisk: w.isSlaResolutionAtRisk ?? false,
+      firstResponseSlaDeadline: DateTime.tryParse(
+        w.firstResponseSlaDeadline ?? '',
+      ),
+      resolutionSlaDeadline: DateTime.tryParse(w.resolutionSlaDeadline ?? ''),
+      slaPausedAt: DateTime.tryParse(w.slaPausedAt ?? ''),
+      escalationCount: w.escalationCount ?? 0,
+      lastEscalationFiredAt: DateTime.tryParse(w.lastEscalationFiredAt ?? ''),
+      parentSummary: parent == null
+          ? null
+          : TicketParentSummary.fromJson(parent.json),
+      childCount: w.childCount ?? 0,
+      isProblem: w.isProblem ?? false,
     );
+  }
+
+  static String _contactName(api.ContactLink c) {
+    final name = [
+      c.firstName,
+      c.lastName,
+    ].whereType<String>().where((part) => part.trim().isNotEmpty).join(' ');
+    return name.trim().isNotEmpty ? name.trim() : (c.email ?? 'Contact');
   }
 
   Map<String, dynamic> toJson() {
@@ -487,12 +432,14 @@ class TicketParentSummary {
     this.restricted = false,
   });
 
+  /// Reads a `CaseParentSummary`.
   factory TicketParentSummary.fromJson(Map<String, dynamic> json) {
-    final restricted = json['restricted'] == true;
+    final w = api.CaseParentSummary.fromJson(json);
+    final restricted = w.restricted ?? false;
     return TicketParentSummary(
-      id: json['id']?.toString() ?? '',
-      name: restricted ? restrictedName : json['name']?.toString() ?? '',
-      status: restricted ? null : json['status'] as String?,
+      id: w.id ?? '',
+      name: restricted ? restrictedName : w.name ?? '',
+      status: restricted ? null : w.status,
       restricted: restricted,
     );
   }
@@ -544,4 +491,7 @@ String cascadeCloseMessage({required bool cascade, required int cascaded}) {
 /// The ids the close endpoint reports as cascaded, counted defensively: a body
 /// without the key means nothing was cascaded, not an unknown number.
 int cascadedCount(Map<String, dynamic>? body) =>
-    (body?['cascaded_case_ids'] as List?)?.length ?? 0;
+    api.CaseCloseWithChildrenResponse.fromJson(
+      body ?? const {},
+    ).cascadedCaseIds?.length ??
+    0;

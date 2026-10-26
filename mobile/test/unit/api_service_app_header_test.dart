@@ -25,11 +25,12 @@ void main() {
 
   test('every verb sends the app version', () async {
     final api = ApiService();
-    await api.get(ApiConfig.leads);
-    await api.post(ApiConfig.leads, const {});
-    await api.put(ApiConfig.leads, const {});
-    await api.patch(ApiConfig.leads, const {});
-    await api.delete(ApiConfig.leads);
+    final lead = '${ApiConfig.leads}1/';
+    await api.get(lead);
+    await api.post(lead, const {});
+    await api.put(lead, const {});
+    await api.patch(lead, const {});
+    await api.delete(lead);
 
     expect(seen.keys, containsAll(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']));
     expect(seen.values.toSet(), {appVersion});
@@ -46,7 +47,7 @@ void main() {
 
   test('a multipart upload sends it', () async {
     await ApiService().postMultipart(
-      ApiConfig.leads,
+      '${ApiConfig.leads}1/',
       fileField: 'lead_attachment',
       fileBytes: const [1, 2, 3],
       fileName: 'a.txt',

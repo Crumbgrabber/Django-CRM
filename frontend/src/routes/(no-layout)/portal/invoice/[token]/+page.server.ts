@@ -38,7 +38,7 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
 
     // The v2 portal renders the Django shape directly (snake_case, template
     // nested), so pass it through rather than re-mapping to camelCase.
-    const invoice: Schemas['PublicInvoice'] = await response.json();
+    const invoice = (await response.json()) as Schemas['PublicInvoice'];
 
     return { invoice, token };
   } catch (err) {

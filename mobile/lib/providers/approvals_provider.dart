@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/api_config.dart';
+import '../data/api/schema.g.dart' as api;
 import '../data/models/approval.dart';
 import '../services/api_service.dart';
 
@@ -41,11 +42,11 @@ class ApprovalsNotifier extends Notifier<List<Approval>> {
       state = const [];
       return;
     }
-    final list = response.data!['approvals'] as List<dynamic>? ?? [];
-    state = list
-        .whereType<Map<String, dynamic>>()
-        .map(Approval.fromJson)
-        .toList();
+    final rows = api.ApprovalInboxResponse.fromJson(response.data!).approvals;
+    state = [
+      for (final row in rows ?? const <api.Approval>[])
+        Approval.fromJson(row.json),
+    ];
   }
 
   Future<ApiResponse<Map<String, dynamic>>> requestApproval(

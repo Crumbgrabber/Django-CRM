@@ -6,6 +6,8 @@
 /// picks another source.
 library;
 
+import '../api/schema.g.dart' as api;
+
 class LeadSource {
   const LeadSource({
     this.id = '',
@@ -25,13 +27,17 @@ class LeadSource {
   final bool isActive;
   final int order;
 
-  factory LeadSource.fromJson(Map<String, dynamic> json) => LeadSource(
-    id: json['id']?.toString() ?? '',
-    key: json['key']?.toString() ?? '',
-    label: json['label']?.toString() ?? '',
-    isActive: json['is_active'] as bool? ?? true,
-    order: (json['order'] as num?)?.toInt() ?? 0,
-  );
+  /// Reads a `LeadSource`.
+  factory LeadSource.fromJson(Map<String, dynamic> json) {
+    final w = api.LeadSource.fromJson(json);
+    return LeadSource(
+      id: w.id ?? '',
+      key: w.key ?? '',
+      label: w.label ?? '',
+      isActive: w.isActive ?? true,
+      order: w.order ?? 0,
+    );
+  }
 
   /// A stored key that is not in the list being offered.
   bool get isUnlisted => id.isEmpty && !isActive;

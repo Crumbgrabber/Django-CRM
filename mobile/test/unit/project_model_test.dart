@@ -92,7 +92,7 @@ TimeEntry _entry(
   'project': 'p1',
   'project_name': 'Website rebuild',
   'task': task,
-  'profile': profile,
+  'profile': {'id': profile},
   'started_at': '2026-10-01T09:00:00Z',
   'ended_at': running ? null : '2026-10-01T10:00:00Z',
   'duration_minutes': minutes,
@@ -170,17 +170,17 @@ void main() {
       expect(p.burn.headline, isNull);
     });
 
-    test('a list item, or an older payload, falls back without breaking', () {
+    test('a list item falls back without breaking', () {
       final p = Project.fromJson({
         'id': 'p1',
         'name': 'Bare',
-        'account': 'a1',
+        'account': {'id': 'a1', 'name': 'Northwind'},
         'status': 'archived',
         'billing_type': 'retainer',
       });
 
       expect(p.account!.id, 'a1');
-      expect(p.account!.name, '');
+      expect(p.account!.name, 'Northwind');
       // An unknown status keeps its own words; billing reads the default.
       expect(p.status, isNull);
       expect(p.statusLabel, 'archived');
@@ -196,7 +196,7 @@ void main() {
       final p = Project.fromJson({
         ..._detail(),
         'budget_hours': 12.5,
-        'burn': {'logged_hours': 3, 'hours_percent': 24.6},
+        'burn': {'logged_hours': 3, 'hours_percent': 25},
       });
 
       expect(p.budgetHoursValue, 12.5);
@@ -261,15 +261,13 @@ void main() {
       expect(d.budgetAmount, '10000.00');
     });
 
-    test('bare ids and a deal with no amount read as time and materials', () {
+    test('a deal with no amount reads as time and materials', () {
       final d = ProjectDraft.fromJson({
         'name': 'Support',
-        'account': 'a1',
-        'deal': 'd1',
+        'account': {'id': 'a1', 'name': 'Northwind'},
+        'deal': {'id': 'd1', 'name': 'Support'},
         'currency': null,
-        'assigned_to': [
-          {'id': 'pr1'},
-        ],
+        'assigned_to': ['pr1'],
         'billing_type': 'time_and_materials',
         'budget_amount': null,
       });

@@ -4,6 +4,8 @@
 /// phone only in the response to the request that created it.
 library;
 
+import '../api/schema.g.dart' as api;
+
 class CalendarFeed {
   const CalendarFeed({this.enabled = false, this.createdAt, this.lastUsedAt});
 
@@ -15,13 +17,15 @@ class CalendarFeed {
   /// When a calendar app last read the feed. Moved at most once an hour.
   final DateTime? lastUsedAt;
 
+  /// Reads a `CalendarFeedStateResponse`.
   factory CalendarFeed.fromJson(Map<String, dynamic> json) {
-    DateTime? when(Object? value) =>
-        value is String ? DateTime.tryParse(value)?.toLocal() : null;
+    final w = api.CalendarFeedStateResponse.fromJson(json);
+    DateTime? when(String? value) =>
+        value == null ? null : DateTime.tryParse(value)?.toLocal();
     return CalendarFeed(
-      enabled: json['enabled'] == true,
-      createdAt: when(json['created_at']),
-      lastUsedAt: when(json['last_used_at']),
+      enabled: w.enabled == true,
+      createdAt: when(w.createdAt),
+      lastUsedAt: when(w.lastUsedAt),
     );
   }
 }

@@ -14,7 +14,7 @@ import { getOrgPeopleAndTeams, resolveMe } from '#lib/server/v2/org-people.js';
 import { getTags } from '#lib/server/v2/tags.js';
 import { loadSavedViews, savedViewActions } from '#lib/server/v2/saved-views.js';
 import { getLeadSources } from '#lib/server/v2/lead-sources.js';
-import type { PageServerLoad } from './$types';
+import type { Actions, PageServerLoad } from './$types';
 
 /**
  * The list and the board are two different queries, not two renderings of one
@@ -142,4 +142,4 @@ export const actions = {
       return fail(status, { error: readableError(err, 'Could not move the deal.') });
     }
   }
-};
+} satisfies Actions;

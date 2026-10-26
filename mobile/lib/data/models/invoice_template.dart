@@ -1,3 +1,5 @@
+import '../api/schema.g.dart' as api;
+
 /// A PDF template, from `InvoiceTemplateListSerializer`.
 ///
 /// **This model deliberately has no `templateHtml` or `templateCss` field.**
@@ -53,21 +55,23 @@ class InvoiceTemplate {
   static const String defaultPrimaryColor = '#3B82F6';
   static const String defaultSecondaryColor = '#1E40AF';
 
+  /// Reads an `InvoiceTemplateList` row.
   factory InvoiceTemplate.fromJson(Map<String, dynamic> json) {
+    final w = api.InvoiceTemplateList.fromJson(json);
     return InvoiceTemplate(
-      id: json['id']?.toString() ?? '',
-      name: json['name'] as String? ?? '',
-      isDefault: json['is_default'] as bool? ?? false,
-      primaryColor: json['primary_color'] as String?,
-      secondaryColor: json['secondary_color'] as String?,
-      hasLogo: json['has_logo'] as bool? ?? false,
-      hasCustomHtml: json['has_custom_html'] as bool? ?? false,
-      hasCustomCss: json['has_custom_css'] as bool? ?? false,
-      defaultNotes: json['default_notes'] as String? ?? '',
-      defaultTerms: json['default_terms'] as String? ?? '',
-      footerText: json['footer_text'] as String? ?? '',
-      usedOnInvoices: json['used_on_invoices'] as int? ?? 0,
-      updatedBy: json['updated_by'] as String?,
+      id: w.id ?? '',
+      name: w.name ?? '',
+      isDefault: w.isDefault ?? false,
+      primaryColor: w.primaryColor,
+      secondaryColor: w.secondaryColor,
+      hasLogo: w.hasLogo ?? false,
+      hasCustomHtml: w.hasCustomHtml ?? false,
+      hasCustomCss: w.hasCustomCss ?? false,
+      defaultNotes: w.defaultNotes ?? '',
+      defaultTerms: w.defaultTerms ?? '',
+      footerText: w.footerText ?? '',
+      usedOnInvoices: w.usedOnInvoices ?? 0,
+      updatedBy: w.updatedBy,
     );
   }
 }

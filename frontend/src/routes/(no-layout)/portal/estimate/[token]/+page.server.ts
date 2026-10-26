@@ -39,7 +39,7 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
       throw error(response.status, 'Failed to load estimate');
     }
 
-    const estimate: Schemas['PublicEstimate'] = await response.json();
+    const estimate = (await response.json()) as Schemas['PublicEstimate'];
 
     return { estimate, token };
   } catch (err) {
@@ -80,7 +80,7 @@ export const actions: Actions = {
       });
 
       if (!response.ok) {
-        const data: { message?: string } = await response.json().catch(() => ({}));
+        const data = (await response.json().catch(() => ({}))) as { message?: string };
         return fail(response.status, {
           error: data.message || 'Failed to accept estimate',
           values: { name, email }
@@ -106,7 +106,7 @@ export const actions: Actions = {
       });
 
       if (!response.ok) {
-        const data: { message?: string } = await response.json();
+        const data = (await response.json()) as { message?: string };
         return fail(response.status, { error: data.message || 'Failed to decline estimate' });
       }
 

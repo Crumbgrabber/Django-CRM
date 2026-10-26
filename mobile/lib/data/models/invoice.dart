@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../services/org_date.dart';
+import '../api/schema.g.dart' as api;
 import 'custom_field_definition.dart';
 import 'deal.dart' show Currency;
 
@@ -195,50 +196,53 @@ class Invoice {
       status != InvoiceStatus.cancelled &&
       status != InvoiceStatus.paid;
 
+  /// Reads an `Invoice` (the detail's `invoice`) or an `InvoiceList` row, the
+  /// two shapes described above.
   factory Invoice.fromJson(
     Map<String, dynamic> json, {
     List<CustomFieldDefinition> customFieldDefinitions = const [],
   }) {
-    final account = json['account'];
-    final contact = json['contact'];
+    final w = api.Invoice.fromJson(json);
+    final row = api.InvoiceList.fromJson(json);
+    final account = w.account;
+    final contact = w.contact;
+    final customFields = w.customFields;
     return Invoice(
-      id: json['id']?.toString() ?? '',
-      invoiceNumber: json['invoice_number']?.toString() ?? '',
-      title: json['invoice_title'] as String? ?? '',
-      status: InvoiceStatus.fromString(json['status'] as String?),
-      rawStatus: json['status']?.toString() ?? '',
-      accountId: account is Map<String, dynamic>
-          ? account['id']?.toString()
-          : account?.toString(),
-      accountName: account is Map<String, dynamic>
-          ? account['name'] as String?
-          : json['account_name'] as String?,
-      contactName: contact is Map<String, dynamic>
-          ? _personName(contact)
-          : json['contact_name'] as String?,
-      clientName: json['client_name'] as String? ?? '',
-      clientEmail: json['client_email'] as String? ?? '',
-      issueDate: _date(json['issue_date']),
-      dueDate: _date(json['due_date']),
-      subtotal: _amount(json['subtotal']),
-      discountAmount: _amount(json['discount_amount']),
-      taxAmount: _amount(json['tax_amount']),
-      shippingAmount: _amount(json['shipping_amount']),
-      totalAmount: _amount(json['total_amount']),
-      amountPaid: _amount(json['amount_paid']),
-      amountDue: _amount(json['amount_due']),
-      currency: json['currency'] as String?,
-      isOverdue: json['is_overdue'] as bool? ?? false,
-      lineItemsCount: json['line_items_count'] as int? ?? 0,
-      lineItems: _rows(
-        json['line_items'],
-      ).map(InvoiceLineItem.fromJson).toList(),
-      payments: _rows(json['payments']).map(Payment.fromJson).toList(),
-      notes: json['notes'] as String?,
-      terms: json['terms'] as String?,
-      poNumber: json['po_number'] as String?,
-      customFields: json['custom_fields'] is Map
-          ? Map<String, dynamic>.from(json['custom_fields'] as Map)
+      id: w.id ?? '',
+      invoiceNumber: w.invoiceNumber ?? '',
+      title: w.invoiceTitle ?? '',
+      status: InvoiceStatus.fromString(w.status),
+      rawStatus: w.status ?? '',
+      accountId: account != null ? account.id : row.account,
+      accountName: account != null ? account.name : row.accountName,
+      contactName: contact != null ? _personName(contact) : row.contactName,
+      clientName: w.clientName ?? '',
+      clientEmail: w.clientEmail ?? '',
+      issueDate: _date(w.issueDate),
+      dueDate: _date(w.dueDate),
+      subtotal: _amount(w.subtotal),
+      discountAmount: _amount(w.discountAmount),
+      taxAmount: _amount(w.taxAmount),
+      shippingAmount: _amount(w.shippingAmount),
+      totalAmount: _amount(w.totalAmount),
+      amountPaid: _amount(w.amountPaid),
+      amountDue: _amount(w.amountDue),
+      currency: w.currency,
+      isOverdue: w.isOverdue ?? false,
+      lineItemsCount: row.lineItemsCount ?? 0,
+      lineItems: [
+        for (final l in w.lineItems ?? const <api.InvoiceLineItem>[])
+          InvoiceLineItem.fromJson(l.json),
+      ],
+      payments: [
+        for (final p in w.payments ?? const <api.Payment>[])
+          Payment.fromJson(p.json),
+      ],
+      notes: w.notes,
+      terms: w.terms,
+      poNumber: w.poNumber,
+      customFields: customFields is Map
+          ? Map<String, dynamic>.from(customFields)
           : const {},
       customFieldDefinitions: customFieldDefinitions,
     );
@@ -276,21 +280,21 @@ class InvoiceLineItem {
     return whole ? quantity.toStringAsFixed(0) : quantity.toString();
   }
 
+  /// Reads an `InvoiceLineItem`.
   factory InvoiceLineItem.fromJson(Map<String, dynamic> json) {
+    final w = api.InvoiceLineItem.fromJson(json);
     return InvoiceLineItem(
-      id: json['id']?.toString() ?? '',
+      id: w.id ?? '',
       // `name` is the line's own text and `product_name` is the catalogue
       // entry behind it. A free-text line has no product, so name comes first.
-      name: (json['name'] as String?)?.trim().isNotEmpty == true
-          ? json['name'] as String
-          : json['product_name'] as String? ?? '',
-      description: json['description'] as String?,
-      quantity: _amount(json['quantity']),
-      unitPrice: _amount(json['unit_price']),
-      discountAmount: _amount(json['discount_amount']),
+      name: w.name?.trim().isNotEmpty == true ? w.name! : w.productName ?? '',
+      description: w.description,
+      quantity: _amount(w.quantity),
+      unitPrice: _amount(w.unitPrice),
+      discountAmount: _amount(w.discountAmount),
       // A server before 1.10.0 sends no `net_amount`; its `total` was the
       // figure shown then.
-      amount: _amount(json['net_amount'] ?? json['total']),
+      amount: _amount(w.netAmount ?? w.total),
     );
   }
 }
@@ -315,14 +319,16 @@ class Payment {
 
   String get methodLabel => paymentMethods[method] ?? method;
 
+  /// Reads a `Payment`.
   factory Payment.fromJson(Map<String, dynamic> json) {
+    final w = api.Payment.fromJson(json);
     return Payment(
-      id: json['id']?.toString() ?? '',
-      amount: _amount(json['amount']),
-      paymentDate: _date(json['payment_date']),
-      method: json['payment_method']?.toString() ?? '',
-      referenceNumber: json['reference_number'] as String?,
-      notes: json['notes'] as String?,
+      id: w.id ?? '',
+      amount: _amount(w.amount),
+      paymentDate: _date(w.paymentDate),
+      method: w.paymentMethod ?? '',
+      referenceNumber: w.referenceNumber,
+      notes: w.notes,
     );
   }
 }
@@ -365,18 +371,19 @@ class InvoiceTotals {
   /// A count, not an amount: drafts to send plus anything overdue to chase.
   final int actionNeeded;
 
+  /// Reads the list page's `InvoiceTotals` block.
   factory InvoiceTotals.fromJson(Map<String, dynamic> json) {
-    final rows = json['by_currency'];
+    final w = api.InvoiceTotals.fromJson(json);
+    final rows = w.byCurrency;
     return InvoiceTotals(
-      count: json['count'] as int? ?? 0,
-      money: rows is List
+      count: w.count ?? 0,
+      money: rows != null
           ? {
-              for (final row in rows.whereType<Map<String, dynamic>>())
-                if (row['currency'] is String)
-                  row['currency'] as String: InvoiceMoneyTotals.fromJson(row),
+              for (final row in rows)
+                ?row.currency: InvoiceMoneyTotals.fromJson(row.json),
             }
           : {'': InvoiceMoneyTotals.fromJson(json)},
-      actionNeeded: json['action_needed'] as int? ?? 0,
+      actionNeeded: w.actionNeeded ?? 0,
     );
   }
 }
@@ -397,45 +404,39 @@ class InvoiceMoneyTotals {
   final double paidThisQuarter;
   final double draft;
 
+  /// Reads an `InvoiceTotalsCurrency` row. An older server's plain figures
+  /// carry the same five keys on the `InvoiceTotals` block itself.
   factory InvoiceMoneyTotals.fromJson(Map<String, dynamic> json) {
+    final w = api.InvoiceTotalsCurrency.fromJson(json);
     return InvoiceMoneyTotals(
-      outstanding: _amount(json['outstanding']),
-      overdue: _amount(json['overdue']),
-      dueThisMonth: _amount(json['due_this_month']),
-      paidThisQuarter: _amount(json['paid_this_quarter']),
-      draft: _amount(json['draft']),
+      outstanding: _amount(w.outstanding),
+      overdue: _amount(w.overdue),
+      dueThisMonth: _amount(w.dueThisMonth),
+      paidThisQuarter: _amount(w.paidThisQuarter),
+      draft: _amount(w.draft),
     );
   }
 }
 
-String? _personName(Map<String, dynamic> contact) {
+String? _personName(api.ContactPicker contact) {
   final parts = [
-    contact['first_name'],
-    contact['last_name'],
-  ].map((p) => p?.toString().trim() ?? '').where((p) => p.isNotEmpty);
+    contact.firstName,
+    contact.lastName,
+  ].map((p) => p?.trim() ?? '').where((p) => p.isNotEmpty);
   final name = parts.join(' ');
   return name.isEmpty ? null : name;
 }
 
-List<Map<String, dynamic>> _rows(dynamic value) {
-  if (value is! List) return const [];
-  return value.whereType<Map<String, dynamic>>().toList();
-}
-
-/// Amounts cross the wire as decimal strings ("1250.00"), so `as double` would
-/// throw on every one of them.
-double _amount(dynamic value) {
-  if (value is num) return value.toDouble();
-  return double.tryParse(value?.toString() ?? '') ?? 0;
-}
+/// Amounts cross the wire as decimal strings ("1250.00").
+double _amount(String? value) => double.tryParse(value ?? '') ?? 0;
 
 /// A YYYY-MM-DD date as a local calendar date.
 ///
 /// Parsed with an explicit midnight so the value is local rather than UTC.
 /// Reading a UTC midnight anywhere behind Greenwich lands on the day before,
 /// which would report an invoice due today as a day overdue.
-DateTime? _date(dynamic value) {
-  final text = value?.toString().trim() ?? '';
+DateTime? _date(String? value) {
+  final text = value?.trim() ?? '';
   if (text.isEmpty || text == 'null') return null;
   if (RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(text)) {
     return DateTime.tryParse('${text}T00:00:00');

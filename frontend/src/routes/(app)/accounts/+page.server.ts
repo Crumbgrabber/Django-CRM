@@ -3,7 +3,7 @@ import { accountListQuery } from '#lib/server/v2/list-queries.js';
 import { getOrgPeopleAndTeams, resolveMe } from '#lib/server/v2/org-people.js';
 import { getTags } from '#lib/server/v2/tags.js';
 import { loadSavedViews, savedViewActions } from '#lib/server/v2/saved-views.js';
-import type { PageServerLoad } from './$types';
+import type { Actions, PageServerLoad } from './$types';
 
 /**
  * Only filters the API actually applies are forwarded. A parameter that
@@ -42,4 +42,4 @@ export const load: PageServerLoad = async ({ cookies, url, locals }) => {
 };
 
 /** The saved-views menu's save, rename and delete. */
-export const actions = savedViewActions('accounts');
+export const actions = savedViewActions('accounts') satisfies Actions;

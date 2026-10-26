@@ -6,6 +6,8 @@
 /// from the caller's role so the phone never guesses who may write.
 library;
 
+import '../api/schema.g.dart' as api;
+
 class HelpCenterSettings {
   const HelpCenterSettings({
     this.enabled = false,
@@ -30,14 +32,16 @@ class HelpCenterSettings {
   /// Whether a stranger following [publicUrl] would find anything.
   bool get isLive => enabled && publicUrl != null;
 
+  /// Reads a `HelpCenterSettingsRead`, which the GET and the PATCH both answer.
   factory HelpCenterSettings.fromJson(Map<String, dynamic> json) {
-    final slug = json['help_center_slug'];
-    final url = json['public_url'];
+    final w = api.HelpCenterSettingsRead.fromJson(json);
+    final slug = w.helpCenterSlug ?? '';
+    final url = w.publicUrl ?? '';
     return HelpCenterSettings(
-      enabled: json['help_center_enabled'] == true,
-      slug: slug is String && slug.isNotEmpty ? slug : null,
-      publicUrl: url is String && url.isNotEmpty ? url : null,
-      canEdit: json['can_edit'] == true,
+      enabled: w.helpCenterEnabled ?? false,
+      slug: slug.isNotEmpty ? slug : null,
+      publicUrl: url.isNotEmpty ? url : null,
+      canEdit: w.canEdit ?? false,
     );
   }
 }

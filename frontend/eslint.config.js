@@ -38,6 +38,24 @@ export default [
     }
   },
   {
+    // Type-aware: an `any` a library hands back (`res.json()`, `JSON.parse`, an
+    // untyped axios reply) cannot flow on into app code unnoticed. TypeScript
+    // files only: the Svelte parser loses `{#if}` narrowing in templates and
+    // reports typed values as `any`; svelte-check covers components.
+    files: ['src/**/*.ts'],
+    ignores: ['**/*.test.ts'],
+    languageOptions: {
+      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname }
+    },
+    rules: {
+      '@typescript-eslint/no-unsafe-argument': 'error',
+      '@typescript-eslint/no-unsafe-assignment': 'error',
+      '@typescript-eslint/no-unsafe-call': 'error',
+      '@typescript-eslint/no-unsafe-member-access': 'error',
+      '@typescript-eslint/no-unsafe-return': 'error'
+    }
+  },
+  {
     // Test doubles stand in for whole modules and request events; app code stays `any`-free.
     files: ['**/*.test.ts'],
     rules: { '@typescript-eslint/no-explicit-any': 'off' }

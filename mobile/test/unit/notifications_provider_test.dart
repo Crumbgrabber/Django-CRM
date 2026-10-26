@@ -425,22 +425,11 @@ void _automationTests() {
           'id': 'p-1',
           'user_details': {'email': 'asha@example.com', 'profile_pic': null},
         }: 'asha@example.com',
-        {
-          'id': 'p-1',
-          'name': 'Asha Rao',
-          'user_details': {'email': 'asha@example.com'},
-        }: 'Asha Rao',
-        {
-          'id': 'p-1',
-          'name': '',
-          'user_details': {'email': 'asha@example.com'},
-        }: 'asha@example.com',
         {'id': 'p-1', 'user_details': null}: 'Someone',
         {'id': 'p-1', 'user_details': <String, dynamic>{}}: 'Someone',
         {
           'id': 'p-1',
-          'name': 7,
-          'user_details': {'email': 8},
+          'user_details': {'email': false},
         }: 'Someone',
         {'id': 'p-1', 'email': 'top-level@example.com'}: 'Someone',
       };

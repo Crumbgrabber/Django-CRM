@@ -37,7 +37,7 @@
  * a deal (`?opportunity=<id>`) it is prefilled from that deal by
  * `estimateFromDeal` below.
  */
-import { apiRequest } from '#lib/api-helpers.js';
+import { apiRequest, type FormBody } from '#lib/api-helpers.js';
 import { apiStatus } from '#lib/api-errors.js';
 import { sumByCurrency } from '#lib/v2/format.js';
 import type { Cookies } from '@sveltejs/kit';
@@ -181,11 +181,7 @@ export async function convertEstimate(
   { cookies }: { cookies: Cookies },
   id: string
 ): Promise<Schemas['InvoiceSaved']> {
-  return apiRequest(
-    `/invoices/estimates/${id}/convert/`,
-    { method: 'POST', body: {} },
-    { cookies }
-  );
+  return apiRequest(`/invoices/estimates/${id}/convert/`, { method: 'POST' }, { cookies });
 }
 
 /**
@@ -197,7 +193,7 @@ export async function sendEstimate(
   { cookies }: { cookies: Cookies },
   id: string
 ): Promise<Schemas['InvoicesMessage']> {
-  return apiRequest(`/invoices/estimates/${id}/send/`, { method: 'POST', body: {} }, { cookies });
+  return apiRequest(`/invoices/estimates/${id}/send/`, { method: 'POST' }, { cookies });
 }
 
 /**
@@ -209,7 +205,7 @@ export async function sendEstimate(
  */
 export async function createEstimate(
   { cookies }: { cookies: Cookies },
-  body: Record<string, unknown>
+  body: FormBody<Schemas['EstimateBodyRequest']>
 ) {
   const response: Schemas['EstimateSaved'] = await apiRequest(
     '/invoices/estimates/',

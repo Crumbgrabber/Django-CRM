@@ -7,7 +7,8 @@
  */
 
 import { error, type Cookies } from '@sveltejs/kit';
-import { apiRequest } from '#lib/api-helpers.js';
+import { apiRequest, type FormBody } from '#lib/api-helpers.js';
+import type { components } from '#lib/enterprise-api-schema.js';
 import { apiErrorBody, apiStatus } from '#lib/api-errors.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
 import { listLeads } from '#lib/server/v2/leads.js';
@@ -29,95 +30,17 @@ const RECORD_GONE = 'That record does not exist, or you do not have access to it
 
 type Event = { cookies: Cookies };
 
-/**
- * The enterprise custom objects API's bodies (`enterprise/custom_objects`),
- * which the community schema does not describe.
- */
-type ObjectSummary = {
-  key: string;
-  label: string;
-  label_plural: string;
-  name_label: string;
-  description: string;
-  record_access: 'own' | 'everyone';
-  is_active: boolean;
-};
-
-export type ObjectRef = { key: string; label: string; label_plural: string };
-
-export type FieldRef = { key: string; label: string };
-
-type FieldOption = { value: string; label: string };
-
-/**
- * A custom field or a link field; `options` is set for dropdowns only, and
- * `target` and `many` for links only.
- */
-export type ObjectField = {
-  key: string;
-  label: string;
-  field_type: 'text' | 'textarea' | 'number' | 'dropdown' | 'date' | 'checkbox' | 'link';
-  options: FieldOption[] | null;
-  is_required: boolean;
-  display_order: number;
-  is_active: boolean;
-  target: string | null;
-  many: boolean | null;
-};
-
-/** `limit` is absent from an older API (see `objectLimit`). */
-export type ObjectList = {
-  has_custom_objects: boolean;
-  objects: ObjectSummary[];
-  link_targets: ObjectRef[];
-  limit?: number;
-};
-
-type ObjectDetail = ObjectSummary & { fields: ObjectField[] };
-
-type RecordPerson = { id: string; name: string; email: string };
-
-type RecordItem = {
-  id: string;
-  name: string;
-  custom_fields: Record<string, unknown>;
-  assigned_to: RecordPerson[];
-  created_at: string;
-  updated_at: string;
-};
-
-type RecordList = { count: number; results: RecordItem[] };
-
-type RecordAttachment = {
-  id: string;
-  file_name: string;
-  is_image: boolean;
-  created_by: RecordPerson | null;
-  created_at: string;
-  download_url: string;
-  can_delete: boolean;
-};
-
-type RecordLinkValue = {
-  many: boolean;
-  records: { id: string; object: string; name: string }[];
-  hidden: number;
-};
-
-export type RecordDetail = RecordItem & {
-  object: { key: string; label: string; name_label: string };
-  links: Record<string, RecordLinkValue>;
-  created_by: RecordPerson | null;
-  can_edit: boolean;
-  can_delete: boolean;
-  attachments: RecordAttachment[];
-};
-
-export type RelatedRecords = {
-  groups: { object: ObjectRef; field: FieldRef; records: { id: string; name: string }[] }[];
-  can_edit: boolean;
-  link_fields: { object: ObjectRef; field: FieldRef }[];
-};
+type Enterprise = components['schemas'];
+type ObjectSummary = Enterprise['CustomObjectSummary'];
+export type ObjectRef = Enterprise['CustomObjectRef'];
+export type FieldRef = Enterprise['CustomFieldRef'];
+export type ObjectField = Enterprise['CustomObjectField'];
+export type ObjectList = Enterprise['CustomObjectList'];
+type ObjectDetail = Enterprise['CustomObjectDetail'];
+type RecordList = Enterprise['CustomRecordList'];
+type RecordAttachment = Enterprise['CustomRecordAttachment'];
+export type RecordDetail = Enterprise['CustomRecordDetail'];
+export type RelatedRecords = Enterprise['RelatedRecords'];
 
 export function checkKey(key: string): string {
   if (typeof key !== 'string' || !OBJECT_KEY.test(key)) error(404, OBJECT_GONE);
@@ -215,7 +138,7 @@ export async function listFields({ cookies }: Event, key: string): Promise<Objec
 
 export async function createObject(
   { cookies }: Event,
-  body: Record<string, unknown>
+  body: FormBody<Enterprise['ObjectCreateRequest']>
 ): Promise<ObjectSummary> {
   return await apiRequest('/objects/', { method: 'POST', body }, { cookies });
 }
@@ -223,7 +146,7 @@ export async function createObject(
 export async function updateObject(
   { cookies }: Event,
   key: string,
-  body: Record<string, unknown>
+  body: FormBody<Enterprise['PatchedObjectUpdateRequest']>
 ): Promise<ObjectSummary> {
   checkKey(key);
   return await orNotFound(
@@ -248,7 +171,7 @@ export async function deleteObject({ cookies }: Event, key: string): Promise<Obj
 export async function createField(
   { cookies }: Event,
   key: string,
-  body: Record<string, unknown>
+  body: FormBody<Enterprise['FieldCreateRequest']>
 ): Promise<ObjectField> {
   checkKey(key);
   return await orNotFound(
@@ -261,7 +184,7 @@ export async function updateField(
   { cookies }: Event,
   key: string,
   fieldKey: string,
-  body: Record<string, unknown>
+  body: FormBody<Enterprise['PatchedFieldUpdateRequest']>
 ): Promise<ObjectField> {
   checkKey(key);
   checkFieldKey(fieldKey);
@@ -339,7 +262,7 @@ export async function recordPage(event: Event, key: string, id: string) {
 export async function createRecord(
   { cookies }: Event,
   key: string,
-  body: Record<string, unknown>
+  body: Enterprise['RecordWriteRequest']
 ): Promise<RecordDetail> {
   checkKey(key);
   return await orNotFound(
@@ -353,7 +276,7 @@ export async function updateRecord(
   { cookies }: Event,
   key: string,
   id: string,
-  body: Record<string, unknown>
+  body: Enterprise['PatchedRecordWriteRequest']
 ): Promise<RecordDetail> {
   checkKey(key);
   checkId(id);

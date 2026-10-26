@@ -39,7 +39,7 @@
  * list did not wire the board.
  */
 import { error, type Cookies } from '@sveltejs/kit';
-import { apiRequest } from '#lib/api-helpers.js';
+import { apiRequest, type FormBody } from '#lib/api-helpers.js';
 import { apiStatus } from '#lib/api-errors.js';
 import { fieldsForDetail, fieldsForEdit } from '#lib/server/v2/record-custom-fields.js';
 import { rethrowModuleOff } from '#lib/server/v2/modules.js';
@@ -270,7 +270,7 @@ export async function sendInvoice(
   { cookies }: { cookies: Cookies },
   id: string
 ): Promise<Schemas['InvoicesMessage']> {
-  return apiRequest(`/invoices/${id}/send/`, { method: 'POST', body: {} }, { cookies });
+  return apiRequest(`/invoices/${id}/send/`, { method: 'POST' }, { cookies });
 }
 
 /**
@@ -283,7 +283,9 @@ export async function markInvoicePaid(
   id: string,
   payment: { amount?: string; payment_method?: string; reference_number?: string } = {}
 ): Promise<Schemas['InvoiceSaved']> {
-  const body: Record<string, unknown> = { payment_method: payment.payment_method || 'OTHER' };
+  const body: FormBody<Schemas['PatchedPaymentCreateRequest']> = {
+    payment_method: payment.payment_method || 'OTHER'
+  };
   if (payment.amount) body.amount = payment.amount;
   if (payment.reference_number) body.reference_number = payment.reference_number;
   return apiRequest(`/invoices/${id}/mark-paid/`, { method: 'POST', body }, { cookies });
@@ -294,7 +296,7 @@ export async function cancelInvoice(
   { cookies }: { cookies: Cookies },
   id: string
 ): Promise<Schemas['InvoiceSaved']> {
-  return apiRequest(`/invoices/${id}/cancel/`, { method: 'POST', body: {} }, { cookies });
+  return apiRequest(`/invoices/${id}/cancel/`, { method: 'POST' }, { cookies });
 }
 
 /** Copy to a fresh Draft; returns the new invoice so the caller can open it. */
@@ -302,7 +304,7 @@ export async function duplicateInvoice(
   { cookies }: { cookies: Cookies },
   id: string
 ): Promise<Schemas['InvoiceSaved']> {
-  return apiRequest(`/invoices/${id}/duplicate/`, { method: 'POST', body: {} }, { cookies });
+  return apiRequest(`/invoices/${id}/duplicate/`, { method: 'POST' }, { cookies });
 }
 
 /**
@@ -315,7 +317,7 @@ export async function duplicateInvoice(
  */
 export async function createInvoice(
   { cookies }: { cookies: Cookies },
-  body: Record<string, unknown>
+  body: FormBody<Schemas['InvoiceBodyRequest']>
 ) {
   const response: Schemas['InvoiceSaved'] = await apiRequest(
     '/invoices/',
@@ -334,7 +336,7 @@ export async function createInvoice(
 export async function invoiceFromDeal({ cookies }: { cookies: Cookies }, dealId: string) {
   const response: Schemas['InvoiceSaved'] = await apiRequest(
     `/invoices/from-opportunity/${dealId}/`,
-    { method: 'POST', body: {} },
+    { method: 'POST' },
     { cookies }
   );
   return response.invoice ?? response;
@@ -348,7 +350,7 @@ export async function invoiceFromDeal({ cookies }: { cookies: Cookies }, dealId:
  */
 export async function invoiceFromTimeEntries(
   { cookies }: { cookies: Cookies },
-  body: Record<string, unknown>
+  body: Schemas['InvoiceFromTimeEntriesRequestRequest']
 ): Promise<Schemas['InvoiceFromTimeEntries']> {
   return await apiRequest('/invoices/from-time-entries/', { method: 'POST', body }, { cookies });
 }

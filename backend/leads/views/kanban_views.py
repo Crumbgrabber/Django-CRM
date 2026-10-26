@@ -462,6 +462,14 @@ class LeadMoveView(APIView):
         return Lead.objects.filter(org=org, status=lead.status, stage__isnull=True)
 
 
+class LeadPipelineCreateSerializer(LeadPipelineSerializer):
+    # False skips the default stages `post` otherwise adds.
+    create_default_stages = serializers.BooleanField(required=False)
+
+    class Meta(LeadPipelineSerializer.Meta):
+        fields = [*LeadPipelineSerializer.Meta.fields, "create_default_stages"]
+
+
 class LeadPipelineListCreateView(APIView):
     """List and create lead pipelines."""
 
@@ -488,7 +496,7 @@ class LeadPipelineListCreateView(APIView):
 
     @extend_schema(
         tags=["Lead Pipelines"],
-        request=LeadPipelineSerializer,
+        request=LeadPipelineCreateSerializer,
         responses={201: LeadPipelineSerializer},
     )
     @transaction.atomic
@@ -593,7 +601,7 @@ class LeadPipelineDetailView(APIView):
 
     @extend_schema(
         tags=["Lead Pipelines"],
-        request=LeadPipelineSerializer,
+        request=LeadPipelineSerializer(partial=True),
         responses={200: LeadPipelineSerializer},
     )
     @transaction.atomic
@@ -704,7 +712,7 @@ class LeadStageDetailView(APIView):
 
     @extend_schema(
         tags=["Lead Stages"],
-        request=LeadStageSerializer,
+        request=LeadStageSerializer(partial=True),
         responses={200: LeadStageSerializer},
     )
     def put(self, request, pk):

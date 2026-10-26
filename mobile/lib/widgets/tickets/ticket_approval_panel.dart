@@ -4,6 +4,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../config/api_config.dart';
 import '../../core/theme/theme.dart';
+import '../../data/api/schema.g.dart' as api;
 import '../../data/models/approval.dart';
 import '../../providers/approvals_provider.dart';
 import '../../services/api_service.dart';
@@ -113,12 +114,11 @@ class _TicketApprovalPanelState extends ConsumerState<TicketApprovalPanel> {
         .replace(queryParameters: {'state': 'all', 'case': widget.ticketId})
         .toString();
     final response = await _api.get(url);
-    final approvals = (response.success && response.data != null)
-        ? ((response.data!['approvals'] as List<dynamic>? ?? [])
-              .whereType<Map<String, dynamic>>()
-              .map(Approval.fromJson)
-              .toList())
+    final rows = (response.success && response.data != null)
+        ? api.ApprovalInboxResponse.fromJson(response.data!).approvals ??
+              const <api.Approval>[]
         : null;
+    final approvals = rows?.map((row) => Approval.fromJson(row.json)).toList();
     if (!mounted) return;
     setState(() {
       _approvals = approvals;

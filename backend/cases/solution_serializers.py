@@ -157,6 +157,16 @@ class SolutionCreateUpdateSerializer(serializers.ModelSerializer):
         return attrs
 
 
+class SolutionWriteSerializer(SolutionCreateUpdateSerializer):
+    """The article write body, for the schema: the serializer's fields plus
+    the tags the views apply themselves."""
+
+    tags = serializers.ListField(child=serializers.UUIDField(), required=False)
+
+    class Meta(SolutionCreateUpdateSerializer.Meta):
+        fields = [*SolutionCreateUpdateSerializer.Meta.fields, "tags"]
+
+
 class SolutionLinkedCaseSerializer(serializers.Serializer):
     """One row of `SolutionDetailSerializer.linked_cases`, for the schema."""
 

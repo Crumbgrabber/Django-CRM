@@ -1,3 +1,4 @@
+import '../api/schema.g.dart' as api;
 import 'custom_field_definition.dart' show customFieldTargets;
 
 /// An industry app's state in this org.
@@ -32,10 +33,8 @@ enum AppAction {
       .firstWhere((a) => a.value == value, orElse: () => fallback);
 }
 
-String _str(Object? v) => v == null ? '' : v.toString();
-
-/// One row of `GET /api/apps/`. Manifests store `version` as a number or a
-/// string, so both versions are kept as text.
+/// One row of `GET /api/apps/`. Versions are integers on the wire and kept
+/// here as text.
 class OrgApp {
   const OrgApp({
     required this.id,
@@ -64,25 +63,23 @@ class OrgApp {
   final DateTime? installedAt;
   final String? installedByName;
 
+  /// Reads an `IndustryApp`, the row the list and every action answer carry.
   factory OrgApp.fromJson(Map<String, dynamic> json) {
-    final skipped = json['skipped_modules'];
-    final by = json['installed_by_details'];
-    final byName = by is Map ? _str(by['name']).trim() : '';
-    final installed = json['installed_version'];
+    final w = api.IndustryApp.fromJson(json);
+    final byName = w.installedByDetails?.name?.trim() ?? '';
     return OrgApp(
-      id: _str(json['id']),
-      name: _str(json['name']),
-      description: _str(json['description']),
-      version: _str(json['version']),
-      status: AppStatus.fromString(json['status']),
-      installedVersion: installed == null ? null : _str(installed),
-      updateAvailable: json['update_available'] == true,
+      id: w.id ?? '',
+      name: w.name ?? '',
+      description: w.description ?? '',
+      version: w.version?.toString() ?? '',
+      status: AppStatus.fromString(w.status),
+      installedVersion: w.installedVersion?.toString(),
+      updateAvailable: w.updateAvailable ?? false,
       skippedModules: [
-        if (skipped is List)
-          for (final key in skipped)
-            if (key is String && key.isNotEmpty) key,
+        for (final key in w.skippedModules ?? const <String>[])
+          if (key.isNotEmpty) key,
       ],
-      installedAt: DateTime.tryParse(_str(json['installed_at'])),
+      installedAt: DateTime.tryParse(w.installedAt ?? ''),
       installedByName: byName.isEmpty ? null : byName,
     );
   }
@@ -103,15 +100,14 @@ class OrgAppsAnswer {
   final String? orgId;
   final List<OrgApp> apps;
 
+  /// Reads an `AppListResponse`.
   factory OrgAppsAnswer.fromJson(Map<String, dynamic> json, {String? orgId}) {
-    final rows = json['apps'];
+    final w = api.AppListResponse.fromJson(json);
     return OrgAppsAnswer(
       orgId: orgId,
       apps: [
-        if (rows is List)
-          for (final r in rows)
-            if (r is Map && _str(r['id']).isNotEmpty)
-              OrgApp.fromJson(Map<String, dynamic>.from(r)),
+        for (final r in w.apps ?? const <api.IndustryApp>[])
+          if (r.id?.isNotEmpty ?? false) OrgApp.fromJson(r.json),
       ],
     );
   }
@@ -138,12 +134,14 @@ class AppPreviewItem {
   final String effect;
   final String? target;
 
+  /// Reads an `AppPreviewItem`.
   factory AppPreviewItem.fromJson(Map<String, dynamic> json) {
-    final target = _str(json['target']);
+    final w = api.AppPreviewItem.fromJson(json);
+    final target = w.target ?? '';
     return AppPreviewItem(
-      type: _str(json['type']),
-      label: _str(json['label']),
-      effect: _str(json['effect']),
+      type: w.type ?? '',
+      label: w.label ?? '',
+      effect: w.effect ?? '',
       target: target.isEmpty ? null : target,
     );
   }
@@ -189,21 +187,19 @@ class AppPreview {
   final bool sampleDefaultOn;
   final int sampleRecords;
 
+  /// Reads an `AppPreviewResponse`.
   factory AppPreview.fromJson(Map<String, dynamic> json, AppAction asked) {
-    final rows = json['items'];
-    final sample = json['sample_data'];
+    final w = api.AppPreviewResponse.fromJson(json);
+    final sample = w.sampleData;
     return AppPreview(
-      action: AppAction.fromString(json['action'], asked),
+      action: AppAction.fromString(w.action, asked),
       items: [
-        if (rows is List)
-          for (final r in rows)
-            if (r is Map) AppPreviewItem.fromJson(Map<String, dynamic>.from(r)),
+        for (final r in w.items ?? const <api.AppPreviewItem>[])
+          AppPreviewItem.fromJson(r.json),
       ],
-      sampleOffered: sample is Map && sample['offered'] == true,
-      sampleDefaultOn: sample is Map && sample['default_on'] == true,
-      sampleRecords: sample is Map && sample['records'] is num
-          ? (sample['records'] as num).toInt()
-          : 0,
+      sampleOffered: sample?.offered ?? false,
+      sampleDefaultOn: sample?.defaultOn ?? false,
+      sampleRecords: sample?.records ?? 0,
     );
   }
 

@@ -9,7 +9,7 @@
  * offered.
  */
 import { fail, type Action, type Cookies } from '@sveltejs/kit';
-import { apiRequest } from '#lib/api-helpers.js';
+import { apiRequest, type FormBody } from '#lib/api-helpers.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
 import { apiStatus } from '#lib/api-errors.js';
 import { UUID } from '#lib/v2/custom-objects.js';
@@ -24,7 +24,9 @@ import {
 import type { components } from '#lib/api-schema.js';
 
 /** The record kinds an interaction links to, by the API's own field names. */
-export const HOMES = ['lead', 'contact', 'account', 'opportunity', 'case'];
+type Home = 'lead' | 'contact' | 'account' | 'opportunity' | 'case';
+export const HOMES: Home[] = ['lead', 'contact', 'account', 'opportunity', 'case'];
+const isHome = (value: string): value is Home => (HOMES as string[]).includes(value);
 
 /** Origins a person's own log carries; the rest are written by the system. */
 const PERSON_ORIGINS = ['manual', 'phone_tap'];
@@ -71,7 +73,7 @@ export async function listInteractions(
   id: string,
   { limit = 50 }: { limit?: number } = {}
 ): Promise<{ state: 'ok' | 'absent' | 'failed'; interactions: Interaction[]; count: number }> {
-  if (!HOMES.includes(home) || typeof id !== 'string' || !UUID.test(id)) {
+  if (!isHome(home) || typeof id !== 'string' || !UUID.test(id)) {
     return { state: 'failed', interactions: [], count: 0 };
   }
   const query = new URLSearchParams({ [home]: id, limit: String(limit) });
@@ -147,18 +149,18 @@ export function interactionBody(
   values: Record<string, string | undefined>,
   { timeZone = 'UTC', now = new Date() }: { timeZone?: string; now?: Date } = {}
 ) {
-  if (!HOMES.includes(home) || typeof id !== 'string' || !UUID.test(id)) {
+  if (!isHome(home) || typeof id !== 'string' || !UUID.test(id)) {
     throw new Error('That record does not exist.');
   }
   const kind = String(values.kind ?? '');
   if (!LOGGABLE_KINDS.includes(kind)) throw new Error('Choose what you are logging.');
 
-  const body: Record<string, string | number | boolean> = {
+  const body: FormBody<Schemas['InteractionWriteRequest']> = {
     kind,
     direction: kind !== 'meeting' && values.direction === 'inbound' ? 'inbound' : 'outbound',
-    origin: 'manual',
-    [home]: id
+    origin: 'manual'
   };
+  body[home] = id;
 
   const outcome = String(values.outcome ?? '');
   if (kind === 'call' && outcome) {

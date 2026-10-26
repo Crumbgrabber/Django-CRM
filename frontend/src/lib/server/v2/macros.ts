@@ -44,7 +44,7 @@
  * already carries, so a deactivated assignee is shown rather than silently
  * dropped by a select with no matching option.
  */
-import { apiRequest } from '#lib/api-helpers.js';
+import { apiRequest, type FormBody } from '#lib/api-helpers.js';
 import { CASE_STATUSES } from '#lib/v2/enums.js';
 import { viewerIsAdmin } from './organization.js';
 import { myProfileId } from './leads.js';
@@ -210,7 +210,7 @@ export async function getMacros({ cookies }: { cookies: Cookies }) {
  *  for the same reason. */
 type MacroValues = { [key: string]: unknown; set_assignees?: unknown[]; add_tags?: unknown[] };
 
-const WRITABLE_FIELDS = [
+const WRITABLE_FIELDS: (keyof Schemas['MacroRequest'])[] = [
   'title',
   'body',
   'scope',
@@ -231,7 +231,7 @@ const WRITABLE_FIELDS = [
  * server re-validates everything here regardless of what this lets through.
  */
 function buildBody(values: MacroValues) {
-  const body: MacroValues = {};
+  const body: FormBody<Schemas['MacroRequest']> = {};
   for (const field of WRITABLE_FIELDS) {
     if (values[field] === undefined) continue;
     body[field] = values[field];
@@ -239,8 +239,9 @@ function buildBody(values: MacroValues) {
 
   body.title = String(body.title ?? '').trim();
   body.body = String(body.body ?? '').trim();
+  const listed = (value: unknown) => Array.isArray(value) && value.length > 0;
   const acts = Boolean(
-    body.set_status || body.set_priority || body.set_assignees?.length || body.add_tags?.length
+    body.set_status || body.set_priority || listed(body.set_assignees) || listed(body.add_tags)
   );
   if (!body.title) throw new Error('A macro needs a title.');
   if (!body.body && !acts) throw new Error('A macro needs a body, an action, or both.');
@@ -363,7 +364,7 @@ export async function applyMacro(
   caseId: string,
   only: string[] | undefined
 ): Promise<{ applied: string[]; skipped: { action: string; reason: string }[] }> {
-  const body: Record<string, unknown> = { case_id: caseId };
+  const body: Schemas['MacroApplyRequestRequest'] = { case_id: caseId };
   if (only) body.only = only;
   return await apiRequest(`/macros/${macroId}/apply/`, { method: 'POST', body }, { cookies });
 }

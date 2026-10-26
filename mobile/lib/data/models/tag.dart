@@ -1,3 +1,5 @@
+import '../api/schema.g.dart' as api;
+
 /// A tag, from `TagsSerializer`, carrying the usage block the settings list
 /// attaches to every row.
 ///
@@ -57,21 +59,15 @@ class Tag {
   }
 
   factory Tag.fromJson(Map<String, dynamic> json) {
-    final rawUsage = json['usage'];
+    final row = api.TagsListRow.fromJson(json);
     return Tag(
-      id: json['id']?.toString() ?? '',
-      name: json['name'] as String? ?? '',
-      slug: json['slug'] as String? ?? '',
-      color: json['color'] as String? ?? 'gray',
-      description: json['description'] as String? ?? '',
-      isActive: json['is_active'] as bool? ?? true,
-      usage: rawUsage is Map
-          ? {
-              for (final entry in rawUsage.entries)
-                if (entry.value is int)
-                  entry.key.toString(): entry.value as int,
-            }
-          : const {},
+      id: row.id ?? '',
+      name: row.name ?? '',
+      slug: row.slug ?? '',
+      color: row.color ?? 'gray',
+      description: row.description ?? '',
+      isActive: row.isActive ?? true,
+      usage: row.usage ?? const {},
     );
   }
 }

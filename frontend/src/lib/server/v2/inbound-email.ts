@@ -27,7 +27,7 @@
  * returns `default_assignee` as a full profile object (name under
  * `user_details.name`); the page wants `{ id, name }`.
  */
-import { apiRequest } from '#lib/api-helpers.js';
+import { apiRequest, type FormBody } from '#lib/api-helpers.js';
 import { viewerIsAdmin } from './organization.js';
 import type { Cookies } from '@sveltejs/kit';
 import type { components } from '#lib/api-schema.js';
@@ -121,7 +121,7 @@ export async function getMailboxes({ cookies }: { cookies: Cookies }) {
  *  form only hands one over when the admin changed it (`topicArnEdit`), so
  *  saving an edit opened before the webhook pinned the mailbox leaves the new
  *  pin alone rather than blanking it. */
-const UPDATE_FIELDS = [
+const UPDATE_FIELDS: (keyof Schemas['InboundMailboxRequest'])[] = [
   'address',
   'provider',
   'default_priority',
@@ -143,10 +143,10 @@ const UPDATE_FIELDS = [
  *
  *  `generate_address` asks the server to mint the address, so it is a create
  *  field only. */
-const CREATE_FIELDS = [...UPDATE_FIELDS, 'generate_address'];
+const CREATE_FIELDS: typeof UPDATE_FIELDS = [...UPDATE_FIELDS, 'generate_address'];
 
-function buildBody(allowed: string[], values: { [key: string]: unknown }) {
-  const body: { [key: string]: unknown } = {};
+function buildBody(allowed: typeof UPDATE_FIELDS, values: { [key: string]: unknown }) {
+  const body: FormBody<Schemas['InboundMailboxRequest']> = {};
   for (const field of allowed) {
     if (values[field] === undefined) continue;
     body[field] = values[field];
@@ -154,7 +154,7 @@ function buildBody(allowed: string[], values: { [key: string]: unknown }) {
   // Two nullable fields whose "none selected" option is an empty `<option>`
   // value. `''` fails the ChoiceField and the PK lookup alike; `null` is what
   // clears them, and both are `allow_null=True` on the serializer.
-  for (const nullable of ['default_case_type', 'default_assignee_id']) {
+  for (const nullable of ['default_case_type', 'default_assignee_id'] as const) {
     if (body[nullable] === '') body[nullable] = null;
   }
   if (body.is_active !== undefined) body.is_active = Boolean(body.is_active);
@@ -168,7 +168,7 @@ function buildBody(allowed: string[], values: { [key: string]: unknown }) {
     else delete body.webhook_secret;
   }
   if (body.creates !== undefined) body.creates = body.creates === 'leads' ? 'leads' : 'tickets';
-  for (const key of ['lead_source', 'lead_source_detail']) {
+  for (const key of ['lead_source', 'lead_source_detail'] as const) {
     if (body[key] !== undefined) body[key] = String(body[key] ?? '').trim();
   }
   if (body.generate_address !== undefined) {

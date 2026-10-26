@@ -513,6 +513,16 @@ class TestUnknownPlaceholders:
         assert resp.status_code == 200
         assert resp.json()["unknown_placeholders"] == ["%typo%"]
 
+    def test_put_replaces_the_macro(self, admin_client, org_macro):
+        resp = admin_client.put(
+            _detail_url(org_macro.id),
+            {"title": "Farewell", "body": "Bye %customer_name%.", "scope": "org"},
+            format="json",
+        )
+        assert resp.status_code == 200
+        org_macro.refresh_from_db()
+        assert (org_macro.title, org_macro.body) == ("Farewell", "Bye %customer_name%.")
+
     def test_creation_is_not_blocked_by_unknown_placeholder(self, admin_client):
         # Soft warning, not a save-blocker. Matches `render_macro`'s
         # leave-literal stance for unknown tokens.

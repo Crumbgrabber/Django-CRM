@@ -83,16 +83,32 @@ void main() {
     if (parent != null) 'parent': parent['id'],
     'parent_summary': ?parent,
     'tags': [
-      'AnExtraordinarilyLongTagNameWithNoSpacesThatCannotWrapAnywhere',
-      'hardware-procurement-escalation',
-      'third',
-      'fourth',
+      {
+        'id': 'tag1',
+        'name':
+            'AnExtraordinarilyLongTagNameWithNoSpacesThatCannotWrapAnywhere',
+      },
+      {'id': 'tag2', 'name': 'hardware-procurement-escalation'},
+      {'id': 'tag3', 'name': 'third'},
+      {'id': 'tag4', 'name': 'fourth'},
     ],
     'assigned_to': [
-      {'id': 'u1', 'email': 'maximilian.featherstonehaugh@example.com'},
-      {'id': 'u2', 'email': 'b@example.com'},
-      {'id': 'u3', 'email': 'c@example.com'},
-      {'id': 'u4', 'email': 'd@example.com'},
+      {
+        'id': 'u1',
+        'user_details': {'email': 'maximilian.featherstonehaugh@example.com'},
+      },
+      {
+        'id': 'u2',
+        'user_details': {'email': 'b@example.com'},
+      },
+      {
+        'id': 'u3',
+        'user_details': {'email': 'c@example.com'},
+      },
+      {
+        'id': 'u4',
+        'user_details': {'email': 'd@example.com'},
+      },
     ],
     if (breached) 'is_sla_resolution_breached': true,
     if (!breached) 'is_sla_resolution_at_risk': true,

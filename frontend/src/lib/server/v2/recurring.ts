@@ -30,7 +30,7 @@
  * on a different frequency. `limit=1000`; past that the derived figures would
  * undercount, and that ceiling is called out where it is set.
  */
-import { apiRequest } from '#lib/api-helpers.js';
+import { apiRequest, type FormBody } from '#lib/api-helpers.js';
 import type { Cookies } from '@sveltejs/kit';
 import type { components } from '#lib/api-schema.js';
 
@@ -194,7 +194,7 @@ export async function toggleRecurring(
   { cookies }: { cookies: Cookies },
   id: string
 ): Promise<Schemas['RecurringInvoiceToggled']> {
-  return apiRequest(`/invoices/recurring/${id}/toggle/`, { method: 'POST', body: {} }, { cookies });
+  return apiRequest(`/invoices/recurring/${id}/toggle/`, { method: 'POST' }, { cookies });
 }
 
 /**
@@ -203,7 +203,7 @@ export async function toggleRecurring(
  * or a hand-set `total_amount` out of the body. Totals are recalculated
  * server-side on every create and update, and `org` comes from the JWT.
  */
-export const CREATE_FIELDS = [
+export const CREATE_FIELDS: (keyof Schemas['RecurringInvoiceBodyRequest'])[] = [
   'account_id',
   'contact_id',
   'opportunity_id',
@@ -244,10 +244,10 @@ export const CREATE_FIELDS = [
  * so nobody reads this function as a deeper guarantee than it gives.
  */
 export function buildBody(
-  allowed: string[],
+  allowed: typeof CREATE_FIELDS,
   values: Record<string, unknown>
-): Record<string, unknown> {
-  const body: Record<string, unknown> = {};
+): FormBody<Schemas['RecurringInvoiceBodyRequest']> {
+  const body: FormBody<Schemas['RecurringInvoiceBodyRequest']> = {};
   for (const key of allowed) {
     const value = values[key];
     if (value === undefined) continue;

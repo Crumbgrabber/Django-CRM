@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/api_config.dart';
+import '../data/api/schema.g.dart' as api;
 import '../services/api_service.dart';
 
 /// Filter bundle for the analytics dashboard. All fields optional; backend
@@ -82,10 +83,11 @@ class AnalyticsDashboard {
     if (!response.success) {
       errors[section] = response.message ?? 'Could not load this section.';
     }
-    List<Map<String, dynamic>> agentsFrom(Map<String, dynamic>? body) =>
-        (body?['results'] as List<dynamic>? ?? const [])
-            .whereType<Map<String, dynamic>>()
-            .toList();
+    List<Map<String, dynamic>> agentsFrom(Map<String, dynamic>? body) {
+      final rows = api.AnalyticsAgentsResponse.fromJson(body ?? {}).results;
+      return [for (final row in rows ?? const <api.AnalyticsAgent>[]) row.json];
+    }
+
     return AnalyticsDashboard(
       frt: section == AnalyticsSection.frt ? data : frt,
       mttr: section == AnalyticsSection.mttr ? data : mttr,

@@ -18,7 +18,7 @@
  * preselect the approver multi-select. The page reads `.email` off each entry
  * for the sentence it renders on the row.
  */
-import { apiRequest } from '#lib/api-helpers.js';
+import { apiRequest, type FormBody } from '#lib/api-helpers.js';
 import { viewerIsAdmin } from './organization.js';
 import type { Cookies } from '@sveltejs/kit';
 import type { components } from '#lib/api-schema.js';
@@ -63,7 +63,7 @@ export async function getApprovalRules({ cookies }: { cookies: Cookies }) {
  *  set the same fields a create may; `ApprovalRuleDetailView.put` builds its
  *  serializer with `partial=True`, so an omitted key is left untouched rather
  *  than blanked, which is what lets the turn-on action send a single key. */
-const CREATE_FIELDS = [
+const CREATE_FIELDS: (keyof Schemas['ApprovalRuleRequest'])[] = [
   'name',
   'match_priority',
   'match_case_type',
@@ -83,8 +83,8 @@ const TRIGGER_EVENT = 'pre_close';
 
 type RuleValues = { [key: string]: unknown; approver_ids?: unknown[] };
 
-function buildBody(allowed: string[], values: RuleValues) {
-  const body: RuleValues = {};
+function buildBody(allowed: typeof CREATE_FIELDS, values: RuleValues) {
+  const body: FormBody<Schemas['ApprovalRuleRequest']> = {};
   for (const field of allowed) {
     if (values[field] === undefined) continue;
     body[field] = values[field];
@@ -92,12 +92,12 @@ function buildBody(allowed: string[], values: RuleValues) {
   // Three nullable fields whose "any" option is an empty `<option>` value.
   // `''` fails the ChoiceField and the PK lookup alike; `null` is what clears
   // them, and all three are `allow_null=True`.
-  for (const nullable of ['match_priority', 'match_case_type', 'match_team_id']) {
+  for (const nullable of ['match_priority', 'match_case_type', 'match_team_id'] as const) {
     if (body[nullable] === '') body[nullable] = null;
   }
   if (body.is_active !== undefined) body.is_active = Boolean(body.is_active);
   if (body.approver_ids !== undefined) {
-    body.approver_ids = (body.approver_ids ?? []).filter(Boolean);
+    body.approver_ids = (values.approver_ids ?? []).filter(Boolean);
   }
   return body;
 }

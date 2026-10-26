@@ -1140,17 +1140,18 @@ class CaseSolutionLinkResponseSerializer(serializers.Serializer):
     solution = SolutionSerializer()
 
 
+def _org_solution(pk, org):
+    try:
+        return Solution.objects.filter(pk=pk, org=org).first()
+    except (DjangoValidationError, ValueError):
+        # A malformed UUID is a solution that does not exist, not a 500.
+        return None
+
+
 class CaseSolutionLinkView(APIView):
-    """Link or unlink Solutions (Knowledge Base articles) to a Case."""
+    """Link a Solution (Knowledge Base article) to a Case."""
 
     permission_classes = (IsAuthenticated, HasOrgContext)
-
-    def _get_solution(self, pk, org):
-        try:
-            return Solution.objects.filter(pk=pk, org=org).first()
-        except (DjangoValidationError, ValueError):
-            # A malformed UUID is a solution that does not exist, not a 500.
-            return None
 
     @extend_schema(
         tags=["Cases"],
@@ -1164,16 +1165,7 @@ class CaseSolutionLinkView(APIView):
             201: CaseSolutionLinkResponseSerializer,
         },
     )
-    def post(self, request, pk, solution_pk=None):
-        # This class is routed twice: `<pk>/solutions/` for POST and
-        # `<pk>/solutions/<solution_pk>/` for DELETE. Django hands every route's
-        # captured kwargs to whichever method it dispatches, so POST to the
-        # second route arrived with an argument it had no parameter for and
-        # DELETE to the first arrived missing one. Both were an uncaught
-        # TypeError, which is a 500 on a route the client is simply using the
-        # wrong verb on. 405 is the answer to a wrong verb.
-        if solution_pk is not None:
-            self.http_method_not_allowed(request)
+    def post(self, request, pk):
         case = get_case_or_404(request.profile, pk)
         # Attaching an article to a ticket changes the ticket, so it takes the
         # same permission as any other change to it. Org alone was the whole
@@ -1191,7 +1183,7 @@ class CaseSolutionLinkView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        sol = self._get_solution(solution_id, request.profile.org)
+        sol = _org_solution(solution_id, request.profile.org)
         if not sol:
             return Response(
                 {"error": True, "errors": "Solution not found"},
@@ -1206,15 +1198,18 @@ class CaseSolutionLinkView(APIView):
             status=(status.HTTP_200_OK if already_linked else status.HTTP_201_CREATED),
         )
 
-    @extend_schema(tags=["Cases"])
-    def delete(self, request, pk, solution_pk=None):
-        # See `post` above: reached without a solution id, this is the
-        # collection route being deleted, which is a wrong verb, not a crash.
-        if solution_pk is None:
-            self.http_method_not_allowed(request)
+
+class CaseSolutionUnlinkView(APIView):
+    """Unlink a Solution from a Case. A view of its own so each route answers
+    only its own verb, and the schema lists only the operations that exist."""
+
+    permission_classes = (IsAuthenticated, HasOrgContext)
+
+    @extend_schema(tags=["Cases"], responses={204: None})
+    def delete(self, request, pk, solution_pk):
         case = get_case_or_404(request.profile, pk)
         assert_case_write_access(request.profile, case)
-        sol = self._get_solution(solution_pk, request.profile.org)
+        sol = _org_solution(solution_pk, request.profile.org)
         if not sol:
             return Response(
                 {"error": True, "errors": "Solution not found"},
@@ -1381,7 +1376,7 @@ class ReopenPolicyView(APIView):
     @extend_schema(
         tags=["Cases"],
         parameters=swagger_params.organization_params,
-        request=ReopenPolicySerializer,
+        request=ReopenPolicySerializer(partial=True),
         responses={200: ReopenPolicySerializer},
     )
     def put(self, request, format=None):

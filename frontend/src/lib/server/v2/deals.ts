@@ -24,7 +24,7 @@
  * than in whichever component happens to add them up first.
  */
 import { error, type Cookies } from '@sveltejs/kit';
-import { apiRequest } from '#lib/api-helpers.js';
+import { apiRequest, type FormBody } from '#lib/api-helpers.js';
 import { apiStatus } from '#lib/api-errors.js';
 import { fieldsForDetail, fieldsForEdit } from '#lib/server/v2/record-custom-fields.js';
 import { rethrowModuleOff } from '#lib/server/v2/modules.js';
@@ -471,7 +471,10 @@ function buildActivity(response: Schemas['OpportunityDetailResponse']) {
 }
 
 /** Scalar fields the deal forms own. Everything else is server-derived. */
-export const EDITABLE_FIELDS = [
+export const EDITABLE_FIELDS: Exclude<
+  keyof Schemas['OpportunityCreateSwaggerRequest'],
+  'custom_fields'
+>[] = [
   'name',
   'account',
   'pipeline',
@@ -642,7 +645,7 @@ export async function getDealForEdit({ cookies }: { cookies: Cookies }, id: stri
  * a value nobody typed.
  */
 function toBody(values: Record<string, unknown>) {
-  const body: Record<string, unknown> = {};
+  const body: FormBody<Schemas['OpportunityCreateSwaggerRequest']> = {};
   for (const field of EDITABLE_FIELDS) {
     if (!(field in values)) continue;
     const value = values[field];

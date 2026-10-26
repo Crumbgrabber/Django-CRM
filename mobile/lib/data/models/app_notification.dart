@@ -2,6 +2,7 @@ import '../../config/api_config.dart';
 import '../../routes/app_routes.dart';
 import '../../routes/record_routes.dart';
 import '../../services/run_time.dart';
+import '../api/schema.g.dart' as api;
 
 /// An in-app notification, as `/api/notifications/` returns it.
 ///
@@ -120,14 +121,11 @@ class AppNotification {
     return _record(_recordKinds[record.group(1)]!, record.group(2)!);
   }
 
-  /// The feed's actor is `CommentUserSerializer`: `{id, user_details: {email,
-  /// profile_pic}}`, with no name. A name is read first in case one is added.
-  static String _actorName(Map actor) {
-    String? text(Object? v) => v is String && v.isNotEmpty ? v : null;
-    final details = actor['user_details'];
-    return text(actor['name']) ??
-        (details is Map ? text(details['email']) : null) ??
-        'Someone';
+  /// The feed's actor is a `CommentUser`: `{id, user_details: {email,
+  /// profile_pic}}`, with no name.
+  static String _actorName(api.CommentUser actor) {
+    final email = actor.userDetails?.email ?? '';
+    return email.isNotEmpty ? email : 'Someone';
   }
 
   static String? _record(String kind, String id) =>
@@ -200,29 +198,26 @@ class AppNotification {
     return verb.replaceFirst(RegExp(r'^[^.]+\.'), '').replaceAll('_', ' ');
   }
 
+  /// Reads a `Notification`. Its `data` is free-form, so each key is checked
+  /// for the type the producer writes.
   factory AppNotification.fromJson(Map<String, dynamic> json) {
-    final actor = json['actor'];
-    final data = json['data'];
+    final w = api.Notification.fromJson(json);
+    final actor = w.actor;
+    final data = w.data;
     String? text(String key) =>
-        data is Map && data[key] is String ? data[key] as String : null;
-    final rules = data is Map ? data['rules'] : null;
+        data != null && data[key] is String ? data[key] as String : null;
+    final rules = data?['rules'];
     final windowStart = text('window_start');
-    final percent = data is Map ? data['percent'] : null;
+    final percent = data?['percent'];
     return AppNotification(
-      id: json['id']?.toString() ?? '',
-      verb: json['verb']?.toString() ?? '',
-      actorName: actor is Map ? _actorName(actor) : null,
-      entityName: json['entity_name'] as String?,
-      commentExcerpt: data is Map<String, dynamic>
-          ? data['comment_excerpt'] as String?
-          : null,
-      link: json['link'] as String?,
-      readAt: json['read_at'] != null
-          ? DateTime.tryParse(json['read_at'].toString())
-          : null,
-      createdAt:
-          DateTime.tryParse(json['created_at']?.toString() ?? '') ??
-          DateTime.now(),
+      id: w.id ?? '',
+      verb: w.verb ?? '',
+      actorName: actor == null ? null : _actorName(actor),
+      entityName: w.entityName,
+      commentExcerpt: text('comment_excerpt'),
+      link: w.link,
+      readAt: DateTime.tryParse(w.readAt ?? ''),
+      createdAt: DateTime.tryParse(w.createdAt ?? '') ?? DateTime.now(),
       message: text('message'),
       ruleName: text('rule'),
       reason: text('reason'),

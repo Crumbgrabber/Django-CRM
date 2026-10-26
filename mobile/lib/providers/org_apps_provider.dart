@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/api_config.dart';
+import '../data/api/schema.g.dart' as api;
 import '../data/models/org_app.dart';
 import '../services/api_service.dart';
 import 'auth_provider.dart';
@@ -84,18 +85,12 @@ class OrgAppsNotifier extends AsyncNotifier<OrgAppsAnswer?> {
     if (!response.success || data == null) {
       return (error: _message(response), deleted: 0, retained: 0);
     }
-    var retained = 0;
-    final byType = data['retained_by_type'];
-    if (byType is Map) {
-      for (final value in byType.values) {
-        if (value is num) retained += value.round();
-      }
-    }
-    return (
-      error: null,
-      deleted: (data['deleted'] as num?)?.round() ?? 0,
-      retained: retained,
+    final body = api.PackSampleDataClearResponse.fromJson(data);
+    final retained = (body.retainedByType?.values ?? const <int>[]).fold(
+      0,
+      (sum, n) => sum + n,
     );
+    return (error: null, deleted: body.deleted ?? 0, retained: retained);
   }
 
   Future<String?> _act(String url, Map<String, dynamic> body) async {
@@ -110,13 +105,13 @@ class OrgAppsNotifier extends AsyncNotifier<OrgAppsAnswer?> {
   /// the settings an app adds to or turns off.
   void _applied(Map<String, dynamic>? data) {
     if (!ref.mounted) return;
-    final app = data?['app'];
+    final app = data == null ? null : api.AppActionResponse.fromJson(data).app;
     final current = state.value;
-    if (app is Map<String, dynamic> &&
+    if (app != null &&
         current != null &&
         current.orgId == _orgId &&
         !state.isLoading) {
-      state = AsyncData(current.withApp(OrgApp.fromJson(app)));
+      state = AsyncData(current.withApp(OrgApp.fromJson(app.json)));
     } else {
       ref.invalidateSelf();
     }

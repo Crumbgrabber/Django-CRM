@@ -1,5 +1,5 @@
 import { fail } from '@sveltejs/kit';
-import { listTeam, inviteUser, setRole, setStatus, ROLES } from '#lib/server/v2/team.js';
+import { listTeam, inviteUser, setRole, setStatus, isRole } from '#lib/server/v2/team.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
 import { apiStatus } from '#lib/api-errors.js';
 import type { Actions, PageServerLoad } from './$types';
@@ -27,7 +27,7 @@ export const actions: Actions = {
     const email = form.get('email')?.toString().trim();
     const role = form.get('role')?.toString() || 'USER';
     if (!email) return fail(400, { invite: { error: 'Enter an email address.' } });
-    if (!ROLES.includes(role)) return fail(400, { invite: { error: 'Pick a valid role.' } });
+    if (!isRole(role)) return fail(400, { invite: { error: 'Pick a valid role.' } });
 
     try {
       await inviteUser({ cookies }, { email, role });
@@ -54,7 +54,7 @@ export const actions: Actions = {
     const form = await request.formData();
     const userId = form.get('userId')?.toString();
     const role = form.get('role')?.toString();
-    if (!userId || !role || !ROLES.includes(role)) {
+    if (!userId || !role || !isRole(role)) {
       return fail(400, { error: 'Which person, and to what role?' });
     }
     try {

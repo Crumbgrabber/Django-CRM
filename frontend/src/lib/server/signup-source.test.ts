@@ -94,6 +94,14 @@ describe('readSignupSource', () => {
     expect(readSignupSource(cookies)).toEqual({ utm_source: 'site' });
   });
 
+  it('passes on only the string keys the API keeps', () => {
+    const cookies = fakeCookies({
+      [SIGNUP_SOURCE_COOKIE]:
+        '{"utm_source":"site","utm_medium":5,"referrer":"example.org","org":"someone-else"}'
+    });
+    expect(readSignupSource(cookies)).toEqual({ utm_source: 'site', referrer: 'example.org' });
+  });
+
   it.each([undefined, '', 'not json', '[1,2]', '"text"', 'null'])(
     'returns undefined for %j',
     (raw) => {

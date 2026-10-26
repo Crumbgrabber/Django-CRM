@@ -125,7 +125,15 @@ class BoardColumnSerializer(serializers.ModelSerializer):
     class Meta:
         model = BoardColumn
         fields = "__all__"
-        read_only_fields = ("id", "created_at", "updated_at", "board", "org")
+        read_only_fields = (
+            "id",
+            "created_at",
+            "updated_at",
+            "created_by",
+            "updated_by",
+            "board",
+            "org",
+        )
 
     @extend_schema_field(int)
     def get_task_count(self, obj):
@@ -467,8 +475,9 @@ class TaskCreateSerializer(serializers.ModelSerializer):
 
 
 class TaskDetailEditSwaggerSerializer(serializers.Serializer):
-    comment = serializers.CharField()
-    task_attachment = serializers.FileField()
+    # A comment, a file, or both.
+    comment = serializers.CharField(required=False)
+    task_attachment = serializers.FileField(required=False)
 
 
 class TaskCommentEditSwaggerSerializer(serializers.Serializer):
@@ -476,6 +485,8 @@ class TaskCommentEditSwaggerSerializer(serializers.Serializer):
 
 
 class TaskCreateSwaggerSerializer(serializers.ModelSerializer):
+    custom_fields = serializers.DictField(required=False)
+
     class Meta:
         model = Task
         fields = (
@@ -493,6 +504,7 @@ class TaskCreateSwaggerSerializer(serializers.ModelSerializer):
             "teams",
             "assigned_to",
             "tags",
+            "custom_fields",
         )
 
 

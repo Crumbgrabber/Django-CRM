@@ -38,6 +38,7 @@
  */
 import { apiRequest } from '#lib/api-helpers.js';
 import { apiStatus } from '#lib/api-errors.js';
+import { accessClaims } from './organization.js';
 import type { Cookies } from '@sveltejs/kit';
 import type { components } from '#lib/api-schema.js';
 
@@ -77,7 +78,9 @@ type TeamPage = {
  * no MANAGER despite ApprovalRule offering it; a picker offering a value the
  * server rejects is worse than not offering it.
  */
-export const ROLES = ['ADMIN', 'USER'];
+type Role = Schemas['UserCreateSwaggerRequest']['role'];
+export const ROLES: Role[] = ['ADMIN', 'USER'];
+export const isRole = (value: string): value is Role => (ROLES as string[]).includes(value);
 
 /**
  * The signed-in user's id, read from the `user_id` claim of the access token.
@@ -89,15 +92,8 @@ export const ROLES = ['ADMIN', 'USER'];
  * Verifying our own freshly-read cookie would buy nothing.
  */
 function viewerUserId(cookies: Cookies): string | null {
-  const token = cookies.get('jwt_access');
-  if (!token) return null;
-  try {
-    const payload = token.split('.')[1];
-    const json = Buffer.from(payload, 'base64url').toString('utf-8');
-    return JSON.parse(json).user_id ?? null;
-  } catch {
-    return null;
-  }
+  const id = accessClaims(cookies).user_id;
+  return typeof id === 'string' ? id : null;
 }
 
 /**
@@ -203,7 +199,7 @@ export async function listTeam({
  */
 export function inviteUser(
   { cookies }: { cookies: Cookies },
-  body: { email: string; role: string }
+  body: { email: string; role: Role }
 ): Promise<Schemas['UserCreateResponse']> {
   return apiRequest('/users/', { method: 'POST', body }, { cookies });
 }
@@ -218,9 +214,13 @@ export function inviteUser(
 export function setRole(
   { cookies }: { cookies: Cookies },
   userId: string,
-  role: string
+  role: Role
 ): Promise<Schemas['UserPatchResponse']> {
-  return apiRequest(`/user/${userId}/`, { method: 'PATCH', body: { role } }, { cookies });
+  return apiRequest(
+    `/user/${userId}/`,
+    { method: 'PATCH', body: { role } satisfies Schemas['PatchedUserCreateSwaggerRequest'] },
+    { cookies }
+  );
 }
 
 /**

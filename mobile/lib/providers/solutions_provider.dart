@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/api_config.dart';
+import '../data/api/schema.g.dart' as api;
 import '../data/models/solution.dart';
 import '../services/api_service.dart';
 
@@ -64,20 +65,14 @@ class SolutionsNotifier extends Notifier<SolutionsListData> {
       );
       return;
     }
-    final data = response.data!;
-    // Backend may return either `{solutions: [...]}` or a bare list under
-    // a default key. Accept both shapes.
-    List<dynamic> list = const [];
-    if (data['solutions'] is List) {
-      list = data['solutions'] as List;
-    } else if (data['results'] is List) {
-      list = data['results'] as List;
-    }
-    final parsed = list
-        .whereType<Map<String, dynamic>>()
-        .map(Solution.fromJson)
-        .toList();
-    state = state.copyWith(solutions: parsed, isLoading: false);
+    final rows = api.SolutionListResponse.fromJson(response.data!).results;
+    state = state.copyWith(
+      solutions: [
+        for (final row in rows ?? const <api.Solution>[])
+          Solution.fromJson(row.json),
+      ],
+      isLoading: false,
+    );
   }
 
   /// Always the detail route, never the cached list row: only the detail
@@ -148,14 +143,13 @@ class SolutionsNotifier extends Notifier<SolutionsListData> {
       ApiConfig.ticketSolutionSuggestions(ticketId),
     );
     if (!response.success || response.data == null) return const [];
-    // `SolutionSuggestionsView` answers `{results, count, q}`. This read
-    // `suggestions` and `solutions`, neither of which it has ever sent, so
-    // the panel's "Suggested" block was always empty.
-    final list = (response.data!['results'] as List<dynamic>?) ?? const [];
-    return list
-        .whereType<Map<String, dynamic>>()
-        .map(Solution.fromJson)
-        .toList();
+    final rows = api.SolutionSuggestionsResponse.fromJson(
+      response.data!,
+    ).results;
+    return [
+      for (final row in rows ?? const <api.SolutionSuggestion>[])
+        Solution.fromJson(row.json),
+    ];
   }
 }
 

@@ -36,6 +36,24 @@ class OrgCreatedSerializer(OrgProfileCreateSerializer):
         ]
 
 
+class SignupSourceSerializer(serializers.Serializer):
+    """Request-only: the first visit's tags; `clean_signup_source` drops bad values."""
+
+    utm_source = serializers.CharField(required=False)
+    utm_medium = serializers.CharField(required=False)
+    utm_campaign = serializers.CharField(required=False)
+    referrer = serializers.CharField(required=False)
+
+
+class OrgCreateBodySerializer(OrgProfileCreateSerializer):
+    """Request-only: what a create may send. The view reads `signup_source` itself."""
+
+    signup_source = SignupSourceSerializer(required=False)
+
+    class Meta(OrgProfileCreateSerializer.Meta):
+        fields = [*OrgProfileCreateSerializer.Meta.fields, "signup_source"]
+
+
 _ORG_UPDATE_RESPONSE = inline_serializer(
     name="OrgUpdateResponse",
     fields={
@@ -57,7 +75,7 @@ class OrgProfileCreateView(APIView):
     @extend_schema(
         operation_id="org_create",
         description="Organization and profile Creation api",
-        request=OrgProfileCreateSerializer,
+        request=OrgCreateBodySerializer,
         responses={
             201: inline_serializer(
                 name="OrgCreateResponse",
@@ -335,6 +353,7 @@ class OrgApiKeyView(APIView):
 
     @extend_schema(
         operation_id="org_api_key_rotate",
+        request=None,
         description=(
             "Rotate the current organization's API key (admins only). "
             "The previous key stops authenticating immediately."

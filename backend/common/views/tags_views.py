@@ -205,17 +205,17 @@ class TagsListView(APIView, LimitOffsetPagination):
         request=TagsSerializer,
         parameters=swagger_params.organization_params,
         # 201 for a new tag, 200 when an archived one of the same name is revived.
-        responses={
-            code: inline_serializer(
+        responses=dict.fromkeys(
+            (200, 201),
+            inline_serializer(
                 name="TagCreateResponse",
                 fields={
                     "error": serializers.BooleanField(),
                     "message": serializers.CharField(),
                     "tag": TagsSerializer(),
                 },
-            )
-            for code in (200, 201)
-        },
+            ),
+        ),
     )
     def post(self, request, *args, **kwargs):
         """Create a new tag (admin only)."""
@@ -473,6 +473,7 @@ class TagsRestoreView(APIView):
     @extend_schema(
         tags=["Tags"],
         operation_id="tags_restore",
+        request=None,
         parameters=swagger_params.organization_params,
         responses={
             200: inline_serializer(

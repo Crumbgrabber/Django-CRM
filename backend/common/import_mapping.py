@@ -264,6 +264,24 @@ class ImportMappedSummarySerializer(serializers.Serializer):
     skipped = serializers.IntegerField()
 
 
+def mapped_commit_schema(name):
+    """The OpenAPI shape of a commit reply, for `@extend_schema`.
+
+    `skipped` and `dropped` come only from a mapped import, which reports what
+    the preview left out beside what it created.
+    """
+    return inline_serializer(
+        name=name,
+        fields={
+            "error": serializers.BooleanField(),
+            "created": serializers.IntegerField(),
+            "ids": serializers.ListField(child=serializers.CharField()),
+            "skipped": ImportSkippedRowSerializer(many=True, required=False),
+            "dropped": ImportDroppedSerializer(many=True, required=False),
+        },
+    )
+
+
 def mapped_preview_schema(name, valid_row):
     """The OpenAPI shape of `MappedPreview.to_dict()`, for `@extend_schema`.
 

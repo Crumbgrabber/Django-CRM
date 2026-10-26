@@ -10,40 +10,13 @@ import { error, type Cookies } from '@sveltejs/kit';
 
 import { apiRequest } from '#lib/api-helpers.js';
 import { apiStatus } from '#lib/api-errors.js';
+import type { components } from '#lib/enterprise-api-schema.js';
 
-/**
- * The enterprise `platform_support` API's shapes (`SupportMessageSerializer`,
- * `SupportTicketListSerializer` and `SupportTicketDetailSerializer`); it is
- * not in the community schema. A list row has no `assigned`,
- * `first_response_at` or `messages`.
- */
-type SupportMessage = {
-  id: string;
-  author_label: string;
-  author_type: string;
-  body: string;
-  attachment_name: string;
-  attachment_download_url: string | null;
-  created_at: string;
-};
-type SupportTicket = {
-  id: string;
-  reference: string;
-  subject: string;
-  category: string;
-  category_label: string;
-  status: string;
-  status_label: string;
-  priority: string;
-  priority_label: string;
-  message_count?: number;
-  last_activity_at: string;
-  created_at: string;
-  assigned?: boolean;
-  first_response_at?: string | null;
-  messages?: SupportMessage[];
-};
-type SupportTicketList = { count: number; tickets: SupportTicket[] };
+type Enterprise = components['schemas'];
+type SupportMessage = Enterprise['SupportMessage'];
+/** A list row, or a detail with its messages. */
+type SupportTicket = Enterprise['SupportTicketList'] &
+  Partial<Pick<Enterprise['SupportTicketDetail'], 'assigned' | 'first_response_at' | 'messages'>>;
 
 export const SUPPORT_CATEGORIES = [
   { value: 'technical', label: 'Technical issue' },
@@ -88,7 +61,11 @@ function toTicket(ticket: SupportTicket) {
 }
 
 export async function listSupportTickets({ cookies }: { cookies: Cookies }) {
-  const response: SupportTicketList = await apiRequest('/support/?limit=100', {}, { cookies });
+  const response: Enterprise['SupportTicketListResponse'] = await apiRequest(
+    '/support/?limit=100',
+    {},
+    { cookies }
+  );
   return {
     count: response.count ?? response.tickets?.length ?? 0,
     tickets: (response.tickets ?? []).map(toTicket)

@@ -1,3 +1,5 @@
+import '../api/schema.g.dart' as api;
+
 /// Backend-side `Attachments` row attached to a parent record via
 /// ContentType. The detail endpoints return these as a top-level
 /// `attachments` list separate from the parent object.
@@ -28,23 +30,15 @@ class Attachment {
     this.createdBy,
   });
 
+  /// Reads an `Attachments` row. Its `created_by` is the uploader's profile id.
   factory Attachment.fromJson(Map<String, dynamic> json) {
-    String? createdByEmail;
-    final cb = json['created_by'];
-    if (cb is Map<String, dynamic>) {
-      createdByEmail =
-          (cb['email'] as String?) ?? (cb['user_details']?['email'] as String?);
-    } else if (cb is String) {
-      createdByEmail = cb;
-    }
+    final w = api.Attachments.fromJson(json);
     return Attachment(
-      id: json['id']?.toString() ?? '',
-      fileName: json['file_name'] as String? ?? 'Attachment',
-      filePath: json['file_path'] as String?,
-      createdAt: json['created_at'] != null
-          ? DateTime.tryParse(json['created_at'] as String)
-          : null,
-      createdBy: createdByEmail,
+      id: w.id ?? '',
+      fileName: w.fileName ?? 'Attachment',
+      filePath: w.filePath,
+      createdAt: DateTime.tryParse(w.createdAt ?? ''),
+      createdBy: w.createdBy,
     );
   }
 }

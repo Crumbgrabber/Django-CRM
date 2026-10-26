@@ -18,7 +18,10 @@ import { generateCodeVerifier, generateCodeChallenge, generateState } from '#lib
 import { describeError } from '#lib/server/log-safe.js';
 import { relayHeaders } from '#lib/server/relay.js';
 import { rememberSignupSource } from '#lib/server/signup-source.js';
+import type { components } from '#lib/api-schema.js';
 import type { PageServerLoad } from './$types';
+
+type Schemas = components['schemas'];
 
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const GOOGLE_SCOPES = ['openid', 'email', 'profile'].join(' ');
@@ -120,13 +123,13 @@ async function handleOAuthCallback(
     // The backend handles the actual token exchange with Google using the client secret
     const apiUrl = publicEnv.PUBLIC_DJANGO_API_URL;
     console.log('Using API URL:', apiUrl);
-    const response = await axios.post(
+    const response = await axios.post<Schemas['GoogleOAuthResponse']>(
       `${apiUrl}/api/auth/google/callback/`,
       {
         code,
         code_verifier: codeVerifier,
         redirect_uri
-      },
+      } satisfies Schemas['GoogleOAuthRequestRequest'],
       {
         // The sign-in audit row, success or failure, records who signed in,
         // and failures are capped per address; see `#lib/server/relay.js`.
@@ -210,7 +213,7 @@ async function generateOAuthUrl(cookies: Cookies): Promise<{ google_url: string 
 export const actions: Actions = {
   default: async ({ request, getClientAddress }) => {
     const formData = await request.formData();
-    const email = formData.get('email');
+    const email = String(formData.get('email') ?? '').trim();
 
     if (!email) {
       return { success: false, error: 'Email is required' };
@@ -218,9 +221,9 @@ export const actions: Actions = {
 
     try {
       const apiUrl = publicEnv.PUBLIC_DJANGO_API_URL;
-      await axios.post(
+      await axios.post<Schemas['MagicLinkRequestResponse']>(
         `${apiUrl}/api/auth/magic-link/request/`,
-        { email },
+        { email } satisfies Schemas['MagicLinkRequestRequest'],
         {
           // The token records who asked for it; see `#lib/server/relay.js`.
           headers: {

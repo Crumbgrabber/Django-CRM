@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/api_config.dart';
+import '../data/api/enterprise_schema.g.dart' as enterprise;
 import '../services/api_service.dart';
 import 'auth_provider.dart';
 
@@ -14,11 +15,8 @@ final orgPlanNameProvider = FutureProvider.autoDispose<String?>((ref) async {
   return planNameFrom(response.data);
 });
 
-/// The plan's name in a billing answer, or null when there is none to show.
+/// The plan's name in a `Billing` answer, or null when there is none to show.
 String? planNameFrom(Map<String, dynamic>? data) {
-  final plan = data?['plan'];
-  if (plan is! Map) return null;
-  final name = plan['name'];
-  if (name is! String || name.trim().isEmpty) return null;
-  return name.trim();
+  final name = enterprise.Billing.fromJson(data ?? {}).plan?.name?.trim();
+  return name == null || name.isEmpty ? null : name;
 }

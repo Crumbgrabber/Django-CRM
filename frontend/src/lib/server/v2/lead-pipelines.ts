@@ -12,7 +12,7 @@
  * a member could only be turned away from; it is decoded from the JWT and is a
  * display hint, never the check.
  */
-import { apiRequest } from '#lib/api-helpers.js';
+import { apiRequest, type FormBody } from '#lib/api-helpers.js';
 import { viewerIsAdmin } from './organization.js';
 import type { Cookies } from '@sveltejs/kit';
 import type { components } from '#lib/api-schema.js';
@@ -80,7 +80,10 @@ export async function createPipeline(
 ): Promise<Schemas['LeadPipeline']> {
   return await apiRequest(
     '/leads/pipelines/',
-    { method: 'POST', body: { name, create_default_stages: true } },
+    {
+      method: 'POST',
+      body: { name, create_default_stages: true } satisfies Schemas['LeadPipelineCreateRequest']
+    },
     { cookies }
   );
 }
@@ -119,7 +122,7 @@ function stageBody({
   stageType: string;
   mapsToStatus: string;
   winProbability: string;
-}) {
+}): FormBody<Schemas['LeadStageRequest']> {
   return {
     name,
     stage_type: stageType,

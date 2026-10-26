@@ -697,3 +697,11 @@ class TestDetailNamesTheGatingRule:
         )
         assert res.status_code == 201, res.content
         assert named["id"] == res.data["rule_summary"]["id"] == str(specific.id)
+
+
+@pytest.mark.django_db
+def test_reads_one_approval_rule(admin_client, org_a):
+    rule = _make_rule(org_a, match_priority="Urgent")
+    res = admin_client.get(f"/api/cases/approval-rules/{rule.id}/")
+    assert res.status_code == 200
+    assert res.json()["id"] == str(rule.id)

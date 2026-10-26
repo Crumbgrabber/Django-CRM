@@ -1,3 +1,5 @@
+import '../api/schema.g.dart' as api;
+
 Map<String, dynamic> _map(dynamic v) =>
     v is Map ? Map<String, dynamic>.from(v) : <String, dynamic>{};
 
@@ -10,21 +12,8 @@ List<Map<String, dynamic>> _maps(dynamic v) => v is List
 
 String _str(dynamic v, [String fallback = '']) => v?.toString() ?? fallback;
 
-String _label(dynamic v, String fallback) {
-  final s = _str(v);
-  return s.isEmpty ? fallback : s;
-}
-
-int _int(dynamic v, int fallback) => v is int ? v : fallback;
-
-DateTime? _date(dynamic v) => v is String ? DateTime.tryParse(v) : null;
-
-List<String> _strings(dynamic v) => v is List
-    ? [
-        for (final e in v)
-          if (e is String) e,
-      ]
-    : const [];
+String _label(String? v, String fallback) =>
+    v == null || v.isEmpty ? fallback : v;
 
 /// A deep copy of decoded JSON, so a draft never shares a list or map.
 dynamic _clone(dynamic v) {
@@ -43,11 +32,12 @@ class RulePerson {
 
   const RulePerson({required this.id, this.name = ''});
 
-  factory RulePerson.fromJson(Map<String, dynamic> json) =>
-      RulePerson(id: _str(json['id']), name: _str(json['name']));
-
-  static RulePerson? maybe(dynamic v) =>
-      v is Map ? RulePerson.fromJson(_map(v)) : null;
+  /// Reads a `RuleOwner`; the catalogue's `AutomationCataloguePerson` is the
+  /// same shape.
+  factory RulePerson.fromJson(Map<String, dynamic> json) {
+    final w = api.RuleOwner.fromJson(json);
+    return RulePerson(id: w.id ?? '', name: w.name ?? '');
+  }
 }
 
 class RuleEndpoint {
@@ -56,10 +46,11 @@ class RuleEndpoint {
 
   const RuleEndpoint({required this.id, this.description = ''});
 
-  factory RuleEndpoint.fromJson(Map<String, dynamic> json) => RuleEndpoint(
-    id: _str(json['id']),
-    description: _str(json['description']),
-  );
+  /// Reads an `AutomationCatalogueEndpoint`.
+  factory RuleEndpoint.fromJson(Map<String, dynamic> json) {
+    final w = api.AutomationCatalogueEndpoint.fromJson(json);
+    return RuleEndpoint(id: w.id ?? '', description: w.description ?? '');
+  }
 }
 
 class RuleChoice {
@@ -75,13 +66,15 @@ class RuleChoice {
     this.settable = true,
   });
 
+  /// Reads an `AutomationCatalogueChoice`.
   factory RuleChoice.fromJson(Map<String, dynamic> json) {
-    final value = _str(json['value']);
+    final w = api.AutomationCatalogueChoice.fromJson(json);
+    final value = w.value ?? '';
     return RuleChoice(
       value: value,
-      label: _label(json['label'], value),
-      group: _str(json['group']),
-      settable: json['settable'] as bool? ?? true,
+      label: _label(w.label, value),
+      group: w.group ?? '',
+      settable: w.settable ?? true,
     );
   }
 }
@@ -101,14 +94,19 @@ class RuleField {
     this.settable = true,
   });
 
+  /// Reads an `AutomationCatalogueField`.
   factory RuleField.fromJson(Map<String, dynamic> json) {
-    final key = _str(json['key']);
+    final w = api.AutomationCatalogueField.fromJson(json);
+    final key = w.key ?? '';
     return RuleField(
       key: key,
-      label: _label(json['label'], key),
-      type: _str(json['type'], 'text'),
-      choices: _maps(json['choices']).map(RuleChoice.fromJson).toList(),
-      settable: json['settable'] as bool? ?? true,
+      label: _label(w.label, key),
+      type: w.type ?? 'text',
+      choices: [
+        for (final c in w.choices ?? const <api.AutomationCatalogueChoice>[])
+          RuleChoice.fromJson(c.json),
+      ],
+      settable: w.settable ?? true,
     );
   }
 }
@@ -120,11 +118,15 @@ class RuleLinkSpec {
 
   const RuleLinkSpec({required this.id, this.label = '', this.objectKey = ''});
 
-  factory RuleLinkSpec.fromJson(Map<String, dynamic> json) => RuleLinkSpec(
-    id: _str(json['id']),
-    label: _str(json['label']),
-    objectKey: _str(json['object_key']),
-  );
+  /// Reads an `AutomationCatalogueLink`.
+  factory RuleLinkSpec.fromJson(Map<String, dynamic> json) {
+    final w = api.AutomationCatalogueLink.fromJson(json);
+    return RuleLinkSpec(
+      id: w.id ?? '',
+      label: w.label ?? '',
+      objectKey: w.objectKey ?? '',
+    );
+  }
 }
 
 class RuleParent {
@@ -133,8 +135,11 @@ class RuleParent {
 
   const RuleParent({required this.key, this.label = ''});
 
-  factory RuleParent.fromJson(Map<String, dynamic> json) =>
-      RuleParent(key: _str(json['key']), label: _str(json['label']));
+  /// Reads an `AutomationCatalogueParent`.
+  factory RuleParent.fromJson(Map<String, dynamic> json) {
+    final w = api.AutomationCatalogueParent.fromJson(json);
+    return RuleParent(key: w.key ?? '', label: w.label ?? '');
+  }
 }
 
 class AutomationObject {
@@ -154,18 +159,25 @@ class AutomationObject {
     this.links = const [],
   });
 
+  /// Reads an `AutomationCatalogueObject`.
   factory AutomationObject.fromJson(Map<String, dynamic> json) {
-    final key = _str(json['key']);
-    final label = _label(json['label'], key);
+    final w = api.AutomationCatalogueObject.fromJson(json);
+    final key = w.key ?? '';
+    final label = _label(w.label, key);
+    final parent = w.parent;
     return AutomationObject(
       key: key,
       label: label,
-      labelPlural: _label(json['label_plural'], label),
-      fields: _maps(json['fields']).map(RuleField.fromJson).toList(),
-      parent: json['parent'] is Map
-          ? RuleParent.fromJson(_map(json['parent']))
-          : null,
-      links: _maps(json['links']).map(RuleLinkSpec.fromJson).toList(),
+      labelPlural: _label(w.labelPlural, label),
+      fields: [
+        for (final f in w.fields ?? const <api.AutomationCatalogueField>[])
+          RuleField.fromJson(f.json),
+      ],
+      parent: parent == null ? null : RuleParent.fromJson(parent.json),
+      links: [
+        for (final l in w.links ?? const <api.AutomationCatalogueLink>[])
+          RuleLinkSpec.fromJson(l.json),
+      ],
     );
   }
 }
@@ -192,23 +204,28 @@ class AutomationCatalogue {
     this.maxActions = 10,
   });
 
+  /// Reads an `AutomationCatalogueResponse`.
   factory AutomationCatalogue.fromJson(Map<String, dynamic> json) {
-    final limits = _map(json['limits']);
-    final operators = json['operators'];
+    final w = api.AutomationCatalogueResponse.fromJson(json);
     return AutomationCatalogue(
-      objects: _maps(json['objects']).map(AutomationObject.fromJson).toList(),
-      operators: operators is Map
-          ? {
-              for (final e in operators.entries)
-                e.key.toString(): _strings(e.value),
-            }
-          : const {},
-      updateOnlyOperators: _strings(json['update_only_operators']),
-      actions: _strings(json['actions']),
-      people: _maps(json['people']).map(RulePerson.fromJson).toList(),
-      endpoints: _maps(json['endpoints']).map(RuleEndpoint.fromJson).toList(),
-      maxConditions: _int(limits['conditions'], 20),
-      maxActions: _int(limits['actions'], 10),
+      objects: [
+        for (final o in w.objects ?? const <api.AutomationCatalogueObject>[])
+          AutomationObject.fromJson(o.json),
+      ],
+      operators: w.operators ?? const {},
+      updateOnlyOperators: w.updateOnlyOperators ?? const [],
+      actions: w.actions ?? const [],
+      people: [
+        for (final p in w.people ?? const <api.AutomationCataloguePerson>[])
+          RulePerson.fromJson(p.json),
+      ],
+      endpoints: [
+        for (final e
+            in w.endpoints ?? const <api.AutomationCatalogueEndpoint>[])
+          RuleEndpoint.fromJson(e.json),
+      ],
+      maxConditions: w.limits?.conditions ?? 20,
+      maxActions: w.limits?.actions ?? 10,
     );
   }
 }
@@ -297,19 +314,25 @@ class AutomationRule {
     this.pausedReason = '',
   });
 
-  factory AutomationRule.fromJson(Map<String, dynamic> json) => AutomationRule(
-    id: _str(json['id']),
-    name: _str(json['name']),
-    objectKey: _str(json['object_key']),
-    trigger: TriggerDraft.fromJson(json['trigger']),
-    match: _str(json['match'], 'all'),
-    conditions: _maps(json['conditions']).map(ConditionDraft.fromJson).toList(),
-    actions: _maps(json['actions']).map(ActionDraft.fromJson).toList(),
-    isActive: json['is_active'] == true,
-    owner: RulePerson.maybe(json['owner']),
-    switchedOnAt: _date(json['switched_on_at']),
-    pausedReason: _str(json['paused_reason']),
-  );
+  /// Reads a `Rule`. Its trigger, conditions and actions are free-form JSON
+  /// in the schema, so the drafts read those themselves.
+  factory AutomationRule.fromJson(Map<String, dynamic> json) {
+    final w = api.Rule.fromJson(json);
+    final owner = w.owner;
+    return AutomationRule(
+      id: w.id ?? '',
+      name: w.name ?? '',
+      objectKey: w.objectKey ?? '',
+      trigger: TriggerDraft.fromJson(w.trigger),
+      match: w.match ?? 'all',
+      conditions: _maps(w.conditions).map(ConditionDraft.fromJson).toList(),
+      actions: _maps(w.actions).map(ActionDraft.fromJson).toList(),
+      isActive: w.isActive ?? false,
+      owner: owner == null ? null : RulePerson.fromJson(owner.json),
+      switchedOnAt: DateTime.tryParse(w.switchedOnAt ?? ''),
+      pausedReason: w.pausedReason ?? '',
+    );
+  }
 }
 
 /// A rule as `GET rules/` lists it: the detail route carries no status.
@@ -337,8 +360,10 @@ class AutomationRuleRow extends AutomationRule {
     this.failures7d = 0,
   });
 
+  /// Reads a `RuleRow`: a `Rule` with its status and last week's counts.
   factory AutomationRuleRow.fromJson(Map<String, dynamic> json) {
     final rule = AutomationRule.fromJson(json);
+    final w = api.RuleRow.fromJson(json);
     return AutomationRuleRow(
       id: rule.id,
       name: rule.name,
@@ -351,10 +376,10 @@ class AutomationRuleRow extends AutomationRule {
       owner: rule.owner,
       switchedOnAt: rule.switchedOnAt,
       pausedReason: rule.pausedReason,
-      status: _str(json['status'], 'off'),
-      statusText: _str(json['status_text']),
-      runs7d: _int(json['runs_7d'], 0),
-      failures7d: _int(json['failures_7d'], 0),
+      status: w.status ?? 'off',
+      statusText: w.statusText ?? '',
+      runs7d: w.runs7d ?? 0,
+      failures7d: w.failures7d ?? 0,
     );
   }
 }
@@ -365,11 +390,17 @@ class AutomationRulesAnswer {
 
   const AutomationRulesAnswer({this.summary, this.rules = const []});
 
-  factory AutomationRulesAnswer.fromJson(Map<String, dynamic> json) =>
-      AutomationRulesAnswer(
-        summary: json['summary'] is String ? json['summary'] as String : null,
-        rules: _maps(json['results']).map(AutomationRuleRow.fromJson).toList(),
-      );
+  /// Reads an `AutomationRuleListResponse`.
+  factory AutomationRulesAnswer.fromJson(Map<String, dynamic> json) {
+    final w = api.AutomationRuleListResponse.fromJson(json);
+    return AutomationRulesAnswer(
+      summary: w.summary,
+      rules: [
+        for (final r in w.results ?? const <api.RuleRow>[])
+          AutomationRuleRow.fromJson(r.json),
+      ],
+    );
+  }
 }
 
 class RunStep {
@@ -385,12 +416,16 @@ class RunStep {
     this.text = '',
   });
 
-  factory RunStep.fromJson(Map<String, dynamic> json) => RunStep(
-    action: _int(json['action'], 0),
-    type: _str(json['type']),
-    status: _str(json['status']),
-    text: _str(json['text']),
-  );
+  /// Reads an `AutomationStep`.
+  factory RunStep.fromJson(Map<String, dynamic> json) {
+    final w = api.AutomationStep.fromJson(json);
+    return RunStep(
+      action: w.action ?? 0,
+      type: w.type ?? '',
+      status: w.status ?? '',
+      text: w.text ?? '',
+    );
+  }
 }
 
 class AutomationRun {
@@ -418,19 +453,23 @@ class AutomationRun {
     this.triggeredByRuleName,
   });
 
+  /// Reads a `Run`.
   factory AutomationRun.fromJson(Map<String, dynamic> json) {
-    final by = json['triggered_by'];
-    final byName = by is Map ? _str(by['rule_name']) : '';
+    final w = api.Run.fromJson(json);
+    final byName = w.triggeredBy?.ruleName ?? '';
     return AutomationRun(
-      id: _str(json['id']),
-      createdAt: _date(json['created_at']),
-      recordId: _str(json['record_id']),
-      recordName: _str(json['record_name']),
-      objectKey: _str(json['object_key']),
-      status: _str(json['status']),
-      reason: _str(json['reason']),
-      steps: _maps(json['steps']).map(RunStep.fromJson).toList(),
-      skippedCount: _int(json['skipped_count'], 0),
+      id: w.id ?? '',
+      createdAt: DateTime.tryParse(w.createdAt ?? ''),
+      recordId: w.recordId ?? '',
+      recordName: w.recordName ?? '',
+      objectKey: w.objectKey ?? '',
+      status: w.status ?? '',
+      reason: w.reason ?? '',
+      steps: [
+        for (final s in w.steps ?? const <api.AutomationStep>[])
+          RunStep.fromJson(s.json),
+      ],
+      skippedCount: w.skippedCount ?? 0,
       triggeredByRuleName: byName.isEmpty ? null : byName,
     );
   }
@@ -443,13 +482,14 @@ class RunPage {
 
   const RunPage({this.runs = const [], this.count = 0, this.offset = 0});
 
+  /// Reads an `AutomationRunListResponse`.
   factory RunPage.fromJson(Map<String, dynamic> json, {int offset = 0}) {
-    final runs = _maps(json['results']).map(AutomationRun.fromJson).toList();
-    return RunPage(
-      runs: runs,
-      count: _int(json['count'], runs.length),
-      offset: offset,
-    );
+    final w = api.AutomationRunListResponse.fromJson(json);
+    final runs = [
+      for (final r in w.results ?? const <api.Run>[])
+        AutomationRun.fromJson(r.json),
+    ];
+    return RunPage(runs: runs, count: w.count ?? runs.length, offset: offset);
   }
 }
 

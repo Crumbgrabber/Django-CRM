@@ -101,14 +101,36 @@ const response: Schemas['TaskListResponse'] = await apiRequest(`/tasks/?${query}
 A page types its props from the load, `let { data, form }: PageProps = $props();`, and a load is
 `export const load: PageServerLoad = async (event) => {...}`, both types from `./$types`. A `catch`
 variable is `unknown`; read a failed request with `apiStatus(err)` and `apiErrorBody(err)` from
-`#lib/api-errors.js`. An endpoint served only by the enterprise package is not in this schema, so
-its reply gets a hand-written type.
+`#lib/api-errors.js`. Endpoints served only by the enterprise package (custom objects, billing,
+support) have their own generated file, `frontend/src/lib/enterprise-api-schema.d.ts`, built from
+that package's schema; it is never edited by hand.
+
+Request bodies are typed as well. A body built from typed values is the endpoint's request type:
+annotate the variable, or write `{ ... } satisfies Schemas['LeadPipelineCreateRequest']` on a
+literal. A body relayed from a form, whose values are strings the API parses and validates, is
+`FormBody<Schemas['LeadCreateSwaggerRequest']>` from `#lib/api-helpers.js`, which checks the field
+names and leaves the values to the API. A `Record<string, unknown>` body is refused: it names no
+fields, so nothing about it can be checked.
+
+`pnpm check` ends with `scripts/api-contract.ts`, which holds every `apiRequest` call to the
+endpoint its path names: the method must exist on it, the reply type the caller declares must hold
+the endpoint's reply, and the body must fit the request type (a `FormBody` may name only fields the
+endpoint takes, and `FormData` goes only to an endpoint that takes multipart). In `.ts` files,
+type-aware ESLint (`no-unsafe-*`) stops an `any` that a library hands back (`res.json()`,
+`JSON.parse`, an untyped axios reply) from reaching app code: cast a `.json()` reply to its schema
+type, or parse it as `unknown` and check it.
 
 If a generated type is wrong, fix the schema, not the frontend: the backend test suite checks every
 response it sees against the schema (see [Testing](testing.md#the-schema-contract)). After changing a
 serializer, a view's `@extend_schema` or an endpoint, regenerate from `frontend/` with
-`pnpm api:types` (it runs drf-spectacular in `backend/`, then `openapi-typescript`) and commit the
-new `api-schema.d.ts` with your change.
+`pnpm api:types` (it runs drf-spectacular in `backend/`, then `openapi-typescript`) and from
+`mobile/` with `dart run tool/api_models.dart`, and commit the new `api-schema.d.ts` and
+`schema.g.dart` with your change.
+
+A view that reads a body declares it with `@extend_schema(request=...)`, and one that reads none says
+`request=None`; a `PUT` the view applies with `partial=True` takes `request=Serializer(partial=True)`.
+drf-spectacular prints `unable to guess serializer` for any view whose body or reply it cannot see,
+and that list is kept empty.
 
 ## Flutter
 
@@ -125,3 +147,17 @@ enforces Dart formatting or lint cleanliness. Unlike the backend, which now gate
 these commands yourself before opening a PR is the only check that happens. See
 [Build and configure](../mobile/build-and-configure.md#tests-and-analysis) for the full command set
 including `flutter test`.
+
+The app reads API responses through generated wire types, never by key. `tool/api_models.dart`
+writes one class per response component into `lib/data/api/schema.g.dart` (and the enterprise
+endpoints into `enterprise_schema.g.dart`), each field nullable and read leniently, so an older or
+newer server degrades instead of throwing. A model's `fromJson` starts with its wire class,
+`final w = api.Lead.fromJson(json);`, takes every field from `w`, and hands a nested object to its
+own model through the typed field (`Comment.fromJson(c.json)`). A field the app needs that the
+wire class lacks is a gap in the backend's schema: fix the schema and regenerate.
+
+Requests are checked the same way at run time. In debug builds and tests,
+`lib/services/api_contract.dart` holds every `ApiService` call to the operations the schema
+publishes: the path, the method, and every body field name. `test/flutter_test_config.dart` fails
+any test that sends a request outside them, since DRF answers 200 to a body field it ignores and
+the user's edit is lost without an error.

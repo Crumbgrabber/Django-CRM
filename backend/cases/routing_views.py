@@ -181,7 +181,7 @@ class RoutingRuleDetailView(APIView):
 
     @extend_schema(
         tags=["Routing"],
-        request=RoutingRuleSerializer,
+        request=RoutingRuleSerializer(partial=True),
         responses={200: RoutingRuleSerializer},
     )
     def put(self, request, pk, *args, **kwargs):

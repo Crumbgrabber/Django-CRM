@@ -1,4 +1,5 @@
 import { apiRequest } from '#lib/api-helpers.js';
+import type { components } from '#lib/api-schema.js';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ url, cookies, locals }) => {
@@ -8,7 +9,7 @@ export const GET: RequestHandler = async ({ url, cookies, locals }) => {
   const qs = new URLSearchParams({ limit });
   if (unread) qs.set('unread', unread);
   if (since) qs.set('since', since);
-  const data = await apiRequest(
+  const data: components['schemas']['NotificationListResponse'] = await apiRequest(
     `/notifications/?${qs.toString()}`,
     {},
     { cookies, org: locals?.org }

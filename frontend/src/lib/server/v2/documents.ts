@@ -50,15 +50,20 @@
  *   endpoint gated by the same `_may_read` the detail view uses.
  */
 import { isOrgAdmin } from '#lib/admin.js';
-import { apiRequest } from '#lib/api-helpers.js';
+import { apiRequest, type FormBody } from '#lib/api-helpers.js';
 import * as env from '$app/env/public';
 import { documentHref } from './files.js';
 import { getOrgPeopleAndTeams } from './org-people.js';
+import { accessClaims } from './organization.js';
 import type { Cookies } from '@sveltejs/kit';
 import type { components } from '#lib/api-schema.js';
 import type { ApiError, ApiErrorBody } from '#lib/api-errors.js';
 
 type Schemas = components['schemas'];
+type DocumentReply =
+  | Schemas['DocumentCreateResponse']
+  | Schemas['DocumentUpdateResponse']
+  | Schemas['DocumentPatchResponse'];
 
 const API_BASE_URL = `${env.PUBLIC_DJANGO_API_URL}/api`;
 
@@ -84,16 +89,11 @@ export const FILTER_FIELDS = ['status'];
  * for authorization.
  */
 function viewerClaims(cookies: Cookies): { isAdmin: boolean; userId: string | null } {
-  const token = cookies.get('jwt_access');
-  if (!token) return { isAdmin: false, userId: null };
-  try {
-    const payload = token.split('.')[1];
-    const json = Buffer.from(payload, 'base64url').toString('utf-8');
-    const claims = JSON.parse(json);
-    return { isAdmin: isOrgAdmin(claims), userId: claims.user_id ?? null };
-  } catch {
-    return { isAdmin: false, userId: null };
-  }
+  const claims = accessClaims(cookies);
+  return {
+    isAdmin: isOrgAdmin(claims),
+    userId: typeof claims.user_id === 'string' ? claims.user_id : null
+  };
 }
 
 /** A person's display name from a nested ProfileSerializer row. */
@@ -285,11 +285,7 @@ async function sendMultipart(
   path: string,
   method: 'POST' | 'PUT' | 'PATCH',
   values: { title: string; status: string; file: File; shared_to?: string[]; teams?: string[] }
-): Promise<
-  | Schemas['DocumentCreateResponse']
-  | Schemas['DocumentUpdateResponse']
-  | Schemas['DocumentPatchResponse']
-> {
+): Promise<DocumentReply> {
   const body = new FormData();
   body.append('title', values.title);
   body.append('status', values.status);
@@ -308,13 +304,13 @@ async function sendMultipart(
   });
 
   if (!response.ok) {
-    const data: ApiErrorBody = await response.json().catch(() => ({}));
+    const data = (await response.json().catch(() => ({}))) as ApiErrorBody;
     const failure = new Error(JSON.stringify(data)) as ApiError;
     failure.status = response.status;
     failure.body = data;
     throw failure;
   }
-  return response.json().catch(() => ({}));
+  return (await response.json().catch(() => ({}))) as DocumentReply;
 }
 
 /**
@@ -364,11 +360,12 @@ export function updateDocument(
       ...shares
     });
   }
-  return apiRequest(
-    `/documents/${id}/`,
-    { method, body: { title: values.title, status: values.status, ...shares } },
-    { cookies }
-  );
+  const body: FormBody<Schemas['PatchedDocumentEditSwaggerRequest']> = {
+    title: values.title,
+    status: values.status,
+    ...shares
+  };
+  return apiRequest(`/documents/${id}/`, { method, body }, { cookies });
 }
 
 /** `DELETE /api/documents/<id>/`. Gated by `_may_delete` (creator or admin). */

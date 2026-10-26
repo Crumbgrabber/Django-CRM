@@ -7,6 +7,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../config/api_config.dart';
 import '../../core/theme/theme.dart';
+import '../../data/api/schema.g.dart' as api;
 import '../../data/models/attachment.dart';
 import '../../data/models/comment.dart';
 import '../../data/models/project.dart';
@@ -893,28 +894,24 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
     _applyThread(result.data);
   }
 
-  /// The detail POST answers with the refreshed comments and attachments.
+  /// The detail POST answers with the refreshed `ProjectDetail`, whose
+  /// comments and attachments replace the ones on screen.
   void _applyThread(Map<String, dynamic>? data) {
-    final comments = data?['comments'];
-    final attachments = data?['attachments'];
-    if (comments is! List && attachments is! List) {
+    final detail = data == null ? null : api.ProjectDetail.fromJson(data);
+    final comments = detail?.comments;
+    final attachments = detail?.attachments;
+    if (comments == null && attachments == null) {
       _load();
       return;
     }
     setState(() {
       _project = _project!.copyWith(
-        comments: comments is List
-            ? comments
-                  .whereType<Map<String, dynamic>>()
-                  .map(Comment.fromJson)
-                  .toList()
-            : null,
-        attachments: attachments is List
-            ? attachments
-                  .whereType<Map<String, dynamic>>()
-                  .map(Attachment.fromJson)
-                  .toList()
-            : null,
+        comments: comments == null
+            ? null
+            : [for (final c in comments) Comment.fromJson(c.json)],
+        attachments: attachments == null
+            ? null
+            : [for (final a in attachments) Attachment.fromJson(a.json)],
       );
     });
   }

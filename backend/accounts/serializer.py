@@ -48,6 +48,24 @@ class AccountRollupsSerializer(serializers.Serializer):
     by_currency = AccountMoneyRowSerializer(many=True)
 
 
+class AccountCaseRefSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    name = serializers.CharField()
+
+
+class AccountTaskRefSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    title = serializers.CharField()
+
+
+class AccountDealRefSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    name = serializers.CharField()
+    stage = serializers.CharField()
+    stage_label = serializers.CharField()
+    amount = serializers.CharField()
+
+
 class AccountSerializer(serializers.ModelSerializer):
     """Serializer for reading Account data"""
 
@@ -112,7 +130,7 @@ class AccountSerializer(serializers.ModelSerializer):
         contacts = obj.contacts.filter(id__in=visible)
         return ContactSerializer(contacts, many=True, context=self.context).data
 
-    @extend_schema_field(list)
+    @extend_schema_field(AccountCaseRefSerializer(many=True))
     def get_cases(self, obj):
         """Cases on this account that the viewer may open."""
         profile = self.context["profile"]
@@ -121,7 +139,7 @@ class AccountSerializer(serializers.ModelSerializer):
         )
         return [{"id": str(c.id), "name": c.name} for c in cases]
 
-    @extend_schema_field(list)
+    @extend_schema_field(AccountTaskRefSerializer(many=True))
     def get_tasks(self, obj):
         """Tasks on this account that the viewer may open."""
         profile = self.context["profile"]
@@ -130,7 +148,7 @@ class AccountSerializer(serializers.ModelSerializer):
         )
         return [{"id": str(t.id), "title": t.title} for t in tasks]
 
-    @extend_schema_field(list)
+    @extend_schema_field(AccountDealRefSerializer(many=True))
     def get_opportunities(self, obj):
         """Deals on this account that the viewer may open.
 
@@ -203,6 +221,18 @@ class AccountSerializer(serializers.ModelSerializer):
         )
 
 
+class AccountWithRelatedSerializer(AccountSerializer):
+    """The schema of `AccountDetailView`'s `account_obj`, which that view
+    serializes with a profile and so with the related lists.
+
+    Schema only: serializing with it and no profile fails on the first list
+    rather than emitting records the viewer may not open.
+    """
+
+    def get_fields(self):
+        return serializers.ModelSerializer.get_fields(self)
+
+
 class AccountPickerSerializer(serializers.ModelSerializer):
     """An account as an option in a form's account select: `id` and `name`.
 
@@ -271,28 +301,6 @@ class EmailLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = AccountEmailLog
         fields = ["email", "contact", "is_sent"]
-
-
-class AccountWriteSerializer(serializers.ModelSerializer):
-    """Serializer for API documentation of Account write operations"""
-
-    class Meta:
-        model = Account
-        fields = [
-            "name",
-            "phone",
-            "email",
-            "website",
-            "industry",
-            "number_of_employees",
-            "annual_revenue",
-            "address_line",
-            "city",
-            "state",
-            "postcode",
-            "country",
-            "description",
-        ]
 
 
 class AccountCreateSerializer(serializers.ModelSerializer):
@@ -366,9 +374,31 @@ class AccountCreateSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 
+class AccountWriteSerializer(AccountCreateSerializer):
+    """The account write body, for the schema: `AccountCreateSerializer`'s
+    fields plus the relations and custom fields the views apply themselves."""
+
+    assigned_to = serializers.ListField(child=serializers.UUIDField(), required=False)
+    contacts = serializers.ListField(child=serializers.UUIDField(), required=False)
+    tags = serializers.ListField(child=serializers.UUIDField(), required=False)
+    teams = serializers.ListField(child=serializers.UUIDField(), required=False)
+    custom_fields = serializers.DictField(required=False)
+
+    class Meta(AccountCreateSerializer.Meta):
+        fields = (
+            *AccountCreateSerializer.Meta.fields,
+            "assigned_to",
+            "contacts",
+            "tags",
+            "teams",
+            "custom_fields",
+        )
+
+
 class AccountDetailEditSwaggerSerializer(serializers.Serializer):
-    comment = serializers.CharField()
-    account_attachment = serializers.FileField()
+    # A comment, a file, or both.
+    comment = serializers.CharField(required=False)
+    account_attachment = serializers.FileField(required=False)
 
 
 class AccountCommentEditSwaggerSerializer(serializers.Serializer):

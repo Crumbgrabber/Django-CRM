@@ -14,7 +14,7 @@
  *   so a message with a comma in it stays one cell.
  */
 
-type RowError = { row: number; field: string; message: string };
+export type RowError = { row: number; field: string; message: string };
 
 const FORMULA_START = ['=', '+', '-', '@', '\t', '\r'];
 

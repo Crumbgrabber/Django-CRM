@@ -13,7 +13,7 @@
  * only be turned away from; it is decoded from the JWT and is a display hint,
  * never the check.
  */
-import { apiRequest } from '#lib/api-helpers.js';
+import { apiRequest, type FormBody } from '#lib/api-helpers.js';
 import { listPipelines } from './deals.js';
 import { viewerIsAdmin } from './organization.js';
 import type { Cookies } from '@sveltejs/kit';
@@ -87,7 +87,7 @@ function stageBody({
   kind: string;
   expectedDays: string;
   warningDays: string;
-}) {
+}): FormBody<Schemas['DealStageRequest']> {
   return {
     label,
     kind,

@@ -20,7 +20,7 @@
  */
 
 import { RESTRICTED_TICKET_NAME } from '#lib/v2/enums.js';
-import { apiErrorBody } from '#lib/api-errors.js';
+import { apiErrorBody, firstMessage } from '#lib/api-errors.js';
 import { findNode, type TreeNode } from './close.js';
 
 /**
@@ -109,7 +109,7 @@ export function parentCandidates<R extends { id: string; status: string }>(
 export function linkRefusal(err: unknown, fallback: string) {
   const body = apiErrorBody(err) ?? {};
   for (const said of [body.parent_id, body.detail]) {
-    const text = Array.isArray(said) ? said[0] : said;
+    const text = firstMessage(said);
     if (typeof text === 'string' && text.trim()) return text.trim();
   }
   return fallback;

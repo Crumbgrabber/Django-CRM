@@ -1,3 +1,5 @@
+import '../api/schema.g.dart' as api;
+
 /// An account's statement (#810), from `GET /api/invoices/statements/<id>/`.
 ///
 /// Per currency the server sends an opening balance, the period's invoices,
@@ -27,17 +29,17 @@ class AccountStatement {
   /// in the period and nothing is owed.
   final List<StatementSection> sections;
 
+  /// Reads an `AccountStatement`.
   factory AccountStatement.fromJson(Map<String, dynamic> json) {
-    final account = json['account'] is Map ? json['account'] as Map : const {};
+    final w = api.AccountStatement.fromJson(json);
     return AccountStatement(
-      accountId: '${account['id'] ?? ''}',
-      accountName: '${account['name'] ?? ''}',
-      startDate: '${json['start_date'] ?? ''}',
-      endDate: '${json['end_date'] ?? ''}',
+      accountId: w.account?.id ?? '',
+      accountName: w.account?.name ?? '',
+      startDate: w.startDate ?? '',
+      endDate: w.endDate ?? '',
       sections: [
-        for (final section in (json['currencies'] as List? ?? const []))
-          if (section is Map<String, dynamic>)
-            StatementSection.fromJson(section),
+        for (final section in w.currencies ?? const <api.StatementCurrency>[])
+          StatementSection.fromJson(section.json),
       ],
     );
   }
@@ -66,19 +68,22 @@ class StatementSection {
   final double closingBalance;
   final List<StatementEntry> entries;
 
-  factory StatementSection.fromJson(Map<String, dynamic> json) =>
-      StatementSection(
-        currency: '${json['currency'] ?? ''}',
-        openingBalance: _num(json['opening_balance']),
-        invoiced: _num(json['invoiced']),
-        paid: _num(json['paid']),
-        cancelled: _num(json['cancelled']),
-        closingBalance: _num(json['closing_balance']),
-        entries: [
-          for (final entry in (json['entries'] as List? ?? const []))
-            if (entry is Map<String, dynamic>) StatementEntry.fromJson(entry),
-        ],
-      );
+  /// Reads a `StatementCurrency`.
+  factory StatementSection.fromJson(Map<String, dynamic> json) {
+    final w = api.StatementCurrency.fromJson(json);
+    return StatementSection(
+      currency: w.currency ?? '',
+      openingBalance: _num(w.openingBalance),
+      invoiced: _num(w.invoiced),
+      paid: _num(w.paid),
+      cancelled: _num(w.cancelled),
+      closingBalance: _num(w.closingBalance),
+      entries: [
+        for (final entry in w.entries ?? const <api.StatementEntry>[])
+          StatementEntry.fromJson(entry.json),
+      ],
+    );
+  }
 }
 
 /// One line: an invoice billed, a payment, or a cancellation.
@@ -108,15 +113,19 @@ class StatementEntry {
   /// What the account owes after this line.
   final double balance;
 
-  factory StatementEntry.fromJson(Map<String, dynamic> json) => StatementEntry(
-    date: '${json['date'] ?? ''}',
-    kind: '${json['kind'] ?? ''}',
-    invoiceId: '${json['invoice_id'] ?? ''}',
-    invoiceNumber: '${json['invoice_number'] ?? ''}',
-    description: '${json['description'] ?? ''}',
-    amount: _num(json['amount']),
-    balance: _num(json['balance']),
-  );
+  /// Reads a `StatementEntry`.
+  factory StatementEntry.fromJson(Map<String, dynamic> json) {
+    final w = api.StatementEntry.fromJson(json);
+    return StatementEntry(
+      date: w.date ?? '',
+      kind: w.kind ?? '',
+      invoiceId: w.invoiceId ?? '',
+      invoiceNumber: w.invoiceNumber ?? '',
+      description: w.description ?? '',
+      amount: _num(w.amount),
+      balance: _num(w.balance),
+    );
+  }
 }
 
 /// The whole calendar month before the one [iso] (`YYYY-MM-DD`) falls in.
@@ -133,5 +142,4 @@ class StatementEntry {
   return (start: ymd(first), end: ymd(last));
 }
 
-double _num(Object? value) =>
-    value is num ? value.toDouble() : double.tryParse('$value') ?? 0;
+double _num(String? value) => double.tryParse(value ?? '') ?? 0;

@@ -56,6 +56,7 @@ from leads.serializer import (
     LeadCreateSerializer,
     LeadCreateSwaggerSerializer,
     LeadDetailEditSwaggerSerializer,
+    LeadPatchSwaggerSerializer,
     LeadSerializer,
     TagsSerializer,
 )
@@ -974,7 +975,7 @@ class LeadDetailView(APIView):
     @extend_schema(
         tags=["Leads"],
         parameters=swagger_params.organization_params,
-        request=LeadDetailEditSwaggerSerializer,
+        request=LeadPatchSwaggerSerializer(partial=True),
         description="Partial Lead Update",
         responses={
             200: inline_serializer(

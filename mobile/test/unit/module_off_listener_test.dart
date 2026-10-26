@@ -58,13 +58,13 @@ void main() {
 
   test('a module_off answer on any request reloads the modules', () async {
     final api = ApiService();
-    await api.get('${ApiConfig.apiBaseUrl}/tickets/');
+    await api.get(ApiConfig.tickets);
     await container.read(orgModulesProvider.future);
     expect(client.modulesCalls, 1);
-    await api.post('${ApiConfig.apiBaseUrl}/tickets/', {});
+    await api.post(ApiConfig.tickets, {});
     await container.read(orgModulesProvider.future);
     expect(client.modulesCalls, 2);
-    await api.delete('${ApiConfig.apiBaseUrl}/tickets/1/');
+    await api.delete('${ApiConfig.tickets}1/');
     await container.read(orgModulesProvider.future);
     expect(client.modulesCalls, 3);
   });
@@ -74,12 +74,12 @@ void main() {
     () async {
       final api = ApiService();
       client.otherBody = '{"detail": "Not found."}';
-      await api.get('${ApiConfig.apiBaseUrl}/tickets/9/');
+      await api.get('${ApiConfig.tickets}9/');
       client.otherBody = 'not json';
-      await api.get('${ApiConfig.apiBaseUrl}/tickets/9/');
+      await api.get('${ApiConfig.tickets}9/');
       client.otherStatus = 409;
       client.otherBody = '{"detail": "Has open tickets."}';
-      await api.delete('${ApiConfig.apiBaseUrl}/tickets/1/');
+      await api.delete('${ApiConfig.tickets}1/');
       await Future<void>.delayed(Duration.zero);
       expect(client.modulesCalls, 0);
     },
@@ -89,7 +89,7 @@ void main() {
     final api = ApiService();
     client.otherStatus = 409;
     client.otherBody = _off;
-    await api.delete('${ApiConfig.apiBaseUrl}/tickets/1/');
+    await api.delete('${ApiConfig.tickets}1/');
     await container.read(orgModulesProvider.future);
     expect(client.modulesCalls, 1);
   });
@@ -97,9 +97,9 @@ void main() {
   test('several module_off answers while a reload runs ask once', () async {
     final api = ApiService();
     client.holdModules = Completer<void>();
-    await api.get('${ApiConfig.apiBaseUrl}/tickets/');
-    await api.get('${ApiConfig.apiBaseUrl}/tickets/');
-    await api.get('${ApiConfig.apiBaseUrl}/tickets/');
+    await api.get(ApiConfig.tickets);
+    await api.get(ApiConfig.tickets);
+    await api.get(ApiConfig.tickets);
     client.holdModules!.complete();
     await container.read(orgModulesProvider.future);
     expect(client.modulesCalls, 1);
@@ -109,7 +109,7 @@ void main() {
     expect(ApiService().hasModuleOffCallback, isTrue);
     container.dispose();
     expect(ApiService().hasModuleOffCallback, isFalse);
-    await ApiService().get('${ApiConfig.apiBaseUrl}/tickets/');
+    await ApiService().get(ApiConfig.tickets);
     expect(client.modulesCalls, 0);
   });
 }

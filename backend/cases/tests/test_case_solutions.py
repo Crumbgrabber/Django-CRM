@@ -93,6 +93,20 @@ class TestCaseSolutionLinking:
         )
         assert response.status_code == 404
 
+    def test_each_route_refuses_the_other_verb(
+        self, admin_client, case_a, org_a, admin_user
+    ):
+        """One view per route: the wrong verb is a 405, never a crash."""
+        sol = self._solution(org_a, admin_user)
+        item = f"/api/cases/{case_a.pk}/solutions/{sol.pk}/"
+        assert (
+            admin_client.post(item, {}, content_type="application/json").status_code
+            == 405
+        )
+        assert (
+            admin_client.delete(f"/api/cases/{case_a.pk}/solutions/").status_code == 405
+        )
+
     def test_unlink_solution(self, admin_client, case_a, org_a, admin_user):
         sol = self._solution(org_a, admin_user)
         case_a.solutions.add(sol)

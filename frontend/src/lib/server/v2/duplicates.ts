@@ -34,7 +34,7 @@ export const DUPLICATE_MODULES: Record<
   {
     singular: string;
     record: string;
-    query: string[];
+    query: (keyof Schemas['DuplicateQueryRequest'])[];
     compare: Array<[string, (o: MergeRecord) => string | undefined]>;
   }
 > = {
@@ -119,6 +119,8 @@ export function matchedLabel(reasons: string[]) {
   return `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}`;
 }
 
+export type DuplicateMatch = ReturnType<typeof toHit>;
+
 function toHit(hit: Schemas['DuplicateHit']) {
   return {
     id: hit.id,
@@ -141,7 +143,7 @@ export async function checkDuplicates(
   module: string,
   criteria: Record<string, unknown>
 ) {
-  const body: Record<string, string> = {};
+  const body: Schemas['DuplicateQueryRequest'] = {};
   for (const field of spec(module).query) {
     const value = criteria?.[field];
     if (typeof value === 'string' && value.trim()) body[field] = value.trim();
@@ -246,13 +248,13 @@ export async function mergeRecords(
   module: MergeModule,
   keeperId: string,
   loserId: string
-) {
+): Promise<Schemas['MergeResponse']> {
   spec(module);
   recordId(keeperId);
   recordId(loserId);
   return await apiRequest(
     `/${module}/${keeperId}/merge/`,
-    { method: 'POST', body: { merge_id: loserId } },
+    { method: 'POST', body: { merge_id: loserId } satisfies Schemas['MergeRequestRequest'] },
     { cookies }
   );
 }

@@ -23,7 +23,7 @@
  * would be inventing a way for a caller to ask for another tenant's rows.
  */
 import { error, type Cookies } from '@sveltejs/kit';
-import { apiRequest } from '#lib/api-helpers.js';
+import { apiRequest, type FormBody } from '#lib/api-helpers.js';
 import { apiStatus } from '#lib/api-errors.js';
 import { rethrowModuleOff } from '#lib/server/v2/modules.js';
 import { attachmentHref } from '#lib/server/v2/files.js';
@@ -305,7 +305,10 @@ function buildActivity(response: Schemas['LeadDetailResponse']) {
 }
 
 /** Scalar fields the edit form owns. Everything else about a lead is derived. */
-export const EDITABLE_FIELDS = [
+export const EDITABLE_FIELDS: Exclude<
+  keyof Schemas['LeadCreateSwaggerRequest'],
+  'custom_fields'
+>[] = [
   'first_name',
   'last_name',
   'job_title',
@@ -450,7 +453,7 @@ export async function updateLead(
   id: string,
   values: Record<string, unknown>
 ): Promise<Schemas['LeadPatchResponse']> {
-  const body: Record<string, unknown> = {};
+  const body: FormBody<Schemas['PatchedLeadPatchSwaggerRequest']> = {};
   for (const field of EDITABLE_FIELDS) {
     if (!(field in values)) continue;
     body[field] = emptyAs(field, values[field]);
@@ -534,7 +537,7 @@ export async function createLead(
   { cookies }: { cookies: Cookies },
   values: Record<string, unknown>
 ): Promise<Schemas['LeadCreateResponse']> {
-  const body: Record<string, unknown> = {};
+  const body: FormBody<Schemas['LeadCreateSwaggerRequest']> = {};
   for (const field of EDITABLE_FIELDS) {
     body[field] = emptyAs(field, values[field]);
   }
@@ -597,7 +600,10 @@ export async function convertLead(
   if (!id) throw new Error('A lead id is required to convert.');
   return await apiRequest(
     `/leads/${id}/`,
-    { method: 'PATCH', body: { status: 'converted' } },
+    {
+      method: 'PATCH',
+      body: { status: 'converted' } satisfies Schemas['PatchedLeadPatchSwaggerRequest']
+    },
     { cookies }
   );
 }

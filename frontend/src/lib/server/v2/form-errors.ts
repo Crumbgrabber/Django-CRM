@@ -12,7 +12,7 @@
  * different opinions about who may open a record.
  */
 
-import { apiErrorBody } from '#lib/api-errors.js';
+import { apiErrorBody, firstMessage } from '#lib/api-errors.js';
 
 /**
  * @param err the error thrown by `apiRequest`
@@ -57,14 +57,14 @@ export function readableError(err: unknown, fallback: string): string {
   const start = message.indexOf('{');
   if (start === -1) return message || fallback;
   try {
-    const parsed = JSON.parse(message.slice(start));
-    const errors = parsed.errors ?? parsed;
+    const parsed: unknown = JSON.parse(message.slice(start));
+    const errors = (parsed as { errors?: unknown } | null)?.errors ?? parsed;
     if (typeof errors === 'string') return errors;
-    const first = Object.entries(errors)[0];
+    const first = Object.entries(errors as Record<string, unknown>)[0];
     if (!first) return fallback;
     const [field, detail] = first;
-    const text = Array.isArray(detail) ? detail[0] : detail;
-    return field === 'non_field_errors' ? String(text) : `${field}: ${text}`;
+    const text = String(firstMessage(detail));
+    return field === 'non_field_errors' ? text : `${field}: ${text}`;
   } catch {
     return message;
   }

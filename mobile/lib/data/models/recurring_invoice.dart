@@ -1,3 +1,4 @@
+import '../api/schema.g.dart' as api;
 import 'deal.dart' show Currency;
 
 /// `invoices.models.RECURRING_FREQUENCIES`, value to label.
@@ -84,33 +85,32 @@ class RecurringInvoice {
   /// showing it unqualified would promise an invoice that is not coming.
   DateTime? get effectiveNextRun => isActive ? nextGenerationDate : null;
 
+  /// Reads a `RecurringInvoiceList` row.
   factory RecurringInvoice.fromJson(Map<String, dynamic> json) {
+    final w = api.RecurringInvoiceList.fromJson(json);
     return RecurringInvoice(
-      id: json['id']?.toString() ?? '',
-      title: json['title'] as String? ?? '',
-      accountName: json['account_name'] as String?,
-      clientName: json['client_name'] as String? ?? '',
-      frequency: json['frequency']?.toString() ?? '',
-      customDays: json['custom_days'] as int?,
-      startDate: _date(json['start_date']),
-      endDate: _date(json['end_date']),
-      nextGenerationDate: _date(json['next_generation_date']),
-      isActive: json['is_active'] as bool? ?? true,
-      autoSend: json['auto_send'] as bool? ?? false,
-      totalAmount: _num(json['total_amount']),
-      currency: json['currency'] as String?,
-      invoicesGenerated: json['invoices_generated'] as int? ?? 0,
+      id: w.id ?? '',
+      title: w.title ?? '',
+      accountName: w.accountName,
+      clientName: w.clientName ?? '',
+      frequency: w.frequency ?? '',
+      customDays: w.customDays,
+      startDate: _date(w.startDate),
+      endDate: _date(w.endDate),
+      nextGenerationDate: _date(w.nextGenerationDate),
+      isActive: w.isActive ?? true,
+      autoSend: w.autoSend ?? false,
+      totalAmount: _num(w.totalAmount),
+      currency: w.currency,
+      invoicesGenerated: w.invoicesGenerated ?? 0,
     );
   }
 }
 
-double _num(dynamic value) {
-  if (value is num) return value.toDouble();
-  return double.tryParse(value?.toString() ?? '') ?? 0;
-}
+double _num(String? value) => double.tryParse(value ?? '') ?? 0;
 
-DateTime? _date(dynamic value) {
-  final text = value?.toString().trim() ?? '';
+DateTime? _date(String? value) {
+  final text = value?.trim() ?? '';
   if (text.isEmpty || text == 'null') return null;
   if (RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(text)) {
     return DateTime.tryParse('${text}T00:00:00');

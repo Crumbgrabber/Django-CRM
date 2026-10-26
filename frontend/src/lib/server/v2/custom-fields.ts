@@ -22,7 +22,7 @@
  * same `updateCustomField` PUT with only `is_active: true`, since the
  * detail view has no separate reactivate endpoint.
  */
-import { apiRequest } from '#lib/api-helpers.js';
+import { apiRequest, type FormBody } from '#lib/api-helpers.js';
 import { viewerIsAdmin } from './organization.js';
 import type { Cookies } from '@sveltejs/kit';
 import type { components } from '#lib/api-schema.js';
@@ -60,7 +60,7 @@ export async function getCustomFields({ cookies }: { cookies: Cookies }): Promis
 
 /** The fields the serializer accepts on create. `org` is set from the JWT
  *  server-side and `records_missing_value` is computed, so neither appears. */
-const CREATE_FIELDS = [
+const CREATE_FIELDS: (keyof Schemas['CustomFieldDefinitionRequest'])[] = [
   'target_model',
   'key',
   'label',
@@ -94,14 +94,14 @@ function slugifyOptionValue(label: string) {
 }
 
 /** Shape the request body from an allow-list. */
-function buildBody(allowed: string[], values: FieldValues) {
-  const body: Record<string, unknown> = {};
+function buildBody(allowed: typeof CREATE_FIELDS, values: FieldValues) {
+  const body: FormBody<Schemas['CustomFieldDefinitionRequest']> = {};
   for (const field of allowed) {
     if (values[field] === undefined) continue;
     body[field] = values[field];
   }
   if (body.display_order !== undefined) body.display_order = Number(body.display_order) || 0;
-  for (const flag of ['is_required', 'is_filterable', 'is_active']) {
+  for (const flag of ['is_required', 'is_filterable', 'is_active'] as const) {
     if (body[flag] !== undefined) body[flag] = Boolean(body[flag]);
   }
 

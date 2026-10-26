@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/api_config.dart';
-import '../data/api_envelope.dart';
+import '../data/api/schema.g.dart' as api;
 import '../data/models/lead_intake.dart';
 import '../services/api_service.dart';
 
@@ -32,10 +32,11 @@ class LeadIntakesNotifier extends AsyncNotifier<List<LeadIntake>> {
     if (!response.success || data == null) {
       throw Exception(response.message ?? 'Could not load the webhooks.');
     }
-    return listFromEnvelope(data, const [
-      'intakes',
-      'results',
-    ]).map(LeadIntake.fromJson).toList(growable: false);
+    final rows = api.LeadIntakeListResponse.fromJson(data).intakes;
+    return [
+      for (final row in rows ?? const <api.LeadIntake>[])
+        LeadIntake.fromJson(row.json),
+    ];
   }
 
   Future<void> refresh() async {
@@ -58,7 +59,7 @@ class LeadIntakesNotifier extends AsyncNotifier<List<LeadIntake>> {
   /// The old key keeps working for seven days, server-side.
   Future<IntakeKeyResult> replaceKey(String id) async {
     final response = await _api.post(ApiConfig.leadIntakeKey(id), const {});
-    final key = response.data?['key']?.toString();
+    final key = api.LeadIntakeKeyed.fromJson(response.data ?? const {}).key;
     if (!response.success || key == null || key.isEmpty) {
       return (
         key: null,
@@ -90,8 +91,9 @@ final leadIntakeDeliveriesProvider = FutureProvider.autoDispose
       if (!response.success || data == null) {
         throw Exception(response.message ?? 'Could not load the deliveries.');
       }
-      return listFromEnvelope(data, const [
-        'deliveries',
-        'results',
-      ]).map(IntakeDelivery.fromJson).toList(growable: false);
+      final rows = api.LeadIntakeDeliveriesResponse.fromJson(data).deliveries;
+      return [
+        for (final row in rows ?? const <api.LeadIntakeDelivery>[])
+          IntakeDelivery.fromJson(row.json),
+      ];
     }, retry: (_, _) => null);

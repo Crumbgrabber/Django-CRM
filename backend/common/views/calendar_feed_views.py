@@ -80,14 +80,19 @@ def _state(feed):
     }
 
 
-_FEED_STATE = {
-    "error": serializers.BooleanField(),
-    "enabled": serializers.BooleanField(),
-    "created_at": serializers.DateTimeField(allow_null=True),
-    "last_used_at": serializers.DateTimeField(allow_null=True),
-}
+def _feed_state_fields():
+    # A fresh dict each time: the serializer metaclass pops its fields out of
+    # the one it is given, which left the second schema with only `url`.
+    return {
+        "error": serializers.BooleanField(),
+        "enabled": serializers.BooleanField(),
+        "created_at": serializers.DateTimeField(allow_null=True),
+        "last_used_at": serializers.DateTimeField(allow_null=True),
+    }
+
+
 _FeedStateResponse = inline_serializer(
-    name="CalendarFeedStateResponse", fields=_FEED_STATE
+    name="CalendarFeedStateResponse", fields=_feed_state_fields()
 )
 
 
@@ -118,7 +123,7 @@ class CalendarFeedView(APIView):
         responses={
             201: inline_serializer(
                 name="CalendarFeedIssuedResponse",
-                fields={**_FEED_STATE, "url": serializers.CharField()},
+                fields={**_feed_state_fields(), "url": serializers.CharField()},
             )
         },
     )

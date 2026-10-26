@@ -63,12 +63,16 @@ export const actions: Actions = {
     request
   }): Promise<ActionFailure<{ error: string; fieldErrors?: Record<string, string> }>> => {
     const form = await request.formData();
-    let values: RecurringValues;
+    let parsed: unknown;
     try {
-      values = JSON.parse(form.get('payload')?.toString() || '{}');
+      parsed = JSON.parse(form.get('payload')?.toString() || '{}');
     } catch {
+      parsed = null;
+    }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       return fail(400, { error: 'The schedule form could not be read. Please try again.' });
     }
+    const values = parsed as RecurringValues;
 
     // Custom fields come from their own inputs, never from the builder's payload.
     delete values.custom_fields;

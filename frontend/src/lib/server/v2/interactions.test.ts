@@ -253,7 +253,7 @@ describe('interactionBody', () => {
       logged_by: 'p9'
     });
     expect(body.contact).toBeUndefined();
-    expect(body.logged_by).toBeUndefined();
+    expect('logged_by' in body).toBe(false);
     expect(body.origin).toBe('manual');
     expect(() => interactionBody('lead', 'not-an-id', { kind: 'call' })).toThrow();
     expect(() => interactionBody('org', LEAD, { kind: 'call' })).toThrow();

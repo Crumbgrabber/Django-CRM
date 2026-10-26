@@ -7,6 +7,12 @@
  * one again.
  */
 import { missingOptions } from '#lib/v2/pickers.js';
+import type { FormBody } from '#lib/api-helpers.js';
+import type { components } from '#lib/api-schema.js';
+
+type Grouping = NonNullable<
+  components['schemas']['InvoiceFromTimeEntriesRequestRequest']['group_by']
+>;
 
 export const PROJECT_STATUSES = ['active', 'on_hold', 'completed', 'cancelled'];
 
@@ -33,14 +39,13 @@ export const BILLING_TYPE_LABEL: Record<string, string> = {
 };
 
 /** How a bill of time groups its lines; `entry` is the API's default. */
-export const BILL_GROUPINGS = [
+export const BILL_GROUPINGS: { value: Grouping; label: string }[] = [
   { value: 'single', label: 'One line for everything' },
   { value: 'person', label: 'One line per person' },
   { value: 'task', label: 'One line per task' },
   { value: 'entry', label: 'One line per entry' }
 ];
 
-const GROUP_VALUES = BILL_GROUPINGS.map((g) => g.value);
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -49,8 +54,8 @@ export function isUuid(value: unknown): boolean {
 }
 
 /** A grouping the API takes, else its default. */
-export function billGrouping(value: unknown): string {
-  return typeof value === 'string' && GROUP_VALUES.includes(value) ? value : 'entry';
+export function billGrouping(value: unknown): Grouping {
+  return BILL_GROUPINGS.find((g) => g.value === value)?.value ?? 'entry';
 }
 
 /** A `YYYY-MM-DD` the form may send, else null. */
@@ -184,23 +189,7 @@ export type ProjectFormValues = Omit<
 };
 
 /** The create or PATCH body `projectBody` builds. */
-type ProjectBody = {
-  name?: string;
-  account?: string | null;
-  deal?: string | null;
-  status?: string;
-  billing_type?: string;
-  currency?: string;
-  budget_hours?: string | null;
-  budget_amount?: string | null;
-  hourly_rate?: string | null;
-  start_date?: string | null;
-  due_date?: string | null;
-  description?: string;
-  assigned_to?: string[];
-  rates?: { profile: string; hourly_rate: string }[];
-  custom_fields?: Record<string, string | boolean | null>;
-};
+type ProjectBody = FormBody<components['schemas']['ProjectBodyRequest']>;
 
 /**
  * The fields a project form submitted, read off its FormData. Only what the
@@ -278,7 +267,9 @@ export function projectBody(values: ProjectValues): { body: ProjectBody; errors:
   for (const key of ['start_date', 'due_date'] as const) {
     if (key in values) body[key] = isoDateOrNull(values[key]);
   }
-  if (body.start_date && body.due_date && body.due_date < body.start_date) {
+  const start = isoDateOrNull(values.start_date);
+  const due = isoDateOrNull(values.due_date);
+  if (start && due && due < start) {
     errors.push('The due date cannot be before the start date.');
   }
   if ('description' in values) body.description = String(values.description ?? '');
@@ -360,9 +351,9 @@ export function draftValues(
 export function invoiceAmountBody(
   { mode, value, description }: { mode?: string; value?: string; description?: string },
   budgetAmount: number | null
-): { body?: Record<string, string>; error?: string } {
+): { body?: components['schemas']['InvoiceAmountRequest']; error?: string } {
   const n = Number(String(value ?? '').trim());
-  const body: Record<string, string> = {};
+  const body: components['schemas']['InvoiceAmountRequest'] = {};
   if (mode === 'percent') {
     if (budgetAmount === null || !(budgetAmount > 0)) {
       return { error: 'Set a budget amount on the project before invoicing a percentage of it.' };

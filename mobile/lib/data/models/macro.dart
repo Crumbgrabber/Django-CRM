@@ -1,3 +1,5 @@
+import '../api/schema.g.dart' as api;
+
 /// A saved reply, from `MacroSerializer`.
 ///
 /// Two scopes with genuinely different rules, and the difference is not
@@ -65,25 +67,30 @@ class Macro {
   /// `frontend/src/lib/v2/enums.ts`.
   String get scopeLabel => isPersonal ? 'Just you' : 'Everyone';
 
+  /// Reads a `Macro`.
   factory Macro.fromJson(Map<String, dynamic> json) {
-    final unknown = json['unknown_placeholders'];
+    final w = api.Macro.fromJson(json);
+    final owner = w.ownerName;
     return Macro(
-      id: json['id']?.toString() ?? '',
-      title: json['title'] as String? ?? '',
-      body: json['body'] as String? ?? '',
-      scope: json['scope']?.toString() ?? scopeOrg,
-      ownerEmail: (json['owner_name'] as String?)?.trim().isEmpty ?? true
-          ? null
-          : json['owner_name'] as String?,
-      isActive: json['is_active'] as bool? ?? true,
-      usageCount: json['usage_count'] as int? ?? 0,
-      unknownPlaceholders: unknown is List
-          ? unknown.map((t) => t.toString()).toList(growable: false)
-          : const [],
-      setStatus: json['set_status']?.toString() ?? '',
-      setPriority: json['set_priority']?.toString() ?? '',
-      assignees: MacroRef.listFrom(json['set_assignees_details'], person: true),
-      tags: MacroRef.listFrom(json['add_tags_details'], person: false),
+      id: w.id ?? '',
+      title: w.title ?? '',
+      body: w.body ?? '',
+      scope: w.scope ?? scopeOrg,
+      ownerEmail: owner?.trim().isEmpty ?? true ? null : owner,
+      isActive: w.isActive ?? true,
+      usageCount: w.usageCount ?? 0,
+      unknownPlaceholders: w.unknownPlaceholders ?? const [],
+      setStatus: w.setStatus ?? '',
+      setPriority: w.setPriority ?? '',
+      assignees: [
+        for (final a
+            in w.setAssigneesDetails ?? const <api.MacroAssigneeDetail>[])
+          MacroRef.assigneeFromJson(a.json),
+      ],
+      tags: [
+        for (final t in w.addTagsDetails ?? const <api.MacroTagDetail>[])
+          MacroRef.tagFromJson(t.json),
+      ],
     );
   }
 }
@@ -110,24 +117,27 @@ class MacroRef {
     return '$name (${isPerson ? 'deactivated' : 'archived'})';
   }
 
-  static List<MacroRef> listFrom(dynamic raw, {required bool person}) {
-    if (raw is! List) return const [];
-    return [
-      for (final row in raw)
-        if (row is Map)
-          MacroRef(
-            id: row['id']?.toString() ?? '',
-            name: _nameOf(row, person),
-            isActive: row['is_active'] as bool? ?? true,
-            isPerson: person,
-          ),
-    ];
+  /// Reads a `MacroAssigneeDetail`. A member with no name shows the email.
+  factory MacroRef.assigneeFromJson(Map<String, dynamic> json) {
+    final w = api.MacroAssigneeDetail.fromJson(json);
+    final name = w.name?.trim() ?? '';
+    return MacroRef(
+      id: w.id ?? '',
+      name: name.isNotEmpty ? name : (w.email ?? 'Unknown'),
+      isActive: w.isActive ?? true,
+    );
   }
 
-  static String _nameOf(Map row, bool person) {
-    final name = row['name']?.toString().trim() ?? '';
-    if (name.isNotEmpty) return name;
-    return person ? (row['email']?.toString() ?? 'Unknown') : 'Unnamed';
+  /// Reads a `MacroTagDetail`.
+  factory MacroRef.tagFromJson(Map<String, dynamic> json) {
+    final w = api.MacroTagDetail.fromJson(json);
+    final name = w.name?.trim() ?? '';
+    return MacroRef(
+      id: w.id ?? '',
+      name: name.isNotEmpty ? name : 'Unnamed',
+      isActive: w.isActive ?? true,
+      isPerson: false,
+    );
   }
 }
 
@@ -166,16 +176,13 @@ List<({String key, String label})> macroActionChips(Macro macro) {
 /// A sentence for what applying did, from the apply response's `applied` and
 /// `skipped`.
 String macroApplySummary(Map<String, dynamic>? data) {
-  final applied = data?['applied'];
-  final skipped = data?['skipped'];
-  final names = applied is List ? applied.map((a) => '$a').toList() : [];
+  final w = data == null ? null : api.MacroApplyResponse.fromJson(data);
+  final names = w?.applied ?? const <String>[];
   final head = names.isEmpty
       ? 'The macro changed nothing on this ticket.'
       : 'Macro applied: ${names.join(', ')}.';
   final reasons = [
-    if (skipped is List)
-      for (final s in skipped)
-        if (s is Map && s['reason'] != null) '${s['reason']}',
+    for (final s in w?.skipped ?? const <api.MacroApplySkipped>[]) ?s.reason,
   ];
   return [head, ...reasons].join(' ');
 }

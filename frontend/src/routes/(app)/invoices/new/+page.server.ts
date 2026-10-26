@@ -11,6 +11,10 @@ import {
 import { getNumbering } from '#lib/server/v2/organization.js';
 import { apiStatus } from '#lib/api-errors.js';
 import type { Actions, PageServerLoad } from './$types';
+import type { FormBody } from '#lib/api-helpers.js';
+import type { components } from '#lib/api-schema.js';
+
+type Schemas = components['schemas'];
 
 type ContactRow = {
   id: string;
@@ -66,12 +70,16 @@ export const actions: Actions = {
     request
   }): Promise<ActionFailure<{ error: string; fieldErrors?: Record<string, string> }>> => {
     const form = await request.formData();
-    let body: Record<string, unknown>;
+    let parsed: unknown;
     try {
-      body = JSON.parse(form.get('payload')?.toString() || '{}');
+      parsed = JSON.parse(form.get('payload')?.toString() || '{}');
     } catch {
+      parsed = null;
+    }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       return fail(400, { error: 'The invoice form could not be read. Please try again.' });
     }
+    const body = parsed as FormBody<Schemas['InvoiceBodyRequest']>;
 
     // Custom fields come from their own inputs, never from the builder's payload.
     delete body.custom_fields;

@@ -8,6 +8,7 @@
 /// while the row still looks configured.
 library;
 
+import '../api/schema.g.dart' as api;
 import 'lookup_models.dart';
 
 /// `EscalationPolicy.ACTION_CHOICES`.
@@ -68,11 +69,13 @@ class EscalationBreachCounts {
     EscalationHalf.resolution => resolution,
   };
 
+  /// Reads an `EscalationBreachCounts`, a list row's `breaches_last_30d`.
   factory EscalationBreachCounts.fromJson(dynamic json) {
-    if (json is! Map) return const EscalationBreachCounts();
+    if (json is! Map<String, dynamic>) return const EscalationBreachCounts();
+    final w = api.EscalationBreachCounts.fromJson(json);
     return EscalationBreachCounts(
-      firstResponse: json['first_response'] as int? ?? 0,
-      resolution: json['resolution'] as int? ?? 0,
+      firstResponse: w.firstResponse ?? 0,
+      resolution: w.resolution ?? 0,
     );
   }
 }
@@ -201,27 +204,26 @@ class EscalationPolicy {
         targetFor(half)!,
   ];
 
+  /// Reads an `EscalationPolicyListRow`, the list's `EscalationPolicy` plus
+  /// `breaches_last_30d`.
   factory EscalationPolicy.fromJson(Map<String, dynamic> json) {
-    UserLookup? person(dynamic value) =>
-        value is Map<String, dynamic> ? UserLookup.fromJson(value) : null;
-    final team = json['notify_team'];
+    final w = api.EscalationPolicyListRow.fromJson(json);
+    UserLookup? person(api.Profile? profile) =>
+        profile == null ? null : UserLookup.fromJson(profile.json);
+    final team = w.notifyTeam;
     return EscalationPolicy(
-      id: json['id']?.toString() ?? '',
-      priority: json['priority']?.toString() ?? '',
-      isActive: json['is_active'] as bool? ?? true,
-      firstResponseAction:
-          json['first_response_action']?.toString() ?? escalationActionNotify,
-      resolutionAction:
-          json['resolution_action']?.toString() ?? escalationActionNotify,
-      firstResponseTarget: person(json['first_response_target']),
-      resolutionTarget: person(json['resolution_target']),
-      notifyTeam: team is Map<String, dynamic>
-          ? TeamLookup.fromJson(team)
-          : null,
-      firstResponseHours: json['first_response_hours'] as int?,
-      resolutionHours: json['resolution_hours'] as int?,
-      nextResponseHours: json['next_response_hours'] as int?,
-      breaches: EscalationBreachCounts.fromJson(json['breaches_last_30d']),
+      id: w.id ?? '',
+      priority: w.priority ?? '',
+      isActive: w.isActive ?? true,
+      firstResponseAction: w.firstResponseAction ?? escalationActionNotify,
+      resolutionAction: w.resolutionAction ?? escalationActionNotify,
+      firstResponseTarget: person(w.firstResponseTarget),
+      resolutionTarget: person(w.resolutionTarget),
+      notifyTeam: team == null ? null : TeamLookup.fromJson(team.json),
+      firstResponseHours: w.firstResponseHours,
+      resolutionHours: w.resolutionHours,
+      nextResponseHours: w.nextResponseHours,
+      breaches: EscalationBreachCounts.fromJson(w.breachesLast30d?.json),
     );
   }
 }

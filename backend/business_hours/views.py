@@ -69,13 +69,16 @@ class BusinessCalendarView(APIView):
     permission_classes = (IsAuthenticated, HasOrgContext)
 
     @extend_schema(tags=["Business hours"], responses={200: BusinessCalendarSerializer})
-    def get(self, request, *args, **kwargs):
-        cal = _get_or_create_default(request.profile.org)
+    def get(self, request, pk=None, *args, **kwargs):
+        if pk is None:
+            cal = _get_or_create_default(request.profile.org)
+        else:
+            cal = get_object_or_404(BusinessCalendar, pk=pk, org=request.profile.org)
         return Response(BusinessCalendarSerializer(cal).data)
 
     @extend_schema(
         tags=["Business hours"],
-        request=BusinessCalendarSerializer,
+        request=BusinessCalendarSerializer(partial=True),
         responses={200: BusinessCalendarSerializer},
     )
     def put(self, request, pk=None, *args, **kwargs):

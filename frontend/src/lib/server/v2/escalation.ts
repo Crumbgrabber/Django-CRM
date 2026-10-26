@@ -23,7 +23,7 @@
  * every settings-hub load. The route's `load` fetches `getOrgPeopleAndTeams`
  * itself, in parallel with this.
  */
-import { apiRequest } from '#lib/api-helpers.js';
+import { apiRequest, type FormBody } from '#lib/api-helpers.js';
 import { ESCALATION_PRIORITIES } from '#lib/v2/enums.js';
 import { viewerIsAdmin } from './organization.js';
 import type { Cookies } from '@sveltejs/kit';
@@ -92,7 +92,7 @@ export async function getEscalationPolicies({ cookies }: { cookies: Cookies }) {
   };
 }
 
-export const CREATE_FIELDS = [
+export const CREATE_FIELDS: (keyof Schemas['EscalationPolicyRequest'])[] = [
   'priority',
   'first_response_hours',
   'resolution_hours',
@@ -106,7 +106,7 @@ export const CREATE_FIELDS = [
 ];
 
 /** The three SLA target fields, which share their parsing and their bounds. */
-const HOUR_FIELDS = ['first_response_hours', 'resolution_hours', 'next_response_hours'];
+const HOUR_FIELDS = ['first_response_hours', 'resolution_hours', 'next_response_hours'] as const;
 
 /** Mirrors `MAX_SLA_HOURS` in backend/cases/workflow.py. The bound exists
  *  because the business-hours walker gives up after 5 years of calendar days. */
@@ -139,13 +139,17 @@ function normalizeHours(value: unknown, field: string) {
  *  offers a control whose success is a lie. */
 export const UPDATE_FIELDS = CREATE_FIELDS.filter((f) => f !== 'priority');
 
-function buildBody(allowed: string[], values: { [key: string]: unknown }) {
-  const body: { [key: string]: unknown } = {};
+function buildBody(allowed: typeof CREATE_FIELDS, values: { [key: string]: unknown }) {
+  const body: FormBody<Schemas['EscalationPolicyRequest']> = {};
   for (const field of allowed) {
     if (values[field] === undefined) continue;
     body[field] = values[field];
   }
-  for (const nullable of ['first_response_target_id', 'resolution_target_id', 'notify_team_id']) {
+  for (const nullable of [
+    'first_response_target_id',
+    'resolution_target_id',
+    'notify_team_id'
+  ] as const) {
     if (body[nullable] === '') body[nullable] = null;
   }
   for (const field of HOUR_FIELDS) {

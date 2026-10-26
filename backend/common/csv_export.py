@@ -30,6 +30,8 @@ import csv
 
 from django.http import StreamingHttpResponse
 from django.utils import timezone
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
@@ -163,6 +165,7 @@ class RecordExportView(APIView):
     def columns(self, request):
         raise NotImplementedError
 
+    @extend_schema(responses={(200, "text/csv"): OpenApiTypes.BINARY})
     def get(self, request, *args, **kwargs):
         # Both are built here, inside the request, so a malformed filter is a
         # 400 before any byte of the file is sent.

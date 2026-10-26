@@ -39,7 +39,7 @@
  * released it. That row is the one stat card on the list page.
  */
 import { error, type Cookies } from '@sveltejs/kit';
-import { apiRequest } from '#lib/api-helpers.js';
+import { apiRequest, type FormBody } from '#lib/api-helpers.js';
 import { apiStatus } from '#lib/api-errors.js';
 import { rethrowModuleOff } from '#lib/server/v2/modules.js';
 import type { components } from '#lib/api-schema.js';
@@ -169,7 +169,13 @@ export async function getArticle({ cookies }: { cookies: Cookies }, id: string) 
  * is dropped rather than linked. Sending it at all is optional: the API treats
  * an absent `tags` as "leave them alone" and only an explicit `[]` as "clear".
  */
-export const EDITABLE_FIELDS = ['title', 'description', 'status', 'is_published', 'tags'];
+export const EDITABLE_FIELDS: (keyof Schemas['SolutionWriteRequest'])[] = [
+  'title',
+  'description',
+  'status',
+  'is_published',
+  'tags'
+];
 
 /**
  * Turn form values into a request body.
@@ -180,7 +186,7 @@ export const EDITABLE_FIELDS = ['title', 'description', 'status', 'is_published'
  * separately from the article's text.
  */
 function toBody(values: Record<string, unknown>) {
-  const body: Record<string, unknown> = {};
+  const body: FormBody<Schemas['SolutionWriteRequest']> = {};
   for (const field of EDITABLE_FIELDS) {
     if (!(field in values)) continue;
     body[field] = values[field];
@@ -242,11 +248,7 @@ export async function setPublished(
   published: boolean
 ): Promise<Schemas['Solution']> {
   const verb = published ? 'publish' : 'unpublish';
-  return await apiRequest(
-    `/cases/solutions/${id}/${verb}/`,
-    { method: 'POST', body: {} },
-    { cookies }
-  );
+  return await apiRequest(`/cases/solutions/${id}/${verb}/`, { method: 'POST' }, { cookies });
 }
 
 /**

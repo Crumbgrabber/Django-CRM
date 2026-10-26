@@ -20,6 +20,14 @@ type RequestOptions = {
 };
 
 /**
+ * A body relayed from a form: field names from a request type
+ * (`FormBody<Schemas['LeadRequest']>`), values as the form gave them for the
+ * API to parse and validate. `scripts/api-contract.ts` checks that the
+ * endpoint takes every field the type names.
+ */
+export type FormBody<T> = { [K in keyof T]?: unknown };
+
+/**
  * Make authenticated API request to Django backend
  *
  * This helper is designed for SvelteKit server-side use, where cookies
@@ -93,7 +101,7 @@ export async function apiRequest<T = unknown>(
 
     // Handle error responses
     if (!response.ok) {
-      const errorData: ApiErrorBody = await response.json().catch(() => ({}));
+      const errorData = (await response.json().catch(() => ({}))) as ApiErrorBody;
 
       // Extract meaningful error message from various Django error formats
       let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
@@ -164,8 +172,8 @@ export async function apiRequest<T = unknown>(
       return null as T;
     }
 
-    // Return JSON response
-    return await response.json();
+    // The caller's annotation is the reply's type: generated from the schema.
+    return (await response.json()) as T;
   } catch (error) {
     const status = apiStatus(error);
     const failedBody = apiErrorBody(error);
