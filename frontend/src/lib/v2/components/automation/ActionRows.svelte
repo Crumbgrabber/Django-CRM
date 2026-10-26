@@ -1,30 +1,39 @@
-<script>
+<script lang="ts">
   import { tick } from 'svelte';
   import { ArrowDown, ArrowUp, Plus, X } from '@lucide/svelte';
-  import { actionOptions, actionTypes, blankAction, moveItem } from '#lib/v2/automation.js';
+  import {
+    actionOptions,
+    actionTypes,
+    blankAction,
+    moveItem,
+    type Catalogue,
+    type CatalogueObject,
+    type RuleAction
+  } from '#lib/v2/automation.js';
   import ActionFields from './ActionFields.svelte';
 
   /**
    * THEN: the actions in the order they run. `errors.rows[i]` is the server's
    * message for the row now shown at `i`; `errors.list` is about the list.
-   *
-   * @type {{
-   *   catalogue: import('#lib/v2/automation.js').Catalogue,
-   *   object: import('#lib/v2/automation.js').CatalogueObject | null,
-   *   actions: import('#lib/v2/automation.js').RuleAction[],
-   *   errors?: { list?: string | null, rows?: (string | null)[] }
-   * }}
    */
-  let { catalogue, object, actions = $bindable(), errors = {} } = $props();
+  let {
+    catalogue,
+    object,
+    actions = $bindable(),
+    errors = {}
+  }: {
+    catalogue: Catalogue;
+    object: CatalogueObject | null;
+    actions: RuleAction[];
+    errors?: { list?: string | null; rows?: (string | null)[] };
+  } = $props();
 
-  /** @type {HTMLButtonElement | undefined} */
-  let addButton = $state();
+  let addButton: HTMLButtonElement | undefined = $state();
 
   let limit = $derived(catalogue?.limits?.actions ?? Infinity);
   const EMPTY = 'Add at least one action.';
 
-  /** @param {number} at @param {string} type */
-  async function retype(at, type) {
+  async function retype(at: number, type: string) {
     actions[at] = blankAction(type);
     await tick();
     document.getElementById(`act-${at}-type`)?.focus();
@@ -38,21 +47,19 @@
     document.getElementById(`act-${actions.length - 1}-type`)?.focus();
   }
 
-  /** @param {number} at */
-  async function remove(at) {
+  async function remove(at: number) {
     actions = actions.filter((_, i) => i !== at);
     await tick();
     addButton?.focus();
   }
 
-  /** @param {number} at @param {number} direction */
-  async function move(at, direction) {
+  async function move(at: number, direction: number) {
     actions = moveItem(actions, at, direction);
     const to = at + direction;
     await tick();
     const same = document.getElementById(`act-${to}-${direction < 0 ? 'up' : 'down'}`);
     const other = document.getElementById(`act-${to}-${direction < 0 ? 'down' : 'up'}`);
-    (same && !(/** @type {HTMLButtonElement} */ (same).disabled) ? same : other)?.focus();
+    (same && !(same as HTMLButtonElement).disabled ? same : other)?.focus();
   }
 </script>
 

@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   import { goto } from '$app/navigation';
   import { asInternalPath } from '#lib/utils/paths.js';
@@ -15,6 +15,7 @@
     CornerDownLeft
   } from '@lucide/svelte';
   import { paletteActions, searchPlaceholder, noHitsText } from '#lib/v2/nav.js';
+  import type { ModuleRow } from '#lib/v2/modules.js';
 
   /**
    * One search across every record type, opened with ⌘K.
@@ -25,20 +26,20 @@
    * Empty query shows actions rather than an empty box. The fastest way to
    * start a new deal is ⌘K, "new", Enter, and that only works if the actions
    * are there before you type.
-   *
-   * @type {{ open: boolean, onclose: () => void, modules?: import('#lib/v2/modules.js').ModuleRow[] | null }}
    */
-  let { open = false, onclose, modules = null } = $props();
+  let {
+    open = false,
+    onclose,
+    modules = null
+  }: { open: boolean; onclose: () => void; modules?: ModuleRow[] | null } = $props();
 
   let actions = $derived(
     paletteActions(modules).map((a) => ({ ...a, icon: ACTION_ICONS[a.icon] }))
   );
 
-  /** @type {Record<string, typeof Plus>} */
-  const ACTION_ICONS = { Plus, Columns3, Receipt };
+  const ACTION_ICONS: Record<string, typeof Plus> = { Plus, Columns3, Receipt };
 
-  /** @type {Record<string, typeof Plus>} */
-  const ICON = {
+  const ICON: Record<string, typeof Plus> = {
     Deals: Columns3,
     Accounts: Building2,
     Contacts: Users,
@@ -50,27 +51,30 @@
   };
 
   let query = $state('');
-  /**
-   * A palette row: a search hit (`#lib/server/v2/search.js`) or an action.
-   *
-   * @typedef {{ kind: string, id: string, title: string, meta: string, href: string, icon?: typeof Plus }} PaletteRow
-   */
-  let hits = $state(/** @type {PaletteRow[]} */ ([]));
+  /** A palette row: a search hit (`#lib/server/v2/search.js`) or an action. */
+  type PaletteRow = {
+    kind: string;
+    id: string;
+    title: string;
+    meta: string;
+    href: string;
+    icon?: typeof Plus;
+  };
+  let hits = $state<PaletteRow[]>([]);
   let cursor = $state(0);
-  /** @type {HTMLInputElement | undefined} */
-  let input = $state();
+  let input: HTMLInputElement | undefined = $state();
 
   let rows = $derived(query.trim() ? hits : actions);
 
-  /** @typedef {{ kind: string, rows: PaletteRow[] }} Group */
+  type Group = { kind: string; rows: PaletteRow[] };
   /** Grouped for display, but `rows` stays flat so ↑/↓ crosses group borders. */
   let groups = $derived(
-    rows.reduce((/** @type {Group[]} */ acc, r) => {
+    rows.reduce((acc: Group[], r) => {
       const g = acc.find((x) => x.kind === r.kind);
       if (g) g.rows.push(r);
       else acc.push({ kind: r.kind, rows: [r] });
       return acc;
-    }, /** @type {Group[]} */ ([]))
+    }, [] as Group[])
   );
 
   // Re-runs whenever the query changes. `seq` drops out-of-order responses,
@@ -104,8 +108,7 @@
     if (open) input?.focus();
   });
 
-  /** @param {KeyboardEvent} e */
-  function onkeydown(e) {
+  function onkeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
       e.preventDefault();
       onclose();
@@ -121,8 +124,7 @@
     }
   }
 
-  /** @param {{ href: string } | undefined} row */
-  function choose(row) {
+  function choose(row: { href: string } | undefined) {
     if (!row) return;
     onclose();
     query = '';

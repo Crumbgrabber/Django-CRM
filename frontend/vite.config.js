@@ -16,7 +16,7 @@ export default defineConfig(({ mode }) => {
       }),
       tailwindcss(),
       // SvelteKit 3 reads its config here; svelte.config.js is gone.
-      // src/instrumentation.server.js is picked up because it exists.
+      // src/instrumentation.server.ts is picked up because it exists.
       sveltekit({
         adapter: adapter(),
         prebundleSvelteLibraries: false,

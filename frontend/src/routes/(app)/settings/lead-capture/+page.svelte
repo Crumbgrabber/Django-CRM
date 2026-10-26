@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * Settings › Lead capture: every way a lead reaches this organization.
    *
@@ -21,9 +21,9 @@
   import { deliveryLabel, deliveryState, deliveryTone } from '../inbound-email/delivery.js';
   import { Plus, ShieldAlert } from '@lucide/svelte';
   import KeyOnce from './KeyOnce.svelte';
+  import type { PageProps, SubmitFunction } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   let intakes = $derived(data.intakes);
   let canAddIntake = $derived(data.intakesState === 'ok');
@@ -32,11 +32,10 @@
 
   // The new webhook's source follows its preset until somebody picks one.
   let createPreset = $state('generic');
-  let pickedSource = $state(/** @type {string | null} */ (null));
+  let pickedSource = $state<string | null>(null);
   let createSource = $derived(pickedSource ?? presetSource(createPreset, data.sources));
 
-  /** @type {import('./$types').SubmitFunction} */
-  const createSubmit = () => {
+  const createSubmit: SubmitFunction = () => {
     busy = true;
     return async ({ update, result }) => {
       await update({ reset: false });

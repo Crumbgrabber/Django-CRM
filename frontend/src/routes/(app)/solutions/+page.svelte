@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   /**
    * Status and visibility are two separate facts, and the list shows both.
@@ -26,9 +26,9 @@
   import { enhance } from '$app/forms';
   import { BookOpen, Eye, EyeOff, Plus } from '@lucide/svelte';
   import { isOn } from '#lib/v2/modules.js';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   let articles = $derived(data.articles);
   let totals = $derived(data.totals);

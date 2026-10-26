@@ -1,13 +1,11 @@
-<script>
-  import { mentionTokens } from '#lib/v2/mentions.js';
+<script lang="ts">
+  import { mentionTokens, type MentionPerson } from '#lib/v2/mentions.js';
 
   /**
    * A comment body with each `@handle` that names a member drawn as a chip.
    * An unknown handle stays plain text: the backend notified nobody for it.
-   *
-   * @type {{ body: string, people?: import('#lib/v2/mentions.js').MentionPerson[] }}
    */
-  let { body = '', people = [] } = $props();
+  let { body = '', people = [] }: { body: string; people?: MentionPerson[] } = $props();
 
   const tokens = $derived(mentionTokens(body, people));
 </script>

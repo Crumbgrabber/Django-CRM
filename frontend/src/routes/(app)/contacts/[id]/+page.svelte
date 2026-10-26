@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   import { asInternalPath } from '#lib/utils/paths.js';
   /**
@@ -62,9 +62,9 @@
   import RelatedRecords from '#lib/v2/components/RelatedRecords.svelte';
   import { relatedView } from '#lib/v2/custom-objects.js';
   import { isOn } from '#lib/v2/modules.js';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
   let related = $derived(relatedView(data.related));
   let dealsOn = $derived(isOn(data.modules, 'deals'));
   let tasksOn = $derived(isOn(data.modules, 'tasks'));
@@ -99,12 +99,10 @@
   // and clear it. `fileInput` is the element itself. A file input's value can
   // only be cleared through the DOM, not by rebinding.
   let fileName = $state('');
-  /** @type {HTMLInputElement | undefined} */
-  let fileInput = $state();
+  let fileInput: HTMLInputElement | undefined = $state();
 
-  /** @param {Event} e */
-  function pickFile(e) {
-    fileName = /** @type {HTMLInputElement} */ (e.currentTarget).files?.[0]?.name ?? '';
+  function pickFile(e: Event) {
+    fileName = (e.currentTarget as HTMLInputElement).files?.[0]?.name ?? '';
   }
   function clearFile() {
     if (fileInput) fileInput.value = '';
@@ -119,14 +117,13 @@
   // Notes stay comments; calls and messages are interactions, logged through
   // their own form when the API has them.
   let logLive = $derived(data.interactions.live);
-  let composer = $state(/** @type {'note'|'log'} */ ('note'));
+  let composer = $state<'note' | 'log'>('note');
   let logKind = $state('call');
-  /** @type {HTMLElement | undefined} */
-  let composerEl = $state();
+  let composerEl: HTMLElement | undefined = $state();
   let whatsapp = $derived(whatsappHref(contact.phone_e164));
 
   /** Opens the form set to `kind`; the link itself still dials or opens WhatsApp. */
-  function startLog(/** @type {string} */ kind) {
+  function startLog(kind: string) {
     if (!logLive) return;
     logKind = kind;
     composer = 'log';
@@ -136,7 +133,7 @@
   // ── activity feed ────────────────────────────────────────────────────────
   // Notes, logged calls and messages, files, and the creation. The filter
   // appears once there are two of the first three to choose between.
-  let filter = $state(/** @type {'all'|'note'|'interaction'|'file'} */ ('all'));
+  let filter = $state<'all' | 'note' | 'interaction' | 'file'>('all');
   let kinds = $derived(
     ['note', 'interaction', 'file'].filter((k) => activity.some((e) => e.type === k))
   );
@@ -146,15 +143,26 @@
   /**
    * One feed row: the contact's notes, files and creation, or a logged
    * interaction, which alone carries the interaction fields.
-   * @typedef {{ id: string, type: string, at: string | null, by: string | null, body: string, href?: string | null, kind?: string, direction?: string, detail?: string, interaction?: string, canDelete?: boolean }} FeedEvent
    */
+  type FeedEvent = {
+    id: string;
+    type: string;
+    at: string | null;
+    by: string | null;
+    body: string;
+    href?: string | null;
+    kind?: string;
+    direction?: string;
+    detail?: string;
+    interaction?: string;
+    canDelete?: boolean;
+  };
 
   /**
    * The line under an event: "Attached" for a file, the author where known, then
    * how long ago, joined so no separator dangles when a part is missing.
-   * @param {FeedEvent} e
    */
-  function metaFor(e) {
+  function metaFor(e: FeedEvent) {
     const parts = [];
     if (e.type === 'file') parts.push('Attached');
     if (e.by) parts.push(e.by);
@@ -162,8 +170,7 @@
     return parts.join(' · ');
   }
 
-  /** @param {string | null} iso */
-  function dayGroup(iso) {
+  function dayGroup(iso: string | null) {
     const n = daysSince(iso);
     if (n === 0) return 'Today';
     if (n === 1) return 'Yesterday';
@@ -172,8 +179,9 @@
 
   // Interleave day headers so each date is announced once, in order.
   let feed = $derived.by(() => {
-    /** @type {Array<{kind:'day',id:string,label:string}|{kind:'event',id:string,event:FeedEvent}>} */
-    const out = [];
+    const out: Array<
+      { kind: 'day'; id: string; label: string } | { kind: 'event'; id: string; event: FeedEvent }
+    > = [];
     let last = null;
     for (const e of shown) {
       const g = dayGroup(e.at);

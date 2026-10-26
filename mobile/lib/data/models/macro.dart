@@ -62,7 +62,7 @@ class Macro {
   bool get hasBody => body.trim().isNotEmpty;
 
   /// "Everyone" / "Just you", matching `MACRO_SCOPE_LABEL` in
-  /// `frontend/src/lib/v2/enums.js`.
+  /// `frontend/src/lib/v2/enums.ts`.
   String get scopeLabel => isPersonal ? 'Just you' : 'Everyone';
 
   factory Macro.fromJson(Map<String, dynamic> json) {

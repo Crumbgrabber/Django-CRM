@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * The satisfaction survey: the shortest page in the product, and the only
    * one whose success is measured in whether people bother.
@@ -24,9 +24,9 @@
   import PortalShell from '#lib/v2/components/PortalShell.svelte';
   import { longDate, relativeDays } from '#lib/v2/format.js';
   import { Star, CheckCircle2, Clock } from '@lucide/svelte';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   let survey = $derived(data.survey);
 
@@ -40,8 +40,7 @@
   let hover = $state(0);
   let submitting = $state(false);
 
-  /** @type {Record<number, string>} */
-  const SCALE_ENDS = { 1: 'Not good', 5: 'Great' };
+  const SCALE_ENDS: Record<number, string> = { 1: 'Not good', 5: 'Great' };
 </script>
 
 <svelte:head>

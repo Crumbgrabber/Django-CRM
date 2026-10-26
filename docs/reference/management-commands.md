@@ -105,7 +105,7 @@ token minted this way already carries the `org_id` claim, so no follow-up org-sw
 needed), and a `localStorage.setItem(...)` snippet for a browser console. That snippet alone does
 **not** sign you into the SvelteKit app itself; see
 [Using the tokens in the browser](../getting-started/first-sign-in.md#using-the-tokens-in-the-browser)
-for the cookies `hooks.server.js` actually checks. See
+for the cookies `hooks.server.ts` actually checks. See
 [First sign-in: Local development](../getting-started/first-sign-in.md#local-development-devlogin)
 for the full walkthrough, including what happens with no `--org` at all.
 

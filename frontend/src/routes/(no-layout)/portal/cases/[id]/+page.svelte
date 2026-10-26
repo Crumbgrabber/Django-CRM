@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * A conversation, not a record view. The customer wants to know what was said
    * and to say something back, so the thread is the page and the case fields are
@@ -7,14 +7,13 @@
   import { enhance } from '$app/forms';
   import { resolve } from '$app/paths';
   import PortalShell from '#lib/v2/components/PortalShell.svelte';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   const OPEN_STATUSES = new Set(['New', 'Assigned', 'Pending']);
 
-  /** @param {string | null | undefined} value */
-  function formatWhen(value) {
+  function formatWhen(value: string | null | undefined) {
     if (!value) return '';
     return new Date(value).toLocaleString(undefined, {
       day: 'numeric',

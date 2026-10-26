@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * "Log activity": a call, meeting, email, WhatsApp or text, posted to the
    * page's `?/logActivity` (`interactionActions` in
@@ -14,21 +14,25 @@
     OUTCOME_LABEL
   } from '#lib/v2/interactions.js';
 
-  /** @type {{
-   *   kind?: string,
-   *   result?: { error?: string } | null,
-   *   timeZone?: string,
-   *   oncancel?: () => void,
-   *   onlogged?: () => void
-   * }} */
-  let { kind = $bindable('call'), result = null, timeZone = 'UTC', oncancel, onlogged } = $props();
+  let {
+    kind = $bindable('call'),
+    result = null,
+    timeZone = 'UTC',
+    oncancel,
+    onlogged
+  }: {
+    kind?: string;
+    result?: { error?: string } | null;
+    timeZone?: string;
+    oncancel?: () => void;
+    onlogged?: () => void;
+  } = $props();
 
   const uid = $props.id();
 
   let direction = $state('outbound');
   let outcome = $state('');
-  /** @type {number | string | null} */
-  let minutes = $state('');
+  let minutes: number | string | null = $state('');
   let subject = $state('');
   let note = $state('');
   let when = $state('');

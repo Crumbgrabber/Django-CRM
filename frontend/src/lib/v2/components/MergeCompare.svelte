@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * Two leads, contacts or accounts side by side, to pick which one to keep.
    *
@@ -21,9 +21,24 @@
   import { mergeSideLabel } from '#lib/v2/merge-label.js';
   import { ChevronRight, TriangleAlert } from '@lucide/svelte';
 
-  /** @typedef {{ id: string, name: string, can_delete: boolean, fields: Array<{ label: string, value: string }> }} Side */
-  /** @type {{ data: { module: 'leads' | 'contacts' | 'accounts', singular: string, current: Side, other: Side }, form: { error?: string } | null | undefined }} */
-  let { data, form } = $props();
+  type Side = {
+    id: string;
+    name: string;
+    can_delete: boolean;
+    fields: Array<{ label: string; value: string }>;
+  };
+  let {
+    data,
+    form
+  }: {
+    data: {
+      module: 'leads' | 'contacts' | 'accounts';
+      singular: string;
+      current: Side;
+      other: Side;
+    };
+    form: { error?: string } | null | undefined;
+  } = $props();
 
   let { module, singular, current, other } = $derived(data);
 
@@ -37,11 +52,10 @@
 
   let kept = $derived(keep === current.id ? current : other);
   let dropped = $derived(keep === current.id ? other : current);
-  /** @param {Side} side */
-  const keepable = (side) => (side.id === current.id ? other : current).can_delete;
+  const keepable = (side: Side) => (side.id === current.id ? other : current).can_delete;
   let possible = $derived(keepable(current) || keepable(other));
-  /** How the copy names a record; see `mergeSideLabel`. @param {Side} side */
-  const label = (side) => mergeSideLabel(side, current, other);
+  /** How the copy names a record; see `mergeSideLabel`. */
+  const label = (side: Side) => mergeSideLabel(side, current, other);
   let result = $derived(
     kept.fields.map((field, i) => ({
       label: field.label,

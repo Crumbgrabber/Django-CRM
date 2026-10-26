@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   /**
    * An article, and where it is in the workflow.
@@ -28,9 +28,9 @@
   import { enhance } from '$app/forms';
   import { ChevronRight, Eye, EyeOff } from '@lucide/svelte';
   import { isOn } from '#lib/v2/modules.js';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   let { article, tickets, hidden_ticket_count, canRelease, canEdit, canDelete } = $derived(data);
   // With Tickets off the API empties the ticket figures, so none are shown.

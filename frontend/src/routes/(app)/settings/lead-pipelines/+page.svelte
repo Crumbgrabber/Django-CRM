@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * Lead pipelines: the stages a lead moves through on the board.
    *
@@ -21,24 +21,24 @@
   import { count } from '#lib/v2/format.js';
   import { LEAD_STATUS_LABEL } from '#lib/v2/enums.js';
   import { ArrowDown, ArrowUp, Columns3, Plus } from '@lucide/svelte';
+  import type { PageData, PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
-  /** @typedef {NonNullable<import('./$types').PageData['pipeline']>['stages'][number]} Stage */
+  type Stage = NonNullable<PageData['pipeline']>['stages'][number];
 
   /** `LeadStage.STAGE_TYPE_CHOICES`. */
-  const STAGE_TYPES = /** @type {const} */ ([
+  const STAGE_TYPES = [
     ['open', 'Open'],
     ['won', 'Won'],
     ['lost', 'Lost']
-  ]);
+  ] as const;
   const TYPE_LABEL = Object.fromEntries(STAGE_TYPES);
-  const TYPE_TONE = /** @type {Record<string, 'slate'|'moss'|'rust'>} */ ({
+  const TYPE_TONE = {
     open: 'slate',
     won: 'moss',
     lost: 'rust'
-  });
+  } as Record<string, 'slate' | 'moss' | 'rust'>;
 
   /**
    * The statuses a stage may map to. "converted" is not offered: the board
@@ -49,14 +49,13 @@
    */
   const STAGE_STATUSES = ['assigned', 'in process', 'recycled', 'closed'];
 
-  const statusLabel = (/** @type {string} */ s) =>
-    /** @type {Record<string, string>} */ (LEAD_STATUS_LABEL)[s] ?? s;
+  const statusLabel = (s: string) => (LEAD_STATUS_LABEL as Record<string, string>)[s] ?? s;
 
   let pipeline = $derived(data.pipeline);
 
   // `null` closed, `'new'` adding a stage, or the stage being edited. One
   // panel, so two stages can never be open for edit at once.
-  let editing = $state(/** @type {null | 'new' | Stage} */ (null));
+  let editing = $state<null | 'new' | Stage>(null);
   let addingPipeline = $state(false);
   let renaming = $state(false);
 

@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   /**
    * Editing a task.
@@ -13,9 +13,9 @@
   import { untrack } from 'svelte';
   import { ChevronRight } from '@lucide/svelte';
   import { isOn } from '#lib/v2/modules.js';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   const KINDS = [
     { key: '', label: 'Nothing' },

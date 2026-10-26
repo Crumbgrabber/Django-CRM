@@ -261,7 +261,7 @@ enum CsvImportTarget {
 /// Mirrors `MAX_UPLOAD_BYTES` in the three import views.
 const int csvImportMaxBytes = 5 * 1024 * 1024;
 
-/// The web's wording for a 403 (`frontend/src/lib/server/v2/csv-import.js`),
+/// The web's wording for a 403 (`frontend/src/lib/server/v2/csv-import.ts`),
 /// kept identical so both clients say the same thing.
 const String csvImportForbiddenMessage =
     'Importing needs an admin, or a member with sales access.';
@@ -423,7 +423,7 @@ Map<String, int> _droppedCounts(Object? raw) => {
 };
 
 /// One cell of a CSV this app writes, with the two rules the web
-/// (`frontend/src/lib/utils/csv.js`) and the server's exports
+/// (`frontend/src/lib/utils/csv.ts`) and the server's exports
 /// (`common/csv_export.py`) apply: a cell a spreadsheet would run as a formula
 /// is prefixed with `'`, since a message can quote the value that was refused
 /// and a skipped row carries the file's own cells; and a cell holding a quote,

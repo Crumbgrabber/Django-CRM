@@ -164,7 +164,7 @@ void main() {
 
     test('a row is complete only with a label and a target', () {
       // Mirrors `isFieldComplete` in
-      // `frontend/src/lib/v2/webform-fields.js`, and behind both of them the
+      // `frontend/src/lib/v2/webform-fields.ts`, and behind both of them the
       // `web_form_field_exactly_one_target` check constraint.
       const withTarget = WebFormField(
         source: WebFormField.sourceLead,
@@ -398,7 +398,7 @@ void main() {
   group('WEBFORM_LEAD_FIELDS', () {
     test('mirrors the backend whitelist, in the backend order', () {
       // `backend/webforms/constants.py::LEAD_FIELD_CHOICES`, and
-      // `frontend/src/lib/v2/webform-fields.js` carries the same list.
+      // `frontend/src/lib/v2/webform-fields.ts` carries the same list.
       // `validate_lead_field` rejects anything outside it, so a stale entry
       // here is a clean 400 rather than a bad write, but the picker would
       // still be wrong.

@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   /**
    * Adding a lead.
@@ -23,9 +23,9 @@
   import { sourceOptions } from '#lib/v2/lead-sources.js';
   import { money } from '#lib/v2/format.js';
   import { TriangleAlert } from '@lucide/svelte';
+  import type { PageProps, SubmitFunction } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form: result } = $props();
+  let { data, form: result }: PageProps = $props();
 
   // Seeded from the load once, on purpose: a half-typed form must not be
   // wiped if the page data revalidates underneath it. untrack() says that
@@ -54,7 +54,7 @@
     }))
   );
 
-  let touched = $state(/** @type {Record<string, boolean>} */ ({}));
+  let touched = $state<Record<string, boolean>>({});
   let submitted = $state(false);
 
   // Disables the submit button while the create action is in flight, so a
@@ -62,8 +62,7 @@
   let busy = $state(false);
 
   let errors = $derived.by(() => {
-    /** @type {Record<string, string>} */
-    const e = {};
+    const e: Record<string, string> = {};
     // Mirrors the edit form's own rule: a lead needs a name to be findable,
     // but not both halves of one. Neither half is required by the API
     // itself (Lead.first_name/last_name are both nullable), so this is a UX
@@ -94,15 +93,13 @@
   });
 
   let valid = $derived(Object.keys(errors).length === 0);
-  const show = (/** @type {string} */ field) => (touched[field] || submitted) && errors[field];
+  const show = (field: string) => (touched[field] || submitted) && errors[field];
 
   /**
    * On success the action redirects to the new lead, so there is no success
    * state to render here.
-   *
-   * @type {import('./$types').SubmitFunction}
    */
-  const check = async ({ cancel }) => {
+  const check: SubmitFunction = async ({ cancel }) => {
     submitted = true;
     if (!valid) {
       // Send focus to the first field that needs work rather than only
@@ -111,8 +108,7 @@
       // querying now finds nothing.
       cancel();
       await tick();
-      /** @type {HTMLElement | null} */
-      const first = document.querySelector('[aria-invalid="true"]');
+      const first: HTMLElement | null = document.querySelector('[aria-invalid="true"]');
       first?.focus();
       return;
     }

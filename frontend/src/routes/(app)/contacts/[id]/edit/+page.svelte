@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   /**
    * Editing a contact.
@@ -24,20 +24,19 @@
   import RecordFieldInputs from '#lib/v2/components/RecordFieldInputs.svelte';
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
   import { ChevronRight, TriangleAlert } from '@lucide/svelte';
+  import type { PageProps, SubmitFunction } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form: result } = $props();
+  let { data, form: result }: PageProps = $props();
 
   const { contact, server } = untrack(() => ({ contact: data.contact, server: data.server }));
 
   let form = $state(untrack(() => ({ ...data.form })));
-  let touched = $state(/** @type {Record<string, boolean>} */ ({}));
+  let touched = $state<Record<string, boolean>>({});
   let submitted = $state(false);
   let saved = $state(false);
 
   let errors = $derived.by(() => {
-    /** @type {Record<string, string>} */
-    const e = {};
+    const e: Record<string, string> = {};
     if (!form.first_name.trim()) e.first_name = 'A person needs a first name.';
     if (!form.last_name.trim()) e.last_name = 'A person needs a last name.';
 
@@ -59,22 +58,19 @@
   });
 
   let valid = $derived(Object.keys(errors).length === 0);
-  const show = (/** @type {string} */ field) => (touched[field] || submitted) && errors[field];
+  const show = (field: string) => (touched[field] || submitted) && errors[field];
 
   /**
    * These checks are a UX hint. The serializer is the rule, and its 400 is
    * what `result.error` reports.
-   *
-   * @type {import('./$types').SubmitFunction}
    */
-  const check = async ({ cancel }) => {
+  const check: SubmitFunction = async ({ cancel }) => {
     submitted = true;
     saved = false;
     if (!valid) {
       cancel();
       await tick();
-      /** @type {HTMLElement | null} */
-      const first = document.querySelector('[aria-invalid="true"]');
+      const first: HTMLElement | null = document.querySelector('[aria-invalid="true"]');
       first?.focus();
       return;
     }

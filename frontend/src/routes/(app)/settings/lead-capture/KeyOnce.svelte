@@ -1,12 +1,16 @@
-<script>
+<script lang="ts">
   /**
    * A webhook key, shown in the one response that carries it (a create or a
    * replace) and gone on the next load: reads only carry `key_hint`.
    */
   import CopyValue from './CopyValue.svelte';
 
-  /** @type {{ title: string, url?: string, secret: string, replaced?: boolean }} */
-  let { title, url = '', secret, replaced = false } = $props();
+  let {
+    title,
+    url = '',
+    secret,
+    replaced = false
+  }: { title: string; url?: string; secret: string; replaced?: boolean } = $props();
 </script>
 
 <div

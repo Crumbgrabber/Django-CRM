@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { untrack } from 'svelte';
   import { enhance } from '$app/forms';
   import { resolve } from '$app/paths';
@@ -9,9 +9,9 @@
   import { shortDate } from '#lib/v2/format.js';
   import { recordHref, uploadTooLarge } from '#lib/v2/custom-objects.js';
   import { Pencil } from '@lucide/svelte';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   let def = $derived(data.definition);
   let record = $derived(data.record);
@@ -27,9 +27,8 @@
     uploading = false;
   });
 
-  /** @param {Event} event */
-  function checkPicked(event) {
-    const input = /** @type {HTMLInputElement} */ (event.currentTarget);
+  function checkPicked(event: Event) {
+    const input = event.currentTarget as HTMLInputElement;
     const file = input.files?.[0];
     uploadNote = (file && uploadTooLarge(file)) || '';
     if (uploadNote) input.value = '';

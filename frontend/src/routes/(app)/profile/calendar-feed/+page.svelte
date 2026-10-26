@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * Your task calendar feed (G14).
    *
@@ -20,16 +20,15 @@
   import { resolve } from '$app/paths';
   import { enhance } from '$app/forms';
   import { CalendarDays, Copy, Check, ShieldAlert } from '@lucide/svelte';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   let feed = $derived(data.feed);
   let busy = $state(false);
   let copied = $state(false);
 
-  /** @param {string} value */
-  async function copyUrl(value) {
+  async function copyUrl(value: string) {
     try {
       await navigator.clipboard.writeText(value);
       copied = true;

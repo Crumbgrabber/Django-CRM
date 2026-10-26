@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * The article body is rendered as text, not as HTML.
    *
@@ -10,12 +10,11 @@
    */
   import { resolve } from '$app/paths';
   import PortalShell from '#lib/v2/components/PortalShell.svelte';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data } = $props();
+  let { data }: PageProps = $props();
 
-  /** @param {string | null | undefined} value */
-  function formatDate(value) {
+  function formatDate(value: string | null | undefined) {
     if (!value) return '';
     return new Date(value).toLocaleDateString(undefined, {
       day: 'numeric',

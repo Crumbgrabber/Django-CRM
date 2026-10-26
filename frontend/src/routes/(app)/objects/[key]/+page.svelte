@@ -1,21 +1,20 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   import { asInternalPath } from '#lib/utils/paths.js';
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
   import EmptyState from '#lib/v2/components/EmptyState.svelte';
   import { count } from '#lib/v2/format.js';
   import { Boxes, Plus } from '@lucide/svelte';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data } = $props();
+  let { data }: PageProps = $props();
 
   let def = $derived(data.definition);
   let rows = $derived(data.page.results);
   let canCreate = $derived(data.customObjects?.has_custom_objects === true);
   let hasNext = $derived(data.pageNumber * 20 < data.page.count);
 
-  /** @param {number} n */
-  function pageQuery(n) {
+  function pageQuery(n: number) {
     const parts = [];
     if (data.q) parts.push(`q=${encodeURIComponent(data.q)}`);
     if (n > 1) parts.push(`page=${n}`);

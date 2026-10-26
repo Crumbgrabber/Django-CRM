@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
@@ -7,12 +7,11 @@
   import { asInternalPath } from '#lib/utils/paths.js';
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
   import { isOn } from '#lib/v2/modules.js';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data } = $props();
+  let { data }: PageProps = $props();
 
-  /** @type {'contacts' | 'leads'} */
-  let chosen = $state('contacts');
+  let chosen: 'contacts' | 'leads' = $state('contacts');
 
   let leadsOn = $derived(isOn(data.modules, 'leads'));
 
@@ -23,12 +22,12 @@
 
   const CHOICES = [
     {
-      entity: /** @type {const} */ ('contacts'),
+      entity: 'contacts' as const,
       title: 'Customers and people you work with',
       line: 'Import them as contacts.'
     },
     {
-      entity: /** @type {const} */ ('leads'),
+      entity: 'leads' as const,
       title: 'People you’re trying to sell to',
       line: 'Import them as leads to follow up.'
     }

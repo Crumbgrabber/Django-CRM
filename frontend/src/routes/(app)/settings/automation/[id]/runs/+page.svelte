@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * One rule's runs from the last 30 days, newest first. Each opens to what
    * its steps did. Read only. Every text here is rendered as text.
@@ -12,21 +12,21 @@
   import { recordRoute, runNotes } from '#lib/v2/automation.js';
   import { runTime } from '#lib/v2/format.js';
   import { ChevronLeft, ChevronDown } from '@lucide/svelte';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data } = $props();
+  let { data }: PageProps = $props();
 
-  const RUN = /** @type {Record<string, {label: string, tone: 'moss'|'rust'|'slate'}>} */ ({
+  const RUN = {
     done: { label: 'Done', tone: 'moss' },
     failed: { label: 'Failed', tone: 'rust' },
     skipped: { label: 'Skipped', tone: 'slate' }
-  });
-  const STEP = /** @type {Record<string, string>} */ ({
+  } as Record<string, { label: string; tone: 'moss' | 'rust' | 'slate' }>;
+  const STEP = {
     done: 'Done',
     undone: 'Undone',
     failed: 'Failed',
     skipped: 'Skipped'
-  });
+  } as Record<string, string>;
 
   let runs = $derived(data.runs ?? []);
   // A member's page has no runs, and shows none of this.

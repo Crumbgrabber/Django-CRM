@@ -1,0 +1,35 @@
+import { fail, redirect } from '@sveltejs/kit';
+import { createObject, listObjectsForSettings } from '#lib/server/v2/custom-objects.js';
+import { readableError } from '#lib/server/v2/form-errors.js';
+import { readObjectForm } from '#lib/server/v2/object-settings.js';
+import { viewerIsAdmin } from '#lib/server/v2/organization.js';
+import { apiErrorBody, apiStatus } from '#lib/api-errors.js';
+import type { Actions, PageServerLoad } from './$types';
+
+export const load: PageServerLoad = async ({ cookies }) => {
+  return {
+    answer: await listObjectsForSettings({ cookies }),
+    can_edit: viewerIsAdmin(cookies)
+  };
+};
+
+export const actions: Actions = {
+  // The server refuses non-admins and orgs without the plan; `can_edit` only hides the control.
+  async create(event) {
+    const form = await event.request.formData();
+    const body = readObjectForm(form, { creating: true });
+    try {
+      await createObject(event, body);
+    } catch (err) {
+      if (apiStatus(err) === 403) {
+        return fail(403, {
+          create: { error: apiErrorBody(err)?.detail ?? 'Only an admin can add custom objects.' }
+        });
+      }
+      return fail(400, {
+        create: { error: readableError(err, 'Could not add the object.'), values: body }
+      });
+    }
+    redirect(303, `/settings/objects/${encodeURIComponent(String(body.key))}`);
+  }
+};

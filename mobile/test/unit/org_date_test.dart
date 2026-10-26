@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import '../support/org_zone.dart';
 
 /// `orgToday()` is the org's calendar day, the same answer the web's
-/// `todayIn(data.org.timezone)` gives (`frontend/src/lib/v2/dates.js`). These
+/// `todayIn(data.org.timezone)` gives (`frontend/src/lib/v2/dates.ts`). These
 /// pin the instants where the org's day and UTC's (or the phone's) differ.
 void main() {
   DateTime day(int y, int m, int d) => DateTime(y, m, d);

@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   /**
    * How an invoice looks when it reaches a customer.
@@ -27,9 +27,9 @@
   import Pill from '#lib/v2/components/Pill.svelte';
   import { count, relativeDays } from '#lib/v2/format.js';
   import { Plus, FileCode, ShieldAlert } from '@lucide/svelte';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   let canManage = $derived(data.can_manage);
   let totals = $derived(data.totals);

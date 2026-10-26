@@ -1,13 +1,13 @@
-<script>
+<script lang="ts">
   import { enhance } from '$app/forms';
   import { resolve } from '$app/paths';
   import { asInternalPath } from '#lib/utils/paths.js';
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
   import RecordFieldInputs from '#lib/v2/components/RecordFieldInputs.svelte';
   import { TriangleAlert } from '@lucide/svelte';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form: result } = $props();
+  let { data, form: result }: PageProps = $props();
 
   let def = $derived(data.definition);
   let record = $derived(data.record);

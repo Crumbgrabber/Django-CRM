@@ -1,0 +1,76 @@
+import { fail, redirect } from '@sveltejs/kit';
+import {
+  getTicketForEdit,
+  updateTicket,
+  type TicketField,
+  type TicketValues
+} from '#lib/server/v2/tickets.js';
+import { readCustomFields, saveRefusal } from '#lib/server/v2/record-custom-fields.js';
+import type { Actions, PageServerLoad } from './$types';
+
+/** Scalars this form owns. `account` is not among them. See the loader note. */
+const FIELDS: TicketField[] = [
+  'name',
+  'status',
+  'priority',
+  'case_type',
+  'description',
+  'closed_on'
+];
+
+export const load: PageServerLoad = async ({ cookies, params }) => {
+  return await getTicketForEdit({ cookies }, params.id);
+};
+
+export const actions: Actions = {
+  save: async ({ cookies, params, request }) => {
+    const form = await request.formData();
+
+    const values: TicketValues = {};
+    for (const field of FIELDS) {
+      // Only fields the form actually submitted. A control that is absent or
+      // disabled sends nothing, and "nothing" is how PATCH is told to leave a
+      // field alone. See `updateTicket`.
+      if (form.has(field)) values[field] = form.get(field)?.toString().trim() ?? '';
+    }
+
+    /*
+     * The owner is only sent when somebody actually changed it.
+     *
+     * `assigned_to` is many-to-many and this form offers a single select, so
+     * sending it unconditionally rewrites the whole list from one value, a
+     * ticket with two people on it silently loses one every time anybody fixes
+     * a typo in the subject. The hidden `assigned_to_original` is what makes
+     * "nobody touched this" distinguishable from "somebody chose this".
+     */
+    const owner = form.get('assigned_to')?.toString().trim() ?? '';
+    const ownerWas = form.get('assigned_to_original')?.toString().trim() ?? '';
+    if (owner !== ownerWas) values.assigned_to = owner;
+
+    /*
+     * Same reasoning for the people on the ticket, one step harder: a
+     * multi-select submits nothing when everything is deselected, which is
+     * indistinguishable from a field the form does not own. The hidden
+     * `contacts_present` marker is what tells them apart, so "remove the last
+     * contact" is a thing this form can express.
+     */
+    if (form.has('contacts_present')) {
+      values.contacts = form.getAll('contacts').map((id) => id.toString());
+    }
+
+    const custom = await readCustomFields(cookies, 'Case', form);
+    if (custom.refusal) return fail(503, { values, ...custom.refusal });
+    if (custom.values) values.custom_fields = custom.values;
+
+    try {
+      await updateTicket({ cookies }, params.id, values);
+    } catch (err) {
+      return fail(400, {
+        values,
+        ...saveRefusal(err, custom.definitions, 'Could not save this ticket.')
+      });
+    }
+
+    redirect(303, `/tickets/${params.id}`);
+  }
+};

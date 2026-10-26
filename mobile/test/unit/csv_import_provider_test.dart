@@ -837,7 +837,7 @@ void main() {
     });
   });
 
-  group('web parity helpers (frontend/src/lib/import/mapping.js)', () {
+  group('web parity helpers (frontend/src/lib/import/mapping.ts)', () {
     const cols = [
       CsvImportColumn(index: 0, header: 'A', field: 'email', samples: []),
       CsvImportColumn(index: 1, header: 'B', field: null, samples: []),

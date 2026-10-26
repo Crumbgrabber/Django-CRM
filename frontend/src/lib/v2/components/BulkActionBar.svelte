@@ -1,17 +1,20 @@
-<script>
+<script lang="ts">
   import { enhance } from '$app/forms';
   import { CASE_STATUSES, CASE_PRIORITIES, CASE_TYPES } from '#lib/v2/enums.js';
 
-  /**
-   * @type {{
-   *   ids: string[],
-   *   people: {id:string,name:string}[],
-   *   tags: {id:string,name:string}[],
-   *   onclear: () => void,
-   *   ondone: () => void
-   * }}
-   */
-  let { ids, people, tags, onclear, ondone } = $props();
+  let {
+    ids,
+    people,
+    tags,
+    onclear,
+    ondone
+  }: {
+    ids: string[];
+    people: { id: string; name: string }[];
+    tags: { id: string; name: string }[];
+    onclear: () => void;
+    ondone: () => void;
+  } = $props();
 
   // Which action the agent picked in the menu. '' means the menu is showing.
   let action = $state('');

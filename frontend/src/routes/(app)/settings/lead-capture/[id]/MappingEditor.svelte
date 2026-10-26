@@ -1,21 +1,22 @@
-<script>
+<script lang="ts">
   /**
    * Which field of a post fills which lead field. Rows live in the browser
    * and travel as one JSON string in a hidden input, so adding or removing a
    * row never renumbers form names. The server validates every target.
-   *
-   * @type {{
-   *   rows: { from: string, to: string }[],
-   *   targets: { value: string, label: string }[],
-   *   disabled?: boolean
-   * }}
    */
   import { untrack } from 'svelte';
   import { Plus, Trash2 } from '@lucide/svelte';
   import { cleanMapping } from '#lib/v2/lead-intakes.js';
 
-  /** @type {{ rows: { from: string, to: string }[], targets: { value: string, label: string }[], disabled?: boolean }} */
-  let { rows, targets, disabled = false } = $props();
+  let {
+    rows,
+    targets,
+    disabled = false
+  }: {
+    rows: { from: string; to: string }[];
+    targets: { value: string; label: string }[];
+    disabled?: boolean;
+  } = $props();
 
   let next = 0;
   // Seeded once: a revalidation must not throw away rows being typed.
@@ -27,8 +28,7 @@
     list.push({ id: next++, from: '', to: '' });
   }
 
-  /** @param {number} id */
-  function remove(id) {
+  function remove(id: number) {
     list = list.filter((r) => r.id !== id);
   }
 </script>

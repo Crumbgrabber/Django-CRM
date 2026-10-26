@@ -6,7 +6,7 @@ import '../services/api_service.dart';
 /// The six lists a saved view can belong to, by the name the API uses.
 ///
 /// Mirrors `LISTS` in `backend/common/saved_views.py` and `SAVED_VIEW_KEYS` in
-/// `frontend/src/lib/server/v2/saved-views.js`.
+/// `frontend/src/lib/server/v2/saved-views.ts`.
 enum SavedViewList {
   leads('leads'),
   contacts('contacts'),
@@ -60,7 +60,7 @@ class SavedView {
   /// shows the parameters in [keys] and takes more than one value only for
   /// those in [multi]. Counted in values, not keys: three statuses on a
   /// screen that reads one is two it leaves out. The web counts the same way
-  /// (`droppedValues` in `frontend/src/lib/v2/saved-views.js`).
+  /// (`droppedValues` in `frontend/src/lib/v2/saved-views.ts`).
   int dropped(Set<String> keys, Set<String> multi) {
     var count = 0;
     filters.forEach((key, values) {

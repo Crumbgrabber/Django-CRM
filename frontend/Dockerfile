@@ -7,7 +7,7 @@
 #
 # RUNTIME CONFIGURATION
 #
-# Every value this app reads from the environment is declared in src/env.js and
+# Every value this app reads from the environment is declared in src/env.ts and
 # read per process at startup, not at build time. So one image serves any
 # deployment and nothing below bakes a hostname in:
 #

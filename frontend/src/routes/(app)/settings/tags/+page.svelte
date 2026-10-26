@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { SvelteMap } from 'svelte/reactivity';
   /**
    * The labels shared across accounts, leads, deals and tickets.
@@ -21,9 +21,10 @@
   import ConfirmAction from '#lib/v2/components/ConfirmAction.svelte';
   import { count } from '#lib/v2/format.js';
   import { Plus, Merge, Tags as TagsIcon } from '@lucide/svelte';
+  import type { components } from '#lib/api-schema.js';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   // The "New tag" disclosure. Open while adding, closed on a successful
   // create; a failed one stays open so the error next to the input is
@@ -58,8 +59,8 @@
    * on the backend now walks the model registry to keep that list complete;
    * this sums whatever it sends.
    */
-  /** @param {{ usage?: Record<string, number> }} t */
-  const used = (t) => Object.values(t.usage ?? {}).reduce((sum, n) => sum + (n || 0), 0);
+  const used = (t: { usage?: Record<string, number> }) =>
+    Object.values(t.usage ?? {}).reduce((sum, n) => sum + (n || 0), 0);
 
   let tags = $derived(
     [...data.tags].sort((a, b) => used(b) - used(a) || a.name.localeCompare(b.name))
@@ -80,16 +81,14 @@
    * org's non-Latin tags as one duplicate group, with a merge button, now that
    * the server lets them coexist.
    */
-  /** @param {string} name */
-  const normalise = (name) =>
+  const normalise = (name: string) =>
     name
       .toLowerCase()
       .replace(/[^\p{L}\p{M}\p{N}]/gu, '')
       .replace(/s$/, '');
 
   let duplicateGroups = $derived.by(() => {
-    /** @type {Map<string, import('#lib/api-schema.js').components['schemas']['TagsListRow'][]>} */
-    const groups = new SvelteMap();
+    const groups: Map<string, components['schemas']['TagsListRow'][]> = new SvelteMap();
     // Active tags only. The list itself is fetched with
     // `?include_archived=true` so an admin can see what has been turned off,
     // but an archived tag is not offered on new records and so cannot be

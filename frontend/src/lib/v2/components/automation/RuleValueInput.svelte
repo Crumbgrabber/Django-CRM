@@ -1,23 +1,10 @@
-<script>
-  import { withStored } from '#lib/v2/automation.js';
+<script lang="ts">
+  import { withStored, type Field, type Option, type RuleValue } from '#lib/v2/automation.js';
 
   /**
    * One value in a rule, drawn by its kind (`valueKind`, or the field's type
    * when an action sets it). A stored value the options no longer carry stays
    * selected and marked, so saving never drops it.
-   *
-   * @type {{
-   *   field: import('#lib/v2/automation.js').Field | null,
-   *   kind: string,
-   *   value: import('#lib/v2/automation.js').RuleValue | undefined,
-   *   people: { id: string, name: string }[],
-   *   settableOnly?: boolean,
-   *   lostLabel?: (value: string) => string | undefined,
-   *   id: string,
-   *   label?: string,
-   *   invalid?: boolean,
-   *   describedby?: string
-   * }}
    */
   let {
     field,
@@ -30,6 +17,17 @@
     label = 'Value',
     invalid = false,
     describedby = undefined
+  }: {
+    field: Field | null;
+    kind: string;
+    value: RuleValue | undefined;
+    people: { id: string; name: string }[];
+    settableOnly?: boolean;
+    lostLabel?: (value: string) => string | undefined;
+    id: string;
+    label?: string;
+    invalid?: boolean;
+    describedby?: string;
   } = $props();
 
   let choices = $derived(
@@ -40,8 +38,7 @@
     )
   );
   let groups = $derived.by(() => {
-    /** @type {{ group: string, options: import('#lib/v2/automation.js').Option[] }[]} */
-    const out = [];
+    const out: { group: string; options: Option[] }[] = [];
     for (const option of choices) {
       const group = option.group ?? '';
       const bucket = out.find((g) => g.group === group);
@@ -59,11 +56,8 @@
   );
   let picked = $derived(Array.isArray(value) ? value : []);
 
-  /**
-   * Ticked values in the order the list shows them.
-   * @param {{ value: string }[]} options @param {string} option @param {boolean} on
-   */
-  function toggle(options, option, on) {
+  /** Ticked values in the order the list shows them. */
+  function toggle(options: { value: string }[], option: string, on: boolean) {
     value = options.map((o) => o.value).filter((v) => (v === option ? on : picked.includes(v)));
   }
 </script>

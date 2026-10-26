@@ -650,7 +650,7 @@ class OrgProfileCreateSerializer(serializers.ModelSerializer):
         # here only exposes the created org's id in the response; it does not
         # open a new mass-assignment surface (a client-supplied "id" in the
         # request body is still ignored, same as before this field existed).
-        # Callers (org/new/+page.server.js) need this id to switch the
+        # Callers (org/new/+page.server.ts) need this id to switch the
         # session into the org they just created and to apply a vertical
         # pack to it -- see the C1 fix in the vertical-packs final review.
         # `timezone` is optional on purpose. Mobile builds ship from an app

@@ -69,13 +69,13 @@ for the pattern and the two tasks that intentionally skip it.
 
 The SvelteKit frontend stores JWT tokens in httpOnly cookies whose `secure` flag is gated on
 `NODE_ENV`/`env.NODE_ENV === 'production'`: this pattern repeats across
-`frontend/src/hooks.server.js` and every `+page.server.js` that sets an auth-related cookie (login,
+`frontend/src/hooks.server.ts` and every `+page.server.ts` that sets an auth-related cookie (login,
 magic-link verify, org selection). If you set `NODE_ENV=production` on the Node process serving the
 frontend while the site is actually reached over plain HTTP (no TLS terminated in front of it, or a
 proxy that isn't forwarding correctly), every cookie gets written with the `Secure` attribute, and
 the browser silently refuses to store or send a `Secure` cookie over a non-HTTPS connection. The
 result: sign-in appears to succeed (the OAuth/magic-link exchange completes and the server tries to
-set the cookies), but the next request arrives with no `jwt_access` cookie, `hooks.server.js` treats
+set the cookies), but the next request arrives with no `jwt_access` cookie, `hooks.server.ts` treats
 it as unauthenticated, and redirects back to `/login`, which the user completes again, with the
 same outcome. Confirm it by inspecting the `Set-Cookie` response header in the browser's network
 tab: a `Secure` attribute on a response served over `http://` is the signature of this exact failure.

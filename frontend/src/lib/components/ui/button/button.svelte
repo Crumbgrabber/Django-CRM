@@ -1,4 +1,4 @@
-<script module>
+<script module lang="ts">
   import { cn } from '#lib/utils.js';
   import { tv } from 'tailwind-variants';
 
@@ -59,22 +59,11 @@
   });
 </script>
 
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   import { asInternalPath } from '#lib/utils/paths.js';
-  /**
-   * @type {Omit<import('svelte/elements').HTMLButtonAttributes, 'type'> &
-   *   Omit<import('svelte/elements').HTMLAnchorAttributes, 'type'> & {
-   *   class?: string,
-   *   variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link',
-   *   size?: 'default' | 'sm' | 'lg' | 'icon' | 'icon-sm' | 'icon-lg',
-   *   ref?: HTMLElement | null,
-   *   href?: string,
-   *   type?: 'button' | 'submit' | 'reset',
-   *   disabled?: boolean,
-   *   children?: import('svelte').Snippet
-   * }}
-   */
+  import type { Snippet } from 'svelte';
+  import type { HTMLAnchorAttributes, HTMLButtonAttributes } from 'svelte/elements';
   let {
     class: className,
     variant = 'default',
@@ -85,7 +74,17 @@
     disabled = false,
     children,
     ...restProps
-  } = $props();
+  }: Omit<HTMLButtonAttributes, 'type'> &
+    Omit<HTMLAnchorAttributes, 'type'> & {
+      class?: string;
+      variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link';
+      size?: 'default' | 'sm' | 'lg' | 'icon' | 'icon-sm' | 'icon-lg';
+      ref?: HTMLElement | null;
+      href?: string;
+      type?: 'button' | 'submit' | 'reset';
+      disabled?: boolean;
+      children?: Snippet;
+    } = $props();
 </script>
 
 {#if href}

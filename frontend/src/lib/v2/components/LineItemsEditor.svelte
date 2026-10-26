@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * The line-item card the invoice and estimate builders share: add from the
    * catalogue, type a line, set quantity and price, remove a line.
@@ -10,24 +10,31 @@
    * (server-validated to this org) records where it came from.
    */
   import { money } from '#lib/v2/format.js';
-  import { blankLine, lineAmount, lineDiscountError, num } from '#lib/v2/line-items.js';
+  import {
+    blankLine,
+    lineAmount,
+    lineDiscountError,
+    num,
+    type Figure,
+    type Line
+  } from '#lib/v2/line-items.js';
   import { Plus, Trash2 } from '@lucide/svelte';
 
-  /**
-   * @type {{
-   *   items: import('#lib/v2/line-items.js').Line[],
-   *   products: Array<{id: string, name: string, sku?: string | null, price: import('#lib/v2/line-items.js').Figure}>,
-   *   currency: string
-   * }}
-   */
-  let { items = $bindable(), products, currency } = $props();
+  let {
+    items = $bindable(),
+    products,
+    currency
+  }: {
+    items: Line[];
+    products: Array<{ id: string; name: string; sku?: string | null; price: Figure }>;
+    currency: string;
+  } = $props();
 
   function addLine() {
     items.push(blankLine());
   }
 
-  /** @param {string} id */
-  function addProduct(id) {
+  function addProduct(id: string) {
     const p = products.find((x) => x.id === id);
     if (!p) return;
     items.push({
@@ -39,8 +46,7 @@
     });
   }
 
-  /** @param {number} i */
-  function removeLine(i) {
+  function removeLine(i: number) {
     items.splice(i, 1);
     if (!items.length) addLine();
   }

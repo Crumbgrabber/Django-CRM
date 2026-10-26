@@ -1,23 +1,26 @@
-<script>
-  import { mentionAt, insertMention, matchPeople } from '#lib/v2/mentions.js';
+<script lang="ts">
+  import { mentionAt, insertMention, matchPeople, type MentionPerson } from '#lib/v2/mentions.js';
+  import type { HTMLTextareaAttributes } from 'svelte/elements';
 
   /**
    * A textarea that offers people from `people` while an `@` handle is being
    * typed. Arrow keys move, Enter or Tab inserts, Escape closes. Every other
    * attribute goes to the textarea, and `ref` is the textarea element.
-   *
-   * @type {Omit<import('svelte/elements').HTMLTextareaAttributes, 'value'> & {
-   *   value: string,
-   *   people?: import('#lib/v2/mentions.js').MentionPerson[],
-   *   ref?: HTMLTextAreaElement
-   * }}
    */
   // No fallback on `ref`: Svelte refuses `bind:ref={undefined}` against one.
-  let { value = $bindable(''), people = [], ref = $bindable(), ...rest } = $props();
+  let {
+    value = $bindable(''),
+    people = [],
+    ref = $bindable(),
+    ...rest
+  }: Omit<HTMLTextareaAttributes, 'value'> & {
+    value: string;
+    people?: MentionPerson[];
+    ref?: HTMLTextAreaElement;
+  } = $props();
 
   const listId = $props.id();
-  /** @type {{ start: number, query: string } | null} */
-  let typing = $state(null);
+  let typing: { start: number; query: string } | null = $state(null);
   let active = $state(0);
   const matches = $derived.by(() => (typing ? matchPeople(people, typing.query) : []));
   const open = $derived(matches.length > 0);
@@ -27,8 +30,7 @@
     active = 0;
   }
 
-  /** @param {import('#lib/v2/mentions.js').MentionPerson} person */
-  function pick(person) {
+  function pick(person: MentionPerson) {
     if (!typing || !ref) return;
     const next = insertMention(value, typing.start, ref.selectionStart, person.username);
     value = next.text;
@@ -39,8 +41,7 @@
     });
   }
 
-  /** @param {KeyboardEvent} event */
-  function onkeydown(event) {
+  function onkeydown(event: KeyboardEvent) {
     if (!open) return;
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
@@ -55,8 +56,7 @@
     }
   }
 
-  /** @param {KeyboardEvent} event */
-  function onkeyup(event) {
+  function onkeyup(event: KeyboardEvent) {
     if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) detect();
   }
 </script>

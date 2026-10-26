@@ -1,6 +1,6 @@
-<script>
+<script lang="ts">
   import { tick, untrack } from 'svelte';
-  import { enhance } from '$app/forms';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
   import AutomationCrumb from './AutomationCrumb.svelte';
   import NextAction from '#lib/v2/components/NextAction.svelte';
@@ -19,28 +19,37 @@
     switchLabel,
     pausedByModule,
     modulePausedNote,
-    STATUS
+    STATUS,
+    type Catalogue,
+    type EditorForm
   } from '#lib/v2/automation.js';
   import TriggerSection from './TriggerSection.svelte';
   import ConditionRows from './ConditionRows.svelte';
   import ActionRows from './ActionRows.svelte';
+  import type { ModuleRow } from '#lib/v2/modules.js';
+  import type { components } from '#lib/api-schema.js';
 
   /**
    * The rule editor both `settings/automation/new` and `[id]` render. The rule
    * is one `$state` draft, posted whole as the `rule` field; it outlives a
    * refused save, so nothing the admin typed is lost. `plansHref` is where a
    * plan limit can be lifted (`billingHref`), or null.
-   *
-   * @type {{
-   *   catalogue: import('#lib/v2/automation.js').Catalogue,
-   *   rule?: import('#lib/api-schema.js').components['schemas']['Rule'] | null,
-   *   row?: import('#lib/api-schema.js').components['schemas']['RuleRow'] | null,
-   *   modules?: import('#lib/v2/modules.js').ModuleRow[] | null,
-   *   form: import('#lib/v2/automation.js').EditorForm,
-   *   plansHref?: string | null
-   * }}
    */
-  let { catalogue, rule = null, row = null, modules = null, form, plansHref = null } = $props();
+  let {
+    catalogue,
+    rule = null,
+    row = null,
+    modules = null,
+    form,
+    plansHref = null
+  }: {
+    catalogue: Catalogue;
+    rule?: components['schemas']['Rule'] | null;
+    row?: components['schemas']['RuleRow'] | null;
+    modules?: ModuleRow[] | null;
+    form: EditorForm;
+    plansHref?: string | null;
+  } = $props();
 
   let draft = $state(untrack(() => editorState(rule, catalogue?.objects?.[0]?.key ?? '')));
   let busy = $state(false);
@@ -57,15 +66,13 @@
   let ownerName = $derived(rule?.owner ? String(rule.owner.name ?? '').trim() : '');
   let saved = $derived(Boolean(form?.saved) && rule && !isDirty(draft, rule));
 
-  /** @type {import('$app/forms').SubmitFunction} */
-  const turnOff =
+  const turnOff: SubmitFunction =
     () =>
     async ({ update }) => {
       await update({ reset: false });
     };
 
-  /** @type {import('$app/forms').SubmitFunction} */
-  const save = () => {
+  const save: SubmitFunction = () => {
     busy = true;
     const rows = sentRows(draft);
     return async ({ update }) => {
@@ -73,8 +80,10 @@
       await update({ reset: false });
       busy = false;
       await tick();
-      /** @type {HTMLElement | null} */ (
-        document.querySelector('.au-editor [aria-invalid="true"]:not([role="group"])')
+      (
+        document.querySelector(
+          '.au-editor [aria-invalid="true"]:not([role="group"])'
+        ) as HTMLElement | null
       )?.focus();
     };
   };

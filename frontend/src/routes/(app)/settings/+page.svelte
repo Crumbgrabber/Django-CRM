@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   import { asInternalPath } from '#lib/utils/paths.js';
   /**
@@ -28,9 +28,9 @@
   import { count, shortDate } from '#lib/v2/format.js';
   import { hubGroups } from '#lib/v2/settings-hub.js';
   import { ChevronRight, ShieldAlert } from '@lucide/svelte';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data } = $props();
+  let { data }: PageProps = $props();
 
   let org = $derived(data.org);
   let groups = $derived(hubGroups(data));

@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   import { asInternalPath } from '#lib/utils/paths.js';
   /**
@@ -51,26 +51,24 @@
     CirclePause,
     Gauge
   } from '@lucide/svelte';
+  import type { PageData, PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data } = $props();
+  let { data }: PageProps = $props();
 
-  /** @typedef {import('./$types').PageData['results'][number]} Row */
+  type Row = PageData['results'][number];
 
   let emptyText = $derived(notificationsEmptyText(data.modules));
 
   /* Local copy: marking read is a real state change in this page's terms even
      though nothing is persisted yet. It is not derived from `data`, or every
      revalidation would resurrect what you just cleared. */
-  /** @type {Row[]} */
-  let rows = $state(untrack(() => data.results.map((n) => ({ ...n }))));
-  let filter = $state(/** @type {'unread' | 'all'} */ ('unread'));
+  let rows: Row[] = $state(untrack(() => data.results.map((n) => ({ ...n }))));
+  let filter = $state('unread' as 'unread' | 'all');
 
   let unread = $derived(rows.filter((n) => n.read_at === null));
   let visible = $derived(filter === 'unread' ? unread : rows);
 
-  /** @type {Record<string, typeof Bell>} */
-  const ICON = {
+  const ICON: Record<string, typeof Bell> = {
     'case.mentioned': AtSign,
     'case.commented': MessageSquare,
     'support.replied': LifeBuoy,
@@ -86,10 +84,8 @@
    * "mentioned you" / "commented" for the verbs that exist; a readable
    * fallback for the ones that do not. `case.sla_breached` becomes
    * "sla breached" and not `case.sla_breached`.
-   *
-   * @param {Row} n
    */
-  function verbPhrase(n) {
+  function verbPhrase(n: Row) {
     if (n.verb === 'case.mentioned') return 'mentioned you on';
     if (n.verb === 'case.commented') return 'commented on';
     if (n.verb === 'support.replied') return 'replied to';
@@ -97,25 +93,22 @@
     return `${n.verb.replace(/^[^.]+\./, '').replace(/_/g, ' ')}, `;
   }
 
-  /** @param {Row} n */
-  function isAutomation(n) {
+  function isAutomation(n: Row) {
     return n.verb?.startsWith('automation.');
   }
 
-  /** @param {Row} n */
-  function isTicketVerb(n) {
+  function isTicketVerb(n: Row) {
     return n.verb?.startsWith('case.') || n.verb?.startsWith('support.');
   }
 
-  /** @param {Row} n */
-  function isSupportNotification(n) {
+  function isSupportNotification(n: Row) {
     return n.verb?.startsWith('support.');
   }
 
   /* Persist to a page action. `keepalive` so the write survives the navigation
      that a link click starts, clicking a notification both opens the ticket
      AND marks it read, and the read must not be cancelled mid-flight. */
-  async function post(/** @type {string} */ action, /** @type {FormData} */ body) {
+  async function post(action: string, body: FormData) {
     const res = await fetch(action, { method: 'POST', body, keepalive: true });
     return deserialize(await res.text());
   }
@@ -123,7 +116,7 @@
   /* Marking read is optimistic, the dot clears immediately, then persisted.
      If the API refuses (or the network fails) the change is put back, so the
      page never shows a state the server did not accept. */
-  async function markRead(/** @type {Row} */ n) {
+  async function markRead(n: Row) {
     if (n.read_at !== null) return;
     n.read_at = new Date().toISOString();
     const body = new FormData();

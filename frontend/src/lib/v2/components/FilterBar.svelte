@@ -1,10 +1,19 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   import { asInternalPath } from '#lib/utils/paths.js';
   import { X, Plus, ChevronDown } from '@lucide/svelte';
-  import { FILTERS, activeChips, activePresetKey, withParams } from '#lib/v2/filters.js';
+  import {
+    FILTERS,
+    activeChips,
+    activePresetKey,
+    withParams,
+    type Field,
+    type Preset
+  } from '#lib/v2/filters.js';
   import { invoiceStatusLabel } from '#lib/v2/enums.js';
   import SavedViews from '#lib/v2/components/SavedViews.svelte';
+  import type { ComponentProps } from 'svelte';
+  import type { ReadonlyURL } from '$app/state';
 
   /**
    * One filter system, for every v2 list page.
@@ -22,21 +31,6 @@
    * when its param is actually set. The previous version took a `filters` array
    * that pages built by hand, and several passed chips describing an implicit
    * default, so the X had nothing to remove and did nothing.
-   *
-   * @type {{
-   *   page: string,
-   *   url: import('$app/state').ReadonlyURL,
-   *   people?: {id: string, name: string}[],
-   *   tags?: {id: string, name: string}[],
-   *   accounts?: {id: string, name: string}[],
-   *   stages?: {id: string, name: string}[],
-   *   sources?: {id: string, name: string}[],
-   *   meId?: string | null,
-   *   meta?: string | null,
-   *   onlyFields?: string[],
-   *   onlyPresets?: string[],
-   *   saved?: import('svelte').ComponentProps<typeof SavedViews>['saved'] | null
-   * }}
    */
 
   let {
@@ -54,6 +48,19 @@
     // The page's saved views (`loadSavedViews`), on the six lists that take
     // them. Absent everywhere else, and then no menu is drawn.
     saved = null
+  }: {
+    page: string;
+    url: ReadonlyURL;
+    people?: { id: string; name: string }[];
+    tags?: { id: string; name: string }[];
+    accounts?: { id: string; name: string }[];
+    stages?: { id: string; name: string }[];
+    sources?: { id: string; name: string }[];
+    meId?: string | null;
+    meta?: string | null;
+    onlyFields?: string[];
+    onlyPresets?: string[];
+    saved?: ComponentProps<typeof SavedViews>['saved'] | null;
   } = $props();
 
   let descriptor = $derived(FILTERS[page] ?? { presets: [], fields: [] });
@@ -100,9 +107,8 @@
    * not be resolved: a "Mine" link that filters to nobody looks like the viewer
    * owns nothing.
    */
-  const presetHref = (/** @type {import('#lib/v2/filters.js').Preset} */ preset) => {
-    /** @type {Record<string, string|null>} */
-    const params = {};
+  const presetHref = (preset: Preset) => {
+    const params: Record<string, string | null> = {};
     for (const field of descriptor.fields) {
       if (field.type === 'date-range' || field.type === 'number-range') {
         if (field.gteKey) params[field.gteKey] = null;
@@ -118,10 +124,9 @@
     return withParams(url, params);
   };
 
-  const usable = (/** @type {import('#lib/v2/filters.js').Preset} */ preset) =>
-    !Object.values(preset.params).includes('@me') || Boolean(meId);
+  const usable = (preset: Preset) => !Object.values(preset.params).includes('@me') || Boolean(meId);
 
-  const optionsFor = (/** @type {import('#lib/v2/filters.js').Field} */ field) => {
+  const optionsFor = (field: Field) => {
     if (field.type === 'person') return people;
     if (field.type === 'tag') return tags;
     if (field.type === 'account') return accounts;

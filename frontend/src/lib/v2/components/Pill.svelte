@@ -1,14 +1,22 @@
-<script>
+<script lang="ts">
+  import type { Snippet } from 'svelte';
+
   /**
    * A status pill. Tinted background, never a solid fill. Solid reads as a
    * button, and only actions get solid colour.
    *
    * Ember is deliberately not an available tone: it belongs to actions and
    * to "this needs you now", never to a status a record happens to be in.
-   *
-   * @type {{ tone?: 'ink'|'slate'|'clay'|'rust'|'moss', dot?: boolean, children: import('svelte').Snippet }}
    */
-  let { tone = 'slate', dot = false, children } = $props();
+  let {
+    tone = 'slate',
+    dot = false,
+    children
+  }: {
+    tone?: 'ink' | 'slate' | 'clay' | 'rust' | 'moss';
+    dot?: boolean;
+    children: Snippet;
+  } = $props();
 
   const VAR = {
     ink: 'var(--v2-ink)',

@@ -7,7 +7,7 @@ Python keeps the second, so both consumers received the dashboard shape:
 * the ticket activity feed wants `metadata` and `created_at`, and got
   neither, so the ticket timeline of the day rendered no metadata and an
   invalid date. Today the case detail's `activities` are read by the web
-  ticket page (`getTicket` in `lib/server/v2/tickets.js`: `created_at`,
+  ticket page (`getTicket` in `lib/server/v2/tickets.ts`: `created_at`,
   `action_display`, `user`) and the mobile ticket screen (`metadata`,
   `created_at`)
 

@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * Deal pipelines: the stages a deal moves through, and how long it may sit
    * in each before it counts as rotting.
@@ -26,30 +26,30 @@
   import Pill from '#lib/v2/components/Pill.svelte';
   import { count } from '#lib/v2/format.js';
   import { ArrowDown, ArrowUp, Plus } from '@lucide/svelte';
+  import type { PageData, PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
-  /** @typedef {NonNullable<import('./$types').PageData['pipeline']>['stages'][number]} Stage */
+  type Stage = NonNullable<PageData['pipeline']>['stages'][number];
 
   /** `workflow.STAGE_KINDS`. */
-  const KINDS = /** @type {const} */ ([
+  const KINDS = [
     ['open', 'Open'],
     ['won', 'Won'],
     ['lost', 'Lost']
-  ]);
+  ] as const;
   const KIND_LABEL = Object.fromEntries(KINDS);
-  const KIND_TONE = /** @type {Record<string, 'slate'|'moss'|'rust'>} */ ({
+  const KIND_TONE = {
     open: 'slate',
     won: 'moss',
     lost: 'rust'
-  });
+  } as Record<string, 'slate' | 'moss' | 'rust'>;
 
   let pipeline = $derived(data.pipeline);
 
   // `null` closed, `'new'` adding a stage, or the stage being edited. One
   // panel, so two stages can never be open for edit at once.
-  let editing = $state(/** @type {null | 'new' | Stage} */ (null));
+  let editing = $state<null | 'new' | Stage>(null);
   let addingPipeline = $state(false);
   let renaming = $state(false);
   // The kind picked in the open stage form: rotting days only apply to open.
@@ -65,13 +65,12 @@
     addingPipeline = false;
   });
 
-  function edit(/** @type {'new' | Stage} */ stage) {
+  function edit(stage: 'new' | Stage) {
     editing = stage;
     editingKind = stage === 'new' ? 'open' : stage.kind;
   }
 
-  /** @param {Stage} s */
-  function rotting(s) {
+  function rotting(s: Stage) {
     if (s.kind !== 'open') return 'Closed, does not age';
     if (!s.expected_days) return 'Never';
     const warn = s.warning_days ? `, warns at ${s.warning_days}d` : '';

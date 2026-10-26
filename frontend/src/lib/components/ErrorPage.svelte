@@ -1,19 +1,20 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   import { asInternalPath } from '#lib/utils/paths.js';
   import { goto } from '$app/navigation';
   import { Button } from '#lib/components/ui/button/index.js';
   import { ArrowLeft, Home, Compass, Users, Building2, BarChart3 } from '@lucide/svelte';
 
-  /**
-   * @typedef {Object} Props
-   * @property {number} [status]   HTTP status code
-   * @property {string} [message]  Error message from the server (optional)
-   * @property {boolean} [showQuickLinks]  Show the "Try one of these" panel (default true for 404)
-   */
+  type Props = {
+    /** HTTP status code */
+    status?: number;
+    /** Error message from the server (optional) */
+    message?: string;
+    /** Show the "Try one of these" panel (default true for 404) */
+    showQuickLinks?: boolean;
+  };
 
-  /** @type {Props} */
-  let { status = 404, message = '', showQuickLinks } = $props();
+  let { status = 404, message = '', showQuickLinks }: Props = $props();
 
   let isNotFound = $derived(status === 404);
   let showLinks = $derived(showQuickLinks ?? isNotFound);

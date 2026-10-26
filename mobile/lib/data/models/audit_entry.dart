@@ -54,7 +54,7 @@ class AuditEntry {
   }
 
   /// One line on what happened, or '' when the label says it all. The same
-  /// rules as `auditDetail` in `frontend/src/lib/v2/audit-log.js`.
+  /// rules as `auditDetail` in `frontend/src/lib/v2/audit-log.ts`.
   String get detail {
     final reason = details['pause_reason'];
     if (reason != null && reason.toString().isNotEmpty) return '$reason';

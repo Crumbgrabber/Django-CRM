@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * A record's custom fields on its detail page, every active one filled or
    * not, from `fieldsForDetail` (`#lib/server/v2/record-custom-fields.js`).
@@ -6,14 +6,15 @@
    * `flush` drops the space above, for a page that spaces its own sections.
    */
 
-  /**
-   * @type {{
-   *   fields: { key: string, label: string, value: string, filled: boolean }[],
-   *   label?: string,
-   *   flush?: boolean
-   * }}
-   */
-  let { fields, label = 'Details', flush = false } = $props();
+  let {
+    fields,
+    label = 'Details',
+    flush = false
+  }: {
+    fields: { key: string; label: string; value: string; filled: boolean }[];
+    label?: string;
+    flush?: boolean;
+  } = $props();
 </script>
 
 {#if fields.length > 0}

@@ -5,10 +5,10 @@ the parent read each linked person's phone, address, notes, assignees and
 account links, whether or not they could open that contact. The clients read
 far less:
 
-- ticket: web `lib/server/v2/tickets.js` reads id and the name; mobile
+- ticket: web `lib/server/v2/tickets.ts` reads id and the name; mobile
   `data/models/ticket.dart` falls back to `email` when the name is blank.
 - deal: mobile `deal_detail_screen.dart` shows each contact's name and email.
-- task: web `lib/server/v2/tasks.js` reads the name and the email.
+- task: web `lib/server/v2/tasks.ts` reads the name and the email.
 - lead: neither client reads `contacts`.
 - invoice, estimate, recurring: mobile `invoice.dart` reads the name, the web
   reads `contact_name` from the list rows instead.

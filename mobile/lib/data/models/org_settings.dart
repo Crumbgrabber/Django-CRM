@@ -11,7 +11,7 @@
 /// likewise not editable here.
 ///
 /// The read is open to any member; the PATCH is admin-only and the backend is
-/// what refuses. `frontend/src/lib/server/v2/organization.js` carries the same
+/// what refuses. `frontend/src/lib/server/v2/organization.ts` carries the same
 /// allow-list.
 library;
 

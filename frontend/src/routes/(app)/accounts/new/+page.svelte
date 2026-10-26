@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   /**
    * A new account.
@@ -19,9 +19,9 @@
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
   import DuplicateNotice from '#lib/v2/components/DuplicateNotice.svelte';
   import { ChevronRight, TriangleAlert } from '@lucide/svelte';
+  import type { PageProps, SubmitFunction } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form: result } = $props();
+  let { data, form: result }: PageProps = $props();
 
   /* What was typed survives a rejected submit, and `untrack` keeps a
      revalidation from wiping it back to the defaults underneath the cursor. */
@@ -42,12 +42,11 @@
     }))
   );
 
-  let touched = $state(/** @type {Record<string, boolean>} */ ({}));
+  let touched = $state<Record<string, boolean>>({});
   let submitted = $state(false);
 
   let errors = $derived.by(() => {
-    /** @type {Record<string, string>} */
-    const e = {};
+    const e: Record<string, string> = {};
     if (!form.name.trim()) e.name = 'Give the account the name you would search for.';
 
     if (form.annual_revenue !== '') {
@@ -70,22 +69,19 @@
   });
 
   let valid = $derived(Object.keys(errors).length === 0);
-  const show = (/** @type {string} */ field) => (touched[field] || submitted) && errors[field];
+  const show = (field: string) => (touched[field] || submitted) && errors[field];
 
   /**
    * The name must be unique in the org, case-insensitively. That check needs
    * the database, so it happens on the server and arrives as `result.error`.
    * This only stops submissions that are wrong on their face.
-   *
-   * @type {import('./$types').SubmitFunction}
    */
-  const check = async ({ cancel }) => {
+  const check: SubmitFunction = async ({ cancel }) => {
     submitted = true;
     if (!valid) {
       cancel();
       await tick();
-      /** @type {HTMLElement | null} */
-      const first = document.querySelector('[aria-invalid="true"]');
+      const first: HTMLElement | null = document.querySelector('[aria-invalid="true"]');
       first?.focus();
       return;
     }

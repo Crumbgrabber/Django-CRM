@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * "Possible duplicates" beside a create form, while it is being typed.
    *
@@ -13,20 +13,19 @@
   import { resolve } from '$app/paths';
   import { TriangleAlert } from '@lucide/svelte';
 
-  /** @type {{ module: 'leads' | 'contacts' | 'accounts', values: Record<string, string> }} */
-  let { module, values } = $props();
+  let {
+    module,
+    values
+  }: { module: 'leads' | 'contacts' | 'accounts'; values: Record<string, string> } = $props();
 
-  /** @type {Array<{ id: string, name: string, matched_on: string }>} */
-  let hits = $state([]);
+  let hits: Array<{ id: string; name: string; matched_on: string }> = $state([]);
   let latest = 0;
 
   /**
    * Whether a value is worth asking about. The API ignores weaker ones anyway;
    * this saves the round trip on every early keystroke.
-   * @param {string} field
-   * @param {string} value
    */
-  function usable(field, value) {
+  function usable(field: string, value: string) {
     if (field === 'email') return /@.+\./.test(value);
     if (field === 'phone') return value.replace(/\D/g, '').length >= 7;
     if (field === 'website') return value.includes('.');
@@ -34,8 +33,7 @@
   }
 
   $effect(() => {
-    /** @type {Record<string, string>} */
-    const criteria = {};
+    const criteria: Record<string, string> = {};
     for (const [field, raw] of Object.entries(values)) {
       const value = (raw ?? '').trim();
       if (value && usable(field, value)) criteria[field] = value;

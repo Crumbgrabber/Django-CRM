@@ -92,7 +92,7 @@ enum CustomFieldType {
 
   final String value;
 
-  /// Matches `FIELD_TYPE_LABEL` in `frontend/src/lib/v2/enums.js`, so the two
+  /// Matches `FIELD_TYPE_LABEL` in `frontend/src/lib/v2/enums.ts`, so the two
   /// clients name the same type the same way.
   final String label;
 
@@ -111,7 +111,7 @@ enum CustomFieldType {
 /// is a deal).
 ///
 /// Mirrors the custom-field targets in `backend/common/object_registry.py` and
-/// `TARGET_MODEL_LABEL` in `frontend/src/lib/v2/enums.js`.
+/// `TARGET_MODEL_LABEL` in `frontend/src/lib/v2/enums.ts`.
 /// `CustomFieldDefinitionSerializer` rejects anything outside this set, so
 /// offering a wider list would only produce a 400.
 const Map<String, String> customFieldTargets = {
@@ -127,7 +127,7 @@ const Map<String, String> customFieldTargets = {
 };
 
 /// The module that serves each target; Account and Contact are always on.
-/// Twin of `TARGET_MODULES` in `frontend/src/lib/v2/modules.js`.
+/// Twin of `TARGET_MODULES` in `frontend/src/lib/v2/modules.ts`.
 const Map<String, String> customFieldTargetModules = {
   'Lead': 'leads',
   'Opportunity': 'deals',
@@ -248,7 +248,7 @@ String suggestCustomFieldKey(String label) {
 ///
 /// An existing option's value is stored on every record that uses it, so a
 /// relabel must leave the value untouched. This mirrors `slugifyOptionValue`
-/// in `frontend/src/lib/server/v2/custom-fields.js`, hyphens included: option
+/// in `frontend/src/lib/server/v2/custom-fields.ts`, hyphens included: option
 /// values are free-form on the server and only the field `key` is slug-checked.
 String slugifyOptionValue(String label) => label
     .toLowerCase()

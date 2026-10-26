@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   import { page } from '$app/state';
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
@@ -13,9 +13,9 @@
   import { secondsSince, spanText } from '#lib/v2/interactions.js';
   import { Download, Plus, Upload, Target, Timer } from '@lucide/svelte';
   import { t } from '#lib/terminology.js';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data } = $props();
+  let { data }: PageProps = $props();
 
   let leads = $derived(data.leads);
   let importOpen = $state(false);
@@ -34,10 +34,9 @@
    * The same rule the API counts with, so the highlighted rows and the
    * "unworked for more than a week" figure in the header agree. If one moves,
    * move the other, `LeadListView.UNWORKED_AFTER_DAYS`.
-   *
-   * @param {{ last_contacted: string | null, created_at: string }} lead
    */
-  const stale = (lead) => (daysSince(lead.last_contacted ?? lead.created_at) ?? 0) > 7;
+  const stale = (lead: { last_contacted: string | null; created_at: string }) =>
+    (daysSince(lead.last_contacted ?? lead.created_at) ?? 0) > 7;
 
   // An API without response tracking ignores `?unanswered=true` and lists every
   // open lead, so the view is only claimed when the rows prove it was applied.
@@ -45,8 +44,7 @@
   let responseOff = $derived(data.responseLive === false);
   let unanswered = $derived(asked && !responseOff);
 
-  /** @param {{ is_unanswered: boolean, waiting_since: string | null }} lead */
-  const waitFor = (lead) =>
+  const waitFor = (lead: { is_unanswered: boolean; waiting_since: string | null }) =>
     lead.is_unanswered && lead.waiting_since ? spanText(secondsSince(lead.waiting_since)) : '';
 </script>
 

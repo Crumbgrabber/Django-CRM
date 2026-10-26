@@ -297,7 +297,7 @@ class Mailbox {
 }
 
 /// The drop reasons the API sends, in the order a row names them, each with
-/// its singular and plural label. `frontend/src/lib/v2/inbound-drops.js` says
+/// its singular and plural label. `frontend/src/lib/v2/inbound-drops.ts` says
 /// the same.
 const List<(String, String, String)> _dropReasons = [
   ('spam', 'spam', 'spam'),
@@ -464,7 +464,7 @@ Map<String, dynamic> mailboxPayload({
 /// the empty one, would silently undo a pin nobody on this form chose to undo.
 /// Clearing the field on purpose is a change, and sends `''`.
 ///
-/// `frontend/src/lib/server/v2/inbound-email.js` `topicArnEdit` is the same
+/// `frontend/src/lib/server/v2/inbound-email.ts` `topicArnEdit` is the same
 /// rule.
 String? mailboxTopicArnEdit(String submitted, String? loaded) {
   final next = submitted.trim();

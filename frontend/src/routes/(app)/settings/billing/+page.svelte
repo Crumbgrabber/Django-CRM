@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * Settings › Billing, drawn entirely from the server's answer: a member sees
    * the plan's name; an admin also sees its state and the plans, each with the
@@ -6,30 +6,29 @@
    * names, and nothing from that page runs here. Switch and Keep stay here; a
    * switch shows the server's sentence and waits for a second click.
    */
-  import { enhance } from '$app/forms';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import { Check } from '@lucide/svelte';
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
   import Pill from '#lib/v2/components/Pill.svelte';
   import SettingsCrumb from '#lib/v2/components/SettingsCrumb.svelte';
   import { planButton } from '#lib/v2/billing.js';
+  import type { Billing } from '#lib/server/v2/billing.js';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
-  /** @type {import('#lib/server/v2/billing.js').Billing} */
-  let answer = $derived(data.answer);
+  let answer: Billing = $derived(data.answer);
   let plans = $derived(answer.plans ?? []);
   let busy = $state(false);
   /** The plan whose switch is waiting for its confirmation. */
-  let armed = $state(/** @type {string | null} */ (null));
+  let armed = $state<string | null>(null);
 
   // A refusal shows under the button that was pressed, else in the top card.
   let refusedPlan = $derived(
     form?.error && plans.some((p) => p.key === form.plan && planButton(p)) ? form.plan : null
   );
 
-  /** @type {import('$app/forms').SubmitFunction} */
-  const submitting = () => {
+  const submitting: SubmitFunction = () => {
     busy = true;
     return async ({ update }) => {
       // A redirect never settles: the browser is on its way out.

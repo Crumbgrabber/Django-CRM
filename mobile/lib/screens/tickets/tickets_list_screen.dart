@@ -853,7 +853,7 @@ class _TicketsListScreenState extends ConsumerState<TicketsListScreen> {
 
   /// Tallies `results` rows (`{'id':..., 'status':...}`) into the same
   /// wording the web bulk bar shows. Mirrors `summarizeBulk` and
-  /// `summaryText` in frontend/src/lib/server/v2/tickets.js and
+  /// `summaryText` in frontend/src/lib/server/v2/tickets.ts and
   /// frontend/src/routes/(app)/tickets/+page.svelte: one headline count, then
   /// a part per nonzero bucket, joined with " · ".
   String _bulkSummary(List<dynamic> results, {required bool isDelete}) {

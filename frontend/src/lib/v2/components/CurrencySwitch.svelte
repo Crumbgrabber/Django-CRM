@@ -1,12 +1,14 @@
-<script>
+<script lang="ts">
   /**
    * Which currency a page's money is shown in. There are no exchange rates,
    * so figures in different currencies are never combined: a page with more
    * than one gets these buttons, and a page with one renders nothing here.
-   *
-   * @type {{ currencies: string[], current: string, onpick: (code: string) => void }}
    */
-  let { currencies, current, onpick } = $props();
+  let {
+    currencies,
+    current,
+    onpick
+  }: { currencies: string[]; current: string; onpick: (code: string) => void } = $props();
 </script>
 
 {#if currencies.length > 1}

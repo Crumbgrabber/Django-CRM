@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   import { page } from '$app/state';
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
@@ -10,9 +10,9 @@
   import ContactImportDrawer from '#lib/components/contacts/ContactImportDrawer.svelte';
   import { Download, Users, PhoneOff, Plus, Upload } from '@lucide/svelte';
   import { isOn } from '#lib/v2/modules.js';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data } = $props();
+  let { data }: PageProps = $props();
 
   let contacts = $derived(data.contacts);
   let leadsOn = $derived(isOn(data.modules, 'leads'));

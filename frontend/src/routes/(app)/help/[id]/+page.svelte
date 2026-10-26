@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { enhance } from '$app/forms';
   import { resolve } from '$app/paths';
   import { asInternalPath } from '#lib/utils/paths.js';
@@ -6,14 +6,14 @@
   import Pill from '#lib/v2/components/Pill.svelte';
   import { shortDate } from '#lib/v2/format.js';
   import { Paperclip, Send } from '@lucide/svelte';
+  import type { Tone } from '#lib/v2/enums.js';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
   let submitting = $state(false);
   let ticket = $derived(data.ticket);
 
-  /** @type {Record<string, import('#lib/v2/enums.js').Tone>} */
-  const STATUS_TONE = {
+  const STATUS_TONE: Record<string, Tone> = {
     open: 'rust',
     in_progress: 'clay',
     waiting_on_customer: 'slate',

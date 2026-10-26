@@ -1,21 +1,24 @@
-<script>
-  import { enhance } from '$app/forms';
-  import { tryBlocked } from '#lib/v2/automation.js';
+<script lang="ts">
+  import { enhance, type SubmitFunction } from '$app/forms';
+  import { tryBlocked, type EditorForm } from '#lib/v2/automation.js';
   import RecordPicker from '#lib/v2/components/RecordPicker.svelte';
+  import type { components } from '#lib/api-schema.js';
 
   /**
    * Plans the saved rule on one record; nothing is written. The result comes
    * back as `form.tried`, and every step is shown as text.
-   *
-   * @type {{
-   *   rule: import('#lib/api-schema.js').components['schemas']['Rule'],
-   *   dirty: boolean,
-   *   form: import('#lib/v2/automation.js').EditorForm
-   * }}
    */
-  let { rule, dirty, form } = $props();
+  let {
+    rule,
+    dirty,
+    form
+  }: {
+    rule: components['schemas']['Rule'];
+    dirty: boolean;
+    form: EditorForm;
+  } = $props();
 
-  let chosen = $state(/** @type {{ id: string, name: string }[]} */ ([]));
+  let chosen = $state<{ id: string; name: string }[]>([]);
   let busy = $state(false);
   let blocked = $derived(tryBlocked({ dirty, busy, chosen }));
   let tried = $derived(dirty ? null : (form?.tried ?? null));
@@ -24,8 +27,7 @@
   );
   let tryError = $derived(dirty ? null : (form?.tryError ?? null));
 
-  /** @type {import('$app/forms').SubmitFunction} */
-  const submit = () => {
+  const submit: SubmitFunction = () => {
     busy = true;
     return async ({ update }) => {
       await update({ reset: false });

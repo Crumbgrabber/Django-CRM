@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   /**
    * Editing a lead.
@@ -49,7 +49,7 @@
    * enforcement. The serializer runs again on everything that arrives.
    */
   import { tick, untrack } from 'svelte';
-  import { enhance } from '$app/forms';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
   import Pill from '#lib/v2/components/Pill.svelte';
   import RecordFieldInputs from '#lib/v2/components/RecordFieldInputs.svelte';
@@ -64,9 +64,9 @@
   import { money, longDate } from '#lib/v2/format.js';
   import { sourceOptions } from '#lib/v2/lead-sources.js';
   import { ChevronRight, TriangleAlert, Lock } from '@lucide/svelte';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form: result } = $props();
+  let { data, form: result }: PageProps = $props();
 
   /* Read once, on purpose. `originalStatus` in particular has to be the status
      the record had when this form opened, if it tracked `data` a revalidation
@@ -78,7 +78,7 @@
   }));
 
   let form = $state(untrack(() => ({ ...data.form })));
-  let touched = $state(/** @type {Record<string, boolean>} */ ({}));
+  let touched = $state<Record<string, boolean>>({});
   let submitted = $state(false);
   let saving = $state(false);
 
@@ -99,8 +99,7 @@
   let statusChanged = $derived(form.status !== originalStatus);
 
   let errors = $derived.by(() => {
-    /** @type {Record<string, string>} */
-    const e = {};
+    const e: Record<string, string> = {};
     if (!form.first_name.trim() && !form.last_name.trim())
       e.last_name = 'A lead needs a name to be findable. First or last will do.';
 
@@ -135,23 +134,19 @@
   });
 
   let valid = $derived(Object.keys(errors).length === 0);
-  const show = (/** @type {string} */ field) => (touched[field] || submitted) && errors[field];
+  const show = (field: string) => (touched[field] || submitted) && errors[field];
 
   /**
    * Progressive enhancement over a real POST. Without JavaScript the form
    * still submits and the action still validates; this only spares a full
    * page load and keeps focus on the first field that needs attention.
-   *
-   * @type {import('$app/forms').SubmitFunction}
    */
-  const submit = async ({ cancel }) => {
+  const submit: SubmitFunction = async ({ cancel }) => {
     submitted = true;
     if (!valid) {
       cancel();
       await tick();
-      const first = /** @type {HTMLElement | null} */ (
-        document.querySelector('[aria-invalid="true"]')
-      );
+      const first = document.querySelector('[aria-invalid="true"]') as HTMLElement | null;
       first?.focus();
       return;
     }

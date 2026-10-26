@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   /**
    * The account is a workspace, not a form.
@@ -31,9 +31,9 @@
   import RelatedRecords from '#lib/v2/components/RelatedRecords.svelte';
   import { relatedView } from '#lib/v2/custom-objects.js';
   import { isOn } from '#lib/v2/modules.js';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
   let related = $derived(relatedView(data.related));
   let dealsOn = $derived(isOn(data.modules, 'deals'));
   let ticketsOn = $derived(isOn(data.modules, 'tickets'));

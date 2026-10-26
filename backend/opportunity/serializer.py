@@ -152,7 +152,7 @@ class DealContactSerializer(ContactPickerSerializer):
 
     The detail GET's top-level `contacts` sent full `ContactSerializer`
     records. The web's deal page reads the name, `title` and `department`
-    (`lib/server/v2/deals.js`, `getDeal`) and links each row to the contact;
+    (`lib/server/v2/deals.ts`, `getDeal`) and links each row to the contact;
     mobile reads the nested `opportunity_obj.contacts` instead.
     """
 

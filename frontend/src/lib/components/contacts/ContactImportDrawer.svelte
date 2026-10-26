@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { untrack } from 'svelte';
   import { refreshAll } from '$app/navigation';
   import { Upload } from '@lucide/svelte';
@@ -9,10 +9,11 @@
   /**
    * The contacts list's import dialog: `ImportFlow` in a dialog, refreshing
    * the list after an import.
-   *
-   * @type {{ open: boolean, onOpenChange?: (v: boolean) => void }}
    */
-  let { open = $bindable(false), onOpenChange } = $props();
+  let {
+    open = $bindable(false),
+    onOpenChange
+  }: { open: boolean; onOpenChange?: (v: boolean) => void } = $props();
 
   let done = $state(false);
   /** Bumped on each opening, so every opening starts again at choosing a file. */

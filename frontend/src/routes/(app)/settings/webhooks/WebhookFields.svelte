@@ -1,22 +1,24 @@
-<script>
+<script lang="ts">
   /**
    * The fields a webhook is made of, shared by the create panel and the edit
    * panel so the two cannot drift. The event checkboxes are drawn from the
    * catalogue the API returns, grouped by module; the serializer is what
    * refuses a name outside it.
-   *
-   * @type {{
-   *   catalogue: { module: string, label: string, events: string[] }[],
-   *   values?: { url?: string, description?: string, format?: string, events?: string[] },
-   *   idPrefix: string
-   * }}
    */
-  let { catalogue, values = {}, idPrefix } = $props();
+  let {
+    catalogue,
+    values = {},
+    idPrefix
+  }: {
+    catalogue: { module: string; label: string; events: string[] }[];
+    values?: { url?: string; description?: string; format?: string; events?: string[] };
+    idPrefix: string;
+  } = $props();
 
   let chosen = $derived(new Set(values.events ?? []));
 
-  /** "ticket.comment_added" reads as "Comment added". @param {string} name */
-  const actionLabel = (name) => {
+  /** "ticket.comment_added" reads as "Comment added". */
+  const actionLabel = (name: string) => {
     const action = name.split('.')[1] ?? name;
     return (action.charAt(0).toUpperCase() + action.slice(1)).replaceAll('_', ' ');
   };

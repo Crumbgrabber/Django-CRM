@@ -63,7 +63,7 @@ line as the imported name.
 ```bash
 pnpm run lint     # prettier --check . && eslint .
 pnpm run format   # prettier --write .
-pnpm run check    # svelte-kit sync && svelte-check --tsconfig ./jsconfig.json
+pnpm run check    # svelte-kit sync && svelte-check --tsconfig ./tsconfig.json
 ```
 
 These tools are installed (`prettier`, `eslint`, `svelte-check`, and their plugins are all in
@@ -77,27 +77,32 @@ yourself rather than relying on CI to catch it.
 
 ### Types
 
-The frontend is JavaScript with JSDoc, and `pnpm check` type-checks it with TypeScript in full
-strict mode. App code carries no `any`, written or implied: `src/lib/no-any.test.js` fails on an
-`any` in a JSDoc type and on a `$props()` with no `@type`. Tests (`*.test.js`) may use `any` for
-doubles. Data that really is arbitrary (custom field values, a webhook payload) is `unknown`, checked
-before use.
+The frontend is TypeScript throughout: every module, every component (`<script lang="ts">`) and
+every test (`*.test.ts`), and `pnpm check` type-checks it in full strict mode. Imports keep the
+`#lib/....js` path, as do `vi.mock` calls: Vite, vitest and svelte-check all resolve it to the
+`.ts` file. App code carries no `any`, written or implied: ESLint
+(`@typescript-eslint/no-explicit-any`) fails on a written one, `noImplicitAny` on an untyped
+parameter, and `src/lib/no-any.test.ts` on a `$props()` with no type, which would otherwise make
+every prop `any` without an error. Tests may use `any` for doubles; ESLint allows it in
+`*.test.ts` only. Data that really is arbitrary (custom field values, a webhook payload) is
+`unknown`, checked before use.
 
 API response types are generated from the backend's OpenAPI schema into
 `frontend/src/lib/api-schema.d.ts`. `apiRequest` is generic: its reply takes the type of the
 variable or return type it is assigned to, and is `unknown` when there is none.
 
-```js
-/** @typedef {import('#lib/api-schema.js').components['schemas']} Schemas */
+```ts
+import type { components } from '#lib/api-schema.js';
+type Schemas = components['schemas'];
 
-/** @type {Schemas['TaskListResponse']} */
-const response = await apiRequest(`/tasks/?${query}`, {}, { cookies });
+const response: Schemas['TaskListResponse'] = await apiRequest(`/tasks/?${query}`, {}, { cookies });
 ```
 
-A page types its props from the load: `/** @type {import('./$types').PageProps} */ let { data,
-form } = $props();`. A `catch` variable is `unknown`; read a failed request with `apiStatus(err)` and
-`apiErrorBody(err)` from `#lib/api-errors.js`. An endpoint served only by the enterprise package
-is not in this schema, so its reply gets a hand-written `@typedef`.
+A page types its props from the load, `let { data, form }: PageProps = $props();`, and a load is
+`export const load: PageServerLoad = async (event) => {...}`, both types from `./$types`. A `catch`
+variable is `unknown`; read a failed request with `apiStatus(err)` and `apiErrorBody(err)` from
+`#lib/api-errors.js`. An endpoint served only by the enterprise package is not in this schema, so
+its reply gets a hand-written type.
 
 If a generated type is wrong, fix the schema, not the frontend: the backend test suite checks every
 response it sees against the schema (see [Testing](testing.md#the-schema-contract)). After changing a

@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   /**
    * Service health. The questions, in the order a support lead asks them:
@@ -26,9 +26,9 @@
   import { count, shortDate } from '#lib/v2/format.js';
   import { Clock } from '@lucide/svelte';
   import { isOn } from '#lib/v2/modules.js';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data } = $props();
+  let { data }: PageProps = $props();
 
   let canView = $derived(data.can_view);
   let totals = $derived(data.totals);
@@ -40,10 +40,8 @@
    * Minutes → "41m" / "2h 20m" / "1d 3h" / "1d". A number of minutes is not a
    * duration, and neither is "1d 0h". A zero remainder is dropped rather than
    * printed, at every scale.
-   *
-   * @param {number | null | undefined} mins
    */
-  function duration(mins) {
+  function duration(mins: number | null | undefined) {
     if (mins == null) return '—';
     if (mins < 60) return `${mins}m`;
     const h = Math.floor(mins / 60);
@@ -56,11 +54,11 @@
   // Attainment among *decided* cases (met vs missed). A priority with no
   // decided cases yet (all in-flight, or none at all) has no percentage to
   // report, so it returns null and the row shows "—" rather than "NaN%".
-  const attainment = (/** @type {{ met: number, missed: number }} */ r) => {
+  const attainment = (r: { met: number; missed: number }) => {
     const decided = r.met + r.missed;
     return decided ? Math.round((r.met / decided) * 100) : null;
   };
-  const barColor = (/** @type {number | null} */ pct) =>
+  const barColor = (pct: number | null) =>
     pct == null
       ? 'var(--v2-line)'
       : pct >= 95
@@ -73,13 +71,12 @@
   let net = $derived(totals.opened - totals.closed);
 
   /** The next-response endpoint reports hours; `duration` reads whole minutes. */
-  const minutesOf = (/** @type {number | null | undefined} */ hours) =>
+  const minutesOf = (hours: number | null | undefined) =>
     hours == null ? null : Math.round(hours * 60);
 
   // Best first, so the bars read down from the answer most tickets hope for.
-  /** @type {(5 | 4 | 3 | 2 | 1)[]} */
-  const RATINGS = [5, 4, 3, 2, 1];
-  const ratingShare = (/** @type {number} */ n) =>
+  const RATINGS: (5 | 4 | 3 | 2 | 1)[] = [5, 4, 3, 2, 1];
+  const ratingShare = (n: number) =>
     data.csat.count ? Math.round((n / data.csat.count) * 100) : 0;
 </script>
 

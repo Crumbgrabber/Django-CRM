@@ -20,7 +20,7 @@ const _months = [
 
 /// An instant in the org's zone, 24-hour: "Today 10:42", "Yesterday 18:03",
 /// "21 Oct 18:03", "21 Oct 2025 18:03". The twin of `runTime` in
-/// `frontend/src/lib/v2/format.js`. A null or unknown [zone] reads the org's
+/// `frontend/src/lib/v2/format.ts`. A null or unknown [zone] reads the org's
 /// zone from the access token, then UTC.
 String runTimeLabel(DateTime at, {String? zone, DateTime? now}) {
   loadTimeZones();

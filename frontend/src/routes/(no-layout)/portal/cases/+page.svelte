@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * Built for a 390px phone first. The list is a stack of cards rather than a
    * table, because a customer has a handful of requests and a table of six
@@ -7,9 +7,9 @@
   import { enhance } from '$app/forms';
   import { resolve } from '$app/paths';
   import PortalShell from '#lib/v2/components/PortalShell.svelte';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   let composing = $state(false);
 
@@ -21,11 +21,9 @@
    * overwrite the results of a later query.
    */
   let summary = $state('');
-  /** @type {{ id: string, title: string, snippet: string }[]} */
-  let suggestions = $state([]);
+  let suggestions: { id: string; title: string; snippet: string }[] = $state([]);
   let latestQuery = 0;
-  /** @type {ReturnType<typeof setTimeout> | undefined} */
-  let debounce;
+  let debounce: ReturnType<typeof setTimeout> | undefined;
 
   function findAnswers() {
     clearTimeout(debounce);
@@ -40,8 +38,8 @@
         `${resolve('portal/articles/suggestions')}?q=${encodeURIComponent(query)}`
       );
       if (!response.ok) return;
-      /** @type {{ articles: { id: string, title: string, snippet: string }[] }} */
-      const body = await response.json();
+      const body: { articles: { id: string; title: string; snippet: string }[] } =
+        await response.json();
       if (ticket === latestQuery) suggestions = body.articles ?? [];
     }, 300);
   }
@@ -55,8 +53,7 @@
 
   const OPEN_STATUSES = new Set(['New', 'Assigned', 'Pending']);
 
-  /** @param {string | null | undefined} value */
-  function formatDate(value) {
+  function formatDate(value: string | null | undefined) {
     if (!value) return '';
     return new Date(value).toLocaleDateString(undefined, {
       day: 'numeric',

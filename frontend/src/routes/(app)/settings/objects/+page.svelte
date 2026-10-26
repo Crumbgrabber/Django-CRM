@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * Custom objects: org-defined record types. Admins add and manage them
    * here; members reach the records from the sidebar.
@@ -15,9 +15,9 @@
   import { billingHref } from '#lib/v2/billing.js';
   import { count } from '#lib/v2/format.js';
   import { Plus } from '@lucide/svelte';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   let creating = $state(false);
   let label = $state('');
@@ -37,9 +37,8 @@
     creating = true;
   }
 
-  /** @param {Event} event */
-  function onLabel(event) {
-    label = /** @type {HTMLInputElement} */ (event.currentTarget).value;
+  function onLabel(event: Event) {
+    label = (event.currentTarget as HTMLInputElement).value;
     if (!keyEdited) key = suggestKey(label, 28);
   }
 </script>

@@ -5,7 +5,7 @@ import '../../data/models/lookup_models.dart';
 
 /// MENTION_RE in cases/notifications.py. The backend resolves the handle
 /// against the email local part of an active member, so a chip appears only
-/// where a notification went out. The web mirrors this in `lib/v2/mentions.js`.
+/// where a notification went out. The web mirrors this in `lib/v2/mentions.ts`.
 final _mention = RegExp(r'(?<![A-Za-z0-9])@([A-Za-z0-9._-]+)');
 
 /// The handles a comment can name: each active member's email local part.

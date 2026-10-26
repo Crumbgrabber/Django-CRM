@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   /**
    * A new task.
@@ -14,9 +14,10 @@
   import { untrack } from 'svelte';
   import { ChevronRight } from '@lucide/svelte';
   import { isOn } from '#lib/v2/modules.js';
+  import type { TaskValues } from '#lib/server/v2/tasks.js';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   const KINDS = [
     { key: '', label: 'Nothing' },
@@ -28,8 +29,7 @@
   ];
   let kinds = $derived(KINDS.filter((k) => !k.module || isOn(data.modules, k.module)));
 
-  /** @type {Partial<import('#lib/server/v2/tasks.js').TaskValues>} */
-  let values = $derived(form?.values ?? data.prefill ?? {});
+  let values: Partial<TaskValues> = $derived(form?.values ?? data.prefill ?? {});
   let kind = $state(untrack(() => form?.values?.parent_kind ?? data.prefill?.parent_kind ?? ''));
   let options = $derived(kind ? (data.parents[kind] ?? []) : []);
 </script>

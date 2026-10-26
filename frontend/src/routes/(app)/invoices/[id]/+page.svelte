@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
   import NextAction from '#lib/v2/components/NextAction.svelte';
@@ -9,9 +9,9 @@
   import { INVOICE_STATUS_TONE, invoiceStatusLabel } from '#lib/v2/enums.js';
   import { enhance } from '$app/forms';
   import { ChevronRight } from '@lucide/svelte';
+  import type { PageProps, SubmitFunction } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   let { invoice, lineItems } = $derived(data);
 
@@ -28,12 +28,8 @@
       : PATH.slice(0, PATH.indexOf(invoice.status) + 1)
   );
 
-  /**
-   * A form submit that flips `busy` so the buttons show they are working.
-   *
-   * @type {import('./$types').SubmitFunction}
-   */
-  const working = () => {
+  /** A form submit that flips `busy` so the buttons show they are working. */
+  const working: SubmitFunction = () => {
     busy = true;
     return async ({ update }) => {
       await update();

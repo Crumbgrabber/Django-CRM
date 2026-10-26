@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { enhance } from '$app/forms';
   import { resolve } from '$app/paths';
   import { asInternalPath } from '#lib/utils/paths.js';
@@ -6,9 +6,9 @@
   import RecordFieldInputs from '#lib/v2/components/RecordFieldInputs.svelte';
   import { billingHref } from '#lib/v2/billing.js';
   import { TriangleAlert } from '@lucide/svelte';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form: result } = $props();
+  let { data, form: result }: PageProps = $props();
 
   let def = $derived(data.definition);
   let plan = $derived(data.customObjects?.has_custom_objects === true);

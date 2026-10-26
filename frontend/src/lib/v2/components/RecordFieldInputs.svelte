@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * The inputs below a record's name, shared by the new and edit pages: one
    * per custom field, one picker per link field, and the assignees (only when
@@ -9,20 +9,8 @@
    */
   import { inactiveOptionLabel, missingOptions } from '#lib/v2/pickers.js';
   import RecordPicker from '#lib/v2/components/RecordPicker.svelte';
+  import type { linkFieldsForEdit, pairForEdit } from '#lib/server/v2/record-fields.js';
 
-  /**
-   * @type {{
-   *   fields: ReturnType<typeof import('#lib/server/v2/record-fields.js').pairForEdit>,
-   *   linkFields?: ReturnType<typeof import('#lib/server/v2/record-fields.js').linkFieldsForEdit>,
-   *   people?: { id: string, name: string }[],
-   *   assignees?: { id: string, name: string }[],
-   *   edit?: boolean,
-   *   typed?: unknown,
-   *   errors?: Record<string, string> | null,
-   *   heading?: string,
-   *   form?: string
-   * }}
-   */
   let {
     fields,
     linkFields = [],
@@ -33,11 +21,21 @@
     errors = null,
     heading = '',
     form: formId = undefined
+  }: {
+    fields: ReturnType<typeof pairForEdit>;
+    linkFields?: ReturnType<typeof linkFieldsForEdit>;
+    people?: { id: string; name: string }[];
+    assignees?: { id: string; name: string }[];
+    edit?: boolean;
+    typed?: unknown;
+    errors?: Record<string, string> | null;
+    heading?: string;
+    form?: string;
   } = $props();
 
   // What a refused save carried: the `custom_fields` it sent, a key to value object.
   let carried = $derived(
-    typed && typeof typed === 'object' ? /** @type {Record<string, unknown>} */ (typed) : null
+    typed && typeof typed === 'object' ? (typed as Record<string, unknown>) : null
   );
   let shown = $derived(
     fields.map((f) => {

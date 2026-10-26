@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   import { asInternalPath } from '#lib/utils/paths.js';
   /**
@@ -48,11 +48,11 @@
   import CustomFieldsCard from '#lib/v2/components/CustomFieldsCard.svelte';
   import { relatedView } from '#lib/v2/custom-objects.js';
   import { isOn } from '#lib/v2/modules.js';
+  import type { PageData, PageProps } from './$types';
 
-  /** @typedef {import('./$types').PageData['activity'][number]} ActivityEvent */
+  type ActivityEvent = PageData['activity'][number];
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
   let dealsOn = $derived(isOn(data.modules, 'deals'));
   let related = $derived(relatedView(data.related));
 
@@ -67,15 +67,14 @@
   // Notes stay comments; calls and messages are interactions, logged through
   // their own form when the API has them.
   let logLive = $derived(data.interactions.live);
-  let composer = $state(/** @type {'note'|'log'} */ ('note'));
+  let composer = $state<'note' | 'log'>('note');
   let logKind = $state('call');
-  /** @type {HTMLElement | undefined} */
-  let composerEl = $state();
+  let composerEl: HTMLElement | undefined = $state();
   let whatsapp = $derived(whatsappHref(lead.phone_e164));
   let waited = $derived(lead.is_unanswered ? spanText(secondsSince(lead.waiting_since)) : '');
 
   /** Opens the form set to `kind`; the link itself still dials or opens WhatsApp. */
-  function startLog(/** @type {string} */ kind) {
+  function startLog(kind: string) {
     if (!logLive) return;
     logKind = kind;
     composer = 'log';
@@ -86,12 +85,10 @@
   // and clear it. `fileInput` is the element itself. A file input's value can
   // only be cleared through the DOM, not by rebinding.
   let fileName = $state('');
-  /** @type {HTMLInputElement | undefined} */
-  let fileInput = $state();
+  let fileInput: HTMLInputElement | undefined = $state();
 
-  /** @param {Event} e */
-  function pickFile(e) {
-    fileName = /** @type {HTMLInputElement} */ (e.currentTarget).files?.[0]?.name ?? '';
+  function pickFile(e: Event) {
+    fileName = (e.currentTarget as HTMLInputElement).files?.[0]?.name ?? '';
   }
   function clearFile() {
     if (fileInput) fileInput.value = '';
@@ -101,7 +98,7 @@
   // ── activity feed ──────────────────────────────────────────────────────────
   // Notes, logged calls and messages, files, and the creation. The filter
   // appears once there are two of the first three to choose between.
-  let filter = $state(/** @type {'all'|'note'|'interaction'|'file'} */ ('all'));
+  let filter = $state<'all' | 'note' | 'interaction' | 'file'>('all');
   let kinds = $derived(
     ['note', 'interaction', 'file'].filter((k) => activity.some((e) => e.type === k))
   );
@@ -111,9 +108,8 @@
   /**
    * The line under an event: "Attached" for a file, the author where known, then
    * how long ago, joined so no separator dangles when a part is missing.
-   * @param {{type:string,by:string|null,at:string|null}} e
    */
-  function metaFor(e) {
+  function metaFor(e: { type: string; by: string | null; at: string | null }) {
     const parts = [];
     if (e.type === 'file') parts.push('Attached');
     if (e.by) parts.push(e.by);
@@ -121,8 +117,7 @@
     return parts.join(' · ');
   }
 
-  /** @param {string | null} iso */
-  function dayGroup(iso) {
+  function dayGroup(iso: string | null) {
     const n = daysSince(iso);
     if (n === 0) return 'Today';
     if (n === 1) return 'Yesterday';
@@ -131,8 +126,10 @@
 
   // Interleave day headers so each date is announced once, in order.
   let feed = $derived.by(() => {
-    /** @type {Array<{kind:'day',id:string,label:string}|{kind:'event',id:string,event:ActivityEvent}>} */
-    const out = [];
+    const out: Array<
+      | { kind: 'day'; id: string; label: string }
+      | { kind: 'event'; id: string; event: ActivityEvent }
+    > = [];
     let last = null;
     for (const e of shown) {
       const g = dayGroup(e.at);
@@ -151,10 +148,13 @@
    * owns, then one that has gone cold without a first conversation. A converted
    * lead has none of these problems, so it gets no banner. A page that always
    * shouts is a page people stop reading.
-   *
-   * @type {{ tone: 'ember'|'rust', label: string, text: string, action: string|null } | null}
    */
-  let headline = $derived.by(() => {
+  let headline: {
+    tone: 'ember' | 'rust';
+    label: string;
+    text: string;
+    action: string | null;
+  } | null = $derived.by(() => {
     if (isConverted) return null;
     if (!lead.email && !lead.phone) {
       return {
@@ -197,11 +197,8 @@
    * A website is user-entered and often has no scheme. Prepend https when it is
    * missing; refuse to linkify anything carrying another scheme (a `javascript:`
    * value becomes plain text, never an href).
-   *
-   * @param {string} url
-   * @returns {string|null}
    */
-  function webHref(url) {
+  function webHref(url: string): string | null {
     const u = String(url).trim();
     if (/^https?:\/\//i.test(u)) return u;
     if (/^[a-z][a-z0-9+.-]*:/i.test(u)) return null;

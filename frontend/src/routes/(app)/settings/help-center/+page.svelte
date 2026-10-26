@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * The public help center: one switch and one address.
    *
@@ -14,9 +14,9 @@
   import SettingsFormPanel from '#lib/v2/components/SettingsFormPanel.svelte';
   import Pill from '#lib/v2/components/Pill.svelte';
   import { ExternalLink, Globe } from '@lucide/svelte';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   let editing = $state(false);
 

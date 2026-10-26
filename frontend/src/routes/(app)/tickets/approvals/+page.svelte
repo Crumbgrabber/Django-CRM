@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   /**
    * Every row here is a decision, so every row carries the decision. v1 sent
@@ -24,14 +24,12 @@
   import { count, shortAge, relativeDays } from '#lib/v2/format.js';
   import { APPROVAL_STATE_LABEL, APPROVAL_STATE_TONE, PRIORITY_TONE } from '#lib/v2/enums.js';
   import { ShieldCheck, TriangleAlert, ChevronRight } from '@lucide/svelte';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   let totals = $derived(data.totals);
-  let pending = $derived(
-    data.approvals.filter((/** @type {{ state: string }} */ a) => a.state === 'pending')
-  );
+  let pending = $derived(data.approvals.filter((a: { state: string }) => a.state === 'pending'));
 
   /**
    * The first row you can actually act on. Only that one gets the ember
@@ -40,25 +38,19 @@
    * colour stops meaning "start here". The rest are ordinary buttons and work
    * exactly the same.
    */
-  let firstActionable = $derived(
-    pending.find((/** @type {{ can_act: boolean }} */ a) => a.can_act)?.id ?? null
-  );
-  let decided = $derived(
-    data.approvals.filter((/** @type {{ state: string }} */ a) => a.state !== 'pending')
-  );
+  let firstActionable = $derived(pending.find((a: { can_act: boolean }) => a.can_act)?.id ?? null);
+  let decided = $derived(data.approvals.filter((a: { state: string }) => a.state !== 'pending'));
   let rules = $derived(data.rules);
 
   /** The one row whose reject-reason box is open (a rejection needs a reason). */
-  let rejectingId = $state(/** @type {string | null} */ (null));
+  let rejectingId = $state<string | null>(null);
 
   /**
    * Why a non-actionable row is blocked, in the words of the rule that says so.
    * Only called for rows that are neither yours nor actionable. An own request
    * gets its own banner, so this never has to explain that case.
-   *
-   * @param {{ rule: { approvers: string[], approver_role: string } }} a
    */
-  function blockedReason(a) {
+  function blockedReason(a: { rule: { approvers: string[]; approver_role: string } }) {
     if (a.rule.approvers.length)
       return `Only ${a.rule.approvers.join(' or ')} can clear this rule.`;
     return `This rule is cleared by ${a.rule.approver_role.toLowerCase()}s, and you are not one.`;
@@ -277,7 +269,7 @@
     <!-- MANAGER is a valid approver_role on the model but not a valid
          Profile.role, so a rule set to MANAGER currently matches nobody. Said
          here rather than left for someone to discover via a stuck queue. -->
-    {#if rules.some((/** @type {{ is_active: boolean, approver_role: string, approvers: string[] }} */ r) => r.is_active && r.approver_role === 'MANAGER' && !r.approvers.length)}
+    {#if rules.some((r: { is_active: boolean; approver_role: string; approvers: string[] }) => r.is_active && r.approver_role === 'MANAGER' && !r.approvers.length)}
       <p class="v2-sub" style="font-size:12px;margin-top:12px">
         One active rule is cleared by managers, but this org has only admins and members. Nobody can
         clear it. Name approvers on the rule, or set it to admin.

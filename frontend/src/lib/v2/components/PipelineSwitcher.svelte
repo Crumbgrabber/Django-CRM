@@ -1,4 +1,6 @@
-<script>
+<script lang="ts">
+  import type { ReadonlyURL } from '$app/state';
+
   /**
    * Picks which deal pipeline the page shows, written to `?pipeline=` like
    * every other view setting, so the choice is shareable and survives reload.
@@ -9,10 +11,18 @@
    *
    * Rendered only when the org has more than one pipeline; with one there is
    * nothing to choose.
-   *
-   * @type {{ url: import('$app/state').ReadonlyURL, pipelines: { id: string, name: string }[], current: string | null, allLabel?: string | null }}
    */
-  let { url, pipelines, current, allLabel = null } = $props();
+  let {
+    url,
+    pipelines,
+    current,
+    allLabel = null
+  }: {
+    url: ReadonlyURL;
+    pipelines: { id: string; name: string }[];
+    current: string | null;
+    allLabel?: string | null;
+  } = $props();
 </script>
 
 {#if pipelines.length > 1}

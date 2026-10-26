@@ -1,8 +1,7 @@
-<script>
-  import { Dialog as DialogPrimitive } from 'bits-ui';
+<script lang="ts">
+  import { Dialog as DialogPrimitive, type DialogCloseProps } from 'bits-ui';
 
-  /** @type {import('bits-ui').DialogCloseProps} */
-  let { ref = $bindable(null), ...restProps } = $props();
+  let { ref = $bindable(null), ...restProps }: DialogCloseProps = $props();
 </script>
 
 <DialogPrimitive.Close bind:ref data-slot="dialog-close" {...restProps} />

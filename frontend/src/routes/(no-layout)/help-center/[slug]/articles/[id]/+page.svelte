@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * One public help article.
    *
@@ -10,9 +10,9 @@
    */
   import { resolve } from '$app/paths';
   import HelpCenterShell from '#lib/v2/components/HelpCenterShell.svelte';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data } = $props();
+  let { data }: PageProps = $props();
 
   let title = $derived(`${data.article.title} | ${data.name} help center`);
 
@@ -24,8 +24,7 @@
     return text.length > 160 ? `${text.slice(0, 157).trimEnd()}...` : text;
   });
 
-  /** @param {string} value */
-  function formatDate(value) {
+  function formatDate(value: string) {
     if (!value) return '';
     return new Date(value).toLocaleDateString('en', {
       day: 'numeric',

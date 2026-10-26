@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * The line-item table and the totals ladder, shared by the invoice and
    * estimate portal pages.
@@ -24,21 +24,8 @@
    * is to have one authority for the arithmetic.
    */
   import { money } from '#lib/v2/format.js';
+  import type { Figure } from '#lib/v2/line-items.js';
 
-  /**
-   * @type {{
-   *   items: Array<{name: string, description: string, quantity: import('#lib/v2/line-items.js').Figure, unit_price: import('#lib/v2/line-items.js').Figure, amount: import('#lib/v2/line-items.js').Figure}>,
-   *   currency: string,
-   *   subtotal: import('#lib/v2/line-items.js').Figure,
-   *   discountAmount?: import('#lib/v2/line-items.js').Figure,
-   *   discountType?: string,
-   *   discountValue?: import('#lib/v2/line-items.js').Figure,
-   *   taxRate?: import('#lib/v2/line-items.js').Figure,
-   *   taxAmount?: import('#lib/v2/line-items.js').Figure,
-   *   shippingAmount?: import('#lib/v2/line-items.js').Figure,
-   *   total: import('#lib/v2/line-items.js').Figure
-   * }}
-   */
   let {
     items,
     currency,
@@ -50,6 +37,23 @@
     taxAmount = 0,
     shippingAmount = 0,
     total
+  }: {
+    items: Array<{
+      name: string;
+      description: string;
+      quantity: Figure;
+      unit_price: Figure;
+      amount: Figure;
+    }>;
+    currency: string;
+    subtotal: Figure;
+    discountAmount?: Figure;
+    discountType?: string;
+    discountValue?: Figure;
+    taxRate?: Figure;
+    taxAmount?: Figure;
+    shippingAmount?: Figure;
+    total: Figure;
   } = $props();
 
   /**

@@ -41,7 +41,7 @@ class WebFormFieldChoice {
 }
 
 /// Mirrored 1:1 from `backend/webforms/constants.py::LEAD_FIELD_CHOICES`, and
-/// matching `WEBFORM_LEAD_FIELDS` in `frontend/src/lib/v2/webform-fields.js`.
+/// matching `WEBFORM_LEAD_FIELDS` in `frontend/src/lib/v2/webform-fields.ts`.
 ///
 /// A whitelist rather than "any field on Lead": the person filling this in is
 /// an anonymous stranger, so which columns they can reach is a decision
@@ -181,7 +181,7 @@ class WebFormField {
   };
 
   /// Whether the row is complete enough to save. Mirrors `isFieldComplete` in
-  /// `frontend/src/lib/v2/webform-fields.js`, and behind both of them the
+  /// `frontend/src/lib/v2/webform-fields.ts`, and behind both of them the
   /// `web_form_field_exactly_one_target` constraint.
   bool get isComplete {
     if (label.trim().isEmpty) return false;

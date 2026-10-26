@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   import { untrack, tick } from 'svelte';
   import { SvelteSet } from 'svelte/reactivity';
@@ -6,9 +6,9 @@
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
   import NextAction from '#lib/v2/components/NextAction.svelte';
   import { TriangleAlert, Users, Lock } from '@lucide/svelte';
+  import type { PageProps, SubmitFunction } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form: result } = $props();
+  let { data, form: result }: PageProps = $props();
 
   /**
    * Rename, archive, and re-share, the mutations that used to be reachable by
@@ -48,24 +48,23 @@
   // silent one. Empty means the stored file is kept.
   let newFileName = $state('');
 
-  function onFile(/** @type {Event} */ ev) {
-    const input = /** @type {HTMLInputElement} */ (ev.currentTarget);
+  function onFile(ev: Event) {
+    const input = ev.currentTarget as HTMLInputElement;
     newFileName = input.files?.[0]?.name ?? '';
   }
 
-  let touched = $state(/** @type {Record<string, boolean>} */ ({}));
+  let touched = $state({} as Record<string, boolean>);
   let submitted = $state(false);
   let confirmingDelete = $state(false);
 
   let errors = $derived.by(() => {
-    /** @type {Record<string, string>} */
-    const e = {};
+    const e: Record<string, string> = {};
     if (!title.trim()) e.title = 'A document needs a title.';
     return e;
   });
 
   let valid = $derived(Object.keys(errors).length === 0);
-  const show = (/** @type {string} */ field) => (touched[field] || submitted) && errors[field];
+  const show = (field: string) => (touched[field] || submitted) && errors[field];
 
   let reach = $derived(sharedTo.size + sharedTeams.size);
 
@@ -88,19 +87,17 @@
   // Not counted when the list failed to load, when everybody would look inactive.
   let inactiveShares = $derived(data.options_failed ? 0 : keptShares.length);
 
-  function toggle(/** @type {SvelteSet<string>} */ set, /** @type {string} */ id) {
+  function toggle(set: SvelteSet<string>, id: string) {
     if (set.has(id)) set.delete(id);
     else set.add(id);
   }
 
-  /** @type {import('./$types').SubmitFunction} */
-  const check = async ({ cancel }) => {
+  const check: SubmitFunction = async ({ cancel }) => {
     submitted = true;
     if (!valid) {
       cancel();
       await tick();
-      /** @type {HTMLElement | null} */
-      const first = document.querySelector('[aria-invalid="true"]');
+      const first: HTMLElement | null = document.querySelector('[aria-invalid="true"]');
       first?.focus();
     }
   };

@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   /**
    * Editing a deal.
@@ -56,9 +56,9 @@
   import { money, longDate } from '#lib/v2/format.js';
   import { sourceOptions } from '#lib/v2/lead-sources.js';
   import { ChevronRight, TriangleAlert, Lock } from '@lucide/svelte';
+  import type { PageData, PageProps, SubmitFunction } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form: result } = $props();
+  let { data, form: result }: PageProps = $props();
 
   /* Read once, on purpose. `originalStage` has to stay the stage this form
      opened on. That is what "the clock is about to reset" is measured
@@ -71,11 +71,13 @@
     pipelines: data.pipelines
   }));
 
-  /** @typedef {import('./$types').PageData['form']} LoadedForm */
+  type LoadedForm = PageData['form'];
   // The inputs write strings back into the numbers the load sent.
-  /** @type {Omit<LoadedForm, 'amount' | 'probability'> & { amount: number | string, probability: number | string }} */
-  let form = $state(untrack(() => ({ ...data.form })));
-  let touched = $state(/** @type {Record<string, boolean>} */ ({}));
+  let form: Omit<LoadedForm, 'amount' | 'probability'> & {
+    amount: number | string;
+    probability: number | string;
+  } = $state(untrack(() => ({ ...data.form })));
+  let touched = $state<Record<string, boolean>>({});
   let submitted = $state(false);
   let saved = $state(false);
 
@@ -91,17 +93,14 @@
    * A new pipeline starts the deal on its first open stage. Read from the
    * event, not from `form.pipeline`, so it does not depend on whether the
    * binding or this handler sees the change first.
-   *
-   * @param {string} pipelineId
    */
-  function pipelineChanged(pipelineId) {
+  function pipelineChanged(pipelineId: string) {
     const next = pipelines.find((p) => p.id === pipelineId)?.stages ?? [];
     form.stage = next.find((s) => s.kind === 'open')?.code ?? '';
   }
 
   let errors = $derived.by(() => {
-    /** @type {Record<string, string>} */
-    const e = {};
+    const e: Record<string, string> = {};
     if (!form.name.trim()) e.name = 'Give the deal a name you would recognise in a list.';
     if (!form.account) e.account = 'A deal has to belong to an account.';
 
@@ -128,7 +127,7 @@
   });
 
   let valid = $derived(Object.keys(errors).length === 0);
-  const show = (/** @type {string} */ field) => (touched[field] || submitted) && errors[field];
+  const show = (field: string) => (touched[field] || submitted) && errors[field];
 
   /**
    * Stop the submit when this form's own checks fail, and send focus to the
@@ -138,17 +137,14 @@
    *
    * These checks are a UX hint. The serializer is the rule, and its 400 is
    * what `result.error` below reports.
-   *
-   * @type {import('./$types').SubmitFunction}
    */
-  const check = async ({ cancel }) => {
+  const check: SubmitFunction = async ({ cancel }) => {
     submitted = true;
     saved = false;
     if (!valid) {
       cancel();
       await tick();
-      /** @type {HTMLElement | null} */
-      const first = document.querySelector('[aria-invalid="true"]');
+      const first: HTMLElement | null = document.querySelector('[aria-invalid="true"]');
       first?.focus();
       return;
     }

@@ -1,6 +1,6 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
-  import { enhance } from '$app/forms';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import { onMount, untrack } from 'svelte';
   import { asInternalPath } from '#lib/utils/paths.js';
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
@@ -33,9 +33,10 @@
   import { isOrgAdmin } from '#lib/admin.js';
   import { isBilled } from '#lib/v2/time-entry.js';
   import { ChevronRight, Play, Plus, Square, Trash2 } from '@lucide/svelte';
+  import type { components } from '#lib/api-schema.js';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   let project = $derived(data.project);
   let burn = $derived(project.burn);
@@ -49,8 +50,7 @@
     project.rates.filter((r) => !project.assigned_to.some((p) => p.id === r.profile.id))
   );
 
-  /** @type {{ key: string, label: string, on: 'tasks' | 'timesheet' | 'invoices' | null }[]} */
-  const TABS = [
+  const TABS: { key: string; label: string; on: 'tasks' | 'timesheet' | 'invoices' | null }[] = [
     { key: 'overview', label: 'Overview', on: null },
     { key: 'tasks', label: 'Tasks', on: 'tasks' },
     { key: 'time', label: 'Time', on: 'timesheet' },
@@ -71,8 +71,7 @@
   );
   let shown = $derived(tabs.some((t) => t.key === tab) ? tab : 'overview');
 
-  /** @param {MouseEvent} e @param {string} key */
-  function pick(e, key) {
+  function pick(e: MouseEvent, key: string) {
     e.preventDefault();
     tab = key;
   }
@@ -87,18 +86,15 @@
     }, 30000);
     return () => clearInterval(id);
   });
-  /** @typedef {import('#lib/api-schema.js').components['schemas']['TimeEntry']} TimeEntry */
-  /** @param {TimeEntry} entry */
-  const runningMinutes = (entry) =>
+  type TimeEntry = components['schemas']['TimeEntry'];
+  const runningMinutes = (entry: TimeEntry) =>
     Math.floor((Date.parse(data.time.now) - Date.parse(entry.started_at)) / 60000) + sinceLoad;
-  /** @param {TimeEntry} entry */
-  const isMine = (entry) => entry.profile?.user_details?.id === data.time.viewerUserId;
+  const isMine = (entry: TimeEntry) => entry.profile?.user_details?.id === data.time.viewerUserId;
   let myTimer = $derived((entries ?? []).find((e) => !e.ended_at && isMine(e)));
   let timeBusy = $state(false);
   let confirmDelete = $state('');
 
-  /** @type {import('$app/forms').SubmitFunction} */
-  const timeSubmit = () => {
+  const timeSubmit: SubmitFunction = () => {
     timeBusy = true;
     return async ({ update }) => {
       timeBusy = false;

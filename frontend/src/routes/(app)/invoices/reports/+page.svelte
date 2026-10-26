@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   /**
    * Where the money is.
@@ -27,14 +27,13 @@
   import StatCard from '#lib/v2/components/StatCard.svelte';
   import CurrencySwitch from '#lib/v2/components/CurrencySwitch.svelte';
   import { money, count } from '#lib/v2/format.js';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data } = $props();
+  let { data }: PageProps = $props();
 
   let canView = $derived(data.can_view);
 
-  /** @type {string | null} */
-  let picked = $state(null);
+  let picked: string | null = $state(null);
   /** The picked currency, else the org's own, else the first one invoiced in. */
   let cur = $derived(
     picked !== null && data.currencies.includes(picked)
@@ -48,16 +47,9 @@
   let aging = $derived(v.aging);
 
   let peak = $derived(
-    Math.max(
-      ...v.revenue.flatMap((/** @type {{ invoiced: number, paid: number }} */ r) => [
-        r.invoiced,
-        r.paid
-      ])
-    )
+    Math.max(...v.revenue.flatMap((r: { invoiced: number; paid: number }) => [r.invoiced, r.paid]))
   );
-  let agingPeak = $derived(
-    Math.max(...aging.buckets.map((/** @type {{ amount: number }} */ b) => b.amount))
-  );
+  let agingPeak = $derived(Math.max(...aging.buckets.map((b: { amount: number }) => b.amount)));
 
   /** "2026-07" → "Jul". The year only appears where it changes. */
   const MONTH = [
@@ -75,7 +67,7 @@
     'Dec'
   ];
   // `period` is null only for a row the API could not date, which has no month.
-  const monthLabel = (/** @type {string | null} */ period) =>
+  const monthLabel = (period: string | null) =>
     period ? MONTH[Number(period.slice(5, 7)) - 1] : '';
 
   let collected = $derived(

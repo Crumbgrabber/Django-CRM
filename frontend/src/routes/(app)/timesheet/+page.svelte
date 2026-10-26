@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { SvelteDate } from 'svelte/reactivity';
   import { resolve } from '$app/paths';
   /**
@@ -14,7 +14,7 @@
    */
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { enhance } from '$app/forms';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
   import StatCard from '#lib/v2/components/StatCard.svelte';
   import Pill from '#lib/v2/components/Pill.svelte';
@@ -23,9 +23,10 @@
   import { isBilled, entryParent } from '#lib/v2/time-entry.js';
   import { asInternalPath } from '#lib/utils/paths.js';
   import { ChevronLeft, ChevronRight, Square, Receipt } from '@lucide/svelte';
+  import type { components } from '#lib/api-schema.js';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   let week = $derived(data.week);
 
@@ -34,8 +35,7 @@
   // second gets a 400 "Timer is already stopped." back, so a successful stop
   // reads as a failure.
   let busy = $state(false);
-  /** @type {import('$app/forms').SubmitFunction} */
-  const stopping = () => {
+  const stopping: SubmitFunction = () => {
     busy = true;
     return async ({ update }) => {
       await update();
@@ -53,8 +53,7 @@
     return () => clearInterval(id);
   });
 
-  /** @param {import('#lib/api-schema.js').components['schemas']['TimesheetEntry']} e */
-  const liveMinutes = (e) =>
+  const liveMinutes = (e: components['schemas']['TimesheetEntry']) =>
     e.is_running ? (e.live_duration_minutes ?? 0) + sinceLoad : e.duration_minutes;
 
   const WEEKDAY = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -62,7 +61,7 @@
   let todayISO = $derived(todayIn(data.org.timezone));
 
   /** Jump `deltaDays` from the current week's Mon..Sun and reload. */
-  function shiftWeek(/** @type {number} */ deltaDays) {
+  function shiftWeek(deltaDays: number) {
     const s = new SvelteDate(`${week.start}T00:00:00Z`);
     const e = new SvelteDate(`${week.end}T00:00:00Z`);
     s.setUTCDate(s.getUTCDate() + deltaDays);

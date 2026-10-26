@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   /**
    * Your own account.
@@ -14,7 +14,7 @@
    * switch org, a real action that re-issues the token rather than editing a
    * field, so it goes through its own action and the copy says so.
    */
-  import { enhance } from '$app/forms';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
   import Pill from '#lib/v2/components/Pill.svelte';
   import Avatar from '#lib/v2/components/Avatar.svelte';
@@ -23,9 +23,9 @@
   import { KeyRound, Lock, ArrowLeftRight, CalendarDays } from '@lucide/svelte';
   import { isOn, labelOf } from '#lib/v2/modules.js';
   import { asInternalPath } from '#lib/utils/paths.js';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   let p = $derived(data.profile);
 
@@ -51,8 +51,7 @@
     editing = true;
   }
 
-  /** @type {import('$app/forms').SubmitFunction} */
-  const onEdit = ({ formData }) => {
+  const onEdit: SubmitFunction = ({ formData }) => {
     // Only send the field the person actually changed. The PATCH treats an
     // absent field as "leave it alone", so an untouched phone is not
     // re-validated, which matters because some seeded numbers carry an

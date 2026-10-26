@@ -167,7 +167,7 @@ class ApiService {
     // cold start, where `AuthService.initialize()` does this same check once.
     //
     // The web client refreshes the same way, off the `exp` claim on every
-    // request (`frontend/src/hooks.server.js`), rather than off a status code.
+    // request (`frontend/src/hooks.server.ts`), rather than off a status code.
     if (requiresAuth && _accessTokenNeedsRefresh && _refreshCallback != null) {
       await _refreshAccessToken();
     }

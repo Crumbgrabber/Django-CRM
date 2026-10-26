@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   import { asInternalPath } from '#lib/utils/paths.js';
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
@@ -9,12 +9,11 @@
   import { secondsSince, spanText } from '#lib/v2/interactions.js';
   import { t } from '#lib/terminology.js';
   import { Target } from '@lucide/svelte';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data } = $props();
+  let { data }: PageProps = $props();
 
-  /** @type {Record<string, string>} */
-  const TONE_VAR = {
+  const TONE_VAR: Record<string, string> = {
     rust: 'var(--v2-rust)',
     clay: 'var(--v2-clay)',
     slate: 'var(--v2-slate)',
@@ -24,11 +23,7 @@
   let { queue, summary, later, goals } = $derived(data);
 
   /** Revenue goals are money in the goal's own currency; the others are counts. */
-  /**
-   * @param {{ goal_type: string, currency?: string | null }} g
-   * @param {number | string} n
-   */
-  const goalValue = (g, n) =>
+  const goalValue = (g: { goal_type: string; currency?: string | null }, n: number | string) =>
     g.goal_type === 'REVENUE' ? money(n, g.currency || data.org.currency) : count(n);
 
   /**
@@ -36,7 +31,7 @@
    * strip agrees with the goals page rather than calling a goal green in week
    * two of a quarter for being 40% of the way there.
    */
-  const goalColor = (/** @type {{ status: string }} */ g) =>
+  const goalColor = (g: { status: string }) =>
     g.status === 'completed'
       ? 'var(--v2-moss)'
       : g.status === 'behind'
@@ -45,8 +40,7 @@
           ? 'var(--v2-clay)'
           : 'var(--v2-slate)';
 
-  const plural = (/** @type {number} */ n, /** @type {string} */ one, /** @type {string} */ many) =>
-    `${n} ${n === 1 ? one : many}`;
+  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
   // The queue shows the most urgent 8. Everything past that is real work with
   // nowhere on this page to go, so name it and link each source to its own

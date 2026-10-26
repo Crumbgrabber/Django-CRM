@@ -1,7 +1,7 @@
-<script>
+<script lang="ts">
   import { onMount, untrack } from 'svelte';
   import { resolve } from '$app/paths';
-  import { enhance } from '$app/forms';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
   import NextAction from '#lib/v2/components/NextAction.svelte';
   import Pill from '#lib/v2/components/Pill.svelte';
@@ -52,12 +52,12 @@
   import { isBilled, unbilledEntries } from '#lib/v2/time-entry.js';
   import { BILL_GROUPINGS } from '#lib/v2/projects.js';
   import { isOrgAdmin } from '#lib/admin.js';
+  import type { components } from '#lib/api-schema.js';
+  import type { PageData, PageProps } from './$types';
 
-  /** @typedef {import('./$types').PageData} PageData */
-  /** @typedef {import('#lib/api-schema.js').components['schemas']['TimeEntry']} TimeEntry */
+  type TimeEntry = components['schemas']['TimeEntry'];
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
   let related = $derived(relatedView(data.related));
 
   let { ticket, conversation, articles, alsoOpen, contacts, attachments, activity, canReply } =
@@ -90,8 +90,8 @@
    * picker itself is a GET form (`?merge=1&q=`), so searching works without
    * scripting; the candidates are the API's `merge-targets/`, never the list.
    */
-  let mergeTarget = $state(/** @type {PageData['merge']['targets'][number] | null} */ (null));
-  let unmergeSource = $state(/** @type {PageData['mergedFrom'][number] | null} */ (null));
+  let mergeTarget = $state<PageData['merge']['targets'][number] | null>(null);
+  let unmergeSource = $state<PageData['mergedFrom'][number] | null>(null);
 
   /*
    * Parent and child tickets, the same arrangement: the parent picker is a GET
@@ -101,7 +101,7 @@
    * `link/` takes). The panel shows for a ticket in a tree, a problem ticket,
    * or while the picker is open.
    */
-  let linkTarget = $state(/** @type {PageData['link']['candidates'][number] | null} */ (null));
+  let linkTarget = $state<PageData['link']['candidates'][number] | null>(null);
   let confirmDetach = $state(false);
   let inTree = $derived(Boolean(ticket.parent || ticket.child_count > 0 || ticket.is_problem));
 
@@ -119,12 +119,10 @@
   // and clear it. `fileInput` is the element itself. A file input's value can
   // only be cleared through the DOM, not by rebinding.
   let fileName = $state('');
-  /** @type {HTMLInputElement | undefined} */
-  let fileInput = $state();
+  let fileInput: HTMLInputElement | undefined = $state();
 
-  /** @param {Event} e */
-  function pickFile(e) {
-    fileName = /** @type {HTMLInputElement} */ (e.currentTarget).files?.[0]?.name ?? '';
+  function pickFile(e: Event) {
+    fileName = (e.currentTarget as HTMLInputElement).files?.[0]?.name ?? '';
   }
   function clearFile() {
     if (fileInput) fileInput.value = '';
@@ -136,10 +134,8 @@
   // or a file.
   let canSend = $derived(Boolean(body.trim() || fileName));
 
-  /** @type {import('$app/forms').SubmitFunction} */
   /** The reply box, so a saved reply lands at the caret. */
-  /** @type {HTMLTextAreaElement | undefined} */
-  let replyBox = $state();
+  let replyBox: HTMLTextAreaElement | undefined = $state();
   let macroBusy = $state(false);
   let macroError = $state('');
 
@@ -155,19 +151,13 @@
   let pickedId = $state('');
   let picked = $derived(data.macros?.find((m) => m.id === pickedId) ?? null);
 
-  /** @param {string | null | undefined} id */
-  function macroWithActions(id) {
+  function macroWithActions(id: string | null | undefined) {
     const m = data.macros?.find((x) => x.id === id);
     return m?.chips?.length ? m : null;
   }
   let composerMacro = $state(untrack(() => macroWithActions(form?.macroId)));
-  /** @type {string[]} */
-  let kept = $state(
-    untrack(() =>
-      (macroWithActions(form?.macroId)?.chips ?? []).map(
-        (/** @type {{ key: string }} */ c) => c.key
-      )
-    )
+  let kept: string[] = $state(
+    untrack(() => (macroWithActions(form?.macroId)?.chips ?? []).map((c: { key: string }) => c.key))
   );
   let keptChips = $derived((composerMacro?.chips ?? []).filter((c) => kept.includes(c.key)));
 
@@ -208,8 +198,7 @@
    * macro with no text instead. Apply (a macro with no text) reloads the
    * page, since it changed the ticket.
    */
-  /** @type {import('$app/forms').SubmitFunction} */
-  const insertMacro = ({ formData, action }) => {
+  const insertMacro: SubmitFunction = ({ formData, action }) => {
     const id = String(formData.get('macro_id') ?? '');
     const applying = action.search.includes('applyMacro');
     macroBusy = true;
@@ -245,8 +234,7 @@
     };
   };
 
-  /** @type {import('$app/forms').SubmitFunction} */
-  const send = () => {
+  const send: SubmitFunction = () => {
     sending = true;
     return async ({ result, update }) => {
       sending = false;
@@ -308,10 +296,8 @@
    * Measured server-side up to page load, ticked locally after that. The
    * browser only ever contributes minutes it watched pass, so a machine with
    * the wrong date cannot report a timer as eight hours old.
-   *
-   * @param {TimeEntry} entry
    */
-  const runningMinutes = (entry) =>
+  const runningMinutes = (entry: TimeEntry) =>
     Math.floor((Date.parse(time.now) - Date.parse(entry.started_at)) / 60000) + sinceLoad;
 
   /**
@@ -319,10 +305,8 @@
    * row, and the JWT's `user_id` passed down by the loader. Comparing the
    * Profile id to it would be false for everyone, silently, and the Stop
    * button would never appear.
-   *
-   * @param {TimeEntry} entry
    */
-  const isMine = (entry) => entry.profile?.user_details?.id === time.viewerUserId;
+  const isMine = (entry: TimeEntry) => entry.profile?.user_details?.id === time.viewerUserId;
 
   /** This person's own running timer, if they have one on this ticket. */
   let myTimer = $derived((entries ?? []).find((e) => !e.ended_at && isMine(e)));
@@ -348,8 +332,7 @@
    */
   let confirmDelete = $state('');
 
-  /** @type {import('$app/forms').SubmitFunction} */
-  const timeSubmit = () => {
+  const timeSubmit: SubmitFunction = () => {
     timeBusy = true;
     return async ({ update }) => {
       timeBusy = false;
@@ -368,10 +351,8 @@
    *
    * The mock had a `next_action` sentence telling the agent what to do; nothing
    * on `Case` supports inventing that, so this states the situation and stops.
-   *
-   * @type {{ tone: 'ember'|'rust', label: string, text: string } | null}
    */
-  let alert = $derived.by(() => {
+  let alert: { tone: 'ember' | 'rust'; label: string; text: string } | null = $derived.by(() => {
     if (!ticket.is_open) return null;
     if (!ticket.first_response_at) {
       return ticket.first_response_breached
@@ -408,11 +389,8 @@
    * for the warning band ("aging_status yellow" is exactly what clay is for),
    * and ordinary text for on track. Breached wins, because the two are
    * exclusive server-side and a tie would mean a bug worth seeing as red.
-   *
-   * @param {boolean} breached
-   * @param {boolean} atRisk
    */
-  function slaColor(breached, atRisk) {
+  function slaColor(breached: boolean, atRisk: boolean) {
     if (breached) return 'color:var(--v2-rust)';
     if (atRisk) return 'color:var(--v2-clay)';
     return '';

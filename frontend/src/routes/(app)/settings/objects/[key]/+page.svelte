@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * One custom object's settings: its names, who sees its records, and its
    * fields. Without the plan only archive, restore and delete for good are
@@ -16,26 +16,24 @@
   import { FIELD_TYPE_LABEL } from '#lib/v2/enums.js';
   import { billingHref } from '#lib/v2/billing.js';
   import { ChevronLeft, Plus } from '@lucide/svelte';
+  import type { PageProps } from './$types';
+  import type { ObjectField, ObjectRef } from '#lib/server/v2/custom-objects.js';
 
-  const TYPE_LABEL = /** @type {Record<string, string>} */ ({ ...FIELD_TYPE_LABEL, link: 'Link' });
+  const TYPE_LABEL = { ...FIELD_TYPE_LABEL, link: 'Link' } as Record<string, string>;
 
-  /** @typedef {import('#lib/server/v2/custom-objects.js').ObjectField} ObjectField */
-
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   let def = $derived(data.definition);
   let plan = $derived(data.customObjects?.has_custom_objects === true);
   let canWrite = $derived(data.can_edit && plan);
   let plansHref = $derived(billingHref(data));
-  /** @type {import('#lib/server/v2/custom-objects.js').ObjectRef[]} */
-  let linkTargets = $derived(data.customObjects?.link_targets ?? []);
+  let linkTargets: ObjectRef[] = $derived(data.customObjects?.link_targets ?? []);
 
   let editingObject = $state(false);
   // `null` when closed, `'new'` when adding, or the field being edited.
-  let editing = $state(/** @type {'new' | ObjectField | null} */ (null));
+  let editing = $state<'new' | ObjectField | null>(null);
   let fieldType = $state('text');
-  let optionRows = $state(/** @type {{ value: string, label: string }[]} */ ([]));
+  let optionRows = $state<{ value: string; label: string }[]>([]);
 
   function openNewField() {
     editing = 'new';
@@ -43,8 +41,7 @@
     optionRows = [];
   }
 
-  /** @param {ObjectField} f */
-  function openEditField(f) {
+  function openEditField(f: ObjectField) {
     editing = f;
     fieldType = f.field_type;
     optionRows = (f.options ?? []).map((o) => ({
@@ -53,8 +50,8 @@
     }));
   }
 
-  /** @param {string | null} target */
-  const targetLabel = (target) => linkTargets.find((t) => t.key === target)?.label_plural ?? target;
+  const targetLabel = (target: string | null) =>
+    linkTargets.find((t) => t.key === target)?.label_plural ?? target;
 
   // `fieldOff` and `fieldOn` are `true` after a success and `{ error }` after a refusal.
   let rowErrors = $derived(

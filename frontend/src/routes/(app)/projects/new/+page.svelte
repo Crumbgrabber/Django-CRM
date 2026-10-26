@@ -1,17 +1,17 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
   import ProjectForm from '#lib/v2/components/ProjectForm.svelte';
   import { isOrgAdmin } from '#lib/admin.js';
   import { ChevronRight } from '@lucide/svelte';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   /** Only a refused save carries per-field messages; a form that would not build has none. */
   let fieldErrors = $derived(
     form && 'fieldErrors' in form
-      ? /** @type {Record<string, string> | undefined} */ (form.fieldErrors)
+      ? (form.fieldErrors as Record<string, string> | undefined)
       : undefined
   );
 </script>

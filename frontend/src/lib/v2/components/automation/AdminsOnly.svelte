@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import NextAction from '#lib/v2/components/NextAction.svelte';
 </script>
 

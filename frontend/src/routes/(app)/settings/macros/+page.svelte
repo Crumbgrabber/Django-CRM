@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * Canned replies.
    *
@@ -36,16 +36,15 @@
   import { count, relativeDays } from '#lib/v2/format.js';
   import { MACRO_SCOPE_LABEL, CASE_PRIORITIES } from '#lib/v2/enums.js';
   import { Plus, TriangleAlert } from '@lucide/svelte';
+  import type { PageProps } from './$types';
+  import type { MacroRow } from '#lib/server/v2/macros.js';
 
-  /** @typedef {import('#lib/server/v2/macros.js').MacroRow} MacroRow */
-
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   // `null` when the panel is closed, `'new'` when adding, or the macro
   // object when editing that row. One panel, two modes, so two rows can
   // never be open for edit at once.
-  let editing = $state(/** @type {'new' | MacroRow | null} */ (null));
+  let editing = $state<'new' | MacroRow | null>(null);
 
   // The scope currently selected in the form. Bound separately from `editing`
   // so the select works the same way in both modes: seeded from the row on
@@ -58,8 +57,7 @@
     scope = 'personal';
   }
 
-  /** @param {MacroRow} m */
-  function openEdit(m) {
+  function openEdit(m: MacroRow) {
     editing = m;
     scope = m.scope;
   }
@@ -72,10 +70,8 @@
    * an authorization one: the backend enforces the same split independently
    * (403 on someone else's org macro, 404 on someone else's personal one)
    * and would refuse the write even if this returned true by mistake.
-   *
-   * @param {MacroRow} m
    */
-  function canWrite(m) {
+  function canWrite(m: MacroRow) {
     return m.scope === 'org' ? data.can_create_org : m.owner?.id === data.my_profile_id;
   }
 
@@ -91,10 +87,8 @@
    * not by matching against a list kept here. The supported set lives in
    * `macros/render.py` precisely so clients cannot drift from it. A copy in
    * this file would eventually mark a working macro as broken.
-   *
-   * @param {{ body: string, unknown_placeholders: string[] }} macro
    */
-  function segments(macro) {
+  function segments(macro: { body: string; unknown_placeholders: string[] }) {
     const re = /%[a-zA-Z_][a-zA-Z0-9_]*%/g;
     const out = [];
     let last = 0;
@@ -305,7 +299,7 @@
   </div>
 </div>
 
-{#snippet macro(/** @type {MacroRow} */ m)}
+{#snippet macro(m: MacroRow)}
   <div class="v2-card" style="padding:14px 16px;opacity:{m.is_active ? 1 : 0.62}">
     <div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap">
       <b style="font-size:13.5px">{m.title}</b>

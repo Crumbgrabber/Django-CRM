@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * An account's statement (#810): per currency, the opening balance, the
    * period's invoices, payments and cancellations with a running balance, and
@@ -16,14 +16,14 @@
   import StatCard from '#lib/v2/components/StatCard.svelte';
   import { money, shortDate, longDate } from '#lib/v2/format.js';
   import { ChevronRight, Download } from '@lucide/svelte';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data } = $props();
+  let { data }: PageProps = $props();
 
   let statement = $derived(data.statement);
 
   /** The query string for a period, as the page and the PDF route read it. */
-  const query = (/** @type {{ start_date: string, end_date: string }} */ period) =>
+  const query = (period: { start_date: string; end_date: string }) =>
     `?start_date=${period.start_date}&end_date=${period.end_date}`;
 </script>
 

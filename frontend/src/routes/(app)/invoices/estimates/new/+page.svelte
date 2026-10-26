@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   /**
    * New estimate.
@@ -40,9 +40,9 @@
   import { addDays, todayIn } from '#lib/v2/dates.js';
   import { numberPattern } from '#lib/v2/document-numbers.js';
   import { isOn } from '#lib/v2/modules.js';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   const CURRENCIES = CURRENCY_CODES.filter((c) => c.value);
   // The org's day: a UTC date is yesterday for a morning east of UTC.
@@ -58,7 +58,7 @@
     const p = data.prefill;
     const account = p && data.accounts.some((a) => a.id === p.account_id) ? p.account_id : '';
     const contact =
-      (p?.contact_ids ?? []).find((/** @type {string} */ id) =>
+      (p?.contact_ids ?? []).find((id: string) =>
         data.contacts.some((c) => c.id === id && (!c.account_id || c.account_id === account))
       ) ?? '';
     const deal =
@@ -135,8 +135,7 @@
 
   /** The builder as the API body; only what `EstimateCreateSerializer` accepts. */
   let payload = $derived.by(() => {
-    /** @type {Record<string, unknown>} */
-    const body = {
+    const body: Record<string, unknown> = {
       title: title.trim(),
       account_id: accountId,
       contact_id: contactId,

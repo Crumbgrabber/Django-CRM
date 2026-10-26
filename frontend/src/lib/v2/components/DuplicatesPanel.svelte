@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * "Possible duplicates" on a lead, contact or account page, shown only when
    * there are some. A warning that is always on is one people learn to scroll
@@ -12,13 +12,17 @@
    */
   import { resolve } from '$app/paths';
 
-  /** @type {{
-   *   module: 'leads' | 'contacts' | 'accounts',
-   *   id: string,
-   *   canDelete: boolean,
-   *   duplicates: Array<{ id: string, name: string, matched_on: string, can_delete: boolean }>
-   * }} */
-  let { module, id, canDelete, duplicates } = $props();
+  let {
+    module,
+    id,
+    canDelete,
+    duplicates
+  }: {
+    module: 'leads' | 'contacts' | 'accounts';
+    id: string;
+    canDelete: boolean;
+    duplicates: Array<{ id: string; name: string; matched_on: string; can_delete: boolean }>;
+  } = $props();
 
   // Said once under the list, and only when no row can be merged: repeated
   // beside every row it reads as a wall of refusals. The phone does the same.

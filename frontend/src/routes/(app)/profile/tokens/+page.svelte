@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * Your own API tokens.
    *
@@ -27,19 +27,18 @@
   import EmptyState from '#lib/v2/components/EmptyState.svelte';
   import { count, relativeDays, shortDate } from '#lib/v2/format.js';
   import { resolve } from '$app/paths';
-  import { enhance } from '$app/forms';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import { Plus, KeyRound, ShieldAlert, Copy, Check } from '@lucide/svelte';
   import { tokenStatus, staleness, scopeSummary, EXPIRY_CHOICES } from '#lib/v2/token-rules.js';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data, form } = $props();
+  let { data, form }: PageProps = $props();
 
   let creating = $state(false);
   let busy = $state(false);
   let copied = $state(false);
 
-  /** @type {import('$app/forms').SubmitFunction} */
-  const working = () => {
+  const working: SubmitFunction = () => {
     busy = true;
     return async ({ update }) => {
       await update();
@@ -47,8 +46,7 @@
     };
   };
 
-  /** @type {import('$app/forms').SubmitFunction} */
-  const createSubmit = () => {
+  const createSubmit: SubmitFunction = () => {
     busy = true;
     return async ({ update, result }) => {
       await update();
@@ -57,8 +55,7 @@
     };
   };
 
-  /** @param {string} value */
-  async function copyToken(value) {
+  async function copyToken(value: string) {
     try {
       await navigator.clipboard.writeText(value);
       copied = true;

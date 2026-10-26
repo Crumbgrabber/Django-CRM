@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   import { asInternalPath } from '#lib/utils/paths.js';
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
@@ -7,14 +7,13 @@
   import { spanText } from '#lib/v2/interactions.js';
   import { t } from '#lib/terminology.js';
   import { ChevronRight, Timer } from '@lucide/svelte';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data } = $props();
+  let { data }: PageProps = $props();
 
   let plural = $derived(t(data.org?.terminology, 'lead.plural', 'Leads'));
 
-  /** @param {{ answered: number }} row @param {number} n */
-  const share = (row, n) => (row.answered ? `${n}%` : '—');
+  const share = (row: { answered: number }, n: number) => (row.answered ? `${n}%` : '—');
 </script>
 
 <PageHeader title="Response time">

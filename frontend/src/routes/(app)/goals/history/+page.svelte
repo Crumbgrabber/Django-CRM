@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * How did we do, one finished period at a time.
    *
@@ -21,9 +21,9 @@
   import { money, count, shortDate } from '#lib/v2/format.js';
   import { GOAL_TYPE_LABEL, PERIOD_TYPE_LABEL } from '#lib/v2/enums.js';
   import { History } from '@lucide/svelte';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data } = $props();
+  let { data }: PageProps = $props();
 
   /**
    * Revenue is money, deals and activities are counts. A period row carries its
@@ -36,28 +36,20 @@
    * A revenue row is also one currency: the API splits a period by it, since a
    * USD target plus a EUR target is not a number. Takes a period row or a goal,
    * both of which carry `goal_type` and `currency`.
-   *
-   * @param {{ goal_type: string, currency?: string | null }} row
-   * @param {number} n
    */
-  const unit = (row, n) =>
+  const unit = (row: { goal_type: string; currency?: string | null }, n: number) =>
     row.goal_type === 'REVENUE' ? money(n, row.currency || data.org.currency) : count(n);
 
-  const met = (/** @type {{ target_value: number, progress_value: number }} */ g) =>
+  const met = (g: { target_value: number; progress_value: number }) =>
     g.target_value > 0 && g.progress_value >= g.target_value;
 
-  const tone = (/** @type {number} */ percent) =>
-    percent >= 100 ? 'moss' : percent >= 80 ? 'clay' : 'rust';
+  const tone = (percent: number) => (percent >= 100 ? 'moss' : percent >= 80 ? 'clay' : 'rust');
 
-  const barColor = (/** @type {number} */ percent) =>
+  const barColor = (percent: number) =>
     percent >= 100 ? 'var(--v2-moss)' : percent >= 80 ? 'var(--v2-clay)' : 'var(--v2-rust)';
 
-  /**
-   * The owner of a goal, in the words the list page uses.
-   *
-   * @param {{ assigned_to: { name: string } | null, team: { name: string } | null }} g
-   */
-  const owner = (g) =>
+  /** The owner of a goal, in the words the list page uses. */
+  const owner = (g: { assigned_to: { name: string } | null; team: { name: string } | null }) =>
     g.assigned_to ? g.assigned_to.name : g.team ? `${g.team.name} (team)` : 'Whole org';
 </script>
 

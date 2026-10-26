@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   /**
    * The catalogue line items are picked from. Short, boring, and the only page
@@ -18,9 +18,9 @@
   import { money, count } from '#lib/v2/format.js';
   import { Plus, Package, Pencil } from '@lucide/svelte';
   import { isOn } from '#lib/v2/modules.js';
+  import type { PageProps } from './$types';
 
-  /** @type {import('./$types').PageProps} */
-  let { data } = $props();
+  let { data }: PageProps = $props();
 
   let totals = $derived(data.totals);
   // The catalogue is org config: only an admin may add or change it. The API
@@ -35,8 +35,7 @@
    * order, which is the order the list already arrives in.
    */
   let groups = $derived.by(() => {
-    /** @type {Record<string, typeof data.products>} */
-    const byCategory = {};
+    const byCategory: Record<string, typeof data.products> = {};
     for (const p of data.products) {
       (byCategory[p.category] ??= []).push(p);
     }

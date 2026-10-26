@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * The frame for the customer's side of the product, the invoice and estimate
    * links emailed to a customer, and the CSAT survey.
@@ -15,9 +15,9 @@
    * bounce) are untouched.
    */
   import '#lib/v2/styles/v2.css';
+  import type { Snippet } from 'svelte';
 
-  /** @type {{ children: import('svelte').Snippet }} */
-  let { children } = $props();
+  let { children }: { children: Snippet } = $props();
 </script>
 
 <svelte:head>

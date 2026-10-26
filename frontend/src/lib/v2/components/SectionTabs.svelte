@@ -1,8 +1,8 @@
-<script>
+<script lang="ts">
   import { resolve } from '$app/paths';
   import { asInternalPath } from '#lib/utils/paths.js';
   import { page } from '$app/state';
-  import { visibleTabs } from '#lib/v2/tabs.js';
+  import { visibleTabs, type TAB_SETS } from '#lib/v2/tabs.js';
   import { isOrgAdmin } from '#lib/admin.js';
 
   /**
@@ -15,10 +15,8 @@
    * Counts come from the layout's shell data, so a badge here and the badge on
    * the sidebar entry above it can never disagree. A count of zero renders
    * nothing: a badge reading 0 is a badge you learn to stop reading.
-   *
-   * @type {{ set: keyof typeof import('#lib/v2/tabs.js').TAB_SETS }}
    */
-  let { set } = $props();
+  let { set }: { set: keyof typeof TAB_SETS } = $props();
 
   let counts = $derived(page.data.counts ?? {});
   // The admin fact rides on the app layout data (server-derived from the JWT).
@@ -27,7 +25,7 @@
   let isAdmin = $derived(isOrgAdmin(page.data));
   let tabs = $derived(visibleTabs(set, { isAdmin, modules: page.data.modules ?? null }));
 
-  const isActive = (/** @type {string} */ href, /** @type {boolean | undefined} */ exact) =>
+  const isActive = (href: string, exact: boolean | undefined) =>
     exact ? page.url.pathname === href : page.url.pathname.startsWith(href);
 </script>
 

@@ -86,7 +86,7 @@ enum TicketType {
 /// Statuses where somebody still owes the customer something.
 ///
 /// Mirrors `cases.views.OPEN_STATUSES` and the web's `OPEN_STATUSES` in
-/// `lib/server/v2/tickets.js`. Three lists, one definition, so a rail that
+/// `lib/server/v2/tickets.ts`. Three lists, one definition, so a rail that
 /// says "also open" means the same thing everywhere.
 const List<TicketStatus> openTicketStatuses = [
   TicketStatus.newStatus,
