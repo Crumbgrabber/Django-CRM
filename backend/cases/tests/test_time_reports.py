@@ -11,6 +11,7 @@ import csv
 import io
 from datetime import timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 import pytest
 from crum import impersonate
@@ -149,23 +150,26 @@ class TestWindowAndFilters:
         self, admin_client, admin_user, admin_profile, org_a
     ):
         case = _case(org_a, admin_user)
-        _logged(case, admin_profile, 20, days_ago=3)
-        today = timezone.localdate()
+        # Time is dated by its start: just after midnight, the entry began a day earlier.
+        noon = timezone.now().replace(hour=12, minute=0, second=0, microsecond=0)
+        with patch("django.utils.timezone.now", return_value=noon - timedelta(days=1)):
+            _logged(case, admin_profile, 20, days_ago=3)
+            today = timezone.localdate()
 
-        inside = admin_client.get(
-            REPORT,
-            {
-                "start": (today - timedelta(days=3)).isoformat(),
-                "end": (today - timedelta(days=3)).isoformat(),
-            },
-        ).json()
-        outside = admin_client.get(
-            REPORT,
-            {
-                "start": (today - timedelta(days=2)).isoformat(),
-                "end": today.isoformat(),
-            },
-        ).json()
+            inside = admin_client.get(
+                REPORT,
+                {
+                    "start": (today - timedelta(days=3)).isoformat(),
+                    "end": (today - timedelta(days=3)).isoformat(),
+                },
+            ).json()
+            outside = admin_client.get(
+                REPORT,
+                {
+                    "start": (today - timedelta(days=2)).isoformat(),
+                    "end": today.isoformat(),
+                },
+            ).json()
 
         assert inside["totals"]["total_minutes"] == 20
         assert outside["totals"]["total_minutes"] == 0
