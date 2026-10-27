@@ -22,7 +22,6 @@
     Bell,
     SlidersHorizontal,
     Search,
-    Smartphone,
     Boxes,
     Briefcase,
     LogOut
@@ -163,9 +162,9 @@
       <CircleHelp />
       Help
     </a>
-    <!-- The phone app for people on the hosted service. No pulsing dot. A
-         download link is not something that needs you right now, and v2 keeps
-         attention for the things that do. -->
+    <!-- Disabled: this pointed at upstream's Play Store listing, which is not
+         our build. Restore (and re-add the Smartphone import) once we publish
+         our own app.
     <a
       class="v2-link"
       href="https://play.google.com/store/apps/details?id=io.bottlecrm&hl=en"
@@ -175,6 +174,7 @@
       <Smartphone />
       Download app
     </a>
+    -->
     <!-- Leaving the app. Last in the list, and a plain link. /logout is a
          server load that clears the auth cookies and redirects to /login, so a
          GET navigation is all it takes and no data-fetching component follows. -->
