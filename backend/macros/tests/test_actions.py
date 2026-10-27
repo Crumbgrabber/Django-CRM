@@ -615,8 +615,9 @@ class TestApplyOnly:
 
 
 class TestMacroTagsAreTagUsage:
-    """A macro that adds a tag is a use of it (`_TAGGABLE`), so the tag does
-    not read as unused and a merge moves the macro onto the surviving tag."""
+    """A macro that adds a tag is a use of it (`NON_OBJECT_TAG_HOLDERS`), so
+    the tag does not read as unused and a merge moves the macro onto the
+    surviving tag."""
 
     def test_counted_in_usage(self, admin_client, org_a):
         tag = _tag(org_a, "vip")

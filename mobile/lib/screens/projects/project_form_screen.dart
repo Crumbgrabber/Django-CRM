@@ -52,6 +52,11 @@ class _ProjectFormScreenState extends ConsumerState<ProjectFormScreen> {
   final _budgetHours = TextEditingController();
   final _budgetAmount = TextEditingController();
   final _hourlyRate = TextEditingController();
+  final _retainerFee = TextEditingController();
+  final _retainerHours = TextEditingController();
+  final _retainerOverage = TextEditingController();
+  final _retainerCarried = TextEditingController();
+  bool _retainerRollover = false;
   final _description = TextEditingController();
 
   String? _accountId;
@@ -100,6 +105,10 @@ class _ProjectFormScreenState extends ConsumerState<ProjectFormScreen> {
       _budgetHours,
       _budgetAmount,
       _hourlyRate,
+      _retainerFee,
+      _retainerHours,
+      _retainerOverage,
+      _retainerCarried,
       _description,
     ]) {
       c.dispose();
@@ -140,6 +149,11 @@ class _ProjectFormScreenState extends ConsumerState<ProjectFormScreen> {
       _budgetHours.text = p.budgetHours ?? '';
       _budgetAmount.text = p.budgetAmount ?? '';
       _hourlyRate.text = p.hourlyRate ?? '';
+      _retainerFee.text = p.retainerFee ?? '';
+      _retainerHours.text = p.retainerHours ?? '';
+      _retainerOverage.text = p.retainerOverageRate ?? '';
+      _retainerCarried.text = p.retainerCarriedHours ?? '';
+      _retainerRollover = p.retainerRollover;
       _startDate = p.startDate;
       _dueDate = p.dueDate;
       _assignedTo = p.assignedToIds;
@@ -211,6 +225,42 @@ class _ProjectFormScreenState extends ConsumerState<ProjectFormScreen> {
 
   /// A row with no person is an unused row and is dropped, as on the web;
   /// one with a person needs a rate of 0 or more.
+  bool get _carriedChanged {
+    final typed = parseDecimalText(_retainerCarried.text) ?? 0;
+    return typed != (_loaded?.retainerCarriedValue ?? 0);
+  }
+
+  bool get _isRetainer => _billingType == ProjectBillingType.retainer;
+
+  /// The two retainer rules the API enforces, worded as it words them: a
+  /// monthly fee of at least 0.01, and a rate once an allowance is set.
+  String? get _feeProblem {
+    final typed = _decimalProblem(_retainerFee.text);
+    if (typed != null) return typed;
+    final fee = parseDecimalText(_retainerFee.text);
+    if (fee != null && fee < 0.01) return 'Enter at least 0.01.';
+    if (_tried && fee == null) return 'Set the monthly fee.';
+    return null;
+  }
+
+  String? get _overageProblem {
+    final typed = _decimalProblem(_retainerOverage.text);
+    if (typed != null) return typed;
+    if (_tried &&
+        _retainerHours.text.trim().isNotEmpty &&
+        _retainerOverage.text.trim().isEmpty) {
+      return 'Set the rate for hours over the allowance.';
+    }
+    return null;
+  }
+
+  bool get _retainerValid =>
+      !_isRetainer ||
+      (_feeProblem == null &&
+          _overageProblem == null &&
+          _decimalProblem(_retainerHours.text) == null &&
+          _decimalProblem(_retainerCarried.text) == null);
+
   String? _rateProblem(_RateRow r) {
     if (r.profileId == null) return null;
     if (r.rate.text.trim().isEmpty) return _tried ? 'Enter a rate.' : null;
@@ -229,6 +279,7 @@ class _ProjectFormScreenState extends ConsumerState<ProjectFormScreen> {
         _decimalProblem(_budgetHours.text) == null &&
         _decimalProblem(_budgetAmount.text) == null &&
         _decimalProblem(_hourlyRate.text) == null &&
+        _retainerValid &&
         _rates.every((r) => _rateProblem(r) == null) &&
         problems.isEmpty;
   }
@@ -245,6 +296,11 @@ class _ProjectFormScreenState extends ConsumerState<ProjectFormScreen> {
 
   bool get _isAdmin => ref.read(isOrgAdminProvider);
 
+  /// A retainer's status decides which months are billed, so the API takes it
+  /// from an admin only.
+  bool get _statusLocked =>
+      widget.isEdit && !_isAdmin && _loaded?.isRetainer == true;
+
   /// Money fields go only from an admin: the API ignores them from anyone
   /// else. The account is a member's to set on a new project only, and the
   /// deal goes only while Deals is on, or an edit would clear the link.
@@ -254,13 +310,25 @@ class _ProjectFormScreenState extends ConsumerState<ProjectFormScreen> {
       'name': _name.text.trim(),
       if (!widget.isEdit || admin) 'account': _accountId,
       if (ref.read(moduleOnProvider('deals'))) 'deal': _dealId,
-      'status': _status,
+      if (!_statusLocked) 'status': _status,
       if (admin) ...{
         'billing_type': _billingType.value,
         'currency': _currency,
         'budget_hours': _decimalParam(_budgetHours.text),
         'budget_amount': _decimalParam(_budgetAmount.text),
         'hourly_rate': _decimalParam(_hourlyRate.text),
+        if (_isRetainer) ...{
+          'retainer_fee': _decimalParam(_retainerFee.text),
+          'retainer_hours': _decimalParam(_retainerHours.text),
+          // Always explicit: an omitted box would not clear a rollover.
+          'retainer_rollover': _retainerRollover,
+          'retainer_overage_rate': _decimalParam(_retainerOverage.text),
+          // Only a change the admin made: the stored figure moves when a month
+          // is billed, and the loaded one would write the old value back.
+          if (widget.isEdit && _carriedChanged)
+            'retainer_carried_hours':
+                _decimalParam(_retainerCarried.text) ?? '0.00',
+        },
         'rates': [
           for (final r in _rates)
             if (r.profileId != null)
@@ -540,7 +608,9 @@ class _ProjectFormScreenState extends ConsumerState<ProjectFormScreen> {
           if (ProjectStatus.fromValue(_status) == null)
             DropdownMenuItem(value: _status, child: Text(_status)),
         ],
-        onChanged: (v) => setState(() => _status = v ?? _status),
+        onChanged: _statusLocked
+            ? null
+            : (v) => setState(() => _status = v ?? _status),
       ),
     ]);
   }
@@ -562,6 +632,24 @@ class _ProjectFormScreenState extends ConsumerState<ProjectFormScreen> {
       const SizedBox(height: 12),
       _readOnly('Billing type', p.billingType.label),
       const SizedBox(height: 12),
+      if (p.isRetainer) ...[
+        _readOnly('Monthly fee', amount(p.retainerFee)),
+        const SizedBox(height: 12),
+        _readOnly(
+          'Hours included each month',
+          p.retainerHoursValue == null
+              ? 'Not set'
+              : '${hoursLabel(p.retainerHoursValue!)}h',
+        ),
+        const SizedBox(height: 12),
+        _readOnly('Roll unused hours over', p.retainerRollover ? 'Yes' : 'No'),
+        const SizedBox(height: 12),
+        _readOnly(
+          'Rate for hours over the allowance',
+          amount(p.retainerOverageRate),
+        ),
+        const SizedBox(height: 12),
+      ],
       _readOnly('Currency', p.currency.isEmpty ? 'Not set' : p.currency),
       const SizedBox(height: 12),
       _readOnly(
@@ -623,6 +711,7 @@ class _ProjectFormScreenState extends ConsumerState<ProjectFormScreen> {
         onChanged: (v) => setState(() => _currency = v ?? _currency),
       ),
       const SizedBox(height: 12),
+      if (_isRetainer) ..._retainerFields(),
       _decimalField(_budgetHours, 'Budget hours', suffix: 'h'),
       const SizedBox(height: 12),
       _decimalField(
@@ -644,12 +733,61 @@ class _ProjectFormScreenState extends ConsumerState<ProjectFormScreen> {
     ]);
   }
 
+  List<Widget> _retainerFields() {
+    final symbol = Currency.symbolFor(_currency);
+    return [
+      _decimalField(
+        _retainerFee,
+        'Monthly fee',
+        prefix: symbol,
+        error: _feeProblem,
+      ),
+      const SizedBox(height: 12),
+      _decimalField(
+        _retainerHours,
+        'Hours included each month',
+        suffix: 'h',
+        helper: 'Leave blank to bill the fee alone, with no hours over.',
+      ),
+      const SizedBox(height: 12),
+      // The card paints its own background, so the tile needs a Material of
+      // its own to draw on.
+      Material(
+        type: MaterialType.transparency,
+        child: SwitchListTile.adaptive(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Roll unused hours over'),
+          value: _retainerRollover,
+          onChanged: (v) => setState(() => _retainerRollover = v),
+        ),
+      ),
+      const SizedBox(height: 4),
+      _decimalField(
+        _retainerOverage,
+        'Rate for hours over the allowance',
+        prefix: symbol,
+        error: _overageProblem,
+      ),
+      const SizedBox(height: 12),
+      if (widget.isEdit) ...[
+        _decimalField(
+          _retainerCarried,
+          'Carried hours',
+          suffix: 'h',
+          helper: 'Unused hours carried into the next invoice.',
+        ),
+        const SizedBox(height: 12),
+      ],
+    ];
+  }
+
   Widget _decimalField(
     TextEditingController c,
     String label, {
     String? prefix,
     String? suffix,
     String? helper,
+    String? error,
   }) {
     return TextField(
       controller: c,
@@ -661,7 +799,7 @@ class _ProjectFormScreenState extends ConsumerState<ProjectFormScreen> {
         suffixText: suffix,
         helperText: helper,
         helperMaxLines: 3,
-        errorText: _decimalProblem(c.text),
+        errorText: error ?? _decimalProblem(c.text),
         border: const OutlineInputBorder(),
       ),
     );

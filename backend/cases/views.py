@@ -48,6 +48,7 @@ from cases.signals import route_after_relations
 from cases.solution_serializers import SolutionSerializer
 from cases.tasks import send_email_to_assigned_user
 from cases.updates import notify_newly_assigned, update_case
+from common.custom_fields import custom_field_filter
 from common.custom_fields import validate_payload as validate_custom_fields_payload
 from common.lookups import get_on_visible_record_or_404
 from common.models import (
@@ -98,13 +99,14 @@ _ALLOWED_CASE_ORDERINGS = frozenset(
 )
 
 
-def apply_case_list_filters(queryset, params):
+def apply_case_list_filters(queryset, params, org):
     """Apply the case-list query-param filters to ``queryset``.
 
     Shared between CaseListView and WatchingListView so both endpoints accept
     the same filter chips from the mobile client. Caller is responsible for
     the base scope (org membership, watcher allowance, etc.). This only
-    layers in user-supplied filters.
+    layers in user-supplied filters; ``org``'s custom fields type the
+    ``cf_<key>`` ones.
     """
     if not params:
         return queryset
@@ -167,12 +169,7 @@ def apply_case_list_filters(queryset, params):
                 "* INTERVAL '1 hour' < NOW())"
             ]
         )
-    # Custom-field filters: ?cf_<key>=<value> -> custom_fields contains pair.
-    for raw_key, raw_value in params.items():
-        if raw_key.startswith("cf_") and raw_value:
-            cf_key = raw_key[3:]
-            if cf_key:
-                queryset = queryset.filter(custom_fields__contains={cf_key: raw_value})
+    queryset = queryset.filter(custom_field_filter("Case", org, params))
     # Ordering: whitelisted so callers can't sort on arbitrary cols.
     ordering = params.get("ordering")
     if ordering in _ALLOWED_CASE_ORDERINGS:
@@ -211,7 +208,7 @@ def case_list_queryset(profile, params):
         # used to drop the watcher clause, which meant this list handed
         # somebody a ticket that answered 403 when they clicked it.
         queryset = queryset.filter(pk__in=visible_cases_qs(profile).values("pk"))
-    return apply_case_list_filters(queryset, params)
+    return apply_case_list_filters(queryset, params, profile.org)
 
 
 def _choice_pairs():

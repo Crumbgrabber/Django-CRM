@@ -1,6 +1,7 @@
 import '../api/enterprise_schema.g.dart' as enterprise;
 import 'attachment.dart';
 import 'custom_field_definition.dart';
+import 'lookup_models.dart';
 
 const objectsTurnedOffNotice =
     'Creating and editing is turned off for this organization.';
@@ -329,6 +330,9 @@ class ObjectRecord {
   final bool canDelete;
   final List<RecordAttachment> attachments;
 
+  /// The record's tags. An older server sends none, which reads as no tags.
+  final List<TagLookup> tags;
+
   const ObjectRecord({
     required this.id,
     required this.name,
@@ -341,6 +345,7 @@ class ObjectRecord {
     this.canEdit = false,
     this.canDelete = false,
     this.attachments = const [],
+    this.tags = const [],
   });
 
   /// Reads a `CustomRecordDetail`. A list row is a `CustomRecord`, the same
@@ -369,6 +374,16 @@ class ObjectRecord {
         for (final a
             in w.attachments ?? const <enterprise.CustomRecordAttachment>[])
           RecordAttachment.fromJson(a.json),
+      ],
+      tags: [
+        for (final t in w.tags ?? const <enterprise.Tags>[])
+          if (t.id != null)
+            TagLookup(
+              id: t.id!,
+              name: t.name ?? '',
+              slug: t.slug ?? '',
+              color: t.color ?? 'gray',
+            ),
       ],
     );
   }

@@ -454,6 +454,10 @@ class ApiConfig {
 
   static String objectRecords(String key) => '${object(key)}records/';
 
+  /// The object's records as a CSV file, taking the list's own parameters.
+  static String objectRecordsExport(String key) =>
+      '${objectRecords(key)}export/';
+
   static String objectRecord(String key, String id) =>
       '${objectRecords(key)}${_checked(_uuid, id, 'id')}/';
 
@@ -738,6 +742,10 @@ class ApiConfig {
   /// A one-line Draft invoice for an amount or a share of a fixed fee.
   static String projectInvoiceAmount(String id) =>
       '${project(id)}invoice-amount/';
+
+  /// Bills the project's open retainer month as a Draft invoice. Admins only.
+  static String projectRetainerBill(String id) =>
+      '${project(id)}retainer/bill/';
 
   /// Estimates (quotes). Takes `search`, `status` and `account`.
   static String get estimates => '$apiBaseUrl/invoices/estimates/';

@@ -66,6 +66,89 @@ void main() {
       expect(const DocumentAdjustments().toPayload(), isEmpty);
     });
 
+    test('a deposit is its share of the pre-tax amount, with tax on it', () {
+      // (1000 - 10%) x 30% = 270, + 10% tax = 297.
+      expect(
+        const DocumentAdjustments(
+          discountType: 'PERCENTAGE',
+          discountValue: 10,
+          taxRate: 10,
+        ).depositAmount(1000, 30),
+        closeTo(297, 0.001),
+      );
+      // (500 - 50) x 25% = 112.50, no tax.
+      expect(
+        const DocumentAdjustments(
+          discountType: 'FIXED',
+          discountValue: 50,
+        ).depositAmount(500, 25),
+        closeTo(112.5, 0.001),
+      );
+      // 33.35 x 50% = 16.675, half up to 16.68 before the tax.
+      expect(
+        const DocumentAdjustments().depositAmount(33.35, 50),
+        closeTo(16.68, 0.0001),
+      );
+      expect(
+        const DocumentAdjustments().depositAmount(200, 100),
+        closeTo(200, 0.001),
+      );
+    });
+
+    // Each figure is what `estimate_deposit` bills: line gross, line discount,
+    // document discount, the deposit part and its tax, each to the cent half up.
+    test('a deposit rounds every step as the server bills it', () {
+      double subtotal(List<LineItemDraft> lines) =>
+          lines.fold(0, (sum, line) => sum + line.netCents) / 100;
+
+      // 10.01 less 15% is 10.01 - 1.50 (not 1.5015) = 8.51; half is 4.255.
+      final one = subtotal([
+        const LineItemDraft(name: 'Audit', unitPrice: 10.01),
+      ]);
+      expect(
+        const DocumentAdjustments(
+          discountType: 'PERCENTAGE',
+          discountValue: 15,
+        ).depositAmount(one, 50),
+        4.26,
+      );
+
+      // 1.5 x 1.03 = 1.545, a line gross of 1.55; 30% of it is 0.465.
+      const odd = LineItemDraft(name: 'Hours', quantity: 1.5, unitPrice: 1.03);
+      expect(odd.netCents, 155);
+      expect(
+        const DocumentAdjustments().depositAmount(subtotal([odd]), 30),
+        0.47,
+      );
+
+      // The tax on the part rounds on its own: 0.425 is 0.43, 0.115 is 0.12.
+      const tax = DocumentAdjustments(taxRate: 10);
+      expect(tax.depositAmount(4.25, 100), 4.68);
+      expect(tax.depositAmount(1.15, 100), 1.27);
+    });
+
+    test('a line discount rounds to the cent before the subtotal', () {
+      // 10.01 less 15% is 8.51, so half of it is 4.26 as above.
+      const line = LineItemDraft(
+        name: 'Audit',
+        unitPrice: 10.01,
+        discountType: 'PERCENTAGE',
+        discountValue: 15,
+      );
+      expect(line.netCents, 851);
+      expect(
+        const DocumentAdjustments().depositAmount(line.netAmount, 50),
+        4.26,
+      );
+    });
+
+    test('a deposit under half a cent comes to nothing', () {
+      const none = DocumentAdjustments();
+      expect(none.depositAmount(0.04, 10), 0);
+      // Half a cent rounds up, so this one is drafted.
+      expect(none.depositAmount(0.05, 10), 0.01);
+    });
+
     test('refuses what the API refuses, in its words', () {
       expect(
         const DocumentAdjustments(

@@ -366,6 +366,7 @@ ROUTE_MODULES: dict[str, Requires] = {
     "api/projects/<uid:pk>/time-entries/": Requires(("projects", "timesheet")),
     "api/projects/<uid:pk>/unbilled/": Requires(("projects", "invoices", "timesheet")),
     "api/projects/<uid:pk>/invoice-amount/": Requires(("projects", "invoices")),
+    "api/projects/<uid:pk>/retainer/": Requires(("projects", "invoices")),
     "api/projects/from-deal/": Requires(("projects", "deals")),
     "api/vendors/bills/": Requires(("vendors", "bills")),
     "api/leads/sources/": CORE,

@@ -12,12 +12,6 @@ from django.db import connection
 from common.models import CustomFieldDefinition
 from opportunity.models import Opportunity
 
-pg_only = pytest.mark.skipif(
-    connection.vendor != "postgresql",
-    reason="JSONField __contains lookup requires PostgreSQL",
-)
-
-
 OPPORTUNITIES_LIST_URL = "/api/opportunities/"
 
 
@@ -155,7 +149,6 @@ class TestOpportunityUpdateWithCustomFields:
         assert opportunity_a.custom_fields == {"deal_tier": "strategic"}
 
 
-@pg_only
 @pytest.mark.django_db
 class TestOpportunityListFilter:
     def test_cf_filter_returns_matching(

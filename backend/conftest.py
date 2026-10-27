@@ -50,11 +50,26 @@ def pytest_addoption(parser):
     )
 
 
-def pytest_sessionfinish(session, exitstatus):
-    if exitstatus != 0 or not session.config.getoption("--contract-coverage"):
-        return
-    from common.schema_contract import unchecked_operations
+@pytest.hookimpl(optionalhook=True)
+def pytest_testnodedown(node, error):
+    # pytest-xdist: each worker checks its own share of the suite, so the
+    # controller merges every worker's checked operations before reporting.
+    from common.schema_contract import CHECKED
 
+    CHECKED.update(getattr(node, "workeroutput", {}).get("contract_checked", ()))
+
+
+def pytest_sessionfinish(session, exitstatus):
+    config = session.config
+    if not config.getoption("--contract-coverage"):
+        return
+    from common.schema_contract import CHECKED, unchecked_operations
+
+    if hasattr(config, "workeroutput"):
+        config.workeroutput["contract_checked"] = sorted(CHECKED)
+        return
+    if exitstatus != 0:
+        return
     missing = unchecked_operations()
     if missing:
         report = session.config.pluginmanager.get_plugin("terminalreporter")

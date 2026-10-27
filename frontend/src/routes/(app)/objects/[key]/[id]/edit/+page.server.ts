@@ -9,6 +9,7 @@ import {
   updateRecord
 } from '#lib/server/v2/custom-objects.js';
 import { getOrgPeopleAndTeams } from '#lib/server/v2/org-people.js';
+import { activeTagChoices } from '#lib/server/v2/tags.js';
 import { readRecordForm } from '#lib/server/v2/record-form.js';
 import { linkFieldsForEdit, pairForEdit } from '#lib/server/v2/record-fields.js';
 import { recordHref } from '#lib/v2/custom-objects.js';
@@ -17,10 +18,11 @@ import type { Actions, PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ cookies, params }) => {
   const key = checkKey(params.key);
   const id = checkId(params.id);
-  const [definition, record, { people }] = await Promise.all([
+  const [definition, record, { people }, tags] = await Promise.all([
     getObject({ cookies }, key),
     getRecord({ cookies }, key, id),
-    getOrgPeopleAndTeams(cookies)
+    getOrgPeopleAndTeams(cookies),
+    activeTagChoices({ cookies })
   ]);
   if (definition.is_active === false) error(404, OBJECT_GONE);
   if (!record.can_edit) redirect(303, recordHref(`obj:${key}`, id) ?? `/objects/${key}`);
@@ -29,6 +31,7 @@ export const load: PageServerLoad = async ({ cookies, params }) => {
     definition,
     record,
     people,
+    tags,
     fields: pairForEdit(plain, record.custom_fields),
     linkFields: linkFieldsForEdit(definition.fields, record.links)
   };
@@ -47,7 +50,7 @@ export const actions: Actions = {
       await updateRecord(event, key, id, body);
     } catch (err) {
       return fail(400, {
-        values: { name: body.name, custom_fields: body.custom_fields },
+        values: { name: body.name, custom_fields: body.custom_fields, tags: body.tags },
         error: recordWriteError(err, definition.fields, definition.name_label)
       });
     }

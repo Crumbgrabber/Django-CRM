@@ -7,6 +7,7 @@ import {
   collectFromForm,
   collectLinks,
   collectAssignees,
+  collectTags,
   type FieldDefinition
 } from '#lib/server/v2/record-fields.js';
 
@@ -15,6 +16,7 @@ type RecordBody = {
   custom_fields: Record<string, string | boolean | null>;
   links?: Record<string, string[]>;
   assigned_to?: string[];
+  tags?: string[];
 };
 
 /** @param definition The object with its active fields. */
@@ -36,5 +38,7 @@ export function readRecordForm(
   if (Object.keys(links).length > 0) body.links = links;
   const assignedTo = collectAssignees(form);
   if (assignedTo !== undefined) body.assigned_to = assignedTo;
+  const tags = collectTags(form);
+  if (tags !== undefined) body.tags = tags;
   return body;
 }

@@ -235,7 +235,8 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
   bool get _billTimeOn =>
       _billingOn &&
       ref.watch(moduleOnProvider('timesheet')) &&
-      _project!.billingType != ProjectBillingType.nonBillable;
+      _project!.billingType != ProjectBillingType.nonBillable &&
+      !_project!.isRetainer;
 
   Widget _overview(Project p) {
     final dealsOn = ref.watch(moduleOnProvider('deals'));
@@ -270,8 +271,16 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
           value: p.deal!.name.isEmpty ? 'Deal' : p.deal!.name,
           onTap: dealsOn ? () => context.push('/deals/${p.deal!.id}') : null,
         ),
+      // Text only: neither client has an estimate page to open.
+      if (p.estimateNumber != null)
+        ProjectFact(
+          icon: LucideIcons.fileCheck,
+          label: 'FROM ESTIMATE',
+          value: p.estimateNumber!,
+        ),
       const SizedBox(height: 12),
       ..._billingActions(p),
+      if (p.isRetainer) ProjectCard(title: 'Retainer', child: _retainer(p)),
       ProjectCard(title: 'Budget', child: _budget(p)),
       ProjectCard(
         title: 'Dates',
@@ -339,6 +348,22 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
   /// with Invoices on; Bill time also needs Timesheet.
   List<Widget> _billingActions(Project p) {
     final billTime = _billTimeOn;
+    final usage = p.retainerUsage;
+    final billMonth = _billingOn && p.isRetainer && usage?.billableNow == true;
+    if (billMonth) {
+      return [
+        SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: FilledButton.icon(
+            onPressed: _billRetainer,
+            icon: const Icon(LucideIcons.receipt, size: 18),
+            label: Text('Bill ${usage!.monthText ?? 'this month'}'),
+          ),
+        ),
+        const SizedBox(height: 16),
+      ];
+    }
     if (!_billingOn || (!billTime && !p.isFixedFee)) return const [];
     return [
       if (billTime)
@@ -364,6 +389,42 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
         ),
       const SizedBox(height: 16),
     ];
+  }
+
+  /// The fee, the month so far, the carried hours and when it ended. The
+  /// usage block is null for an API that predates retainers.
+  Widget _retainer(Project p) {
+    final usage = p.retainerUsage;
+    final fee = decimalOrNull(p.retainerFee);
+    final month = usage?.monthText;
+    String hours(double n) =>
+        '${hoursLabel(n)} ${hoursLabel(n) == '1' ? 'hour' : 'hours'}';
+    final rate = decimalOrNull(p.retainerOverageRate);
+    final lines = <String>[
+      fee == null ? 'No monthly fee set' : '${projectMoney(p, fee)} a month',
+      if (usage != null && month != null)
+        if (usage.availableHours == null)
+          '${hours(usage.usedHours)} in $month'
+        else
+          '${hoursLabel(usage.usedHours)} of '
+              '${hoursLabel(usage.availableHours!)} hours used in $month',
+      if (usage != null && usage.overageHours > 0)
+        '${hours(usage.overageHours)} over the allowance so far'
+            '${rate == null ? '' : ', ${projectMoney(p, (usage.overageHours * rate * 100).round() / 100)}'}',
+      if (p.retainerCarriedValue > 0)
+        '${hours(p.retainerCarriedValue)} carried in from earlier months',
+      if (monthLabel(p.retainerLastMonth) case final last?) 'Ended after $last',
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final line in lines)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text(line, style: AppTypography.body),
+          ),
+      ],
+    );
   }
 
   Widget _budget(Project p) {
@@ -750,6 +811,42 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
           ),
     );
     await _afterInvoice(invoiceId);
+  }
+
+  Future<void> _billRetainer() async {
+    final month = _project!.retainerUsage?.monthText ?? 'this month';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Bill $month?'),
+        content: const Text(
+          'This drafts an invoice for the monthly fee, plus any hours over '
+          "the allowance, and marks the month's time as billed.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Bill $month'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final result = await _api.billRetainer(
+      widget.projectId,
+      month: _project!.retainerUsage?.month,
+    );
+    if (!mounted) return;
+    if (result.error != null || result.id == null) {
+      _snack(result.error ?? 'Could not bill the month.');
+      unawaited(_load());
+      return;
+    }
+    await _afterInvoice(result.id);
   }
 
   Future<void> _invoiceAmount() async {

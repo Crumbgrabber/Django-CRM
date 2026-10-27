@@ -1,13 +1,14 @@
 """Saved list views (G29): which lists can have one, and what a view may hold.
 
 A saved view is a name and a set of list query parameters, stored per profile
-so a person can put a filtered list back with one tap. Only the six lists that
-also export to CSV take one.
+so a person can put a filtered list back with one tap. The lists that take one
+come from the object registry: each entry with a ``saved_list()`` names a
+:class:`SavedList`, and :func:`saved_lists` gathers them for an org.
 
-**What a view may hold is what its list reads.** Each entry in :data:`LISTS`
-pairs the function the list view (and its CSV export) builds its queryset
-with, and the query parameters that function reads. A view is checked two
-ways before it is stored:
+**What a view may hold is what its list reads.** A :class:`SavedList` pairs
+the function the list view (and its CSV export) builds its queryset with, and
+the query parameters that function reads. A view is checked two ways before
+it is stored:
 
 * every key is one of those parameters, or a ``cf_<key>`` custom-field filter,
   which every one of these lists takes. Anything else is refused, so a view
@@ -18,34 +19,42 @@ ways before it is stored:
 
 The parameter sets are written out rather than discovered, so a change to what
 a view can hold shows up in a diff. ``common/tests/test_saved_views.py`` reads
-each list function with a recording mapping and fails when the two disagree,
-in either direction.
+each built-in list function with a recording mapping and fails when the two
+disagree, in either direction.
 """
 
 import re
+from collections.abc import Callable
+from dataclasses import dataclass
 
 from django.db import IntegrityError, transaction
+from django.db.models import QuerySet
 from django.http import QueryDict
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from accounts.views import account_list_queryset
 from cases.views import case_list_queryset
-from common.models import SavedView
-from common.modules import available_modules, module_off_message
+from common.models import Profile, SavedView
+from common.modules import module_off_message
+from common.object_registry import BUILT_IN, all_objects
 from contacts.views import contact_list_queryset
 from invoices.api_views import filter_invoices
 from invoices.permissions import visible_invoices_qs
 from leads.views.lead_views import lead_list_queryset
 from opportunity.views.opportunity_views import deal_list_queryset
 
-# The lists that belong to a module an admin can switch off.
-SAVED_VIEW_MODULES = {
-    "leads": "leads",
-    "opportunities": "deals",
-    "cases": "tickets",
-    "invoices": "invoices",
-}
+
+@dataclass(frozen=True)
+class SavedList:
+    """A list that takes saved views: its saved-view name, the function that
+    builds its rows for a profile and a query string, and the parameters that
+    function reads."""
+
+    name: str
+    query: Callable[[Profile, QueryDict], QuerySet]
+    params: frozenset[str]
+
 
 MAX_VIEWS_PER_LIST = 25
 MAX_PARAMS = 30
@@ -56,134 +65,173 @@ CUSTOM_FIELD_PARAM = re.compile(r"^cf_[A-Za-z0-9_]{1,100}$")
 
 _DATES = ("created_at__gte", "created_at__lte")
 
-LISTS = {
-    "leads": (
-        lambda request, params: lead_list_queryset(request.profile, params),
-        frozenset(
-            {
-                "name",
-                "salutation",
-                "source",
-                "assigned_to",
-                "status",
-                "tags",
-                "city",
-                "email",
-                "rating",
-                "search",
-                *_DATES,
-                "close_date__gte",
-                "close_date__lte",
-                "next_follow_up",
-                "open",
-                "unanswered",
-            }
-        ),
+LEAD_LIST = SavedList(
+    name="leads",
+    query=lead_list_queryset,
+    params=frozenset(
+        {
+            "name",
+            "salutation",
+            "source",
+            "assigned_to",
+            "status",
+            "tags",
+            "city",
+            "email",
+            "rating",
+            "search",
+            *_DATES,
+            "close_date__gte",
+            "close_date__lte",
+            "next_follow_up",
+            "open",
+            "unanswered",
+        }
     ),
-    "contacts": (
-        lambda request, params: contact_list_queryset(request.profile, params)[1],
-        frozenset(
-            {
-                "name",
-                "city",
-                "phone",
-                "email",
-                "assigned_to",
-                "tags",
-                "search",
-                *_DATES,
-                "is_active",
-            }
-        ),
+)
+
+CONTACT_LIST = SavedList(
+    name="contacts",
+    query=lambda profile, params: contact_list_queryset(profile, params)[1],
+    params=frozenset(
+        {
+            "name",
+            "city",
+            "phone",
+            "email",
+            "assigned_to",
+            "tags",
+            "search",
+            *_DATES,
+            "is_active",
+        }
     ),
-    "accounts": (
-        lambda request, params: account_list_queryset(request.profile, params),
-        frozenset(
-            {
-                "name",
-                "city",
-                "industry",
-                "tags",
-                "assigned_to",
-                "search",
-                *_DATES,
-                "is_active",
-            }
-        ),
+)
+
+ACCOUNT_LIST = SavedList(
+    name="accounts",
+    query=account_list_queryset,
+    params=frozenset(
+        {
+            "name",
+            "city",
+            "industry",
+            "tags",
+            "assigned_to",
+            "search",
+            *_DATES,
+            "is_active",
+        }
     ),
-    "opportunities": (
-        lambda request, params: deal_list_queryset(request.profile, params),
-        frozenset(
-            {
-                "name",
-                "account",
-                "pipeline",
-                "stage",
-                "lead_source",
-                "tags",
-                "assigned_to",
-                "search",
-                *_DATES,
-                "closed_on__gte",
-                "closed_on__lte",
-                "amount__gte",
-                "amount__lte",
-                "open",
-                "rotten",
-            }
-        ),
+)
+
+DEAL_LIST = SavedList(
+    name="opportunities",
+    query=deal_list_queryset,
+    params=frozenset(
+        {
+            "name",
+            "account",
+            "pipeline",
+            "stage",
+            "lead_source",
+            "tags",
+            "assigned_to",
+            "search",
+            *_DATES,
+            "closed_on__gte",
+            "closed_on__lte",
+            "amount__gte",
+            "amount__lte",
+            "open",
+            "rotten",
+        }
     ),
-    "cases": (
-        lambda request, params: case_list_queryset(request.profile, params),
-        frozenset(
-            {
-                "include_deleted",
-                "show_merged",
-                "name",
-                "status",
-                "priority",
-                "account",
-                "case_type",
-                "assigned_to",
-                "tags",
-                "search",
-                *_DATES,
-                "sla_breached",
-                "ordering",
-            }
-        ),
+)
+
+TICKET_LIST = SavedList(
+    name="cases",
+    query=case_list_queryset,
+    params=frozenset(
+        {
+            "include_deleted",
+            "show_merged",
+            "name",
+            "status",
+            "priority",
+            "account",
+            "case_type",
+            "assigned_to",
+            "tags",
+            "search",
+            *_DATES,
+            "sla_breached",
+            "ordering",
+        }
     ),
-    "invoices": (
-        lambda request, params: filter_invoices(
-            visible_invoices_qs(request.profile), params
-        ),
-        frozenset(
-            {
-                "search",
-                "status",
-                "account",
-                "contact",
-                "opportunity",
-                "assigned_to",
-                "created_by",
-                "issue_date_gte",
-                "issue_date_lte",
-                "due_date_gte",
-                "due_date_lte",
-                "sort",
-            }
-        ),
+)
+
+INVOICE_LIST = SavedList(
+    name="invoices",
+    query=lambda profile, params: filter_invoices(
+        visible_invoices_qs(profile), params, profile.org
     ),
-}
+    params=frozenset(
+        {
+            "search",
+            "status",
+            "account",
+            "contact",
+            "opportunity",
+            "assigned_to",
+            "created_by",
+            "issue_date_gte",
+            "issue_date_lte",
+            "due_date_gte",
+            "due_date_lte",
+            "sort",
+        }
+    ),
+)
 
 
-def off_lists(org):
-    """The saved-view lists whose module is switched off for ``org``."""
-    available = available_modules(org)
-    return [name for name, key in SAVED_VIEW_MODULES.items() if key not in available]
+def saved_lists(org) -> dict[str, SavedList]:
+    """The lists ``org`` can keep views on, by name, in registry order.
+
+    An entry whose module is off, or that a hook no longer returns, is left
+    out, so its views are hidden from every read but stay stored.
+    """
+    return {
+        spec.name: spec
+        for spec in (entry.saved_list() for entry in all_objects(org))
+        if spec is not None
+    }
 
 
-def _clean_filters(module, value):
+def _built_in_list_modules():
+    """Each built-in list's name, with the module that can switch it off."""
+    return {
+        spec.name: entry.module
+        for entry in BUILT_IN
+        if (spec := entry.saved_list()) is not None
+    }
+
+
+def is_built_in_list(module):
+    return module in _built_in_list_modules()
+
+
+def _unavailable_list_message(org, module):
+    """Why ``org`` cannot save a view on ``module``: its module is off, or the
+    list is not one of its lists at all (DRF's own choice message, kept from
+    when ``module`` was a choice field)."""
+    off = _built_in_list_modules().get(module)
+    if off is not None:
+        return module_off_message(org, off)
+    return f'"{module}" is not a valid choice.'
+
+
+def _clean_filters(spec, value):
     """``value`` as ``{param: [text, ...]}``, or raise with what is wrong.
 
     A value may arrive as one string or a list of them; blanks are dropped, and
@@ -195,7 +243,7 @@ def _clean_filters(module, value):
         raise serializers.ValidationError(
             f"A view can hold at most {MAX_PARAMS} filters."
         )
-    accepted = LISTS[module][1]
+    accepted = spec.params
     unknown = sorted(
         str(key)[:50]
         for key in value
@@ -225,7 +273,7 @@ def _clean_filters(module, value):
     return cleaned
 
 
-def _check_values(request, module, filters):
+def _check_values(profile, spec, filters):
     """Run the list's own parameter parsing over ``filters``.
 
     The queryset is built, never evaluated. A malformed id, date or number
@@ -235,7 +283,7 @@ def _check_values(request, module, filters):
     for key, values in filters.items():
         params.setlist(key, values)
     try:
-        LISTS[module][0](request, params)
+        spec.query(profile, params)
     except serializers.ValidationError as exc:
         # The list names the parameter it refused; kept as one flat sentence
         # per parameter, which is what both clients show.
@@ -292,27 +340,19 @@ class SavedViewSerializer(serializers.ModelSerializer):
                 {"module": "A saved view cannot move to another list."}
             )
         module = attrs.get("module") or instance.module
-        if instance is None and module in off_lists(
-            self.context["request"].profile.org
-        ):
+        profile = self.context["request"].profile
+        spec = saved_lists(profile.org).get(module)
+        if spec is None:
             raise serializers.ValidationError(
-                {
-                    "module": [
-                        module_off_message(
-                            self.context["request"].profile.org,
-                            SAVED_VIEW_MODULES[module],
-                        )
-                    ]
-                }
+                {"module": [_unavailable_list_message(profile.org, module)]}
             )
         if "filters" in attrs:
             try:
-                attrs["filters"] = _clean_filters(module, attrs["filters"])
+                attrs["filters"] = _clean_filters(spec, attrs["filters"])
             except serializers.ValidationError as exc:
                 raise serializers.ValidationError({"filters": exc.detail}) from None
-            _check_values(self.context["request"], module, attrs["filters"])
+            _check_values(profile, spec, attrs["filters"])
 
-        profile = self.context["request"].profile
         mine = SavedView.objects.filter(org=profile.org, profile=profile, module=module)
         if instance is not None:
             mine = mine.exclude(pk=instance.pk)

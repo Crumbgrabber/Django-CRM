@@ -14,12 +14,6 @@ from common.models import CustomFieldDefinition
 from contacts.models import Contact
 from invoices.models import Invoice
 
-pg_only = pytest.mark.skipif(
-    connection.vendor != "postgresql",
-    reason="JSONField __contains lookup requires PostgreSQL",
-)
-
-
 INVOICES_LIST_URL = "/api/invoices/"
 
 
@@ -227,7 +221,6 @@ class TestInvoiceUpdateWithCustomFields:
         assert cf_invoice.custom_fields == {"billing_priority": "standard"}
 
 
-@pg_only
 @pytest.mark.django_db
 class TestInvoiceListFilter:
     def test_cf_filter_returns_matching(

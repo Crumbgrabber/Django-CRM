@@ -13,8 +13,8 @@ from common.mixins import AuditModel
 # states is a security invariant rather than documentation: the flag is the sole
 # key `clear_sample_data` deletes on, so any serializer that made it writable
 # would let a user mark a real record as sample and have it destroyed. Stating
-# that once, next to the definition all six models import, is what stops the
-# sixth copy from quietly dropping the warning.
+# that once, next to the definition every sample model imports, is what stops
+# the next copy from quietly dropping the warning.
 SAMPLE_DATA_HELP_TEXT = (
     "True only for demo rows created by common.packs.applier._apply_sample_data. "
     "Server-set exclusively, never expose this as a writable field on any "

@@ -3,7 +3,6 @@ activity feed, saved views and tag usage."""
 
 from datetime import timedelta
 from decimal import Decimal
-from types import SimpleNamespace
 
 import pytest
 from django.http import QueryDict
@@ -12,8 +11,7 @@ from django.utils import timezone
 from accounts.models import Account
 from cases.models import Case, Solution
 from common.models import Activity, Document, SavedView, Tags
-from common.modules import model_module
-from common.saved_views import LISTS, SAVED_VIEW_MODULES
+from common.object_registry import BUILT_IN
 from common.testing import set_modules_off
 from contacts.models import Contact
 from invoices.models import Invoice
@@ -240,16 +238,13 @@ def test_saving_a_view_for_an_off_module_is_refused(user_client, org_a):
     assert ok.status_code == 201
 
 
-@pytest.mark.parametrize("module", sorted(LISTS))
-def test_each_saved_view_list_follows_its_models_module(
-    module, admin_user, admin_profile
-):
-    """A list missing from SAVED_VIEW_MODULES would stay on with its module off."""
-    build, _ = LISTS[module]
-    queryset = build(
-        SimpleNamespace(profile=admin_profile, user=admin_user), QueryDict()
-    )
-    assert SAVED_VIEW_MODULES.get(module) == model_module(queryset.model._meta.label)
+@pytest.mark.parametrize(
+    "entry", [e for e in BUILT_IN if e.list_spec], ids=lambda e: e.key
+)
+def test_each_saved_view_list_follows_its_models_module(entry, admin_profile):
+    """A list over another entry's model would stay on with that model's module off."""
+    queryset = entry.saved_list().query(admin_profile, QueryDict())
+    assert queryset.model is entry.model
 
 
 def test_tag_usage_leaves_out_off_modules(admin_client, org_a):

@@ -42,6 +42,7 @@ export async function getTags({ cookies }: { cookies: Cookies }): Promise<{
   tags: Schemas['TagsListRow'][];
   totals: Schemas['TagsListTotals'];
   can_edit: boolean;
+  usage_labels: Record<string, string>;
 }> {
   const resp: Schemas['TagsListResponse'] = await apiRequest(
     '/tags/?include_archived=true',
@@ -51,8 +52,27 @@ export async function getTags({ cookies }: { cookies: Cookies }): Promise<{
   return {
     tags: resp.tags ?? [],
     totals: resp.totals ?? { count: 0, active: 0, unused: 0 },
-    can_edit: viewerIsAdmin(cookies)
+    can_edit: viewerIsAdmin(cookies),
+    usage_labels: resp.usage_labels ?? {}
   };
+}
+
+/**
+ * The active tags a record form offers, or undefined when the list could not
+ * be read, so the form then draws no picker and sends no `tags`.
+ */
+export async function activeTagChoices({
+  cookies
+}: {
+  cookies: Cookies;
+}): Promise<{ id: string; name: string }[] | undefined> {
+  try {
+    return ((await getTags({ cookies })).tags ?? [])
+      .filter((t) => t.is_active)
+      .map((t) => ({ id: t.id, name: t.name }));
+  } catch {
+    return undefined;
+  }
 }
 
 /**

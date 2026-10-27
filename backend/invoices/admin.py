@@ -40,6 +40,7 @@ ESTIMATE_AMOUNT_FIELDS = (
     "tax_rate",
     "tax_amount",
     "total_amount",
+    "deposit_percent",
 )
 
 
@@ -429,6 +430,8 @@ class EstimateAdmin(IssuedAmountsReadOnlyMixin, admin.ModelAdmin):
         "contact",
         "opportunity",
         "converted_to_invoice",
+        "project",
+        "deposit_invoice",
     )
     filter_horizontal = ("assigned_to", "teams")
     inlines = [EstimateLineItemInline]

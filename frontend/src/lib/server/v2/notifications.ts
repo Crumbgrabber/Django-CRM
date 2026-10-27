@@ -35,7 +35,10 @@ export const PRODUCED_VERBS = [
   'automation.failed',
   'automation.paused',
   'automation.limit',
-  'project.budget'
+  'project.budget',
+  'project.retainer_invoice',
+  'estimate.accepted',
+  'estimate.declined'
 ];
 
 /**
@@ -54,11 +57,14 @@ export function resolvedLink(link: unknown): string {
   return automationLink(link);
 }
 
-/** Record and settings links the automation engine and project budgets write; every id a UUID. */
+/**
+ * Record and settings links the automation engine, project budgets and
+ * estimates write; every id a UUID.
+ */
 function automationLink(link: string) {
-  if (link === '/settings/automation') return link;
+  if (link === '/settings/automation' || link === '/invoices/estimates') return link;
   const rec = link.match(
-    /^\/(leads|contacts|accounts|pipeline|tasks|projects|settings\/automation)\/([^/?#]+)$/
+    /^\/(leads|contacts|accounts|pipeline|tasks|projects|invoices|settings\/automation)\/([^/?#]+)$/
   );
   if (rec) return UUID.test(rec[2]) ? link : '';
   const obj = link.match(/^\/objects\/([^/?#]+)\/([^/?#]+)$/);

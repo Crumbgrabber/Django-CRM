@@ -3,7 +3,7 @@
   import { deserialize } from '$app/forms';
   import { resolve } from '$app/paths';
   import { AlertCircle, CheckCircle2, Download, FileSpreadsheet, Upload } from '@lucide/svelte';
-  import { IMPORT_ENTITIES } from '#lib/import/entities.js';
+  import { IMPORT_ENTITIES, type ImportConfig } from '#lib/import/entities.js';
   import {
     droppedLines,
     hasAnyMatch,
@@ -29,6 +29,9 @@
    * list page's form actions (`IMPORT_ENTITIES[entity].actionPath`), so the
    * flow works from any page.
    *
+   * `config` replaces the entity's settings for a record kind that is not
+   * built in (a custom object); `entity` is then left out.
+   *
    * `singular` and `plural` override the entity's default words (the leads
    * drawer passes the org's terminology). `onDone(created)` runs after a
    * successful import. `onUseLeads`, when given, turns the "import as leads"
@@ -37,12 +40,14 @@
    */
   let {
     entity,
+    config,
     singular,
     plural,
     onDone,
     onUseLeads
   }: {
-    entity: 'contacts' | 'leads';
+    entity?: 'contacts' | 'leads';
+    config?: ImportConfig;
     singular?: string;
     plural?: string;
     onDone?: (created: number) => void;
@@ -76,7 +81,8 @@
   const TOO_LARGE = 'This file is too large to upload. Split it into smaller files.';
   const OFFLINE = 'Could not reach BottleCRM. Check your connection and try again.';
 
-  let cfg = $derived(IMPORT_ENTITIES[entity]);
+  let cfg: ImportConfig = $derived(config ?? IMPORT_ENTITIES[entity ?? 'leads']);
+  let stem = $derived(cfg.fileStem ?? entity ?? 'leads');
   let nouns = $derived({ singular: singular ?? cfg.singular, plural: plural ?? cfg.plural });
 
   let step = $state<'select' | 'match' | 'done'>('select');
@@ -254,7 +260,7 @@
       cfg.templateHeaders.join(','),
       cfg.templateExample.map((v) => (v.includes(',') ? `"${v}"` : v)).join(',')
     ].join('\n');
-    downloadCsv(csv, `${entity}-import-template.csv`);
+    downloadCsv(csv, `${stem}-import-template.csv`);
   }
 
   function downloadSkipped(skipped: Skipped[]) {
@@ -264,7 +270,7 @@
       columns.map((c) => c.header),
       skipped
     );
-    downloadCsv(`\uFEFF${csv}`, `${entity}-skipped-rows.csv`);
+    downloadCsv(`\uFEFF${csv}`, `${stem}-skipped-rows.csv`);
   }
 
   function rows(n: number) {
@@ -414,7 +420,7 @@
           </button>
         </div>
       {/if}
-      {#if suggestLeads(entity, preview.skipped)}
+      {#if suggestLeads(entity ?? '', preview.skipped)}
         <p class="note">
           Some rows were skipped for a missing first or last name. A lead needs only one of the two,
           so this file could go in as leads instead.

@@ -6,6 +6,8 @@
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
   import ConfirmAction from '#lib/v2/components/ConfirmAction.svelte';
   import Avatar from '#lib/v2/components/Avatar.svelte';
+  import CustomFieldsCard from '#lib/v2/components/CustomFieldsCard.svelte';
+  import Pill from '#lib/v2/components/Pill.svelte';
   import { shortDate } from '#lib/v2/format.js';
   import { recordHref, uploadTooLarge } from '#lib/v2/custom-objects.js';
   import { Pencil } from '@lucide/svelte';
@@ -16,6 +18,8 @@
   let def = $derived(data.definition);
   let record = $derived(data.record);
   let assignees = $derived(record.assigned_to ?? []);
+  // A missing `tags` (an older API) shows nothing.
+  let tags = $derived(record.tags ?? []);
   let uploadNote = $state('');
   let uploading = $state(false);
 
@@ -68,19 +72,20 @@
         <p class="v2-error" role="alert" style="margin:0 0 14px">{form.deleteError}</p>
       {/if}
 
-      <div class="v2-label" style="margin:0 0 10px">Details</div>
-      <div class="v2-card cf">
-        <div class="cf-row">
-          <span class="cf-label">{def.name_label}</span>
-          <span class="cf-value">{record.name}</span>
+      <CustomFieldsCard
+        flush
+        fields={[
+          { key: '__name', label: def.name_label, value: record.name, filled: true },
+          ...data.details
+        ]}
+      />
+
+      {#if tags.length > 0}
+        <div class="v2-label" style="margin:22px 0 10px">Tags</div>
+        <div class="tags">
+          {#each tags as tag (tag.id)}<Pill>{tag.name}</Pill>{/each}
         </div>
-        {#each data.details as f (f.key)}
-          <div class="cf-row">
-            <span class="cf-label">{f.label}</span>
-            <span class="cf-value" class:v2-muted={!f.filled}>{f.filled ? f.value : 'None'}</span>
-          </div>
-        {/each}
-      </div>
+      {/if}
 
       {#if data.linkFields.length > 0}
         <div class="v2-label" style="margin:22px 0 10px">Links</div>
@@ -282,6 +287,11 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
   }
   .links {
     display: flex;

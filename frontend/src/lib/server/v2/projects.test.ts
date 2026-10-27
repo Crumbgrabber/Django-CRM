@@ -180,6 +180,16 @@ describe('getProject', () => {
     const data = await getProject(event, 'pr1');
     expect([data.canEdit, data.canDelete, data.canBill]).toEqual([false, false, false]);
     expect(data.project.invoices).toEqual([]);
+    expect(data.project.estimate).toBeNull();
+  });
+
+  it('names the estimate that started the project', async () => {
+    apiRequest.mockResolvedValue({ ...ITEM, estimate: { id: 'e1', estimate_number: 'EST-0007' } });
+    const data = await getProject(event, 'pr1');
+    expect(data.project.estimate).toEqual({ id: 'e1', estimate_number: 'EST-0007' });
+
+    apiRequest.mockResolvedValue({ ...ITEM, estimate: null });
+    expect((await getProject(event, 'pr1')).project.estimate).toBeNull();
   });
 });
 

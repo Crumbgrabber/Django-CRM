@@ -14,6 +14,7 @@ import { fail, type Cookies } from '@sveltejs/kit';
 import { apiRequest } from '#lib/api-helpers.js';
 import { apiErrorBody, apiStatus } from '#lib/api-errors.js';
 import type { components } from '#lib/api-schema.js';
+import type { components as Enterprise } from '#lib/enterprise-api-schema.js';
 import type { Skipped } from '#lib/import/mapping.js';
 import type { RowError } from '#lib/utils/csv.js';
 
@@ -27,12 +28,22 @@ type ImportReply = {
   '/leads/import/commit/': Schemas['LeadImportCommitResponse'];
 };
 
+/** A custom object's importer: same mapped reply as the leads one. */
+type ObjectImportPath = `/objects/${string}/records/import/${'preview' | 'commit'}/`;
+type ObjectReply<P> = P extends `${string}/preview/`
+  ? Enterprise['schemas']['CustomRecordImportPreview']
+  : Enterprise['schemas']['CustomRecordImportCommitResponse'];
+type ReplyFor<P> = P extends keyof ImportReply ? ImportReply[P] : ObjectReply<P>;
+
 /**
  * @param path Django endpoint, e.g. `/contacts/import/preview/`
  * @param key where the client reads the success body
+ *
+ * A custom object's importer refuses with its own sentence (a plan or an
+ * access message), which is shown as the server wrote it.
  */
 export async function forwardCsvImport<
-  P extends keyof ImportReply,
+  P extends keyof ImportReply | ObjectImportPath,
   K extends 'importPreview' | 'importCommit'
 >({ request, cookies }: { request: Request; cookies: Cookies }, path: P, key: K) {
   const form = await request.formData();
@@ -47,12 +58,12 @@ export async function forwardCsvImport<
   try {
     // Quiet: an import's error reply carries the skipped rows' cells, which
     // must not reach the server log.
-    const reply: ImportReply[P] = await apiRequest(
+    const reply: ReplyFor<P> = await apiRequest(
       path,
       { method: 'POST', body, quietErrors: true },
       { cookies }
     );
-    return { [key]: reply } as Record<K, ImportReply[P]>;
+    return { [key]: reply } as Record<K, ReplyFor<P>>;
   } catch (err) {
     const status = apiStatus(err);
     if (!status) throw err;
@@ -60,7 +71,9 @@ export async function forwardCsvImport<
     return fail(status, {
       importError:
         status === 403
-          ? 'Importing needs an admin, or a member with sales access.'
+          ? path.startsWith('/objects/')
+            ? String(data.detail || data.message || 'You cannot import these records.')
+            : 'Importing needs an admin, or a member with sales access.'
           : status === 429
             ? 'Too many tries in a minute. Wait a moment, then try again.'
             : String(data.message || data.header_error || 'Import failed'),

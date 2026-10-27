@@ -3,7 +3,7 @@ from django.db.models import F, Q
 from django.utils.translation import gettext_lazy as _
 
 from accounts.models import Account
-from common.base import BaseOrgModel
+from common.base import SAMPLE_DATA_HELP_TEXT, BaseOrgModel
 from common.models import Profile, Tags
 from common.utils import CURRENCY_CODES
 
@@ -14,11 +14,15 @@ STATUS_CHOICES = (
     ("cancelled", "Cancelled"),
 )
 
-BILLING_TYPES = (
+# What an estimate or a pack may start a project as. A retainer needs its fee
+# and months, which only the project form sets (`projects.retainers`).
+STARTING_BILLING_TYPES = (
     ("time_and_materials", "Time and materials"),
     ("fixed_fee", "Fixed fee"),
     ("non_billable", "Non-billable"),
 )
+
+BILLING_TYPES = STARTING_BILLING_TYPES + (("retainer", "Retainer"),)
 
 # The highest budget level already notified, per kind (see projects.burn).
 ALERT_LEVELS = ((0, "None"), (80, "80%"), (100, "100%"))
@@ -68,8 +72,36 @@ class Project(BaseOrgModel):
         blank=True,
         help_text="Per-org schema extension; values are validated against common.CustomFieldDefinition.",
     )
+    retainer_fee = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True
+    )
+    retainer_hours = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Hours each month's fee includes; none means the fee alone.",
+    )
+    retainer_rollover = models.BooleanField(default=False)
+    retainer_overage_rate = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True
+    )
+    retainer_carried_hours = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0
+    )
+    retainer_next_month = models.DateField(
+        null=True,
+        blank=True,
+        help_text="First day of the month the next retainer invoice bills.",
+    )
+    retainer_last_month = models.DateField(
+        null=True,
+        blank=True,
+        help_text="First day of the last month to bill; empty while the retainer is open.",
+    )
     hours_alert = models.PositiveSmallIntegerField(choices=ALERT_LEVELS, default=0)
     amount_alert = models.PositiveSmallIntegerField(choices=ALERT_LEVELS, default=0)
+    is_sample = models.BooleanField(default=False, help_text=SAMPLE_DATA_HELP_TEXT)
 
     class Meta:
         verbose_name = "Project"
@@ -92,6 +124,23 @@ class Project(BaseOrgModel):
             models.CheckConstraint(
                 condition=Q(hourly_rate__gte=0) | Q(hourly_rate__isnull=True),
                 name="project_hourly_rate_non_negative",
+            ),
+            models.CheckConstraint(
+                condition=Q(retainer_fee__gte=0) | Q(retainer_fee__isnull=True),
+                name="project_retainer_fee_non_negative",
+            ),
+            models.CheckConstraint(
+                condition=Q(retainer_hours__gte=0) | Q(retainer_hours__isnull=True),
+                name="project_retainer_hours_non_negative",
+            ),
+            models.CheckConstraint(
+                condition=Q(retainer_overage_rate__gte=0)
+                | Q(retainer_overage_rate__isnull=True),
+                name="project_retainer_overage_rate_non_negative",
+            ),
+            models.CheckConstraint(
+                condition=Q(retainer_carried_hours__gte=0),
+                name="project_retainer_carried_hours_non_negative",
             ),
             models.CheckConstraint(
                 condition=Q(due_date__isnull=True)

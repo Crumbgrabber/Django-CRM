@@ -415,9 +415,10 @@ class TagsNotifier extends AsyncNotifier<TagsState> {
       throw Exception(response.message ?? 'Failed to load tags');
     }
     final body = api.TagsListResponse.fromJson(response.data!);
+    final usageLabels = body.usageLabels;
     final tags = sortedTags([
       for (final row in body.tags ?? const <api.TagsListRow>[])
-        Tag.fromJson(row.json),
+        Tag.fromJson(row.json, usageLabels: usageLabels),
     ]);
     final totals = body.totals;
     return TagsState(

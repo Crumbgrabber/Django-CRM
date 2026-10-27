@@ -10,9 +10,13 @@ import {
   hoursText,
   invoiceAmountBody,
   isoDateOrNull,
+  monthLabel,
   projectBody,
   projectOptions,
   projectValues,
+  retainerInvoiceNotificationText,
+  retainerPanel,
+  statusLocked,
   rowBurn,
   taskProject,
   unratedText
@@ -220,7 +224,7 @@ describe('the project form', () => {
       billing_type: 'fixed_fee',
       budget_amount: '12000.00'
     });
-    expect(draftValues({ billing_type: 'retainer', budget_amount: null })).toMatchObject({
+    expect(draftValues({ billing_type: 'monthly', budget_amount: null })).toMatchObject({
       billing_type: '',
       budget_amount: ''
     });
@@ -328,5 +332,191 @@ describe('the review fixes', () => {
     expect(defaultBillable('time_and_materials')).toBe(true);
     expect(defaultBillable('fixed_fee')).toBe(true);
     expect(defaultBillable('non_billable')).toBe(false);
+  });
+});
+
+describe('the retainer fields', () => {
+  const base = { name: 'Care plan', account: 'a1', billing_type: 'retainer' };
+
+  it('sends an explicit false for an unchecked rollover, and true for a checked one', () => {
+    const unchecked = projectValues(fd([['retainer__rendered', '1']]));
+    expect(unchecked.retainer_rollover).toBe(false);
+    const checked = projectValues(
+      fd([
+        ['retainer__rendered', '1'],
+        ['retainer_rollover', 'on']
+      ])
+    );
+    expect(checked.retainer_rollover).toBe(true);
+    const { body } = projectBody({ ...base, retainer_fee: '500', ...unchecked });
+    expect(body.retainer_rollover).toBe(false);
+  });
+
+  it('leaves every retainer key out when the form did not render them', () => {
+    const values = projectValues(fd([['name', 'Rebuild']]));
+    expect('retainer_rollover' in values).toBe(false);
+    const { body } = projectBody({ ...base, billing_type: 'fixed_fee' });
+    expect(Object.keys(body).some((k) => k.startsWith('retainer_'))).toBe(false);
+  });
+
+  it('builds the retainer body with two-place decimals and blanks as null', () => {
+    const { body, errors } = projectBody({
+      ...base,
+      retainer_fee: '1500',
+      retainer_hours: '10',
+      retainer_overage_rate: '120.5',
+      retainer_carried_hours: '',
+      retainer_rollover: true
+    });
+    expect(errors).toEqual([]);
+    expect(body).toMatchObject({
+      retainer_fee: '1500.00',
+      retainer_hours: '10.00',
+      retainer_overage_rate: '120.50',
+      retainer_carried_hours: '0.00',
+      retainer_rollover: true
+    });
+    const none = projectBody({ ...base, retainer_fee: '500', retainer_hours: '' });
+    expect(none.body.retainer_hours).toBeNull();
+    expect(none.errors).toEqual([]);
+  });
+
+  it('requires the fee, and the overage rate while hours are set', () => {
+    expect(projectBody({ ...base, retainer_fee: '' }).errors).toContain('Set the monthly fee.');
+    expect(projectBody({ ...base, retainer_fee: '0' }).errors).toContain('Set the monthly fee.');
+    const noRate = projectBody({ ...base, retainer_fee: '500', retainer_hours: '10' });
+    expect(noRate.errors).toEqual(['Set the rate for hours over the allowance.']);
+    const zeroHours = projectBody({
+      ...base,
+      retainer_fee: '500',
+      retainer_hours: '0',
+      retainer_overage_rate: '90'
+    });
+    expect(zeroHours.errors).toEqual([]);
+  });
+
+  it('does not demand a fee on another billing type, and rejects a negative figure', () => {
+    expect(projectBody({ ...base, billing_type: 'fixed_fee', retainer_fee: '' }).errors).toEqual(
+      []
+    );
+    expect(projectBody({ ...base, retainer_fee: '10', retainer_hours: '-1' }).errors).toContain(
+      'Hours included each month must be a number of 0 or more.'
+    );
+  });
+});
+
+describe('the retainer panel', () => {
+  const p = {
+    retainer_fee: 1500,
+    retainer_overage_rate: 100,
+    retainer_carried_hours: 0,
+    retainer_last_month: null,
+    currency: 'USD',
+    usage: {
+      month: '2026-10-01',
+      used_hours: 12.5,
+      available_hours: 10,
+      overage_hours: 2.5,
+      billable_now: true
+    }
+  };
+
+  it('writes the month label without a time zone', () => {
+    expect(monthLabel('2026-10-01')).toBe('October 2026');
+    expect(monthLabel('2026-01')).toBe('January 2026');
+    expect(monthLabel('2026-13-01')).toBe('');
+    expect(monthLabel(null)).toBe('');
+  });
+
+  it('writes usage against the allowance, and the overage so far', () => {
+    const panel = retainerPanel(p);
+    expect(panel.fee).toBe('$1,500 a month');
+    expect(panel.usage).toBe('12.5 of 10 hours used in October 2026');
+    expect(panel.overage).toBe('2.5 hours over the allowance so far, $250');
+    expect(panel.carried).toBeNull();
+    expect(panel.ended).toBeNull();
+  });
+
+  it('writes hours alone with no allowance, and no overage line', () => {
+    const panel = retainerPanel({
+      ...p,
+      usage: { ...p.usage, used_hours: 1, available_hours: null, overage_hours: 0 }
+    });
+    expect(panel.usage).toBe('1 hour in October 2026');
+    expect(panel.overage).toBeNull();
+  });
+
+  it('writes carried hours and the end month', () => {
+    const panel = retainerPanel({
+      ...p,
+      retainer_carried_hours: 3.25,
+      retainer_last_month: '2026-12-01'
+    });
+    expect(panel.carried).toBe('3.25 hours carried in from earlier months');
+    expect(panel.ended).toBe('Ended after December 2026');
+  });
+
+  it('has no usage line until the API sends a month', () => {
+    expect(retainerPanel({ ...p, usage: null }).usage).toBeNull();
+  });
+});
+
+describe('retainerInvoiceNotificationText', () => {
+  it('writes the sentence, and null for data of the wrong shape', () => {
+    expect(
+      retainerInvoiceNotificationText({
+        project: 'Care plan',
+        month: '2026-10',
+        invoice_number: 'INV-0042'
+      })
+    ).toBe('Retainer invoice INV-0042 for October 2026 drafted for Care plan');
+    expect(
+      retainerInvoiceNotificationText({ project: 'Care plan', month: 'soon', invoice_number: 'x' })
+    ).toBeNull();
+    expect(retainerInvoiceNotificationText({ month: '2026-10', invoice_number: 'x' })).toBeNull();
+    expect(retainerInvoiceNotificationText(null)).toBeNull();
+  });
+});
+
+describe('the retainer review fixes', () => {
+  it('locks Status on edit for a member on a retainer only', () => {
+    expect(statusLocked(true, false, 'retainer')).toBe(true);
+    expect(statusLocked(true, true, 'retainer')).toBe(false);
+    expect(statusLocked(true, false, 'fixed_fee')).toBe(false);
+    expect(statusLocked(false, false, 'retainer')).toBe(false);
+  });
+
+  it('sends no status when the form rendered none', () => {
+    const values = projectValues(fd([['name', 'Care plan']]));
+    expect('status' in values).toBe(false);
+    expect('status' in projectBody({ ...values, account: 'a1' }).body).toBe(false);
+  });
+
+  it('sends carried hours only when the admin changed them', () => {
+    const form = (typed: string, loaded: string) =>
+      fd([
+        ['retainer__rendered', '1'],
+        ['retainer_carried_hours', typed],
+        ['retainer_carried_hours__loaded', loaded]
+      ]);
+    expect('retainer_carried_hours' in projectValues(form('3', '3'))).toBe(false);
+    expect('retainer_carried_hours' in projectValues(form('', '0'))).toBe(false);
+    expect('retainer_carried_hours' in projectValues(form('3.00', '3'))).toBe(false);
+    const changed = projectValues(form('1.5', '3'));
+    expect(changed.retainer_carried_hours).toBe('1.5');
+    const body = projectBody({
+      name: 'x',
+      account: 'a1',
+      billing_type: 'retainer',
+      retainer_fee: '10',
+      ...changed
+    }).body;
+    expect(body.retainer_carried_hours).toBe('1.50');
+    const cleared = projectValues(form('', '3'));
+    expect(
+      projectBody({ ...cleared, billing_type: 'retainer', retainer_fee: '10' }).body
+    ).toMatchObject({
+      retainer_carried_hours: '0.00'
+    });
   });
 });

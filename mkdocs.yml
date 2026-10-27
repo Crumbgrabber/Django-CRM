@@ -60,6 +60,7 @@ nav:
       - Modules: getting-started/modules.md
       - Industry apps: features/industry-apps.md
       - Projects: features/projects.md
+      - Proposals: features/proposals.md
   - Self-hosting:
       - Requirements: self-hosting/requirements.md
       - Docker: self-hosting/docker.md

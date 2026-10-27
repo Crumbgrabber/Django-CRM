@@ -31,6 +31,13 @@ from invoices.pdf import (
     generate_invoice_filename,
     generate_invoice_pdf,
 )
+from invoices.proposals import (
+    estimate_deposit,
+    notify_accepted,
+    notify_declined,
+    start_on_acceptance,
+)
+from invoices.serializer import EstimateDepositSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -97,10 +104,11 @@ _PUBLIC_ESTIMATE = _document(
     {
         **_text("id", "estimate_number", "title", "status"),
         **_text("client_name", "client_email", "discount_type", "currency"),
-        **_text("notes", "terms", *_AMOUNTS),
+        **_text("notes", "terms", "introduction", *_AMOUNTS),
         "issue_date": serializers.DateField(),
         "expiry_date": serializers.DateField(allow_null=True),
         "client_address": _address("PublicEstimateAddress"),
+        "deposit": EstimateDepositSerializer(allow_null=True),
     },
 )
 _PUBLIC_MESSAGE = inline_serializer(
@@ -347,6 +355,8 @@ class PublicEstimateView(APIView):
             "currency": estimate.currency,
             "notes": estimate.notes,
             "terms": estimate.terms,
+            "introduction": estimate.introduction or "",
+            "deposit": estimate_deposit(estimate),
             "client_address": {
                 "line": estimate.client_address_line,
                 "city": estimate.client_city,
@@ -470,7 +480,9 @@ class PublicEstimateAcceptView(APIView):
 
         The row is locked from the read to the save, so the status and expiry
         checks judge the estimate as it is when accepted, and a staff edit
-        that commits meanwhile is not written back over.
+        that commits meanwhile is not written back over. The project and
+        deposit invoice it starts are made in the same transaction, so a
+        failure answers 500 with nothing accepted or made.
         """
         _resolve_org_context(token, "estimate")
         estimate = (
@@ -535,6 +547,7 @@ class PublicEstimateAcceptView(APIView):
         estimate.accepted_by_email = email[:254]
         estimate.accepted_ip = client_ip(request)
         estimate.accepted_user_agent = user_agent(request)[:1024]
+        start_on_acceptance(estimate)
         estimate.save(
             update_fields=[
                 "status",
@@ -543,9 +556,12 @@ class PublicEstimateAcceptView(APIView):
                 "accepted_by_email",
                 "accepted_ip",
                 "accepted_user_agent",
+                "project",
+                "deposit_invoice",
                 "updated_at",
             ]
         )
+        notify_accepted(estimate)
 
         return Response({"error": False, "message": "Estimate accepted successfully"})
 
@@ -588,5 +604,6 @@ class PublicEstimateDeclineView(APIView):
         estimate.status = "Declined"
         estimate.declined_at = timezone.now()
         estimate.save(update_fields=["status", "declined_at", "updated_at"])
+        notify_declined(estimate)
 
         return Response({"error": False, "message": "Estimate declined"})

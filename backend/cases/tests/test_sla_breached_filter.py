@@ -18,6 +18,9 @@ from django.http import QueryDict
 from cases.models import Case
 from cases.views import apply_case_list_filters
 
+# No `cf_` parameter is sent, so no org's custom fields are ever read.
+NO_ORG = None
+
 SLA_COLUMNS = (
     "first_response_at",
     "sla_first_response_hours",
@@ -48,7 +51,7 @@ def test_sla_breached_qualifies_every_column():
     until the queryset joins, then answers 500.
     """
     params = QueryDict("sla_breached=true")
-    sql = _where_sql(apply_case_list_filters(Case.objects.all(), params))
+    sql = _where_sql(apply_case_list_filters(Case.objects.all(), params, NO_ORG))
 
     for column in SLA_COLUMNS:
         assert f'"case"."{column}"' in sql, (
@@ -66,7 +69,7 @@ def test_sla_breached_survives_a_join():
     queue actually sends, and the one that used to 500.
     """
     params = QueryDict("sla_breached=true&status=New&status=Assigned")
-    queryset = apply_case_list_filters(Case.objects.all(), params)
+    queryset = apply_case_list_filters(Case.objects.all(), params, NO_ORG)
     queryset = queryset.filter(assigned_to__isnull=False)
 
     sql = _where_sql(queryset)
@@ -83,5 +86,5 @@ def test_sla_breached_is_opt_in():
 
     for value in ("false", "1", "yes", ""):
         params = QueryDict(f"sla_breached={value}")
-        sql = str(apply_case_list_filters(Case.objects.all(), params).query)
+        sql = str(apply_case_list_filters(Case.objects.all(), params, NO_ORG).query)
         assert sql == untouched, f"sla_breached={value!r} should not filter"

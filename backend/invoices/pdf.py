@@ -14,6 +14,8 @@ from django.conf import settings
 from django.template.loader import render_to_string
 from django.utils.html import escape
 
+from invoices.proposals import estimate_deposit
+
 try:
     from weasyprint import CSS, HTML
     from weasyprint.text.fonts import FontConfiguration
@@ -626,6 +628,13 @@ def generate_estimate_pdf(estimate):
             }
         )
 
+    deposit = estimate_deposit(estimate)
+    if deposit is not None:
+        deposit = {
+            "percent": format(estimate.deposit_percent.normalize(), "f"),
+            "amount": format_currency(Decimal(deposit["amount"]), estimate.currency),
+        }
+
     # Prepare context with pre-formatted currency values
     context = {
         "estimate": estimate,
@@ -633,6 +642,7 @@ def generate_estimate_pdf(estimate):
         "org": estimate.org,
         "status_class": f"status-{estimate.status.lower().replace('_', '-')}",
         "is_expired": estimate.is_expired,
+        "deposit": deposit,
         # Pre-formatted currency values
         "subtotal": format_currency(estimate.subtotal, estimate.currency),
         "discount_amount": format_currency(estimate.discount_amount, estimate.currency),

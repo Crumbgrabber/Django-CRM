@@ -38,6 +38,21 @@ Installing first shows what the app will do, and does nothing until you confirm:
 New pipelines arrive beside the org's own and never become the default, so existing records stay
 where they are. Installing never changes or deletes a record.
 
+### The sample project
+
+Professional services (version 3) includes a sample [project](projects.md) in its sample records:
+"Meridian audit fieldwork", time and materials, on the sample account and deal for Meridian Health
+Partners, with an hourly rate, an hours budget and an amount budget, one task, and three stopped,
+billable time entries logged as the admin who installs the app, so its budget burn shows from the
+start. It comes only with a new install's sample records: an update never adds it, and no app
+switches Projects on or off. While Projects is off the project, its task and its time are skipped,
+and while Timesheet is off its time is; without an installing admin (a management command) its time
+is skipped too.
+
+Clear sample data deletes the sample time entries, then the task and the project. A real time
+entry, task or invoice on the sample project survives with its link to the project cleared, as when
+any project is deleted.
+
 ## Update
 
 An app shows **Update** when updating would add something the org does not have: a part the app

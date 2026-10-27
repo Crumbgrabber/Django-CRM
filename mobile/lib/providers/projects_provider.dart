@@ -328,6 +328,21 @@ class ProjectsNotifier extends AsyncNotifier<ProjectsListData> {
     final drafted = api.ProjectInvoiceAmount.fromJson(response.data ?? {});
     return (id: drafted.invoiceId, error: null);
   }
+
+  /// Bills the open retainer month. Answers the Draft invoice's id.
+  ///
+  /// [month] is the `YYYY-MM` the person was shown; the API refuses the bill
+  /// when a different month is the one billing next.
+  Future<ProjectWrite> billRetainer(String id, {String? month}) async {
+    final response = await _api.post(ApiConfig.projectRetainerBill(id), {
+      'month': ?month,
+    });
+    if (!response.success) {
+      return (id: null, error: response.message ?? 'Could not bill the month.');
+    }
+    final billed = api.ProjectRetainerBill.fromJson(response.data ?? {});
+    return (id: billed.invoiceId, error: null);
+  }
 }
 
 final projectsProvider =

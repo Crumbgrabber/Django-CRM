@@ -1122,6 +1122,7 @@ class TimeEntry(BaseModel):
         default=False,
         help_text="Set by the auto-stop Celery task when a forgotten timer is killed.",
     )
+    is_sample = models.BooleanField(default=False, help_text=SAMPLE_DATA_HELP_TEXT)
 
     class Meta:
         verbose_name = "Time Entry"

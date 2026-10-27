@@ -848,14 +848,18 @@ const Map<String, Map<String, Set<String>?>> apiOperations = {
       'contact_id',
       'currency',
       'custom_fields',
+      'deposit_percent',
       'discount_type',
       'discount_value',
       'expiry_date',
+      'introduction',
       'issue_date',
       'line_items',
       'notes',
       'opportunity_id',
+      'project_billing_type',
       'public_link_enabled',
+      'start_project',
       'tax_rate',
       'terms',
       'title',
@@ -876,14 +880,18 @@ const Map<String, Map<String, Set<String>?>> apiOperations = {
       'contact_id',
       'currency',
       'custom_fields',
+      'deposit_percent',
       'discount_type',
       'discount_value',
       'expiry_date',
+      'introduction',
       'issue_date',
       'line_items',
       'notes',
       'opportunity_id',
+      'project_billing_type',
       'public_link_enabled',
+      'start_project',
       'tax_rate',
       'terms',
       'title',
@@ -1673,6 +1681,11 @@ const Map<String, Map<String, Set<String>?>> apiOperations = {
       'hourly_rate',
       'name',
       'rates',
+      'retainer_carried_hours',
+      'retainer_fee',
+      'retainer_hours',
+      'retainer_overage_rate',
+      'retainer_rollover',
       'start_date',
       'status',
       'tags',
@@ -1696,6 +1709,11 @@ const Map<String, Map<String, Set<String>?>> apiOperations = {
       'hourly_rate',
       'name',
       'rates',
+      'retainer_carried_hours',
+      'retainer_fee',
+      'retainer_hours',
+      'retainer_overage_rate',
+      'retainer_rollover',
       'start_date',
       'status',
       'tags',
@@ -1704,6 +1722,9 @@ const Map<String, Map<String, Set<String>?>> apiOperations = {
   },
   '/api/projects/{id}/invoice-amount/': {
     'POST': <String>{'amount', 'description', 'percent'},
+  },
+  '/api/projects/{id}/retainer/bill/': {
+    'POST': <String>{'month'},
   },
   '/api/projects/{id}/time-entries/': {
     'GET': <String>{},
@@ -8215,6 +8236,31 @@ class DealStage {
   final int? warningDays;
 }
 
+class DepositInvoice {
+  const DepositInvoice(
+    this.json, {
+    this.id,
+    this.invoiceNumber,
+    this.status,
+    this.totalAmount,
+  });
+
+  factory DepositInvoice.fromJson(Map<String, dynamic> json) => DepositInvoice(
+    json,
+    id: _string(json['id']),
+    invoiceNumber: _string(json['invoice_number']),
+    status: _string(json['status']),
+    totalAmount: _string(json['total_amount']),
+  );
+
+  /// The object as received, for handing it to its own model.
+  final Map<String, dynamic> json;
+  final String? id;
+  final String? invoiceNumber;
+  final String? status;
+  final String? totalAmount;
+}
+
 class Document {
   const Document(
     this.json, {
@@ -8837,6 +8883,8 @@ class Estimate {
     this.contact,
     this.opportunity,
     this.convertedToInvoice,
+    this.project,
+    this.depositInvoice,
     this.lineItems,
     this.createdBy,
     this.assignedTo,
@@ -8874,6 +8922,10 @@ class Estimate {
     this.acceptedByEmail,
     this.acceptedIp,
     this.acceptedUserAgent,
+    this.introduction,
+    this.depositPercent,
+    this.startProject,
+    this.projectBillingType,
     this.publicToken,
     this.publicLinkEnabled,
     this.notes,
@@ -8893,6 +8945,8 @@ class Estimate {
       json['converted_to_invoice'],
       InvoiceList.fromJson,
     ),
+    project: _string(json['project']),
+    depositInvoice: _string(json['deposit_invoice']),
     lineItems: _list(
       json['line_items'],
       (v) => _object(v, EstimateLineItem.fromJson),
@@ -8933,6 +8987,10 @@ class Estimate {
     acceptedByEmail: _string(json['accepted_by_email']),
     acceptedIp: _string(json['accepted_ip']),
     acceptedUserAgent: _string(json['accepted_user_agent']),
+    introduction: _string(json['introduction']),
+    depositPercent: _string(json['deposit_percent']),
+    startProject: _bool(json['start_project']),
+    projectBillingType: _string(json['project_billing_type']),
     publicToken: _string(json['public_token']),
     publicLinkEnabled: _bool(json['public_link_enabled']),
     notes: _string(json['notes']),
@@ -8949,6 +9007,8 @@ class Estimate {
   final ContactPicker? contact;
   final OpportunityMinimal? opportunity;
   final InvoiceList? convertedToInvoice;
+  final String? project;
+  final String? depositInvoice;
   final List<EstimateLineItem>? lineItems;
   final User? createdBy;
   final List<Profile>? assignedTo;
@@ -8986,6 +9046,10 @@ class Estimate {
   final String? acceptedByEmail;
   final String? acceptedIp;
   final String? acceptedUserAgent;
+  final String? introduction;
+  final String? depositPercent;
+  final bool? startProject;
+  final String? projectBillingType;
   final String? publicToken;
   final bool? publicLinkEnabled;
   final String? notes;
@@ -8993,6 +9057,53 @@ class Estimate {
   final Object? customFields;
   final String? updatedBy;
   final String? org;
+}
+
+class EstimateConverted {
+  const EstimateConverted(
+    this.json, {
+    this.error,
+    this.message,
+    this.invoice,
+    this.depositInvoice,
+  });
+
+  factory EstimateConverted.fromJson(Map<String, dynamic> json) =>
+      EstimateConverted(
+        json,
+        error: _bool(json['error']),
+        message: _string(json['message']),
+        invoice: _object(json['invoice'], Invoice.fromJson),
+        depositInvoice: _object(
+          json['deposit_invoice'],
+          DepositInvoice.fromJson,
+        ),
+      );
+
+  /// The object as received, for handing it to its own model.
+  final Map<String, dynamic> json;
+  final bool? error;
+  final String? message;
+  final Invoice? invoice;
+  final DepositInvoice? depositInvoice;
+}
+
+class EstimateDeposit {
+  const EstimateDeposit(this.json, {this.percent, this.amount, this.currency});
+
+  factory EstimateDeposit.fromJson(Map<String, dynamic> json) =>
+      EstimateDeposit(
+        json,
+        percent: _string(json['percent']),
+        amount: _string(json['amount']),
+        currency: _string(json['currency']),
+      );
+
+  /// The object as received, for handing it to its own model.
+  final Map<String, dynamic> json;
+  final String? percent;
+  final String? amount;
+  final String? currency;
 }
 
 class EstimateDetail {
@@ -9094,6 +9205,13 @@ class EstimateList {
     this.totalAmount,
     this.currency,
     this.isExpired,
+    this.introduction,
+    this.depositPercent,
+    this.startProject,
+    this.projectBillingType,
+    this.project,
+    this.depositInvoice,
+    this.deposit,
     this.createdAt,
   });
 
@@ -9118,6 +9236,13 @@ class EstimateList {
     totalAmount: _string(json['total_amount']),
     currency: _string(json['currency']),
     isExpired: _bool(json['is_expired']),
+    introduction: _string(json['introduction']),
+    depositPercent: _string(json['deposit_percent']),
+    startProject: _bool(json['start_project']),
+    projectBillingType: _string(json['project_billing_type']),
+    project: _object(json['project'], EstimateListProject.fromJson),
+    depositInvoice: _object(json['deposit_invoice'], DepositInvoice.fromJson),
+    deposit: _object(json['deposit'], EstimateDeposit.fromJson),
     createdAt: _string(json['created_at']),
   );
 
@@ -9139,6 +9264,13 @@ class EstimateList {
   final String? totalAmount;
   final String? currency;
   final bool? isExpired;
+  final String? introduction;
+  final String? depositPercent;
+  final bool? startProject;
+  final String? projectBillingType;
+  final EstimateListProject? project;
+  final DepositInvoice? depositInvoice;
+  final EstimateDeposit? deposit;
   final String? createdAt;
 }
 
@@ -9172,6 +9304,22 @@ class EstimateListInvoice {
   final Map<String, dynamic> json;
   final String? id;
   final String? invoiceNumber;
+}
+
+class EstimateListProject {
+  const EstimateListProject(this.json, {this.id, this.name});
+
+  factory EstimateListProject.fromJson(Map<String, dynamic> json) =>
+      EstimateListProject(
+        json,
+        id: _string(json['id']),
+        name: _string(json['name']),
+      );
+
+  /// The object as received, for handing it to its own model.
+  final Map<String, dynamic> json;
+  final String? id;
+  final String? name;
 }
 
 class EstimatePage {
@@ -9223,6 +9371,7 @@ class GlobalSearchHit {
     this.id,
     this.title,
     this.subtitle,
+    this.group,
   });
 
   factory GlobalSearchHit.fromJson(Map<String, dynamic> json) =>
@@ -9232,6 +9381,7 @@ class GlobalSearchHit {
         id: _string(json['id']),
         title: _string(json['title']),
         subtitle: _string(json['subtitle']),
+        group: _string(json['group']),
       );
 
   /// The object as received, for handing it to its own model.
@@ -9240,6 +9390,7 @@ class GlobalSearchHit {
   final String? id;
   final String? title;
   final String? subtitle;
+  final String? group;
 }
 
 class GlobalSearchResponse {
@@ -15585,6 +15736,13 @@ class ProjectDetail {
     this.budgetHours,
     this.budgetAmount,
     this.hourlyRate,
+    this.retainerFee,
+    this.retainerHours,
+    this.retainerRollover,
+    this.retainerOverageRate,
+    this.retainerCarriedHours,
+    this.retainerNextMonth,
+    this.retainerLastMonth,
     this.startDate,
     this.dueDate,
     this.assignedTo,
@@ -15594,10 +15752,12 @@ class ProjectDetail {
     this.updatedAt,
     this.description,
     this.customFields,
+    this.retainerUsage,
     this.rates,
     this.comments,
     this.attachments,
     this.invoices,
+    this.estimate,
     this.canEdit,
     this.canDelete,
     this.canBill,
@@ -15615,6 +15775,13 @@ class ProjectDetail {
     budgetHours: _string(json['budget_hours']),
     budgetAmount: _string(json['budget_amount']),
     hourlyRate: _string(json['hourly_rate']),
+    retainerFee: _string(json['retainer_fee']),
+    retainerHours: _string(json['retainer_hours']),
+    retainerRollover: _bool(json['retainer_rollover']),
+    retainerOverageRate: _string(json['retainer_overage_rate']),
+    retainerCarriedHours: _string(json['retainer_carried_hours']),
+    retainerNextMonth: _string(json['retainer_next_month']),
+    retainerLastMonth: _string(json['retainer_last_month']),
     startDate: _string(json['start_date']),
     dueDate: _string(json['due_date']),
     assignedTo: _list(json['assigned_to'], (v) => _object(v, Profile.fromJson)),
@@ -15624,6 +15791,10 @@ class ProjectDetail {
     updatedAt: _string(json['updated_at']),
     description: _string(json['description']),
     customFields: _any(json['custom_fields']),
+    retainerUsage: _object(
+      json['retainer_usage'],
+      ProjectRetainerUsage.fromJson,
+    ),
     rates: _list(json['rates'], (v) => _object(v, ProjectRateRow.fromJson)),
     comments: _list(json['comments'], (v) => _object(v, Comment.fromJson)),
     attachments: _list(
@@ -15634,6 +15805,7 @@ class ProjectDetail {
       json['invoices'],
       (v) => _object(v, ProjectInvoiceRow.fromJson),
     ),
+    estimate: _object(json['estimate'], ProjectEstimate.fromJson),
     canEdit: _bool(json['can_edit']),
     canDelete: _bool(json['can_delete']),
     canBill: _bool(json['can_bill']),
@@ -15651,6 +15823,13 @@ class ProjectDetail {
   final String? budgetHours;
   final String? budgetAmount;
   final String? hourlyRate;
+  final String? retainerFee;
+  final String? retainerHours;
+  final bool? retainerRollover;
+  final String? retainerOverageRate;
+  final String? retainerCarriedHours;
+  final String? retainerNextMonth;
+  final String? retainerLastMonth;
   final String? startDate;
   final String? dueDate;
   final List<Profile>? assignedTo;
@@ -15660,10 +15839,12 @@ class ProjectDetail {
   final String? updatedAt;
   final String? description;
   final Object? customFields;
+  final ProjectRetainerUsage? retainerUsage;
   final List<ProjectRateRow>? rates;
   final List<Comment>? comments;
   final List<Attachments>? attachments;
   final List<ProjectInvoiceRow>? invoices;
+  final ProjectEstimate? estimate;
   final bool? canEdit;
   final bool? canDelete;
   final bool? canBill;
@@ -15701,6 +15882,22 @@ class ProjectDraft {
   final List<String>? assignedTo;
   final String? billingType;
   final String? budgetAmount;
+}
+
+class ProjectEstimate {
+  const ProjectEstimate(this.json, {this.id, this.estimateNumber});
+
+  factory ProjectEstimate.fromJson(Map<String, dynamic> json) =>
+      ProjectEstimate(
+        json,
+        id: _string(json['id']),
+        estimateNumber: _string(json['estimate_number']),
+      );
+
+  /// The object as received, for handing it to its own model.
+  final Map<String, dynamic> json;
+  final String? id;
+  final String? estimateNumber;
 }
 
 class ProjectInvoiceAmount {
@@ -15764,6 +15961,13 @@ class ProjectList {
     this.budgetHours,
     this.budgetAmount,
     this.hourlyRate,
+    this.retainerFee,
+    this.retainerHours,
+    this.retainerRollover,
+    this.retainerOverageRate,
+    this.retainerCarriedHours,
+    this.retainerNextMonth,
+    this.retainerLastMonth,
     this.startDate,
     this.dueDate,
     this.assignedTo,
@@ -15785,6 +15989,13 @@ class ProjectList {
     budgetHours: _string(json['budget_hours']),
     budgetAmount: _string(json['budget_amount']),
     hourlyRate: _string(json['hourly_rate']),
+    retainerFee: _string(json['retainer_fee']),
+    retainerHours: _string(json['retainer_hours']),
+    retainerRollover: _bool(json['retainer_rollover']),
+    retainerOverageRate: _string(json['retainer_overage_rate']),
+    retainerCarriedHours: _string(json['retainer_carried_hours']),
+    retainerNextMonth: _string(json['retainer_next_month']),
+    retainerLastMonth: _string(json['retainer_last_month']),
     startDate: _string(json['start_date']),
     dueDate: _string(json['due_date']),
     assignedTo: _list(json['assigned_to'], (v) => _object(v, Profile.fromJson)),
@@ -15806,6 +16017,13 @@ class ProjectList {
   final String? budgetHours;
   final String? budgetAmount;
   final String? hourlyRate;
+  final String? retainerFee;
+  final String? retainerHours;
+  final bool? retainerRollover;
+  final String? retainerOverageRate;
+  final String? retainerCarriedHours;
+  final String? retainerNextMonth;
+  final String? retainerLastMonth;
   final String? startDate;
   final String? dueDate;
   final List<Profile>? assignedTo;
@@ -15859,6 +16077,58 @@ class ProjectRef {
   final Map<String, dynamic> json;
   final String? id;
   final String? name;
+}
+
+class ProjectRetainerBill {
+  const ProjectRetainerBill(
+    this.json, {
+    this.invoiceId,
+    this.invoiceNumber,
+    this.month,
+  });
+
+  factory ProjectRetainerBill.fromJson(Map<String, dynamic> json) =>
+      ProjectRetainerBill(
+        json,
+        invoiceId: _string(json['invoice_id']),
+        invoiceNumber: _string(json['invoice_number']),
+        month: _string(json['month']),
+      );
+
+  /// The object as received, for handing it to its own model.
+  final Map<String, dynamic> json;
+  final String? invoiceId;
+  final String? invoiceNumber;
+  final String? month;
+}
+
+class ProjectRetainerUsage {
+  const ProjectRetainerUsage(
+    this.json, {
+    this.month,
+    this.usedHours,
+    this.availableHours,
+    this.overageHours,
+    this.billableNow,
+  });
+
+  factory ProjectRetainerUsage.fromJson(Map<String, dynamic> json) =>
+      ProjectRetainerUsage(
+        json,
+        month: _string(json['month']),
+        usedHours: _string(json['used_hours']),
+        availableHours: _string(json['available_hours']),
+        overageHours: _string(json['overage_hours']),
+        billableNow: _bool(json['billable_now']),
+      );
+
+  /// The object as received, for handing it to its own model.
+  final Map<String, dynamic> json;
+  final String? month;
+  final String? usedHours;
+  final String? availableHours;
+  final String? overageHours;
+  final bool? billableNow;
 }
 
 class ProjectSaved {
@@ -16047,6 +16317,7 @@ class PublicEstimate {
     this.currency,
     this.notes,
     this.terms,
+    this.introduction,
     this.subtotal,
     this.discountValue,
     this.discountAmount,
@@ -16056,6 +16327,7 @@ class PublicEstimate {
     this.issueDate,
     this.expiryDate,
     this.clientAddress,
+    this.deposit,
   });
 
   factory PublicEstimate.fromJson(Map<String, dynamic> json) => PublicEstimate(
@@ -16076,6 +16348,7 @@ class PublicEstimate {
     currency: _string(json['currency']),
     notes: _string(json['notes']),
     terms: _string(json['terms']),
+    introduction: _string(json['introduction']),
     subtotal: _string(json['subtotal']),
     discountValue: _string(json['discount_value']),
     discountAmount: _string(json['discount_amount']),
@@ -16088,6 +16361,7 @@ class PublicEstimate {
       json['client_address'],
       PublicEstimateAddress.fromJson,
     ),
+    deposit: _object(json['deposit'], EstimateDeposit.fromJson),
   );
 
   /// The object as received, for handing it to its own model.
@@ -16105,6 +16379,7 @@ class PublicEstimate {
   final String? currency;
   final String? notes;
   final String? terms;
+  final String? introduction;
   final String? subtotal;
   final String? discountValue;
   final String? discountAmount;
@@ -16114,6 +16389,7 @@ class PublicEstimate {
   final String? issueDate;
   final String? expiryDate;
   final PublicEstimateAddress? clientAddress;
+  final EstimateDeposit? deposit;
 }
 
 class PublicEstimateAddress {
@@ -18436,13 +18712,20 @@ class Tags {
 }
 
 class TagsListResponse {
-  const TagsListResponse(this.json, {this.tagsCount, this.tags, this.totals});
+  const TagsListResponse(
+    this.json, {
+    this.tagsCount,
+    this.tags,
+    this.usageLabels,
+    this.totals,
+  });
 
   factory TagsListResponse.fromJson(Map<String, dynamic> json) =>
       TagsListResponse(
         json,
         tagsCount: _int(json['tags_count']),
         tags: _list(json['tags'], (v) => _object(v, TagsListRow.fromJson)),
+        usageLabels: _map(json['usage_labels'], _string),
         totals: _object(json['totals'], TagsListTotals.fromJson),
       );
 
@@ -18450,6 +18733,7 @@ class TagsListResponse {
   final Map<String, dynamic> json;
   final int? tagsCount;
   final List<TagsListRow>? tags;
+  final Map<String, String>? usageLabels;
   final TagsListTotals? totals;
 }
 

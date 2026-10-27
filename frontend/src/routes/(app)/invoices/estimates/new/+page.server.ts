@@ -13,6 +13,7 @@ import { getNumbering } from '#lib/server/v2/organization.js';
 import { getModules } from '#lib/server/v2/modules.js';
 import { isOn } from '#lib/v2/modules.js';
 import { apiStatus } from '#lib/api-errors.js';
+import { isOrgAdmin } from '#lib/admin.js';
 import type { Actions, PageServerLoad } from './$types';
 import type { FormBody } from '#lib/api-helpers.js';
 import type { components } from '#lib/api-schema.js';
@@ -88,12 +89,15 @@ export const actions: Actions = {
   /**
    * Create the draft from the builder's one JSON `payload` field. The server
    * owns org, creator, number, token, totals and status, and decides whether
-   * this caller may bill the account and cite the deal.
+   * this caller may bill the account and cite the deal. A project on
+   * acceptance is an admin's choice: the builder hides it from anyone else,
+   * and it is never sent for them.
    *
    * Annotated so the refusal with `fieldErrors` is not folded into the bare one.
    */
   create: async ({
     cookies,
+    locals,
     request
   }): Promise<ActionFailure<{ error: string; fieldErrors?: Record<string, string> }>> => {
     const form = await request.formData();
@@ -110,6 +114,10 @@ export const actions: Actions = {
 
     // Custom fields come from their own inputs, never from the builder's payload.
     delete body.custom_fields;
+    if (!isOrgAdmin(locals.profile)) {
+      delete body.start_project;
+      delete body.project_billing_type;
+    }
     const custom = await readCustomFields(cookies, 'Estimate', form);
     if (custom.refusal) return fail(503, custom.refusal);
     if (custom.values) body.custom_fields = custom.values;

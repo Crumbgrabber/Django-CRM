@@ -18,12 +18,19 @@
   import EmptyState from '#lib/v2/components/EmptyState.svelte';
   import { enhance } from '$app/forms';
   import { money, moneyEach, count, daysSince } from '#lib/v2/format.js';
-  import { ESTIMATE_STATUS_TONE } from '#lib/v2/enums.js';
+  import { ESTIMATE_STATUS_TONE, invoiceStatusLabel } from '#lib/v2/enums.js';
   import { Plus, FileText } from '@lucide/svelte';
   import { isOn } from '#lib/v2/modules.js';
+  import { convertNote } from '#lib/v2/estimates.js';
   import type { PageProps } from './$types';
 
   let { data, form }: PageProps = $props();
+
+  /** The row whose "Raise invoice" is asking first about its deposit invoice. */
+  let confirmConvert = $state('');
+
+  /** Where the keyboard lands when that question opens: its confirm button. */
+  const focusConfirm = (node: HTMLElement) => node.focus();
 
   let totals = $derived(data.totals);
 
@@ -152,6 +159,14 @@
                 {#if e.opportunity}
                   <span class="v2-table-secondary" style="display:block">{e.opportunity.name}</span>
                 {/if}
+                {#if e.project}
+                  <span class="v2-table-secondary" style="display:block">
+                    Project
+                    <a href={resolve(`projects/${e.project.id}`)} style="color:inherit"
+                      >{e.project.name}</a
+                    >
+                  </span>
+                {/if}
               </td>
               <td><Pill tone={ESTIMATE_STATUS_TONE[e.status]}>{e.status}</Pill></td>
               <td>
@@ -164,15 +179,51 @@
                     {e.converted_invoice.invoice_number}
                   </a>
                 {:else if needsBilling(e)}
+                  {@const note = convertNote(e.deposit_invoice, e.currency)}
                   <!-- The one place ember belongs on this page: an accepted
                        estimate is the only row with an action nobody has taken.
                        Convert copies it to a Draft invoice and opens that. -->
-                  <form method="POST" action="?/convert" use:enhance>
-                    <input type="hidden" name="id" value={e.id} />
-                    <button class="v2-btn v2-btn-sm v2-btn-primary" type="submit">
+                  {#if note && confirmConvert !== e.id}
+                    <button
+                      class="v2-btn v2-btn-sm v2-btn-primary"
+                      type="button"
+                      onclick={() => (confirmConvert = e.id)}
+                    >
                       Raise invoice
                     </button>
-                  </form>
+                  {:else}
+                    <form
+                      class="convert"
+                      method="POST"
+                      action="?/convert"
+                      use:enhance={() =>
+                        async ({ update }) => {
+                          await update();
+                          confirmConvert = '';
+                        }}
+                    >
+                      <input type="hidden" name="id" value={e.id} />
+                      {#if note}
+                        <p class="convert-note" role="status">{note}</p>
+                      {/if}
+                      <button
+                        class="v2-btn v2-btn-sm v2-btn-primary"
+                        type="submit"
+                        {@attach note ? focusConfirm : null}
+                      >
+                        Raise invoice
+                      </button>
+                      {#if note}
+                        <button
+                          class="v2-btn v2-btn-sm"
+                          type="button"
+                          onclick={() => (confirmConvert = '')}
+                        >
+                          Cancel
+                        </button>
+                      {/if}
+                    </form>
+                  {/if}
                 {:else if canSend(e)}
                   <form method="POST" action="?/send" use:enhance>
                     <input type="hidden" name="id" value={e.id} />
@@ -182,6 +233,20 @@
                   </form>
                 {:else}
                   <span class="v2-muted">—</span>
+                {/if}
+                {#if e.deposit_invoice}
+                  <span
+                    class="v2-table-secondary deposit"
+                    class:cancelled={e.deposit_invoice.status === 'Cancelled'}
+                  >
+                    Deposit
+                    <a
+                      href={resolve(`invoices/${e.deposit_invoice.id}`)}
+                      class="v2-num"
+                      style="color:inherit">{e.deposit_invoice.invoice_number}</a
+                    >
+                    · {invoiceStatusLabel(e.deposit_invoice.status)}
+                  </span>
                 {/if}
               </td>
               <td class="v2-r v2-num" style="font-weight:600"
@@ -207,6 +272,28 @@
 </div>
 
 <style>
+  .deposit {
+    display: block;
+    margin-top: 4px;
+  }
+  /* Slate already, so a cancelled deposit is struck through rather than faded below contrast. */
+  .deposit.cancelled a {
+    text-decoration: line-through;
+  }
+  .convert {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    max-width: 280px;
+  }
+  .convert-note {
+    flex-basis: 100%;
+    margin: 0;
+    font-size: 11.5px;
+    line-height: 1.45;
+    color: var(--v2-slate);
+  }
   .est-error {
     margin: 0;
     padding: 8px 12px;

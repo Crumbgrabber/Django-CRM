@@ -12,7 +12,8 @@
    * meaning the same thing, and the work splits silently across them.
    */
   import { enhance } from '$app/forms';
-  import { isOn, wordsOn } from '#lib/v2/modules.js';
+  import { wordsOn } from '#lib/v2/modules.js';
+  import { usageColumns } from '#lib/v2/tag-usage.js';
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
   import SettingsCrumb from '#lib/v2/components/SettingsCrumb.svelte';
   import Pill from '#lib/v2/components/Pill.svelte';
@@ -61,6 +62,9 @@
    */
   const used = (t: { usage?: Record<string, number> }) =>
     Object.values(t.usage ?? {}).reduce((sum, n) => sum + (n || 0), 0);
+
+  // The server names the kinds a tag can sit on, custom objects included.
+  let columns = $derived(usageColumns(data.usage_labels, data.tags));
 
   let tags = $derived(
     [...data.tags].sort((a, b) => used(b) - used(a) || a.name.localeCompare(b.name))
@@ -239,12 +243,7 @@
         <thead>
           <tr>
             <th>Tag</th>
-            <th style="text-align:right">Accounts</th>
-            <th style="text-align:right">Contacts</th>
-            {#if isOn(data.modules, 'leads')}<th style="text-align:right">Leads</th>{/if}
-            {#if isOn(data.modules, 'deals')}<th style="text-align:right">Deals</th>{/if}
-            {#if isOn(data.modules, 'tickets')}<th style="text-align:right">Tickets</th>{/if}
-            {#if isOn(data.modules, 'tasks')}<th style="text-align:right">Tasks</th>{/if}
+            {#each columns as c (c.key)}<th style="text-align:right">{c.label}</th>{/each}
             <th style="text-align:right">Total</th>
             <th></th>
             {#if data.can_edit}<th></th>{/if}
@@ -261,20 +260,14 @@
                      only place in the product those eighteen exist. -->
                 <span class="v2-sub" style="font-size:11px;margin-left:7px">{t.color}</span>
               </td>
-              <td class="v2-num" style="text-align:right">{t.usage.accounts || '—'}</td>
-              <td class="v2-num" style="text-align:right">{t.usage.contacts || '—'}</td>
-              {#if isOn(data.modules, 'leads')}<td class="v2-num" style="text-align:right"
-                  >{t.usage.leads || '—'}</td
-                >{/if}
-              {#if isOn(data.modules, 'deals')}<td class="v2-num" style="text-align:right"
-                  >{t.usage.opportunities || '—'}</td
-                >{/if}
-              {#if isOn(data.modules, 'tickets')}<td class="v2-num" style="text-align:right"
-                  >{t.usage.cases || '—'}</td
-                >{/if}
-              {#if isOn(data.modules, 'tasks')}<td class="v2-num" style="text-align:right"
-                  >{t.usage.tasks || '—'}</td
-                >{/if}
+              {#each columns as c (c.key)}
+                <td
+                  class="v2-num"
+                  style="text-align:right"
+                  data-m={t.usage?.[c.key] ? 'meta' : 'hide'}
+                  data-l={c.label}>{t.usage?.[c.key] || '—'}</td
+                >
+              {/each}
               <td class="v2-num" style="text-align:right;font-weight:600">{used(t) || '—'}</td>
               <td style="text-align:right">
                 {#if !t.is_active}
@@ -315,7 +308,7 @@
             </tr>
           {:else}
             <tr>
-              <td colspan={data.can_edit ? 8 : 7}>
+              <td colspan={columns.length + (data.can_edit ? 4 : 3)}>
                 <EmptyState
                   title="No tags yet"
                   body="Tags are shared across every record type, so the first one is worth naming carefully."

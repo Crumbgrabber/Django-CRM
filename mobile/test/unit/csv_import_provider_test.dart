@@ -390,7 +390,7 @@ void main() {
 
         await notifier(target).choose(_file(name: 'People.XLSX'));
 
-        expect(stateOf(target).error, isNull, reason: target.name);
+        expect(stateOf(target).error, isNull, reason: target.plural);
         expect(stateOf(target).file!.name, 'People.XLSX');
       }
       expect(client.sent, hasLength(2));

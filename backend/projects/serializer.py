@@ -3,6 +3,7 @@ import uuid
 from decimal import Decimal
 
 from django.contrib.contenttypes.models import ContentType
+from django.utils import timezone
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
@@ -19,12 +20,13 @@ from common.serializer import (
     TagsSerializer,
 )
 from common.validators import validate_uuid
-from invoices.permissions import visible_invoices_qs
+from invoices.permissions import visible_estimates_qs, visible_invoices_qs
 from opportunity.access import has_deal_access
 from opportunity.models import Opportunity
 from projects import access
 from projects.burn import burn_for
 from projects.models import Project, ProjectRate
+from projects.retainers import RETAINER, retainer_usage
 
 
 def _ref(record):
@@ -56,6 +58,18 @@ class ProjectBurnSerializer(serializers.Serializer):
     amount_percent = serializers.IntegerField(allow_null=True)
 
 
+class ProjectRetainerUsageSerializer(serializers.Serializer):
+    """`projects.retainers.retainer_usage`, for the schema."""
+
+    month = serializers.CharField(help_text="YYYY-MM")
+    used_hours = _money()
+    available_hours = serializers.DecimalField(
+        max_digits=None, decimal_places=2, allow_null=True
+    )
+    overage_hours = _money()
+    billable_now = serializers.BooleanField()
+
+
 class ProjectRateRowSerializer(serializers.Serializer):
     """One `ProjectDetailSerializer.rates` entry, for the schema."""
 
@@ -72,6 +86,22 @@ class ProjectInvoiceRowSerializer(serializers.Serializer):
     total_amount = _money()
     currency = serializers.CharField()
     issue_date = serializers.DateField(allow_null=True)
+
+
+class ProjectEstimateSerializer(serializers.Serializer):
+    """`ProjectDetailSerializer.estimate`, for the schema."""
+
+    id = serializers.UUIDField()
+    estimate_number = serializers.CharField()
+
+
+RETAINER_FIELDS = (
+    "retainer_fee",
+    "retainer_hours",
+    "retainer_rollover",
+    "retainer_overage_rate",
+    "retainer_carried_hours",
+)
 
 
 class ProjectListSerializer(serializers.ModelSerializer):
@@ -98,6 +128,9 @@ class ProjectListSerializer(serializers.ModelSerializer):
             "budget_hours",
             "budget_amount",
             "hourly_rate",
+            *RETAINER_FIELDS,
+            "retainer_next_month",
+            "retainer_last_month",
             "start_date",
             "due_date",
             "assigned_to",
@@ -134,18 +167,22 @@ class ProjectDetailSerializer(ProjectListSerializer):
     comments = serializers.SerializerMethodField()
     attachments = serializers.SerializerMethodField()
     invoices = serializers.SerializerMethodField()
+    estimate = serializers.SerializerMethodField()
     can_edit = serializers.SerializerMethodField()
     can_delete = serializers.SerializerMethodField()
     can_bill = serializers.SerializerMethodField()
+    retainer_usage = serializers.SerializerMethodField()
 
     class Meta(ProjectListSerializer.Meta):
         fields = ProjectListSerializer.Meta.fields + (
             "description",
             "custom_fields",
+            "retainer_usage",
             "rates",
             "comments",
             "attachments",
             "invoices",
+            "estimate",
             "can_edit",
             "can_delete",
             "can_bill",
@@ -200,6 +237,27 @@ class ProjectDetailSerializer(ProjectListSerializer):
             for i in rows
         ]
 
+    @extend_schema_field(ProjectEstimateSerializer(allow_null=True))
+    def get_estimate(self, obj):
+        """The estimate whose acceptance started the project, if the caller
+        may open it."""
+        profile = self.context["profile"]
+        if not module_is_available(profile.org, "invoices"):
+            return None
+        estimate = (
+            visible_estimates_qs(profile)
+            .filter(project=obj)
+            .order_by("created_at")
+            .values("id", "estimate_number")
+            .first()
+        )
+        if estimate is None:
+            return None
+        return {
+            "id": str(estimate["id"]),
+            "estimate_number": estimate["estimate_number"],
+        }
+
     def get_can_edit(self, obj) -> bool:
         return access.has_project_access(self.context["profile"], obj)
 
@@ -208,6 +266,10 @@ class ProjectDetailSerializer(ProjectListSerializer):
 
     def get_can_bill(self, obj) -> bool:
         return access.may_bill_project(self.context["profile"])
+
+    @extend_schema_field(ProjectRetainerUsageSerializer(allow_null=True))
+    def get_retainer_usage(self, obj):
+        return retainer_usage(obj, timezone.localdate())
 
 
 # A member's write leaves these as they are (a new project keeps the defaults):
@@ -219,6 +281,7 @@ ADMIN_ONLY_FIELDS = (
     "budget_hours",
     "budget_amount",
     "hourly_rate",
+    *RETAINER_FIELDS,
 )
 
 
@@ -252,6 +315,33 @@ class ProjectWriteSerializer(serializers.ModelSerializer):
         required=False,
         allow_blank=True,
     )
+    retainer_fee = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        min_value=Decimal("0.01"),
+        required=False,
+        allow_null=True,
+    )
+    # The hours in the longest month, so carried hours stay within the column.
+    retainer_hours = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        min_value=Decimal("0"),
+        max_value=Decimal("744"),
+        required=False,
+        allow_null=True,
+        error_messages={"max_value": "At most 744 hours, the hours in a month."},
+    )
+    retainer_overage_rate = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        min_value=Decimal("0"),
+        required=False,
+        allow_null=True,
+    )
+    retainer_carried_hours = serializers.DecimalField(
+        max_digits=10, decimal_places=2, min_value=Decimal("0"), required=False
+    )
     description = serializers.CharField(
         required=False, allow_blank=True, allow_null=True
     )
@@ -268,6 +358,7 @@ class ProjectWriteSerializer(serializers.ModelSerializer):
             "budget_hours",
             "budget_amount",
             "hourly_rate",
+            *RETAINER_FIELDS,
             "start_date",
             "due_date",
             "description",
@@ -287,6 +378,10 @@ class ProjectWriteSerializer(serializers.ModelSerializer):
             locked = ADMIN_ONLY_FIELDS
             if self.instance is not None:
                 locked += ("account",)
+            # A retainer's status decides the months it bills. Billing type
+            # is locked too, so a retainer before the write is one after it.
+            if getattr(self.instance, "billing_type", None) == RETAINER:
+                locked += ("status",)
             for name in locked:
                 self.fields.pop(name)
 
@@ -334,6 +429,7 @@ class ProjectWriteSerializer(serializers.ModelSerializer):
                 if self.instance
                 else org_currency(self.profile.org)
             )
+        self._check_retainer(attrs)
         project = self.instance
         if (
             project is not None
@@ -349,6 +445,25 @@ class ProjectWriteSerializer(serializers.ModelSerializer):
                 }
             )
         return attrs
+
+    def _check_retainer(self, attrs):
+        def saved(name):
+            return attrs[name] if name in attrs else getattr(self.instance, name, None)
+
+        if saved("billing_type") != RETAINER:
+            return
+        errors = {}
+        if saved("retainer_fee") is None:
+            errors["retainer_fee"] = ["Set the monthly fee."]
+        if (
+            saved("retainer_hours") is not None
+            and saved("retainer_overage_rate") is None
+        ):
+            errors["retainer_overage_rate"] = [
+                "Set the rate for hours over the allowance."
+            ]
+        if errors:
+            raise serializers.ValidationError(errors)
 
 
 class _RateBodySerializer(serializers.Serializer):

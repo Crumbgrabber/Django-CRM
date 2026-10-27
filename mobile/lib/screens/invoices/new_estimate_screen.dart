@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -7,6 +8,7 @@ import '../../core/theme/theme.dart';
 import '../../data/models/deal.dart' show Currency, Deal;
 import '../../data/models/custom_field_definition.dart';
 import '../../data/models/lookup_models.dart';
+import '../../data/models/project.dart' show ProjectBillingType;
 import '../../providers/auth_provider.dart';
 import '../../providers/invoice_extras_provider.dart';
 import '../../providers/lookup_provider.dart';
@@ -21,7 +23,10 @@ import 'line_item_sheet.dart';
 ///
 /// The invoice form's shape with an estimate's fields: a validity date instead
 /// of payment terms, an optional deal link, and terms beside the notes. The
-/// line list is the invoice form's own [LineItemsSection].
+/// line list is the invoice form's own [LineItemsSection]. As a proposal it
+/// also takes an introduction, a deposit and a project to start when the
+/// client accepts; the project choice shows only to an org admin while
+/// Projects is on.
 ///
 /// Started from a deal ([fromDeal]) it begins with that deal's account,
 /// currency, name, first contact and lines, all still editable. A prefilled
@@ -44,6 +49,12 @@ class _NewEstimateScreenState extends ConsumerState<NewEstimateScreen> {
   final _title = TextEditingController();
   final _notes = TextEditingController();
   final _terms = TextEditingController();
+  final _introduction = TextEditingController();
+  final _deposit = TextEditingController();
+
+  /// Sent only by an org admin while the Projects module is on.
+  bool _startProject = false;
+  ProjectBillingType _billingType = ProjectBillingType.fixedFee;
 
   String? _accountId;
   String? _contactId;
@@ -100,10 +111,26 @@ class _NewEstimateScreenState extends ConsumerState<NewEstimateScreen> {
     _title.dispose();
     _notes.dispose();
     _terms.dispose();
+    _introduction.dispose();
+    _deposit.dispose();
     super.dispose();
   }
 
   String get _symbol => Currency.fromString(_currency).symbol;
+
+  /// The deposit percent, or null for none.
+  double? get _depositPercent => double.tryParse(_deposit.text.trim());
+
+  /// The API takes a deposit above 0 and at most 100, or none. The web's
+  /// wording.
+  String? get _depositError {
+    if (_deposit.text.trim().isEmpty) return null;
+    final percent = _depositPercent;
+    if (percent == null || percent <= 0) {
+      return 'A deposit must be more than 0%.';
+    }
+    return percent > 100 ? 'A deposit cannot be more than 100%.' : null;
+  }
 
   bool get _datesBackwards =>
       _expiryDate != null && _expiryDate!.isBefore(_issueDate);
@@ -150,12 +177,16 @@ class _NewEstimateScreenState extends ConsumerState<NewEstimateScreen> {
     final dealId = dealsOn && deals.any((d) => d.id == _dealId)
         ? _dealId
         : null;
+    // An org admin's choice only: the server refuses it from anyone else.
+    final offerProject =
+        ref.watch(moduleOnProvider('projects')) &&
+        ref.watch(isOrgAdminProvider);
 
     final usable = _items
         .where((i) => i.name.trim().isNotEmpty && i.quantity > 0)
         .toList();
     // What the sent lines add up to, before the estimate's own discount.
-    final subtotal = usable.fold(0.0, (sum, item) => sum + item.netAmount);
+    final subtotal = usable.fold(0, (sum, item) => sum + item.netCents) / 100;
     final ready =
         accountId != null &&
         contactId != null &&
@@ -163,6 +194,7 @@ class _NewEstimateScreenState extends ConsumerState<NewEstimateScreen> {
         usable.isNotEmpty &&
         usable.every((i) => i.discountError == null) &&
         _adjustments.isValidFor(subtotal) &&
+        _depositError == null &&
         !_datesBackwards &&
         !_saving;
 
@@ -294,6 +326,20 @@ class _NewEstimateScreenState extends ConsumerState<NewEstimateScreen> {
                   ),
                 ]),
                 _card('What you are quoting', [
+                  TextField(
+                    controller: _introduction,
+                    minLines: 3,
+                    maxLines: 8,
+                    textCapitalization: TextCapitalization.sentences,
+                    inputFormatters: [LengthLimitingTextInputFormatter(5000)],
+                    decoration: const InputDecoration(
+                      labelText: 'Introduction (optional)',
+                      helperText: 'Shown to the client above the lines',
+                      alignLabelWithHint: true,
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   LineItemsSection(
                     items: _items,
                     symbol: _symbol,
@@ -312,6 +358,45 @@ class _NewEstimateScreenState extends ConsumerState<NewEstimateScreen> {
                     symbol: _symbol,
                     onChanged: (value) => setState(() => _adjustments = value),
                   ),
+                ]),
+                _card('When the client accepts', [
+                  _depositField(subtotal),
+                  if (offerProject) ...[
+                    const SizedBox(height: 4),
+                    // Its own Material: the card's colour would hide the ink.
+                    Material(
+                      type: MaterialType.transparency,
+                      child: SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        value: _startProject,
+                        onChanged: (v) => setState(() => _startProject = v),
+                        title: const Text('Start a project when accepted'),
+                      ),
+                    ),
+                    if (_startProject)
+                      DropdownButtonFormField<ProjectBillingType>(
+                        initialValue: _billingType,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Project billing',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: [
+                          for (final type in const [
+                            ProjectBillingType.fixedFee,
+                            ProjectBillingType.timeAndMaterials,
+                            ProjectBillingType.nonBillable,
+                          ])
+                            DropdownMenuItem(
+                              value: type,
+                              child: Text(type.label),
+                            ),
+                        ],
+                        onChanged: (value) => setState(
+                          () => _billingType = value ?? _billingType,
+                        ),
+                      ),
+                  ],
                 ]),
                 _card('Anything else', [
                   DropdownButtonFormField<String>(
@@ -366,6 +451,79 @@ class _NewEstimateScreenState extends ConsumerState<NewEstimateScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  /// The percent, with what the deposit invoice would come to beside it, or
+  /// a line saying there will be none when it rounds to nothing.
+  Widget _depositField(double subtotal) {
+    final percent = _depositPercent;
+    final amount = _depositError == null && percent != null
+        ? _adjustments.depositAmount(subtotal, percent)
+        : null;
+    final row = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          flex: 3,
+          child: TextField(
+            controller: _deposit,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+            ],
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
+              labelText: 'Deposit on acceptance',
+              hintText: 'None',
+              suffixText: '%',
+              errorText: _depositError,
+              errorMaxLines: 2,
+              border: const OutlineInputBorder(),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          flex: 2,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: amount == null || amount == 0
+                ? const SizedBox.shrink()
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        money(amount, _symbol),
+                        style: AppTypography.body.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        _adjustments.taxRate == 0
+                            ? 'deposit invoice'
+                            : 'deposit invoice, with tax',
+                        style: AppTypography.caption.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
+        ),
+      ],
+    );
+    if (amount != 0) return row;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        row,
+        const SizedBox(height: 6),
+        Text(
+          'Rounds to 0.00, so no deposit invoice is drafted.',
+          style: AppTypography.caption.copyWith(color: AppColors.warning700),
+        ),
+      ],
     );
   }
 
@@ -486,6 +644,12 @@ class _NewEstimateScreenState extends ConsumerState<NewEstimateScreen> {
     });
 
     final format = DateFormat('yyyy-MM-dd');
+    final introduction = _introduction.text.trim();
+    final deposit = _depositPercent;
+    final startProject =
+        _startProject &&
+        ref.read(moduleOnProvider('projects')) &&
+        ref.read(isOrgAdminProvider);
     final payload = <String, dynamic>{
       'account_id': accountId,
       'contact_id': contactId,
@@ -499,6 +663,12 @@ class _NewEstimateScreenState extends ConsumerState<NewEstimateScreen> {
       ],
       if (_notes.text.trim().isNotEmpty) 'notes': _notes.text.trim(),
       if (_terms.text.trim().isNotEmpty) 'terms': _terms.text.trim(),
+      if (introduction.isNotEmpty) 'introduction': introduction,
+      if (deposit != null) 'deposit_percent': deposit.toStringAsFixed(2),
+      if (startProject) ...{
+        'start_project': true,
+        'project_billing_type': _billingType.value,
+      },
       ..._adjustments.toPayload(),
       if (fieldDefs.isNotEmpty)
         'custom_fields': sendableCustomFields(fieldDefs, _customFields),

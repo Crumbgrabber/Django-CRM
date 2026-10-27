@@ -15,12 +15,6 @@ from common.models import CustomFieldDefinition
 from contacts.models import Contact
 from invoices.models import Estimate, RecurringInvoice
 
-pg_only = pytest.mark.skipif(
-    connection.vendor != "postgresql",
-    reason="JSONField __contains lookup requires PostgreSQL",
-)
-
-
 ESTIMATES_URL = "/api/invoices/estimates/"
 RECURRING_URL = "/api/invoices/recurring/"
 
@@ -183,7 +177,6 @@ class TestEstimateUpdateWithCustomFields:
         assert response.status_code == 400
 
 
-@pg_only
 @pytest.mark.django_db
 class TestEstimateListFilter:
     def test_cf_filter_returns_matching(
@@ -352,7 +345,6 @@ class TestRecurringUpdateWithCustomFields:
         }
 
 
-@pg_only
 @pytest.mark.django_db
 class TestRecurringListFilter:
     def test_cf_filter_returns_matching(

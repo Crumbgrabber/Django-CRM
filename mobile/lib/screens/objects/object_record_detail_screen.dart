@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -125,7 +127,10 @@ class _ObjectRecordDetailScreenState
       _snack(response.message ?? 'Failed to delete $label', error: true);
       return;
     }
-    ref.invalidate(objectRecordsProvider(widget.objectKey));
+    // Refresh in place: the list keeps its filters and its search text.
+    unawaited(
+      ref.read(objectRecordsProvider(widget.objectKey).notifier).refresh(),
+    );
     context.pop();
   }
 
@@ -312,6 +317,16 @@ class _ObjectRecordDetailScreenState
                     if (files.isEmpty) _none(),
                     for (final a in files) _fileRow(a),
                     if (record.canEdit) _attachButton(),
+                  ]),
+                if (record.tags.isNotEmpty)
+                  _card('Tags', [
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        for (final t in record.tags) LabelPill(label: t.name),
+                      ],
+                    ),
                   ]),
                 _card('People', [
                   _field(

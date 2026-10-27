@@ -23,10 +23,23 @@ String? discountBoundError(
   return value > (cap * 100).roundToDouble() / 100 ? capMessage : null;
 }
 
+/// [value] in hundredths: an amount in cents, or a quantity or percent the
+/// API stores to two places. Exact for any value the forms let through.
+int hundredths(double value) => (value * 100).round();
+
+/// [numerator] / [denominator] (positive) rounded half up, away from zero, as
+/// the server's `ROUND_HALF_UP`. Integer arithmetic, so a float that sits
+/// just under a half (1.15 x 10% is 0.11499...) cannot round it down.
+int divideHalfUp(int numerator, int denominator) {
+  final magnitude = (numerator.abs() * 2 + denominator) ~/ (denominator * 2);
+  return numerator < 0 ? -magnitude : magnitude;
+}
+
 /// A document's own discount, tax and shipping, as the web builders' adjustments
 /// card sets them. The server recomputes every figure on save; [total] is the
 /// same ladder in the same order (discount off the subtotal, tax on what is
-/// left, shipping added untaxed), shown as a guide.
+/// left, shipping added untaxed), shown as a guide. Every step is in cents,
+/// rounded half up as the server rounds it.
 class DocumentAdjustments {
   const DocumentAdjustments({
     this.discountType = '',
@@ -43,17 +56,35 @@ class DocumentAdjustments {
   /// Invoices only. An estimate or a schedule has no shipping.
   final double shipping;
 
-  double discountAmount(double subtotal) => switch (discountType) {
-    'PERCENTAGE' => subtotal * discountValue / 100,
-    'FIXED' => discountValue,
-    _ => 0,
-  };
+  /// Capped at the subtotal, as the server caps it.
+  int _discountCents(int subtotal) {
+    final discount = switch (discountType) {
+      'PERCENTAGE' => divideHalfUp(subtotal * hundredths(discountValue), 10000),
+      'FIXED' => hundredths(discountValue),
+      _ => 0,
+    };
+    return discount < subtotal ? discount : subtotal;
+  }
 
-  double taxAmount(double subtotal) =>
-      (subtotal - discountAmount(subtotal)) * taxRate / 100;
+  int _pretaxCents(int subtotal) => subtotal - _discountCents(subtotal);
 
-  double total(double subtotal) =>
-      subtotal - discountAmount(subtotal) + taxAmount(subtotal) + shipping;
+  int _taxCents(int taxable) =>
+      divideHalfUp(taxable * hundredths(taxRate), 10000);
+
+  double total(double subtotal) {
+    final pretax = _pretaxCents(hundredths(subtotal));
+    return (pretax + _taxCents(pretax) + hundredths(shipping)) / 100;
+  }
+
+  /// What the deposit invoice for [percent] of an estimate would total, as
+  /// `estimate_deposit` bills it: that share of the pre-tax amount to the
+  /// cent, then this tax rate on that part to the cent. Zero means the server
+  /// drafts no deposit invoice.
+  double depositAmount(double subtotal, double percent) {
+    final pretax = _pretaxCents(hundredths(subtotal));
+    final part = divideHalfUp(pretax * hundredths(percent), 10000);
+    return (part + _taxCents(part)) / 100;
+  }
 
   /// The API's refusal for this discount on [subtotal], or null.
   String? discountError(double subtotal) => discountType.isEmpty
