@@ -14,6 +14,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from cases.access import visible_cases_qs
+from common.custom_fields import custom_field_filter
 from common.custom_fields import validate_payload as validate_custom_fields_payload
 from common.lookups import get_on_visible_record_or_404
 from common.models import (
@@ -109,12 +110,7 @@ def contact_list_queryset(profile, params):
     created_at_lte = date_param(params, "created_at__lte")
     if created_at_lte:
         queryset = queryset.filter(created_at__date__lte=created_at_lte)
-    # Custom-field filters: ?cf_<key>=<value> -> custom_fields contains pair.
-    for raw_key, raw_value in params.items():
-        if raw_key.startswith("cf_") and raw_value:
-            cf_key = raw_key[3:]
-            if cf_key:
-                queryset = queryset.filter(custom_fields__contains={cf_key: raw_value})
+    queryset = queryset.filter(custom_field_filter("Contact", profile.org, params))
     matching = queryset.distinct()
     rows = matching
     if params.get("is_active") in ("true", "false"):

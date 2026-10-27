@@ -6,8 +6,12 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/api_config.dart';
+import '../data/api/enterprise_schema.g.dart' as enterprise;
 import '../data/api/schema.g.dart' as api;
+import '../data/models/custom_object.dart';
 import '../services/api_service.dart';
+
+enum _CsvKind { contacts, tickets, leads, object }
 
 /// Spreadsheet import for contacts, tickets and leads: preview, then commit.
 ///
@@ -29,8 +33,13 @@ import '../services/api_service.dart';
 /// mapping against each module's own fields, cap the size at 5 MB and the rows
 /// at 5000, throttle, and scope every write to the caller's org. The checks
 /// below only save somebody an upload the server would refuse.
-enum CsvImportTarget {
-  contacts(
+///
+/// A target is one of the three built-in lists, or the records of one custom
+/// object ([CsvImportTarget.forObject]). Two targets are equal when they import
+/// into the same place, so a target is a provider key.
+class CsvImportTarget {
+  static const contacts = CsvImportTarget._(
+    kind: _CsvKind.contacts,
     singular: 'contact',
     plural: 'contacts',
     description:
@@ -79,8 +88,10 @@ enum CsvImportTarget {
       'Sales',
       'vip;newsletter',
     ],
-  ),
-  tickets(
+  );
+
+  static const tickets = CsvImportTarget._(
+    kind: _CsvKind.tickets,
     singular: 'ticket',
     plural: 'tickets',
     description:
@@ -118,8 +129,10 @@ enum CsvImportTarget {
       'auth;urgent',
       '',
     ],
-  ),
-  leads(
+  );
+
+  static const leads = CsvImportTarget._(
+    kind: _CsvKind.leads,
     singular: 'lead',
     plural: 'leads',
     description:
@@ -164,7 +177,8 @@ enum CsvImportTarget {
     ],
   );
 
-  const CsvImportTarget({
+  const CsvImportTarget._({
+    required _CsvKind kind,
     required this.singular,
     required this.plural,
     required this.description,
@@ -172,7 +186,69 @@ enum CsvImportTarget {
     required this.templateHeaders,
     required this.templateExample,
     this.optionalHelp,
-  });
+    this.objectKey,
+    this.fields = const [],
+  }) : _kind = kind;
+
+  /// The three built-in targets.
+  static const values = [contacts, tickets, leads];
+
+  /// The records of the custom object [key]. The template and the sample line
+  /// come from [fields], whose active, non-link members become columns; the
+  /// columns a file can be matched to come from the server's preview.
+  factory CsvImportTarget.forObject({
+    required String key,
+    required String label,
+    required String labelPlural,
+    String nameLabel = 'Name',
+    List<ObjectField> fields = const [],
+  }) {
+    final columns = [
+      for (final f in fields)
+        if (f.isActive && !f.isLink && !_reservedImportKeys.contains(f.key)) f,
+    ]..sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
+    final lowerPlural = labelPlural.toLowerCase();
+    return CsvImportTarget._(
+      kind: _CsvKind.object,
+      objectKey: key,
+      fields: columns,
+      singular: label.toLowerCase(),
+      plural: lowerPlural,
+      description:
+          'Bring in a spreadsheet of $lowerPlural. You\'ll check how its '
+          'columns match, and nothing is written until you choose Import.',
+      requiredHeaders: [nameLabel],
+      templateHeaders: [
+        nameLabel,
+        for (final f in columns) f.label,
+        'Assigned to',
+        'Tags',
+      ],
+      templateExample: [
+        'Example ${label.toLowerCase()}',
+        for (final f in columns) _exampleValue(f),
+        'agent@yourco.com',
+        'vip,featured',
+      ],
+    );
+  }
+
+  final _CsvKind _kind;
+
+  /// The object's key, for a custom object's target.
+  final String? objectKey;
+
+  /// The columns a custom object's template and sample line are built from.
+  final List<ObjectField> fields;
+
+  @override
+  bool operator ==(Object other) =>
+      other is CsvImportTarget &&
+      other._kind == _kind &&
+      other.objectKey == objectKey;
+
+  @override
+  int get hashCode => Object.hash(_kind, objectKey);
 
   final String singular;
   final String plural;
@@ -197,23 +273,20 @@ enum CsvImportTarget {
 
   /// Whether the import matches columns (`mapping`), which takes `.xlsx` too.
   /// Tickets keep the template-only import, `.csv` only.
-  bool get usesMapping => this != CsvImportTarget.tickets;
+  bool get usesMapping => _kind != _CsvKind.tickets;
 
-  String get _moduleUrl {
-    switch (this) {
-      case CsvImportTarget.contacts:
-        return ApiConfig.contacts;
-      case CsvImportTarget.tickets:
-        return ApiConfig.tickets;
-      case CsvImportTarget.leads:
-        return ApiConfig.leads;
-    }
-  }
+  String get _moduleUrl => switch (_kind) {
+    _CsvKind.contacts => ApiConfig.contacts,
+    _CsvKind.tickets => ApiConfig.tickets,
+    _CsvKind.leads => ApiConfig.leads,
+    _CsvKind.object => ApiConfig.objectRecords(objectKey ?? ''),
+  };
 
   String get previewUrl => ApiConfig.csvImportPreview(_moduleUrl);
   String get commitUrl => ApiConfig.csvImportCommit(_moduleUrl);
 
-  String get templateFileName => '$plural-import-template.csv';
+  /// A custom object's file is named by its key, as the web's is.
+  String get templateFileName => '${objectKey ?? plural}-import-template.csv';
 
   /// The name the web drawer gives its "Download errors" file.
   String get errorsFileName => '$plural-import-errors.csv';
@@ -229,12 +302,12 @@ enum CsvImportTarget {
     String text(String? value) => value?.trim() ?? '';
     final List<String> details;
     final String title;
-    switch (this) {
-      case CsvImportTarget.contacts:
+    switch (_kind) {
+      case _CsvKind.contacts:
         final r = api.ContactImportRow.fromJson(row);
         title = '${text(r.firstName)} ${text(r.lastName)}'.trim();
         details = [text(r.email), text(r.phone), text(r.organization)];
-      case CsvImportTarget.tickets:
+      case _CsvKind.tickets:
         final r = api.CaseImportValidRow.fromJson(row);
         title = text(r.name);
         details = [
@@ -242,10 +315,19 @@ enum CsvImportTarget {
           text(r.priority),
           if (r.accountId != null) 'account linked',
         ];
-      case CsvImportTarget.leads:
+      case _CsvKind.leads:
         final r = api.LeadImportRow.fromJson(row);
         title = '${text(r.firstName)} ${text(r.lastName)}'.trim();
         details = [text(r.email), text(r.companyName), text(r.status)];
+      case _CsvKind.object:
+        final r = enterprise.CustomRecordImportRow.fromJson(row);
+        title = text(r.name);
+        final values = r.customFields;
+        details = [
+          for (final f in fields)
+            if (values != null && hasFieldValue(values[f.key]))
+              displayValue(f, values[f.key]),
+        ].take(3).toList();
     }
     return (
       title: title.isEmpty ? 'Unnamed' : title,
@@ -254,10 +336,11 @@ enum CsvImportTarget {
   }
 
   /// The file's row number of one valid row (see [sampleLine]), if it says.
-  int? sampleRow(Map<String, dynamic> row) => switch (this) {
-    CsvImportTarget.contacts => api.ContactImportRow.fromJson(row).row,
-    CsvImportTarget.tickets => api.CaseImportValidRow.fromJson(row).row,
-    CsvImportTarget.leads => api.LeadImportRow.fromJson(row).row,
+  int? sampleRow(Map<String, dynamic> row) => switch (_kind) {
+    _CsvKind.contacts => api.ContactImportRow.fromJson(row).row,
+    _CsvKind.tickets => api.CaseImportValidRow.fromJson(row).row,
+    _CsvKind.leads => api.LeadImportRow.fromJson(row).row,
+    _CsvKind.object => enterprise.CustomRecordImportRow.fromJson(row).row,
   };
 
   /// The template as CSV text, quoting a cell only when it holds a comma, as
@@ -268,6 +351,28 @@ enum CsvImportTarget {
   ].join('\n');
 
   String noun(int count) => count == 1 ? singular : plural;
+}
+
+/// Field keys the server never takes as import targets: they would collide
+/// with the name, assignee and tags columns (and `full_name`).
+const _reservedImportKeys = {'name', 'assigned_to', 'tags', 'full_name'};
+
+/// A cell for a custom field's column in the template, by its type.
+String _exampleValue(ObjectField f) {
+  switch (f.fieldType) {
+    case 'number':
+      return '3';
+    case 'checkbox':
+      return 'Yes';
+    case 'date':
+      return '2026-12-31';
+    case 'textarea':
+      return 'A longer note';
+    case 'dropdown':
+      return f.options.isEmpty ? '' : f.options.first.label;
+    default:
+      return 'Example';
+  }
 }
 
 /// Mirrors `MAX_UPLOAD_BYTES` in the three import views.
@@ -998,7 +1103,7 @@ class CsvImportNotifier extends Notifier<CsvImportState> {
     ApiResponse<Map<String, dynamic>> response,
     String fallback,
   ) {
-    if (response.statusCode == 403) return csvImportForbiddenMessage;
+    if (response.statusCode == 403) return _forbiddenMessage(response.data);
     if (response.statusCode == 413) return csvImportTooLargeMessage;
     if (response.statusCode == 429) return csvImportThrottledMessage;
     final body = response.data;
@@ -1011,6 +1116,14 @@ class CsvImportNotifier extends Notifier<CsvImportState> {
     }
     return fallback;
   }
+}
+
+/// A 403 shows the server's `detail` sentence (the import permission, or the
+/// plan not including custom objects), else the fixed permission sentence.
+String _forbiddenMessage(Map<String, dynamic>? body) {
+  final detail = body?['detail'];
+  if (detail is String && detail.trim().isNotEmpty) return detail;
+  return csvImportForbiddenMessage;
 }
 
 /// One import per module, discarded when its sheet closes, so reopening the

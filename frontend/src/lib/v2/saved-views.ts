@@ -1,4 +1,5 @@
 import type { ReadonlyURL, ReadonlyURLSearchParams } from '$app/state';
+import { UUID } from '#lib/v2/custom-objects.js';
 
 /**
  * Saved views (G29): a person's named filters for one list, put back with one
@@ -20,6 +21,10 @@ import type { ReadonlyURL, ReadonlyURLSearchParams } from '$app/state';
  *   and `?all=1` shows all of them, while to the API no `status` is every
  *   status. The helpers translate both ways, so an open-queue view is saved as
  *   its three statuses and a view with no status opens as All.
+ * - `accepts` (custom objects): what values the page's control for a key can
+ *   hold, as data because the spec travels to the browser: `'id'` (a profile or
+ *   tag id), `'boolean'`, `'text'` (any value the API can store: no NUL, at most 255 characters), or the list of option values. A view holding any other
+ *   value is shown as losing it, as the page's URL reader drops it.
  * - `keep`: URL parameters that are not filters and survive opening a view,
  *   such as the pipeline's `view=board`.
  */
@@ -27,6 +32,7 @@ export type Spec = {
   keys: string[];
   multi?: string[];
   implicit?: { key: string; values: string[]; allParam: string } | null;
+  accepts?: Record<string, 'id' | 'boolean' | 'text' | string[]>;
   keep?: string[];
 };
 
@@ -73,16 +79,29 @@ export function viewHref(url: ReadonlyURL, filters: Record<string, string[]>, sp
   return qs ? `${url.pathname}?${qs}` : url.pathname;
 }
 
+function accepted(rule: 'id' | 'boolean' | 'text' | string[], value: string): boolean {
+  if (rule === 'text') return value.length <= 255 && !value.includes('\u0000');
+  if (rule === 'id') return UUID.test(value);
+  if (rule === 'boolean') return value === 'true' || value === 'false';
+  return rule.includes(value);
+}
+
 /**
  * How many of a view's filter values this page cannot apply: every value of a
  * parameter it has no control for, and every value past the first of one it
- * reads singly.
+ * reads singly, and every value its `accepts` rule refuses.
  */
 export function droppedValues(filters: Record<string, string[]>, spec: Spec) {
   let dropped = 0;
   for (const [key, values] of Object.entries(filters ?? {})) {
-    if (!spec.keys.includes(key)) dropped += values.length;
-    else if (!spec.multi?.includes(key)) dropped += Math.max(0, values.length - 1);
+    if (!spec.keys.includes(key)) {
+      dropped += values.length;
+      continue;
+    }
+    const rule = spec.accepts?.[key];
+    const usable = rule ? values.filter((v) => accepted(rule, v)) : values;
+    dropped += values.length - usable.length;
+    if (!spec.multi?.includes(key)) dropped += Math.max(0, usable.length - 1);
   }
   return dropped;
 }

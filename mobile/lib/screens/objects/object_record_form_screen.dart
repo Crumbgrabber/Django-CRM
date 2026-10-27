@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -50,7 +52,9 @@ class _ObjectRecordFormScreenState
   Map<String, dynamic> _custom = {};
   Map<String, List<LinkedRecord>> _links = {};
   List<String> _assignees = [];
+  List<String> _tagIds = [];
   final Map<String, String> _storedNames = {};
+  final Map<String, String> _tagNames = {};
 
   bool _saving = false;
   bool _dirty = false;
@@ -115,6 +119,39 @@ class _ObjectRecordFormScreenState
     for (final p in original.assignedTo) {
       _storedNames[p.id] = p.name.isNotEmpty ? p.name : p.email;
     }
+    _tagIds = [for (final t in original.tags) t.id];
+    for (final t in original.tags) {
+      _tagNames[t.id] = t.name;
+    }
+  }
+
+  Future<void> _pickTags(List<TagLookup> tags) async {
+    final picked = await MultiSelectSheet.show<TagLookup>(
+      context: context,
+      title: 'Tags',
+      items: tags,
+      initialSelection: [
+        for (final t in tags)
+          if (_tagIds.contains(t.id)) t,
+      ],
+      labelOf: (t) => t.name,
+      searchText: (t) => t.name,
+      emptyMessage: 'No tags',
+    );
+    if (picked == null) return;
+    final listed = {for (final t in tags) t.id};
+    setState(() {
+      // A tag the record carries that is turned off is not offered, and stays.
+      _tagIds = [
+        for (final id in _tagIds)
+          if (!listed.contains(id)) id,
+        for (final t in picked) t.id,
+      ];
+      for (final t in picked) {
+        _tagNames[t.id] = t.name;
+      }
+      _dirty = true;
+    });
   }
 
   List<UserLookup> _people(List<UserLookup> active) {
@@ -168,6 +205,7 @@ class _ObjectRecordFormScreenState
         for (final e in _links.entries) e.key: [for (final r in e.value) r.id],
       },
       assignees: _assignees,
+      tags: _tagIds,
       original: _original,
     );
     final api = ref.read(customObjectsApiProvider);
@@ -201,7 +239,10 @@ class _ObjectRecordFormScreenState
     }
     setState(() => _saving = false);
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ref.invalidate(objectRecordsProvider(widget.objectKey));
+    // Refresh in place: the list keeps its filters and its search text.
+    unawaited(
+      ref.read(objectRecordsProvider(widget.objectKey).notifier).refresh(),
+    );
     if (_editing) {
       context.pop();
       return;
@@ -309,6 +350,13 @@ class _ObjectRecordFormScreenState
   Widget _form(ObjectDefinition def, String title) {
     final people = _people(ref.watch(usersProvider));
     final byId = {for (final u in people) u.id: u};
+    final tags = ref.watch(tagsProvider);
+    // "No longer active" is only known once the list has loaded; while it
+    // loads, or after it fails, a carried tag shows plainly.
+    final tagsLoaded = ref.watch(tagsLookupProvider).hasValue;
+    for (final t in tags) {
+      _tagNames[t.id] = t.name;
+    }
     final original = _original;
     return UnsavedChangesGuard(
       hasUnsavedChanges: () => _dirty,
@@ -395,6 +443,49 @@ class _ObjectRecordFormScreenState
                   onPressed: () => _pickAssignees(people),
                   icon: const Icon(LucideIcons.userPlus, size: 16),
                   label: const Text('Choose'),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Tags',
+                  style: AppTypography.label.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                if (_tagIds.isNotEmpty)
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: [
+                      for (final id in _tagIds)
+                        if (!tagsLoaded || tags.any((t) => t.id == id))
+                          Chip(label: Text(_tagNames[id] ?? 'Tag'))
+                        else
+                          // Turned off since it was applied: not offered in the
+                          // picker, so this is the only way to drop it.
+                          InputChip(
+                            label: Text(
+                              '${_tagNames[id] ?? 'Tag'} (no longer active)',
+                            ),
+                            onDeleted: () => setState(() {
+                              _tagIds = [
+                                for (final t in _tagIds)
+                                  if (t != id) t,
+                              ];
+                              _dirty = true;
+                            }),
+                            deleteButtonTooltipMessage: 'Remove tag',
+                          ),
+                    ],
+                  ),
+                TextButton.icon(
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(44, 44),
+                    alignment: Alignment.centerLeft,
+                  ),
+                  onPressed: () => _pickTags(tags),
+                  icon: const Icon(LucideIcons.tag, size: 16),
+                  label: const Text('Choose tags'),
                 ),
                 if (_saveError != null) ...[
                   const SizedBox(height: 16),

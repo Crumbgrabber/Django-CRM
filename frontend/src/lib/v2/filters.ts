@@ -53,8 +53,14 @@ export type Field = {
   gteKey?: string;
   lteKey?: string;
   multi?: boolean;
+  /** A select that keeps a value no longer among its options (a removed custom option still matches records). */
+  keepUnknown?: boolean;
 };
-type Descriptor = { presets: Preset[]; fields: Field[] };
+export type Descriptor = { presets: Preset[]; fields: Field[] };
+
+/** A page's descriptor from its key, or a descriptor built at run time (custom objects). */
+export const descriptorFor = (page: string | Descriptor): Descriptor | undefined =>
+  typeof page === 'string' ? FILTERS[page] : page;
 
 export const FILTERS: Record<string, Descriptor> = {
   tickets: {
@@ -335,8 +341,12 @@ export function withParams(url: ReadonlyURL, params: Record<string, string | nul
  * someone-else's-owned view as "Mine" would assert something false about
  * what is on screen.
  */
-export function activePresetKey(pageKey: string, url: ReadonlyURL, meId: string | null = null) {
-  const descriptor = FILTERS[pageKey];
+export function activePresetKey(
+  pageKey: string | Descriptor,
+  url: ReadonlyURL,
+  meId: string | null = null
+) {
+  const descriptor = descriptorFor(pageKey);
   if (!descriptor) return '';
   const withParamsSet = descriptor.presets.filter((p) => Object.keys(p.params).length > 0);
   for (const preset of withParamsSet) {
@@ -366,11 +376,11 @@ type ChipLookup = { id: string; name?: string | null };
  * falls back to the raw value rather than rendering an empty chip.
  */
 export function activeChips(
-  pageKey: string,
+  pageKey: string | Descriptor,
   url: ReadonlyURL,
   lookups: { [K in 'people' | 'tags' | 'accounts' | 'stages' | 'sources']?: ChipLookup[] } = {}
 ) {
-  const descriptor = FILTERS[pageKey];
+  const descriptor = descriptorFor(pageKey);
   if (!descriptor) return [];
   const nameFrom = (list: ChipLookup[], id: string) => list?.find((o) => o.id === id)?.name ?? id;
 

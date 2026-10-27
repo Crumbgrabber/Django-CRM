@@ -1407,19 +1407,12 @@ class SavedView(BaseOrgModel):
     takes, and how they are checked, lives in ``common/saved_views.py``.
     """
 
-    MODULE_CHOICES = (
-        ("leads", "Leads"),
-        ("contacts", "Contacts"),
-        ("accounts", "Accounts"),
-        ("opportunities", "Deals"),
-        ("cases", "Tickets"),
-        ("invoices", "Invoices"),
-    )
-
     profile = models.ForeignKey(
         "common.Profile", on_delete=models.CASCADE, related_name="saved_views"
     )
-    module = models.CharField(max_length=20, choices=MODULE_CHOICES)
+    # A list name from `common.saved_views.saved_lists`, which decides what
+    # a view may be saved on; no choices here, since an installed app adds lists.
+    module = models.CharField(max_length=40)
     name = models.CharField(max_length=100)
     filters = models.JSONField(default=dict, blank=True)
 

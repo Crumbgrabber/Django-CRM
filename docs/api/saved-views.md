@@ -1,9 +1,14 @@
 # Saved views
 
 A saved view is a name and a set of list filters, stored for one person so they can put a filtered
-list back with one tap. The six lists that [export to CSV](exports.md) take one: leads, contacts,
-accounts, deals, tickets and invoices. Routes are in `backend/common/urls.py`, views in
+list back with one tap. The six built-in lists that [export to CSV](exports.md) take one: leads,
+contacts, accounts, deals, tickets and invoices. Routes are in `backend/common/urls.py`, views in
 `common/views/saved_view_views.py`, and what a view may hold in `common/saved_views.py`.
+
+Which lists take a view comes from the object registry (`common/object_registry.py`): an entry
+whose `list_spec` names a `SavedList` takes views, and `saved_lists(org)` gathers the lists an org
+has. An installed app that adds registry entries through `register_hook` adds its lists the same
+way.
 
 | Endpoint | Does |
 | --- | --- |
@@ -51,9 +56,22 @@ For personal access tokens the resource is `saved-views`: `saved-views:read` to 
 }
 ```
 
-`module` is the API name of the list: `leads`, `contacts`, `accounts`, `opportunities` (deals),
-`cases` (tickets) or `invoices`. It is fixed once the view exists; a `PATCH` naming another list is
-a `400`.
+`module` is the name of the list, a string of at most 40 characters: `leads`, `contacts`,
+`accounts`, `opportunities` (deals), `cases` (tickets), `invoices`, or the name of a list an
+installed app adds. It is fixed once the view exists; a `PATCH` naming another list is a `400`.
+
+Saving a view on a list the org does not have is a `400` under `module`: the module message when a
+built-in list's module is switched off, else this:
+
+```json
+{"module": ["\"tasks\" is not a valid choice."]}
+```
+
+`GET /api/saved-views/?module=<name>` answers `400`, naming the lists the org has, for a name it
+does not know, and an empty list for a built-in list whose module is off.
+
+A view whose list the org no longer has (its module switched off, or an app's list gone) is left
+out of the list and answers `404`, and stays stored: it comes back when the list does.
 
 `filters` holds the list's own query parameters, each as a list of values, so a view is applied by
 sending them to the list as they are: the example above is
@@ -72,14 +90,16 @@ The list response carries the cap alongside the views:
 A view is checked before it is stored, so a bad one is a `400` now rather than a list that breaks
 every time the view is applied:
 
-- **Only the parameters its list reads.** Each list's accepted set is written out in
-  `LISTS` (`common/saved_views.py`), beside the function that list builds its queryset with, and a
-  test reads those functions to prove the two agree. A `cf_<key>` custom-field filter is accepted on
-  all six. Paging (`limit`, `offset`) and anything else is refused:
-  `{"filters": ["This list does not filter by: limit."]}`.
+- **Only the parameters its list reads.** Each list's accepted set is written out in its
+  `SavedList` (`common/saved_views.py`), beside the function that list builds its queryset with,
+  and a test reads the built-in functions to prove the two agree. A `cf_<key>` custom-field filter
+  is accepted on every list, and checked by its field's type (see
+  [Conventions](conventions.md#filtering-and-search)). Paging (`limit`, `offset`) and anything else
+  is refused: `{"filters": ["This list does not filter by: limit."]}`.
 - **Values the list can parse.** The filters are run through the list's own parameter parsing
   (the queryset is built, never evaluated), so a malformed id, date or number is refused with the
-  list's own message: `{"filters": ["assigned_to: 'x' is not a valid id."]}`. A value that parses but
+  list's own message: `{"filters": ["assigned_to: 'x' is not a valid id."]}`, or
+  `{"filters": ["cf_bedrooms: must be a number"]}` for a number field. A value that parses but
   matches nothing, a status that does not exist for example, is stored, exactly as the list would
   accept it.
 - **Bounded.** At most 30 parameters, 50 values per parameter, and 200 characters per value. Every
@@ -110,7 +130,7 @@ renaming and changing the filters of an existing view still work at the cap:
 
 ## In the apps
 
-The web lists and the mobile app both offer a saved-views menu on these six lists, over this API,
+The web lists and the mobile app both offer a saved-views menu on these lists, over this API,
 so a view saved on one opens on the other. A view means what the list endpoint means: on tickets,
 no `status` is every status, so both clients save the open queue as its three statuses and open a
 view without a status as All. Each client saves only the filters its own screen can show and set;

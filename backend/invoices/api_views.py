@@ -23,6 +23,7 @@ from rest_framework.views import APIView
 
 from accounts.models import Account
 from cases.services.billing import GROUPINGS
+from common.custom_fields import custom_field_filter
 from common.custom_fields import validate_payload as validate_custom_fields_payload
 from common.lookups import get_on_visible_record_or_404
 from common.models import Attachments, Comment, CustomFieldDefinition
@@ -359,13 +360,14 @@ class RecurringInvoiceBodySerializer(RecurringInvoiceCreateSerializer):
 # =============================================================================
 
 
-def filter_invoices(queryset, params):
+def filter_invoices(queryset, params, org):
     """Narrow ``queryset`` by the invoice list's query string, and order it.
 
     The list and the CSV export both call this over `visible_invoices_qs`, so a
     downloaded file holds exactly the invoices the page would show with the
     same filters. It used to be the list view's own `filter_queryset`, beside
-    an inline copy of the read rule.
+    an inline copy of the read rule. ``org``'s custom fields type the
+    ``cf_<key>`` filters.
     """
     # Search by invoice number or title (limit length to prevent expensive queries)
     search = params.get("search")
@@ -410,12 +412,7 @@ def filter_invoices(queryset, params):
         if day:
             queryset = queryset.filter(**{lookup: day})
 
-    # Filter by custom_fields (cf_<key>=value)
-    for raw_key, raw_value in params.items():
-        if raw_key.startswith("cf_") and raw_value:
-            cf_key = raw_key[3:]
-            if cf_key:
-                queryset = queryset.filter(custom_fields__contains={cf_key: raw_value})
+    queryset = queryset.filter(custom_field_filter("Invoice", org, params))
 
     # Sorting
     sort = params.get("sort", "-created_at")
@@ -454,7 +451,7 @@ class InvoiceListView(APIView, LimitOffsetPagination):
     )
     def get(self, request, *args, **kwargs):
         base = self.get_queryset()
-        queryset = filter_invoices(base, request.query_params)
+        queryset = filter_invoices(base, request.query_params, request.profile.org)
         results = self.paginate_queryset(queryset, request, view=self)
         serializer = InvoiceListSerializer(results, many=True)
 
@@ -1522,14 +1519,9 @@ class EstimateListView(APIView, LimitOffsetPagination):
                 | Q(client_name__icontains=search)
             )
 
-        # Filter by custom_fields (cf_<key>=value)
-        for raw_key, raw_value in params.items():
-            if raw_key.startswith("cf_") and raw_value:
-                cf_key = raw_key[3:]
-                if cf_key:
-                    queryset = queryset.filter(
-                        custom_fields__contains={cf_key: raw_value}
-                    )
+        queryset = queryset.filter(
+            custom_field_filter("Estimate", request.profile.org, params)
+        )
 
         results = self.paginate_queryset(
             queryset.order_by("-created_at"), request, view=self
@@ -1926,14 +1918,9 @@ class RecurringInvoiceListView(APIView, LimitOffsetPagination):
             is_active = params.get("is_active").lower() == "true"
             queryset = queryset.filter(is_active=is_active)
 
-        # Filter by custom_fields (cf_<key>=value)
-        for raw_key, raw_value in params.items():
-            if raw_key.startswith("cf_") and raw_value:
-                cf_key = raw_key[3:]
-                if cf_key:
-                    queryset = queryset.filter(
-                        custom_fields__contains={cf_key: raw_value}
-                    )
+        queryset = queryset.filter(
+            custom_field_filter("RecurringInvoice", request.profile.org, params)
+        )
 
         results = self.paginate_queryset(queryset, request, view=self)
         return Response(

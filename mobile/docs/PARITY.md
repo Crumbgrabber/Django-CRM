@@ -43,6 +43,7 @@ These are not gaps. Do not build them on mobile without a decision.
 | Public help center pages (`routes/(no-layout)/help-center/`) | Anonymous, search-indexable pages for an org's customers, not app users. Both clients have the admin settings for it. |
 | HTML and CSS editing in the invoice template editor | Editing markup on a phone is not a real use; mobile edits the template's other fields. |
 | Settings › Billing (choosing or managing a plan, its state and notices) | The phone never sells or links to buying. Where the server offers billing, Settings › Organization shows the plan's name read-only (`billing_provider.dart`); a server without billing shows nothing. |
+| Global search across every record type (the web command palette, `GET /api/search/`) | Web only for every record type, custom objects included. The phone finds records through each list's own search box and filters. |
 
 ## Closed
 

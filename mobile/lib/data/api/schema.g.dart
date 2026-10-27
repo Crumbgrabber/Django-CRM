@@ -9371,6 +9371,7 @@ class GlobalSearchHit {
     this.id,
     this.title,
     this.subtitle,
+    this.group,
   });
 
   factory GlobalSearchHit.fromJson(Map<String, dynamic> json) =>
@@ -9380,6 +9381,7 @@ class GlobalSearchHit {
         id: _string(json['id']),
         title: _string(json['title']),
         subtitle: _string(json['subtitle']),
+        group: _string(json['group']),
       );
 
   /// The object as received, for handing it to its own model.
@@ -9388,6 +9390,7 @@ class GlobalSearchHit {
   final String? id;
   final String? title;
   final String? subtitle;
+  final String? group;
 }
 
 class GlobalSearchResponse {
@@ -18709,13 +18712,20 @@ class Tags {
 }
 
 class TagsListResponse {
-  const TagsListResponse(this.json, {this.tagsCount, this.tags, this.totals});
+  const TagsListResponse(
+    this.json, {
+    this.tagsCount,
+    this.tags,
+    this.usageLabels,
+    this.totals,
+  });
 
   factory TagsListResponse.fromJson(Map<String, dynamic> json) =>
       TagsListResponse(
         json,
         tagsCount: _int(json['tags_count']),
         tags: _list(json['tags'], (v) => _object(v, TagsListRow.fromJson)),
+        usageLabels: _map(json['usage_labels'], _string),
         totals: _object(json['totals'], TagsListTotals.fromJson),
       );
 
@@ -18723,6 +18733,7 @@ class TagsListResponse {
   final Map<String, dynamic> json;
   final int? tagsCount;
   final List<TagsListRow>? tags;
+  final Map<String, String>? usageLabels;
   final TagsListTotals? totals;
 }
 

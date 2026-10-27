@@ -3,10 +3,11 @@
   import { asInternalPath } from '#lib/utils/paths.js';
   import { X, Plus, ChevronDown } from '@lucide/svelte';
   import {
-    FILTERS,
+    descriptorFor,
     activeChips,
     activePresetKey,
     withParams,
+    type Descriptor,
     type Field,
     type Preset
   } from '#lib/v2/filters.js';
@@ -35,6 +36,7 @@
 
   let {
     page,
+    descriptor: given = undefined,
     url,
     people = [],
     tags = [],
@@ -50,6 +52,8 @@
     saved = null
   }: {
     page: string;
+    /** A descriptor built at run time (a custom object's fields); `page` then only names it. */
+    descriptor?: Descriptor;
     url: ReadonlyURL;
     people?: { id: string; name: string }[];
     tags?: { id: string; name: string }[];
@@ -63,7 +67,7 @@
     saved?: ComponentProps<typeof SavedViews>['saved'] | null;
   } = $props();
 
-  let descriptor = $derived(FILTERS[page] ?? { presets: [], fields: [] });
+  let descriptor = $derived(given ?? descriptorFor(page) ?? { presets: [], fields: [] });
 
   /**
    * Some pages run a second query engine alongside the main one, with a
@@ -89,13 +93,13 @@
   );
 
   let chips = $derived(
-    activeChips(page, url, { people, tags, accounts, stages, sources }).filter(
+    activeChips(descriptor, url, { people, tags, accounts, stages, sources }).filter(
       (chip) => !onlyFields || onlyFields.includes(chip.key)
     )
   );
   // meId is passed so a "@me" preset matches only the viewer's own id. Without
   // it, filtering by a colleague would light up "Mine".
-  let activeKey = $derived(activePresetKey(page, url, meId));
+  let activeKey = $derived(activePresetKey(descriptor, url, meId));
   let activeLabel = $derived(descriptor.presets.find((p) => p.key === activeKey)?.label ?? 'All');
 
   /**

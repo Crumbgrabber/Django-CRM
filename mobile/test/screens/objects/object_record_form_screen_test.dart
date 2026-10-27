@@ -71,6 +71,21 @@ class _FailingObjects extends CustomObjectsNotifier {
   }
 }
 
+const _tagList = [
+  TagLookup(id: 't1', name: 'Prime', slug: 'prime', color: 'blue'),
+  TagLookup(id: 't2', name: 'Waterfront', slug: 'w', color: 'gray'),
+];
+
+class _FakeTags extends TagsLookupNotifier {
+  _FakeTags(this.answer);
+
+  /// Loaded, never answering, or failing.
+  final Future<List<TagLookup>> Function() answer;
+
+  @override
+  Future<List<TagLookup>> build() => answer();
+}
+
 class _FakeApi extends CustomObjectsApi {
   _FakeApi({
     required this.record,
@@ -120,6 +135,7 @@ Map<String, dynamic> _record({
   bool canEdit = true,
   Map<String, dynamic>? agent,
   Map<String, dynamic>? friends,
+  List<Map<String, dynamic>>? tags,
 }) => {
   'id': _id,
   'name': '12 Park Lane',
@@ -139,6 +155,11 @@ Map<String, dynamic> _record({
         },
     'friends': friends ?? {'many': true, 'records': const [], 'hidden': 0},
   },
+  'tags':
+      tags ??
+      [
+        {'id': 't1', 'name': 'Prime', 'color': 'blue'},
+      ],
   'can_edit': canEdit,
   'can_delete': false,
   'attachments': const [],
@@ -150,6 +171,7 @@ Widget _app(
   bool objectsFail = false,
   void Function()? onObjectsBuild,
   String? recordId = _id,
+  Future<List<TagLookup>> Function()? tagsAnswer,
 }) {
   final router = GoRouter(
     routes: [
@@ -187,6 +209,9 @@ Widget _app(
         (ref, arg) async => const [
           LinkedRecord(id: 'r', object: 'lead', name: 'Ravi Link'),
         ],
+      ),
+      tagsLookupProvider.overrideWith(
+        () => _FakeTags(tagsAnswer ?? () async => _tagList),
       ),
       usersProvider.overrideWithValue(const [
         UserLookup(
@@ -491,6 +516,88 @@ void main() {
     final body = api.updates.single;
     expect(body.keys.toSet(), {'name', 'assigned_to'});
     expect((body['assigned_to'] as List).toSet(), {'gone', 'p1'});
+  });
+
+  testWidgets('the form shows a record\'s tags and a change sends the set', (
+    tester,
+  ) async {
+    final api = _FakeApi(record: _record());
+    await _open(tester, _app(api));
+    expect(find.widgetWithText(Chip, 'Prime'), findsOneWidget);
+
+    await tester.tap(find.text('Choose tags'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Waterfront'));
+    await tester.tap(find.text('Done'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    final body = api.updates.single;
+    expect(body.keys.toSet(), {'name', 'tags'});
+    expect((body['tags'] as List).toSet(), {'t1', 't2'});
+  });
+
+  final carried = [
+    {'id': 't1', 'name': 'Prime', 'color': 'blue'},
+    {'id': 't9', 'name': 'Retired', 'color': 'gray'},
+  ];
+
+  testWidgets('a tag turned off stays when another is added', (tester) async {
+    final api = _FakeApi(record: _record(tags: carried));
+    await _open(tester, _app(api));
+    expect(find.text('Retired (no longer active)'), findsOneWidget);
+
+    await tester.tap(find.text('Choose tags'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Waterfront'));
+    await tester.tap(find.text('Done'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    expect((api.updates.single['tags'] as List).toSet(), {'t1', 't9', 't2'});
+  });
+
+  testWidgets('tags show plainly while the tag list loads', (tester) async {
+    final api = _FakeApi(record: _record(tags: carried));
+    await tester.pumpWidget(
+      _app(api, tagsAnswer: () => Completer<List<TagLookup>>().future),
+    );
+    await tester.pump();
+    await tester.tap(find.text('open'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Retired'), findsOneWidget);
+    expect(find.text('Prime'), findsOneWidget);
+    expect(find.textContaining('no longer active'), findsNothing);
+  });
+
+  testWidgets('tags show plainly after the tag list fails', (tester) async {
+    final api = _FakeApi(record: _record(tags: carried));
+    await _open(
+      tester,
+      _app(api, tagsAnswer: () async => throw Exception('offline')),
+    );
+    expect(find.text('Retired'), findsOneWidget);
+    expect(find.text('Prime'), findsOneWidget);
+    expect(find.textContaining('no longer active'), findsNothing);
+  });
+
+  testWidgets('a tag turned off can be removed from the record', (
+    tester,
+  ) async {
+    final api = _FakeApi(record: _record(tags: carried));
+    await _open(tester, _app(api));
+
+    await tester.tap(find.byTooltip('Remove tag'));
+    await tester.pumpAndSettle();
+    expect(find.text('Retired (no longer active)'), findsNothing);
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    expect(api.updates.single['tags'], ['t1']);
   });
 
   testWidgets('tapping Save twice makes one request', (tester) async {

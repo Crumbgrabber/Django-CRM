@@ -13,6 +13,7 @@ from rest_framework.views import APIView
 
 from accounts.models import Account
 from accounts.serializer import AccountPickerSerializer, TagsSerializer
+from common.custom_fields import custom_field_filter
 from common.custom_fields import validate_payload as validate_custom_fields_payload
 from common.models import (
     Attachments,
@@ -120,12 +121,7 @@ def deal_list_queryset(profile, params):
     amount_lte = decimal_param(params, "amount__lte")
     if amount_lte:
         queryset = queryset.filter(amount__lte=amount_lte)
-    # Custom-field filters: ?cf_<key>=<value> -> custom_fields contains pair.
-    for raw_key, raw_value in params.items():
-        if raw_key.startswith("cf_") and raw_value:
-            cf_key = raw_key[3:]
-            if cf_key:
-                queryset = queryset.filter(custom_fields__contains={cf_key: raw_value})
+    queryset = queryset.filter(custom_field_filter("Opportunity", profile.org, params))
 
     # `?open=true`: everything not in a won or lost stage. The
     # existing `stage` filter is a `contains` match, so it cannot

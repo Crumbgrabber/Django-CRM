@@ -8,9 +8,13 @@
  */
 import { apiRequest } from '#lib/api-helpers.js';
 import type { Cookies } from '@sveltejs/kit';
+import { recordHref } from '#lib/v2/custom-objects.js';
 import type { components } from '#lib/api-schema.js';
 
 type Schemas = components['schemas'];
+// `group` is required in the generated hit; an API from before the release
+// window omits it, so the mapper accepts a hit without one.
+type SearchHitWithGroup = Omit<Schemas['GlobalSearchHit'], 'group'> & { group?: string };
 export type SearchHit = { kind: string; id: string; title: string; meta: string; href: string };
 
 /** Backend `type` → palette group label + detail route. */
@@ -26,6 +30,15 @@ const MAP = {
     href: (id: string) => `/solutions/${id}`
   }
 };
+
+/** One backend hit as a palette row, or null for a type this app cannot open. */
+export function paletteHit(r: SearchHitWithGroup): SearchHit | null {
+  const builtIn = Object.hasOwn(MAP, r.type) ? MAP[r.type as keyof typeof MAP] : null;
+  const href = builtIn ? builtIn.href(r.id) : recordHref(r.type, r.id);
+  if (!href) return null;
+  const kind = r.group || builtIn?.kind || (r.type.startsWith('obj:') ? 'Records' : '');
+  return { kind, id: r.id, title: r.title, meta: r.subtitle || '', href };
+}
 
 /**
  * Org-scoped search, shaped for the palette (`{ kind, id, title, meta, href }`).
@@ -45,19 +58,9 @@ export async function search(
     { cookies }
   );
 
-  const results: SearchHit[] = [];
-  for (const r of data.results || []) {
-    const m = Object.hasOwn(MAP, r.type) ? MAP[r.type as keyof typeof MAP] : null;
-    if (m) {
-      results.push({
-        kind: m.kind,
-        id: r.id,
-        title: r.title,
-        meta: r.subtitle || '',
-        href: m.href(r.id)
-      });
-    }
-  }
+  const results = (data.results || [])
+    .map(paletteHit)
+    .filter((hit): hit is SearchHit => hit !== null);
 
   return { results };
 }

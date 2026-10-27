@@ -25,6 +25,7 @@ const {
   searchLinkTargets,
   recordWriteError,
   recordPage,
+  mayMassImport,
   resetObjectsAbsentMemo
 } = await import('#lib/server/v2/custom-objects.js');
 
@@ -233,6 +234,15 @@ describe('records', () => {
     expect(answer).toEqual({ count: 41, results: [] });
     expect(apiRequest.mock.calls[0][0]).toBe(
       '/objects/property/records/?q=12%20Park&limit=20&offset=40'
+    );
+  });
+
+  it('sends the filters repeated, after q and before the paging', async () => {
+    apiRequest.mockResolvedValueOnce({ count: 0, results: [] });
+    const filters = new URLSearchParams('q=elm&tags=t1&tags=t2&cf_pets=true&limit=500&offset=9');
+    await listRecords(event, 'property', { page: 2, filters });
+    expect(apiRequest.mock.calls[0][0]).toBe(
+      '/objects/property/records/?q=elm&tags=t1&tags=t2&cf_pets=true&limit=20&offset=20'
     );
   });
 
@@ -548,5 +558,23 @@ describe('recordPage', () => {
   it('answers 404 for a bad id without calling the API', async () => {
     await expect(recordPage(event, 'property', 'nope')).rejects.toMatchObject({ status: 404 });
     expect(apiRequest).not.toHaveBeenCalled();
+  });
+});
+
+describe('mayMassImport', () => {
+  it('lets an admin without asking', async () => {
+    apiRequest.mockReset();
+    expect(await mayMassImport(event, true)).toBe(true);
+    expect(apiRequest).not.toHaveBeenCalled();
+  });
+
+  it('follows has_sales_access for a member, and refuses when the profile cannot be read', async () => {
+    apiRequest.mockReset();
+    apiRequest.mockResolvedValueOnce({ user_obj: { has_sales_access: true } });
+    expect(await mayMassImport(event, false)).toBe(true);
+    apiRequest.mockResolvedValueOnce({ user_obj: { has_sales_access: false } });
+    expect(await mayMassImport(event, false)).toBe(false);
+    apiRequest.mockRejectedValueOnce(status(500));
+    expect(await mayMassImport(event, false)).toBe(false);
   });
 });

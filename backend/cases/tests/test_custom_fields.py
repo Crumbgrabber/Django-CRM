@@ -9,17 +9,10 @@ from __future__ import annotations
 from unittest.mock import patch
 
 import pytest
-from django.db import connection
 
 from cases.models import Case
 from common.models import CustomFieldDefinition
 from conftest import rls_org
-
-pg_only = pytest.mark.skipif(
-    connection.vendor != "postgresql",
-    reason="JSONField __contains lookup requires PostgreSQL",
-)
-
 
 CASES_LIST_URL = "/api/cases/"
 
@@ -168,7 +161,6 @@ class TestCaseUpdateWithCustomFields:
         assert response.status_code == 400
 
 
-@pg_only
 @pytest.mark.django_db
 class TestCaseListFilter:
     @patch("cases.views.send_email_to_assigned_user")

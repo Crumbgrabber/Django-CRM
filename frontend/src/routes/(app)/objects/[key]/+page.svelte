@@ -1,10 +1,15 @@
 <script lang="ts">
   import { resolve } from '$app/paths';
+  import { page } from '$app/state';
   import { asInternalPath } from '#lib/utils/paths.js';
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
   import EmptyState from '#lib/v2/components/EmptyState.svelte';
+  import FilterBar from '#lib/v2/components/FilterBar.svelte';
+  import LeadImportDrawer from '#lib/components/leads/LeadImportDrawer.svelte';
+  import { objectImportConfig } from '#lib/import/entities.js';
+  import { objectDescriptor } from '#lib/v2/object-filters.js';
   import { count } from '#lib/v2/format.js';
-  import { Boxes, Plus } from '@lucide/svelte';
+  import { Boxes, Download, Plus, Upload } from '@lucide/svelte';
   import type { PageProps } from './$types';
 
   let { data }: PageProps = $props();
@@ -13,12 +18,22 @@
   let rows = $derived(data.page.results);
   let canCreate = $derived(data.customObjects?.has_custom_objects === true);
   let hasNext = $derived(data.pageNumber * 20 < data.page.count);
+  let importOpen = $state(false);
+  let canImport = $derived(canCreate && data.canImport);
+  let descriptor = $derived(objectDescriptor(def.fields));
+  let importConfig = $derived(objectImportConfig(def));
+  // Anything filtering the list, so the search box and the pager keep it.
+  let filtered = $derived(
+    data.q !== '' ||
+      [...page.url.searchParams.keys()].some((k) => k !== 'page' && k !== 'q' && k !== 'limit')
+  );
 
   function pageQuery(n: number) {
-    const parts = [];
-    if (data.q) parts.push(`q=${encodeURIComponent(data.q)}`);
-    if (n > 1) parts.push(`page=${n}`);
-    return `/objects/${def.key}${parts.length ? `?${parts.join('&')}` : ''}`;
+    const params = new URLSearchParams(page.url.search);
+    params.delete('page');
+    if (n > 1) params.set('page', String(n));
+    const qs = params.toString();
+    return `/objects/${def.key}${qs ? `?${qs}` : ''}`;
   }
 </script>
 
@@ -29,6 +44,16 @@
       {data.page.count === 1 ? def.label.toLowerCase() : def.label_plural.toLowerCase()}{/if}
   {/snippet}
   {#snippet actions()}
+    {#if canImport}
+      <button class="v2-btn" onclick={() => (importOpen = true)}><Upload />Import</button>
+    {/if}
+    <a
+      class="v2-btn"
+      href="{resolve(asInternalPath(`/api/objects/${def.key}/export`))}?{page.url.searchParams}"
+      data-sveltekit-reload
+    >
+      <Download />Export
+    </a>
     {#if canCreate}
       <a class="v2-btn v2-btn-primary" href={resolve(asInternalPath(`/objects/${def.key}/new`))}
         ><Plus />New {def.label}</a
@@ -37,8 +62,30 @@
   {/snippet}
 </PageHeader>
 
+<FilterBar
+  page="objects"
+  {descriptor}
+  url={page.url}
+  people={data.people}
+  tags={data.tags}
+  meId={data.meId}
+  saved={data.savedViews}
+/>
+
+{#if canImport}
+  <LeadImportDrawer
+    bind:open={importOpen}
+    singular={importConfig.singular}
+    plural={importConfig.plural}
+    config={importConfig}
+  />
+{/if}
+
 <div class="v2-scroll">
   <form class="ol-search" method="GET" role="search">
+    {#each [...page.url.searchParams] as [name, value], i (`${i}:${name}`)}
+      {#if name !== 'q' && name !== 'page'}<input type="hidden" {name} {value} />{/if}
+    {/each}
     <input
       class="v2-input"
       type="search"
@@ -53,14 +100,14 @@
 
   {#if rows.length === 0}
     <EmptyState
-      title={data.q ? 'No matches' : `No ${def.label_plural.toLowerCase()} yet`}
-      body={data.q
-        ? `Nothing matches "${data.q}". Try a shorter search.`
+      title={filtered ? 'No matches' : `No ${def.label_plural.toLowerCase()} yet`}
+      body={filtered
+        ? 'Nothing matches these filters. Try fewer, or a shorter search.'
         : `Records of this kind will be listed here.`}
     >
       {#snippet icon()}<Boxes size={21} />{/snippet}
       {#snippet actions()}
-        {#if canCreate && !data.q}
+        {#if canCreate && !filtered}
           <a class="v2-btn v2-btn-primary" href={resolve(asInternalPath(`/objects/${def.key}/new`))}
             >New {def.label}</a
           >
@@ -75,6 +122,7 @@
             <th>{def.name_label}</th>
             {#each data.columns as c (c.key)}<th>{c.label}</th>{/each}
             <th>Assigned to</th>
+            <th>Tags</th>
           </tr>
         </thead>
         <tbody>
@@ -92,6 +140,9 @@
                 <td data-m="meta" data-l={data.columns[i].label}>{cell}</td>
               {/each}
               <td class="v2-muted" data-m="hide">{r.assignees.join(', ')}</td>
+              <td class="v2-muted" data-m="meta" data-l={r.tags.length ? 'Tags' : undefined}
+                >{r.tags.join(', ')}</td
+              >
             </tr>
           {/each}
         </tbody>

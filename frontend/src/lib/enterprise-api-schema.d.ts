@@ -164,6 +164,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/objects/{key}/records/export/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["objects_records_export_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/objects/{key}/records/import/commit/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["objects_records_import_commit_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/objects/{key}/records/import/preview/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["objects_records_import_preview_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/objects/{key}/records/{record_id}/": {
         parameters: {
             query?: never;
@@ -330,6 +378,8 @@ export interface components {
         };
         /** @enum {string} */
         BillingStateCodeEnum: "free" | "past_due" | "ending" | "changing" | "active";
+        /** @enum {string} */
+        ColorEnum: "gray" | "red" | "orange" | "amber" | "yellow" | "lime" | "green" | "emerald" | "teal" | "cyan" | "sky" | "blue" | "indigo" | "violet" | "purple" | "fuchsia" | "pink" | "rose";
         CustomFieldOption: {
             label: string;
             value: string;
@@ -394,6 +444,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             name: string;
+            tags: components["schemas"]["Tags"][];
             /** Format: date-time */
             updated_at: string;
         };
@@ -430,8 +481,43 @@ export interface components {
             };
             name: string;
             object: components["schemas"]["CustomRecordObject"];
+            tags: components["schemas"]["Tags"][];
             /** Format: date-time */
             updated_at: string;
+        };
+        CustomRecordImportCommitRequestRequest: {
+            /** Format: binary */
+            file: string;
+            mapping: string;
+        };
+        CustomRecordImportCommitResponse: {
+            created: number;
+            dropped?: components["schemas"]["ImportDropped"][];
+            error: boolean;
+            ids: string[];
+            skipped?: components["schemas"]["ImportSkippedRow"][];
+        };
+        CustomRecordImportPreview: {
+            columns: components["schemas"]["ImportColumn"][];
+            dropped: components["schemas"]["ImportDropped"][];
+            fields: components["schemas"]["ImportField"][];
+            skipped: components["schemas"]["ImportSkippedRow"][];
+            summary: components["schemas"]["ImportMappedSummary"];
+            valid: components["schemas"]["CustomRecordImportRow"][];
+        };
+        CustomRecordImportPreviewRequestRequest: {
+            /** Format: binary */
+            file: string;
+            mapping: string;
+        };
+        CustomRecordImportRow: {
+            assigned_to: string[];
+            custom_fields: {
+                [key: string]: unknown;
+            };
+            name: string;
+            row: number;
+            tags: string[];
         };
         CustomRecordLinkValue: {
             hidden: number;
@@ -476,6 +562,33 @@ export interface components {
             options?: unknown;
             target?: string;
         };
+        ImportColumn: {
+            field: string | null;
+            header: string;
+            index: number;
+            samples: string[];
+        };
+        ImportDropped: {
+            count: number;
+            field: string;
+        };
+        ImportField: {
+            label: string;
+            name: string;
+            required: boolean;
+        };
+        ImportMappedSummary: {
+            skipped: number;
+            total: number;
+            valid: number;
+        };
+        ImportSkippedRow: {
+            cells: string[];
+            field: string;
+            kind: string;
+            message: string;
+            row: number;
+        };
         /** @enum {unknown} */
         NullEnum: null;
         ObjectCreateRequest: {
@@ -508,6 +621,7 @@ export interface components {
                 [key: string]: unknown;
             };
             name?: string;
+            tags?: string[];
         };
         /** @enum {string} */
         RecordAccessEnum: "own" | "everyone";
@@ -518,6 +632,7 @@ export interface components {
                 [key: string]: unknown;
             };
             name: string;
+            tags?: string[];
         };
         RelatedAdded: {
             added: boolean;
@@ -617,6 +732,17 @@ export interface components {
         SupportTicketPriorityEnum: "normal" | "high" | "urgent";
         /** @enum {string} */
         SupportTicketStatusEnum: "open" | "in_progress" | "waiting_on_customer" | "resolved" | "closed";
+        Tags: {
+            color: components["schemas"]["ColorEnum"];
+            /** Format: date-time */
+            readonly created_at: string;
+            description: string;
+            /** Format: uuid */
+            readonly id: string;
+            is_active: boolean;
+            name: string;
+            readonly slug: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -1001,9 +1127,11 @@ export interface operations {
     objects_records_retrieve: {
         parameters: {
             query?: {
+                assigned_to?: string[];
                 limit?: number;
                 offset?: number;
                 q?: string;
+                tags?: string[];
             };
             header?: never;
             path: {
@@ -1044,6 +1172,82 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CustomRecordDetail"];
+                };
+            };
+        };
+    };
+    objects_records_export_retrieve: {
+        parameters: {
+            query?: {
+                assigned_to?: string[];
+                format?: "csv" | "json";
+                q?: string;
+                tags?: string[];
+            };
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+        };
+    };
+    objects_records_import_commit_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["CustomRecordImportCommitRequestRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomRecordImportCommitResponse"];
+                };
+            };
+        };
+    };
+    objects_records_import_preview_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["CustomRecordImportPreviewRequestRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomRecordImportPreview"];
                 };
             };
         };

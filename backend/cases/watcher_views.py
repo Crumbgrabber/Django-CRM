@@ -171,7 +171,9 @@ class WatchingListView(APIView):
             .order_by("-created_at")
             .distinct()
         )
-        cases = apply_case_list_filters(cases, request.query_params)
+        cases = apply_case_list_filters(
+            cases, request.query_params, request.profile.org
+        )
         return Response(
             {
                 "cases": CaseSerializer(

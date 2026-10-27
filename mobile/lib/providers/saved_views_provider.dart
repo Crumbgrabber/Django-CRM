@@ -4,22 +4,33 @@ import '../config/api_config.dart';
 import '../data/api/schema.g.dart' as api;
 import '../services/api_service.dart';
 
-/// The six lists a saved view can belong to, by the name the API uses.
+/// A list a saved view can belong to, by the `module` the API files it under:
+/// the six built-in lists, or `obj:<key>` for a custom object's records.
 ///
 /// Mirrors `LISTS` in `backend/common/saved_views.py` and `SAVED_VIEW_KEYS` in
 /// `frontend/src/lib/server/v2/saved-views.ts`.
-enum SavedViewList {
-  leads('leads'),
-  contacts('contacts'),
-  accounts('accounts'),
-  deals('opportunities'),
-  tickets('cases'),
-  invoices('invoices');
-
+class SavedViewList {
   const SavedViewList(this.module);
+
+  /// The list of one custom object's records.
+  factory SavedViewList.object(String key) => SavedViewList('obj:$key');
+
+  static const leads = SavedViewList('leads');
+  static const contacts = SavedViewList('contacts');
+  static const accounts = SavedViewList('accounts');
+  static const deals = SavedViewList('opportunities');
+  static const tickets = SavedViewList('cases');
+  static const invoices = SavedViewList('invoices');
 
   /// The `module` the API files a view under.
   final String module;
+
+  @override
+  bool operator ==(Object other) =>
+      other is SavedViewList && other.module == module;
+
+  @override
+  int get hashCode => module.hashCode;
 }
 
 /// One saved view: a name and the list query parameters it puts back.

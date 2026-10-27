@@ -10,9 +10,12 @@ See docs/cases/tier1/custom-fields.md and docs/cases/COORDINATION_DECISIONS.md.
 from __future__ import annotations
 
 import logging
+import math
 from datetime import date
 from typing import Any
 
+from django.db.models import JSONField, Q, Value
+from django.db.models.fields.json import KeyTransform
 from rest_framework import serializers as drf_serializers
 
 from common.object_registry import BUILT_IN
@@ -63,23 +66,32 @@ def validate_definition_options(field_type: str, options: Any) -> None:
         seen.add(value)
 
 
+# PostgreSQL jsonb refuses U+0000, so a value carrying one would be a 500.
+_NUL_ERROR = "must not contain null characters"
+
+
 def _coerce_value(field_type: str, raw: Any):
     """Coerce a raw input to the expected python/JSON type. Returns (value, error_or_None)."""
     if raw is None or raw == "":
         return None, None
 
     if field_type in ("text", "textarea"):
-        return str(raw), None
+        text = str(raw)
+        if "\x00" in text:
+            return None, _NUL_ERROR
+        return text, None
 
     if field_type == "number":
         try:
             if isinstance(raw, bool):
                 raise ValueError
-            if isinstance(raw, (int, float)):
-                return float(raw), None
-            return float(str(raw)), None
-        except (TypeError, ValueError):
+            number = float(raw) if isinstance(raw, (int, float)) else float(str(raw))
+        except (OverflowError, TypeError, ValueError):
             return None, "must be a number"
+        # NaN and infinity are not JSON, so neither a stored value nor a filter.
+        if not math.isfinite(number):
+            return None, "must be a number"
+        return number, None
 
     if field_type == "checkbox":
         if isinstance(raw, bool):
@@ -103,7 +115,10 @@ def _coerce_value(field_type: str, raw: Any):
         return None, "must be a YYYY-MM-DD date"
 
     if field_type == "dropdown":
-        return str(raw), None
+        text = str(raw)
+        if "\x00" in text:
+            return None, _NUL_ERROR
+        return text, None
 
     return None, f"unsupported field_type {field_type!r}"
 
@@ -114,6 +129,7 @@ def validate_payload(
     org,
     *,
     existing: dict | None = None,
+    definitions=None,
 ) -> tuple[dict, dict]:
     """Validate and coerce a custom_fields payload for an entity.
 
@@ -133,6 +149,9 @@ def validate_payload(
     so a record still holding a dropdown option an admin has since removed can
     be saved. The stored copy is what is kept, so nothing the request carries
     is written unchecked.
+
+    ``definitions`` is the org's definitions for ``target_model`` (active and
+    inactive) when the caller has already loaded them; given, none are read.
     """
     from common.models import CustomFieldDefinition  # avoid import cycle
 
@@ -143,9 +162,11 @@ def validate_payload(
 
     existing = existing or {}
 
-    all_definitions = list(
-        CustomFieldDefinition.objects.filter(org=org, target_model=target_model)
-    )
+    if definitions is None:
+        definitions = CustomFieldDefinition.objects.filter(
+            org=org, target_model=target_model
+        )
+    all_definitions = list(definitions)
     all_keys = {d.key for d in all_definitions}
     active_by_key = {d.key: d for d in all_definitions if d.is_active}
 
@@ -195,3 +216,44 @@ def validate_payload(
             errors.setdefault(defn.key, "is required")
 
     return cleaned, errors
+
+
+def custom_field_filter(target: str, org, params) -> Q:
+    """The ``cf_<key>`` parameters of a list query as one ``Q`` on ``custom_fields``.
+
+    Only the org's active fields for ``target`` count: any other ``cf_`` key is
+    ignored, so a saved view on a field an admin later turned off still opens.
+    A value is parsed by its field's type, so ``3`` matches a stored ``3.0`` and
+    ``false`` a stored ``false``; one that does not parse is a 400 naming its
+    parameter. A key is always one JSON key, never a lookup path.
+    """
+    wanted = {
+        name[3:]: raw
+        for name, raw in params.items()
+        if name.startswith("cf_") and raw not in (None, "")
+    }
+    if not wanted:
+        return Q()
+    from common.models import CustomFieldDefinition  # avoid import cycle
+
+    field_types = dict(
+        CustomFieldDefinition.objects.filter(
+            org=org, target_model=target, is_active=True, key__in=list(wanted)
+        ).values_list("key", "field_type")
+    )
+    condition, errors = Q(), {}
+    for key, raw in wanted.items():
+        if key not in field_types:
+            continue
+        value, error = _coerce_value(field_types[key], raw)
+        if error:
+            errors[f"cf_{key}"] = [error]
+            continue
+        stored = KeyTransform(key, "custom_fields")
+        # Typed as JSON here: built before the query resolves the column, the
+        # lookup cannot learn the type from it and would compare a bare string.
+        wanted_value = Value(value, output_field=JSONField())
+        condition &= Q(stored.get_lookup("exact")(stored, wanted_value))
+    if errors:
+        raise drf_serializers.ValidationError(errors)
+    return condition

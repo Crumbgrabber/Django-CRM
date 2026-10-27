@@ -8,6 +8,7 @@ import {
   type RecordDetail
 } from '#lib/server/v2/custom-objects.js';
 import { getOrgPeopleAndTeams } from '#lib/server/v2/org-people.js';
+import { activeTagChoices } from '#lib/server/v2/tags.js';
 import { readRecordForm } from '#lib/server/v2/record-form.js';
 import { linkFieldsForEdit, pairForEdit } from '#lib/server/v2/record-fields.js';
 import { recordHref } from '#lib/v2/custom-objects.js';
@@ -15,15 +16,17 @@ import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ cookies, params }) => {
   const key = checkKey(params.key);
-  const [definition, { people }] = await Promise.all([
+  const [definition, { people }, tags] = await Promise.all([
     getObject({ cookies }, key),
-    getOrgPeopleAndTeams(cookies)
+    getOrgPeopleAndTeams(cookies),
+    activeTagChoices({ cookies })
   ]);
   if (definition.is_active === false) error(404, OBJECT_GONE);
   const plain = definition.fields.filter((f) => f.field_type !== 'link');
   return {
     definition,
     people,
+    tags,
     fields: pairForEdit(plain, {}),
     linkFields: linkFieldsForEdit(definition.fields, null)
   };
@@ -45,7 +48,8 @@ export const actions: Actions = {
         values: {
           name: body.name,
           custom_fields: body.custom_fields,
-          assigned_to: body.assigned_to
+          assigned_to: body.assigned_to,
+          tags: body.tags
         },
         error: recordWriteError(err, definition.fields, definition.name_label)
       });

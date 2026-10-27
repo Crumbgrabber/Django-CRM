@@ -20,7 +20,7 @@ from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 from common.models import Profile, User
-from common.saved_views import LISTS
+from common.saved_views import LEAD_LIST
 from common.testing import _make_authenticated_client, rls_org, set_modules_off
 from leads.models import Lead
 from leads.response import unanswered, unanswered_summary, with_response_state
@@ -462,7 +462,7 @@ class TestExportAndSavedViews:
         ) == ["Mine"]
 
     def test_the_unanswered_preset_can_be_saved(self, org, user_client):
-        assert "unanswered" in LISTS["leads"][1]
+        assert "unanswered" in LEAD_LIST.params
         response = user_client.post(
             "/api/saved-views/",
             {

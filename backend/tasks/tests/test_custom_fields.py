@@ -12,12 +12,6 @@ from django.db import connection
 from common.models import CustomFieldDefinition
 from tasks.models import Task
 
-pg_only = pytest.mark.skipif(
-    connection.vendor != "postgresql",
-    reason="JSONField __contains lookup requires PostgreSQL",
-)
-
-
 TASKS_LIST_URL = "/api/tasks/"
 
 
@@ -184,7 +178,6 @@ class TestTaskUpdateWithCustomFields:
         assert task_a.custom_fields == {"complexity": "epic"}
 
 
-@pg_only
 @pytest.mark.django_db
 class TestTaskListFilter:
     def test_cf_filter_returns_matching(self, admin_client, task_a, task_a2, org_a):

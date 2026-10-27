@@ -10142,6 +10142,7 @@ export interface components {
             id: string;
             title: string;
             subtitle: string;
+            group: string;
         };
         GlobalSearchResponse: {
             query: string;
@@ -12024,16 +12025,6 @@ export interface components {
          * @enum {string}
          */
         ModeEnum: "status" | "pipeline";
-        /**
-         * @description * `leads` - Leads
-         *     * `contacts` - Contacts
-         *     * `accounts` - Accounts
-         *     * `opportunities` - Deals
-         *     * `cases` - Tickets
-         *     * `invoices` - Invoices
-         * @enum {string}
-         */
-        ModuleEnum: "leads" | "contacts" | "accounts" | "opportunities" | "cases" | "invoices";
         NextActivity: {
             /** Format: uuid */
             id: string;
@@ -13872,7 +13863,7 @@ export interface components {
          *     from.
          */
         PatchedSavedViewRequest: {
-            module?: components["schemas"]["ModuleEnum"];
+            module?: string;
             name?: string;
             filters?: {
                 [key: string]: string[];
@@ -15652,7 +15643,7 @@ export interface components {
         SavedView: {
             /** Format: uuid */
             readonly id: string;
-            module: components["schemas"]["ModuleEnum"];
+            module: string;
             name: string;
             filters: {
                 [key: string]: string[];
@@ -15678,7 +15669,7 @@ export interface components {
          *     from.
          */
         SavedViewRequest: {
-            module: components["schemas"]["ModuleEnum"];
+            module: string;
             name: string;
             filters?: {
                 [key: string]: string[];
@@ -16026,6 +16017,9 @@ export interface components {
         TagsListResponse: {
             tags_count: number;
             tags: components["schemas"]["TagsListRow"][];
+            usage_labels: {
+                [key: string]: string;
+            };
             totals: components["schemas"]["TagsListTotals"];
         };
         /** @description Schema only: a tag as the list returns it, with its per-model usage. */
@@ -26856,7 +26850,7 @@ export interface operations {
         parameters: {
             query?: {
                 /** @description Only this list's views. */
-                module?: "accounts" | "cases" | "contacts" | "invoices" | "leads" | "opportunities";
+                module?: string;
             };
             header?: never;
             path?: never;

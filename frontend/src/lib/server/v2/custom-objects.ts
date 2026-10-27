@@ -9,6 +9,7 @@
 import { error, type Cookies } from '@sveltejs/kit';
 import { apiRequest, type FormBody } from '#lib/api-helpers.js';
 import type { components } from '#lib/enterprise-api-schema.js';
+import type { components as CommunityComponents } from '#lib/api-schema.js';
 import { apiErrorBody, apiStatus } from '#lib/api-errors.js';
 import { readableError } from '#lib/server/v2/form-errors.js';
 import { listLeads } from '#lib/server/v2/leads.js';
@@ -37,9 +38,12 @@ export type FieldRef = Enterprise['CustomFieldRef'];
 export type ObjectField = Enterprise['CustomObjectField'];
 export type ObjectList = Enterprise['CustomObjectList'];
 type ObjectDetail = Enterprise['CustomObjectDetail'];
-type RecordList = Enterprise['CustomRecordList'];
 type RecordAttachment = Enterprise['CustomRecordAttachment'];
+
+type RecordList = Enterprise['CustomRecordList'];
 export type RecordDetail = Enterprise['CustomRecordDetail'];
+type RecordWrite = Enterprise['RecordWriteRequest'];
+type RecordPatch = Enterprise['PatchedRecordWriteRequest'];
 export type RelatedRecords = Enterprise['RelatedRecords'];
 
 export function checkKey(key: string): string {
@@ -211,15 +215,43 @@ export async function turnOffField(
 export async function listRecords(
   { cookies }: Event,
   key: string,
-  { q = '', page = 1 }: { q?: string; page?: number } = {}
+  { q = '', page = 1, filters }: { q?: string; page?: number; filters?: URLSearchParams } = {}
 ): Promise<RecordList> {
   checkKey(key);
   const offset = (Math.max(1, Math.floor(page) || 1) - 1) * PAGE_SIZE;
-  const qs = query({ q: q.trim(), limit: PAGE_SIZE, offset });
+  const params = new URLSearchParams();
+  if (q.trim()) params.set('q', q.trim());
+  for (const [name, value] of filters ?? []) {
+    if (name === 'limit' || name === 'offset') continue;
+    if (name === 'q' && params.has('q')) continue;
+    params.append(name, value);
+  }
+  params.set('limit', String(PAGE_SIZE));
+  params.set('offset', String(offset));
+  const qs = params.toString().replaceAll('+', '%20');
   return await orNotFound(
     () => apiRequest(`/objects/${key}/records/?${qs}`, { expectedStatuses: [404] }, { cookies }),
     OBJECT_GONE
   );
+}
+
+/**
+ * Whether the caller may bulk-import: an admin, or a member with sales
+ * access, as the API's `can_mass_import` decides. A display hint only; the
+ * import endpoints refuse the rest.
+ */
+export async function mayMassImport({ cookies }: Event, isAdmin: boolean): Promise<boolean> {
+  if (isAdmin) return true;
+  try {
+    const me: CommunityComponents['schemas']['ProfileViewResponse'] = await apiRequest(
+      '/profile/',
+      { quietErrors: true },
+      { cookies }
+    );
+    return me?.user_obj?.has_sales_access === true;
+  } catch {
+    return false;
+  }
 }
 
 export async function getRecord(
@@ -262,7 +294,7 @@ export async function recordPage(event: Event, key: string, id: string) {
 export async function createRecord(
   { cookies }: Event,
   key: string,
-  body: Enterprise['RecordWriteRequest']
+  body: RecordWrite
 ): Promise<RecordDetail> {
   checkKey(key);
   return await orNotFound(
@@ -276,7 +308,7 @@ export async function updateRecord(
   { cookies }: Event,
   key: string,
   id: string,
-  body: Enterprise['PatchedRecordWriteRequest']
+  body: RecordPatch
 ): Promise<RecordDetail> {
   checkKey(key);
   checkId(id);
@@ -493,6 +525,7 @@ export function recordWriteError(
     lines.push(`${label(key)}: ${first(message)}`);
   }
   if (body?.assigned_to) lines.push(`Assignees: ${first(body.assigned_to)}`);
+  if (body?.tags) lines.push(`Tags: ${first(body.tags)}`);
   if (lines.length) return lines.join('\n');
   if (typeof body?.detail === 'string') return body.detail;
   return readableError(err, 'Could not save this record.');

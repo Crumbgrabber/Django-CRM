@@ -13,12 +13,6 @@ from django.db import connection
 from common.models import CustomFieldDefinition
 from leads.models import Lead
 
-pg_only = pytest.mark.skipif(
-    connection.vendor != "postgresql",
-    reason="JSONField __contains lookup requires PostgreSQL",
-)
-
-
 LEADS_LIST_URL = "/api/leads/"
 
 
@@ -195,7 +189,6 @@ class TestLeadUpdateWithCustomFields:
         assert lead_a.custom_fields in (None, {}, {"severity": None})
 
 
-@pg_only
 @pytest.mark.django_db
 class TestLeadListFilter:
     def test_cf_filter_returns_matching(self, admin_client, lead_a, lead_a2, org_a):

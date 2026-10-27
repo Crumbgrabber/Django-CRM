@@ -12,12 +12,6 @@ from django.db import connection
 from accounts.models import Account
 from common.models import CustomFieldDefinition
 
-pg_only = pytest.mark.skipif(
-    connection.vendor != "postgresql",
-    reason="JSONField __contains lookup requires PostgreSQL",
-)
-
-
 ACCOUNTS_LIST_URL = "/api/accounts/"
 
 
@@ -152,7 +146,6 @@ class TestAccountUpdateWithCustomFields:
         assert account_a.custom_fields == {"tier": "gold"}
 
 
-@pg_only
 @pytest.mark.django_db
 class TestAccountListFilter:
     def test_cf_filter_returns_matching(

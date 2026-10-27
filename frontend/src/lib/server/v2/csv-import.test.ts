@@ -48,6 +48,26 @@ describe('forwardCsvImport', () => {
     expect(apiRequest.mock.calls[0][1].body.has('mapping')).toBe(false);
   });
 
+  it("forwards a custom object's import and shows the server's own refusal", async () => {
+    apiRequest.mockResolvedValueOnce({ columns: [] });
+    const path = '/objects/property/records/import/preview/';
+    expect(
+      await forwardCsvImport(event({ file: sheet(), mapping: 'auto' }), path, 'importPreview')
+    ).toEqual({ importPreview: { columns: [] } });
+    expect(apiRequest.mock.calls[0][0]).toBe(path);
+
+    apiRequest.mockRejectedValueOnce(
+      httpError(403, { detail: 'Your plan does not include this.' })
+    );
+    const out = (await forwardCsvImport(
+      event({ file: sheet(), mapping: 'auto' }),
+      '/objects/property/records/import/commit/',
+      'importCommit'
+    )) as any;
+    expect(out.status).toBe(403);
+    expect(out.data.importError).toBe('Your plan does not include this.');
+  });
+
   it('asks for a file when none was chosen', async () => {
     const out = (await forwardCsvImport(
       event({ mapping: 'auto' }),

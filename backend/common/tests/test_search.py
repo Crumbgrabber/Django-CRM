@@ -5,17 +5,34 @@ intra-org visibility (a non-admin never finds a record they could not open from
 the list). Search is a classic place for both leaks.
 """
 
+import uuid
+
 import pytest
 from crum import impersonate
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 
 from accounts.models import Account
 from cases.models import Case, Solution
+from common import object_registry, search_views
+from common.search_views import PER_TYPE
+from common.testing import set_modules_off
 from contacts.models import Contact
 from invoices.models import Invoice
 from leads.models import Lead
 from opportunity.models import Opportunity
 
 URL = "/api/search/"
+
+GROUPS = {
+    "lead": "Leads",
+    "contact": "Contacts",
+    "account": "Accounts",
+    "deal": "Deals",
+    "ticket": "Tickets",
+    "invoice": "Invoices",
+    "solution": "Knowledge base",
+}
 
 
 def _seed_all(org, token="Zephyr"):
@@ -83,6 +100,17 @@ class TestGlobalSearch:
         }
         for row in body["results"]:
             assert row["id"] and row["title"]
+            assert row["group"] == GROUPS[row["type"]]
+        # Registry order, then the knowledge base.
+        assert list(dict.fromkeys(r["group"] for r in body["results"])) == [
+            "Leads",
+            "Contacts",
+            "Accounts",
+            "Deals",
+            "Tickets",
+            "Invoices",
+            "Knowledge base",
+        ]
 
     def test_deal_subtitle_is_the_stage_label(self, admin_client, org_a):
         """With no account, a deal's subtitle is its stage, as the org names it."""
@@ -150,3 +178,122 @@ class TestGlobalSearch:
             )
         results = user_client.get(f"{URL}?q=SharedKB").json()["results"]
         assert any(r["type"] == "solution" for r in results)
+
+
+SITE_ID = uuid.uuid4()
+
+
+class SiteEntry:
+    key = "obj:site"
+    custom_field_target = "obj:site"
+    label = "Site"
+    label_plural = "Sites"
+
+    def __init__(self):
+        self.calls = []
+
+    def search_hits(self, profile, q, limit):
+        self.calls.append((profile.pk, q, limit))
+        return [
+            {
+                "type": self.key,
+                "id": str(SITE_ID),
+                "title": f"{q} site",
+                "subtitle": "Site",
+            }
+        ]
+
+
+class UnsearchedEntry:
+    key = "obj:note"
+    custom_field_target = "obj:note"
+    label = "Note"
+    label_plural = "Notes"
+
+    def search_hits(self, profile, q, limit):
+        return None
+
+
+def test_search_reads_hook_entries(
+    monkeypatch, admin_client, admin_profile, org_a, org_b_client
+):
+    _seed_all(org_a)
+    site = SiteEntry()
+    monkeypatch.setattr(
+        object_registry,
+        "_HOOKS",
+        [
+            lambda org: (
+                (site, UnsearchedEntry())
+                if org is not None and org.pk == org_a.pk
+                else ()
+            )
+        ],
+    )
+
+    rows = admin_client.get(URL, {"q": "Zephyr"}).json()["results"]
+
+    assert [r for r in rows if r["type"].startswith("obj:")] == [
+        {
+            "type": "obj:site",
+            "id": str(SITE_ID),
+            "title": "Zephyr site",
+            "subtitle": "Site",
+            "group": "Sites",
+        }
+    ]
+    assert site.calls == [(admin_profile.pk, "Zephyr", PER_TYPE)]
+    assert list(dict.fromkeys(r["group"] for r in rows)) == [
+        "Leads",
+        "Contacts",
+        "Accounts",
+        "Deals",
+        "Tickets",
+        "Invoices",
+        "Sites",
+        "Knowledge base",
+    ]
+    # Another org's registry has no such entry.
+    assert org_b_client.get(URL, {"q": "Zephyr"}).json()["results"] == []
+    assert len(site.calls) == 1
+
+
+def test_off_module_types_never_searched(monkeypatch, admin_client, org_a):
+    _seed_all(org_a)
+    called = []
+
+    def spy(name, real):
+        def wrapped(profile, q, limit):
+            called.append(name)
+            return real(profile, q, limit)
+
+        return wrapped
+
+    names = (
+        "search_leads",
+        "search_contacts",
+        "search_accounts",
+        "search_deals",
+        "search_tickets",
+        "search_invoices",
+    )
+    for name in names:
+        monkeypatch.setattr(search_views, name, spy(name, getattr(search_views, name)))
+    off_tables = [
+        f'"{model._meta.db_table}"'
+        for model in (Lead, Opportunity, Case, Invoice, Solution)
+    ]
+
+    with CaptureQueriesContext(connection) as everything_on:
+        admin_client.get(URL, {"q": "Zephyr"})
+    assert sorted(called) == sorted(names)
+    assert any(t in q["sql"] for q in everything_on for t in off_tables)
+
+    called.clear()
+    set_modules_off(org_a, "leads", "deals", "tickets", "invoices", "knowledge_base")
+    with CaptureQueriesContext(connection) as some_off:
+        rows = admin_client.get(URL, {"q": "Zephyr"}).json()["results"]
+
+    assert {r["type"] for r in rows} == {"account", "contact"}
+    assert sorted(called) == ["search_accounts", "search_contacts"]
+    assert [q["sql"] for q in some_off if any(t in q["sql"] for t in off_tables)] == []

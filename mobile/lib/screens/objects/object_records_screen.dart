@@ -5,11 +5,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../config/api_config.dart';
 import '../../core/theme/theme.dart';
 import '../../data/models/custom_object.dart';
+import '../../data/models/object_record_filters.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/csv_import_provider.dart';
 import '../../providers/custom_objects_provider.dart';
+import '../../providers/profile_provider.dart';
+import '../../providers/saved_views_provider.dart';
 import '../../routes/app_router.dart';
 import '../../widgets/common/common.dart';
+import '../../widgets/common/export_csv_button.dart';
+import '../../widgets/common/saved_views_button.dart';
+import '../../widgets/forms/csv_import_sheet.dart';
+import '../../widgets/objects/object_filter_sheet.dart';
 
 const _missingObject =
     'This object does not exist, or you do not have access to it.';
@@ -68,6 +78,46 @@ class _ObjectRecordsScreenState extends ConsumerState<ObjectRecordsScreen> {
     _onSearchChanged('');
   }
 
+  ObjectRecordsNotifier get _records =>
+      ref.read(objectRecordsProvider(widget.objectKey).notifier);
+
+  Future<void> _openFilters(ObjectDefinition def) async {
+    final next = await showObjectFilterSheet(
+      context,
+      definition: def,
+      current: _records.filters,
+    );
+    if (next == null || !mounted) return;
+    await _records.setFilters(next.copyWith(query: _records.filters.query));
+  }
+
+  void _applySavedView(
+    ObjectDefinition def,
+    Map<String, List<String>> filters,
+  ) {
+    final next = ObjectRecordFilters.fromSavedView(filters, {
+      for (final f in filterableFields(def)) f.key,
+    });
+    _debounce?.cancel();
+    _search.text = next.query;
+    setState(() {});
+    _records.setFilters(next);
+  }
+
+  Future<void> _import(ObjectDefinition def) async {
+    await showCsvImportSheet(
+      context,
+      CsvImportTarget.forObject(
+        key: widget.objectKey,
+        label: def.summary.label,
+        labelPlural: def.summary.labelPlural,
+        nameLabel: def.summary.nameLabel,
+        fields: def.fields,
+      ),
+      onImported: () => _records.refresh(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final definition = ref.watch(objectDefinitionProvider(widget.objectKey));
@@ -100,8 +150,18 @@ class _ObjectRecordsScreenState extends ConsumerState<ObjectRecordsScreen> {
               ref.watch(customObjectsProvider),
             )?.hasCustomObjects ==
             true;
+        // As on the web: an admin, or a member with sales access. The import
+        // views refuse anyone else.
+        final canImport =
+            canWrite &&
+            (ref.watch(isOrgAdminProvider) ||
+                (ref.watch(profileProvider).value?.hasSalesAccess ?? false));
+        final filtered =
+            ref.watch(objectRecordsProvider(widget.objectKey)).value?.filters ??
+            const ObjectRecordFilters();
         return _shell(
           title: def.summary.labelPlural,
+          actions: _actions(def, canImport, filtered.count),
           body: Column(
             children: [
               _searchBar(def.summary),
@@ -122,10 +182,46 @@ class _ObjectRecordsScreenState extends ConsumerState<ObjectRecordsScreen> {
     );
   }
 
-  Widget _shell({required String title, required Widget body, Widget? fab}) {
+  List<Widget> _actions(ObjectDefinition def, bool canImport, int active) => [
+    IconButton(
+      tooltip: active == 0 ? 'Filters' : 'Filters ($active on)',
+      icon: Badge(
+        isLabelVisible: active > 0,
+        label: Text('$active'),
+        child: const Icon(LucideIcons.listFilter),
+      ),
+      onPressed: () => _openFilters(def),
+    ),
+    if (canImport)
+      IconButton(
+        tooltip: 'Import from a spreadsheet',
+        icon: const Icon(LucideIcons.upload),
+        onPressed: () => _import(def),
+      ),
+    SavedViewsButton(
+      list: SavedViewList.object(widget.objectKey),
+      keys: objectSavedViewKeys(def),
+      multi: const {'assigned_to', 'tags'},
+      currentQuery: () async => _records.filters.toQuery(),
+      onApply: (filters) => _applySavedView(def, filters),
+    ),
+    ExportCsvButton(
+      endpoint: ApiConfig.objectRecordsExport(widget.objectKey),
+      filePrefix: widget.objectKey,
+      query: () async => _records.filters.toQuery(),
+    ),
+  ];
+
+  Widget _shell({
+    required String title,
+    required Widget body,
+    Widget? fab,
+    List<Widget> actions = const [],
+  }) {
     return Scaffold(
       backgroundColor: AppColors.surfaceDim,
       appBar: AppBar(
+        actions: actions,
         title: Text(title),
         backgroundColor: AppColors.surface,
         elevation: 0,
@@ -194,7 +290,7 @@ class _ObjectRecordsScreenState extends ConsumerState<ObjectRecordsScreen> {
     }
     final records = data?.records ?? const <ObjectRecord>[];
     if (records.isEmpty) {
-      final searching = (data?.query ?? '').isNotEmpty;
+      final searching = !(data?.filters.isEmpty ?? true);
       return RefreshIndicator(
         onRefresh: notifier.refresh,
         child: LayoutBuilder(
@@ -286,6 +382,18 @@ class _RecordRow extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
+                    if (record.tags.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Wrap(
+                          spacing: 4,
+                          runSpacing: 4,
+                          children: [
+                            for (final t in record.tags)
+                              LabelPill(label: t.name),
+                          ],
+                        ),
+                      ),
                     for (final line in shown)
                       Padding(
                         padding: const EdgeInsets.only(top: 2),

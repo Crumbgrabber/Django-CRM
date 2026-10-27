@@ -25,6 +25,11 @@
     })
   );
   let linkFields = $derived(data.linkFields);
+  let selectedTags = $derived(
+    (typed?.tags ?? [])
+      .map((id) => data.tags?.find((t) => t.id === id))
+      .filter((t) => t !== undefined)
+  );
   let assignees = $derived(
     (typed?.assigned_to ?? [])
       .map((id) => data.people.find((p) => p.id === id))
@@ -94,7 +99,14 @@
         />
       </div>
 
-      <RecordFieldInputs {fields} {linkFields} people={data.people} {assignees} />
+      <RecordFieldInputs
+        {fields}
+        {linkFields}
+        people={data.people}
+        {assignees}
+        tags={data.tags}
+        {selectedTags}
+      />
 
       <div class="actions">
         <button class="v2-btn v2-btn-primary" type="submit" disabled={busy}>

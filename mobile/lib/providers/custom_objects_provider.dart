@@ -8,6 +8,7 @@ import '../data/api/schema.g.dart' as api;
 import '../data/models/custom_field_definition.dart';
 import '../data/models/custom_object.dart';
 import '../data/models/lookup_models.dart';
+import '../data/models/object_record_filters.dart';
 import '../services/api_service.dart';
 import 'auth_provider.dart';
 
@@ -117,10 +118,14 @@ class ObjectRecordsData {
   final int count;
   final String query;
 
+  /// Every filter the list was fetched with, search text included.
+  final ObjectRecordFilters filters;
+
   const ObjectRecordsData({
     this.records = const [],
     this.count = 0,
     this.query = '',
+    this.filters = const ObjectRecordFilters(),
   });
 
   bool get hasMore => records.length < count;
@@ -130,26 +135,33 @@ class ObjectRecordsNotifier extends AsyncNotifier<ObjectRecordsData> {
   ObjectRecordsNotifier(this.key);
 
   final String key;
-  String _query = '';
+  ObjectRecordFilters _filters = const ObjectRecordFilters();
   // Bumped whenever the list is replaced, so a page fetched for an older list
   // is dropped instead of appended.
   int _generation = 0;
   int? _pagingGeneration;
 
   @override
-  Future<ObjectRecordsData> build() => _fetch(query: '', offset: 0);
+  Future<ObjectRecordsData> build() =>
+      _fetch(filters: const ObjectRecordFilters(), offset: 0);
+
+  /// What the list is narrowed by now, which its export sends too.
+  ObjectRecordFilters get filters => _filters;
 
   Future<ObjectRecordsData> _fetch({
-    required String query,
+    required ObjectRecordFilters filters,
     required int offset,
   }) async {
+    // `dynamic` so a list value is a repeated parameter.
+    final params = <String, dynamic>{
+      'limit': '$objectRecordsPageSize',
+      if (offset > 0) 'offset': '$offset',
+      ...filters.toQuery(),
+    };
     final response = await ApiService().get(
-      ApiConfig.objectRecords(key),
-      queryParams: {
-        'limit': '$objectRecordsPageSize',
-        if (offset > 0) 'offset': '$offset',
-        if (query.isNotEmpty) 'q': query,
-      },
+      Uri.parse(
+        ApiConfig.objectRecords(key),
+      ).replace(queryParameters: params).toString(),
     );
     final data = response.data;
     if (!response.success || data == null) {
@@ -163,22 +175,30 @@ class ObjectRecordsNotifier extends AsyncNotifier<ObjectRecordsData> {
     return ObjectRecordsData(
       records: records,
       count: list.count ?? records.length,
-      query: query,
+      query: filters.query,
+      filters: filters,
     );
   }
 
-  Future<void> setQuery(String query) async {
-    _query = query.trim();
+  Future<void> setQuery(String query) =>
+      setFilters(_filters.copyWith(query: query.trim()));
+
+  Future<void> setFilters(ObjectRecordFilters filters) async {
+    _filters = filters;
     final generation = ++_generation;
     state = const AsyncLoading();
-    final next = await AsyncValue.guard(() => _fetch(query: _query, offset: 0));
+    final next = await AsyncValue.guard(
+      () => _fetch(filters: _filters, offset: 0),
+    );
     if (!ref.mounted || generation != _generation) return;
     state = next;
   }
 
   Future<void> refresh() async {
     final generation = ++_generation;
-    final next = await AsyncValue.guard(() => _fetch(query: _query, offset: 0));
+    final next = await AsyncValue.guard(
+      () => _fetch(filters: _filters, offset: 0),
+    );
     if (!ref.mounted || generation != _generation) return;
     state = next;
   }
@@ -191,7 +211,7 @@ class ObjectRecordsNotifier extends AsyncNotifier<ObjectRecordsData> {
     _pagingGeneration = generation;
     try {
       final next = await AsyncValue.guard(
-        () => _fetch(query: current.query, offset: current.records.length),
+        () => _fetch(filters: current.filters, offset: current.records.length),
       );
       final page = next.value;
       if (!ref.mounted || page == null || generation != _generation) return;
@@ -200,6 +220,7 @@ class ObjectRecordsNotifier extends AsyncNotifier<ObjectRecordsData> {
           records: [...current.records, ...page.records],
           count: page.count,
           query: current.query,
+          filters: current.filters,
         ),
       );
     } finally {
@@ -492,6 +513,7 @@ Map<String, dynamic> recordWriteBody({
   required Map<String, dynamic> customFields,
   required Map<String, List<String>> links,
   required List<String> assignees,
+  List<String>? tags,
   ObjectRecord? original,
 }) {
   final body = <String, dynamic>{'name': name};
@@ -529,6 +551,14 @@ Map<String, dynamic> recordWriteBody({
       ? assignees.isNotEmpty
       : !_sameSet(original.assignedTo.map((p) => p.id), assignees);
   if (sendAssignees) body['assigned_to'] = assignees;
+
+  // Sending tags replaces the set, so an edit sends them only when they moved.
+  if (tags != null) {
+    final sendTags = original == null
+        ? tags.isNotEmpty
+        : !_sameSet(original.tags.map((t) => t.id), tags);
+    if (sendTags) body['tags'] = tags;
+  }
   return body;
 }
 
@@ -554,6 +584,7 @@ String recordWriteError(
 
     if (data['name'] != null) add(definition.summary.nameLabel, data['name']);
     if (data['assigned_to'] != null) add('Assigned to', data['assigned_to']);
+    if (data['tags'] != null) add('Tags', data['tags']);
     for (final section in const ['custom_fields', 'links']) {
       final nested = data[section];
       if (nested is! Map) continue;

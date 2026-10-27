@@ -136,7 +136,7 @@ no view uses `django_filters`. Each list view reads `request.query_params` direc
 | `search` | `first_name`, `last_name`, `company_name` or `email`, case-insensitive contains, OR'd together |
 | `created_at__gte`, `created_at__lte` | date range |
 | `close_date__gte`, `close_date__lte` | date range |
-| `cf_<key>` | custom field `<key>` equals the given value (`custom_fields__contains`) |
+| `cf_<key>` | custom field `<key>` equals the given value, parsed by the field's type (see below) |
 
 For example, `GET /api/leads/?status=assigned&source=partner&search=acme`; `status` and `source`
 are exact matches against `LEAD_STATUS` (`backend/common/utils.py`: `assigned`, `in process`,
@@ -146,6 +146,91 @@ rather than erroring. Other list endpoints define
 their own, generally smaller, filter sets in the same style. There is no single reference for
 "every filter the API supports"; read the view (or watch for a dedicated section on that resource's
 page, where one exists) rather than assuming this table applies elsewhere.
+
+`cf_<key>` works the same way on every list with custom fields (leads, contacts, accounts, deals,
+tickets and the tickets you watch, tasks, invoices, estimates and recurring invoices), through
+`common.custom_fields.custom_field_filter`:
+
+- Only the org's active fields for that list count. A `cf_` key that names no active field is
+  ignored, so a saved view on a field an admin has since turned off still opens, without that
+  filter.
+- The value is parsed by the field's type, so number and checkbox filters match: `cf_bedrooms=3`
+  matches a stored `3.0`, and `cf_pets=true` and `cf_pets=false` each match their own records
+  (`yes`/`no`, `1`/`0` and `on`/`off` work too). A date is `YYYY-MM-DD`; dropdown and text values
+  are an exact match. Before 1.36.0 the raw text was compared, so number and checkbox filters
+  matched nothing.
+- A value that does not parse is a `400` naming the parameter, for example
+  `{"cf_bedrooms": ["must be a number"]}`.
+- The key is always one key of `custom_fields`: `cf_rooms__gte=3` matches a field whose key is
+  `rooms__gte`, never a lookup on `rooms`.
+
+### Global search
+
+`GET /api/search/?q=<text>` is the web app's search palette. A query of fewer than two characters
+answers no results, and each type gives at most six matches:
+
+```json
+{
+  "query": "acme",
+  "results": [
+    {
+      "type": "account",
+      "id": "6f1d2c3e-8a4b-4c5d-9e6f-7a8b9c0d1e2f",
+      "title": "Acme Corp",
+      "subtitle": "ops@acme.example",
+      "group": "Accounts"
+    }
+  ]
+}
+```
+
+- The types searched come from the object registry (`common/object_registry.py`): each entry
+  whose `search` part names a function, among the entries the org has, so a switched-off module
+  is never searched. The built-in types are `lead`, `contact`, `account`, `deal`, `ticket` and
+  `invoice`. An installed app that adds registry entries through `register_hook` adds its types
+  the same way.
+- Each function starts from its module's read rule, the one the record's detail view uses, so a
+  hit is always a record the caller can open.
+- Knowledge base articles (`type` `solution`) are searched while that module is on. They are not
+  record objects, so they come from a short named list in `common/search_views.py`, and every
+  member finds every article.
+- `group` is the type's plural label: `Leads`, `Contacts`, `Accounts`, `Deals`, `Tickets`,
+  `Invoices`, an installed object's own label, or `Knowledge base`. Hits come grouped in registry
+  order, then the knowledge base. `group` and this order are new in 1.36.0; before, deals came
+  second.
+
+## Tags across record types
+
+`GET /api/tags/` returns each tag with `usage`, a count per kind of holder, and a top-level
+`usage_labels` that names each key:
+
+```json
+{
+  "tags_count": 1,
+  "tags": [
+    {"id": "...", "name": "VIP", "is_active": true, "usage": {"leads": 2, "contacts": 0, "opportunities": 1}}
+  ],
+  "usage_labels": {"leads": "Leads", "contacts": "Contacts", "opportunities": "Deals"},
+  "totals": {"count": 1, "active": 1, "unused": 0}
+}
+```
+
+(Shortened: every row carries every key of `usage_labels`, in the same order.)
+
+- The keys are, first, each object registry entry with a `tags_key`: `leads`, `contacts`,
+  `accounts`, `opportunities` (deals), `cases` (tickets), `tasks`, `projects`, and any an installed
+  app's entries add. Then the holders that are not records, from `NON_OBJECT_TAG_HOLDERS` in
+  `common/views/tags_views.py`: `api_settings`, `solutions`, `web_forms`, `lead_intakes` and
+  `macros`.
+- A label is the entry's plural label, or the holder's own (`API keys`, `Articles`, `Web forms`,
+  `Lead webhooks`, `Macros`). Show `usage_labels[key]`, falling back to the key itself.
+  `usage_labels` is new in 1.36.0.
+- Counts cover every record in the org, not only those the caller can open.
+- A switched-off module's keys leave both `usage` and `usage_labels`. `totals.unused` still counts
+  their records, so a tag used only there is never reported as unused.
+- `POST /api/tags/{id}/merge/` with `{"into": "<tag id>"}` (admins only) moves every holder's
+  records, off modules included, onto `into`, walking each model once, and then archives the
+  source tag.
 
 ## Response shape
 
