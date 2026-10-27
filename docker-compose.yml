@@ -1,3 +1,5 @@
+name: yada-yada-crm
+
 services:
   db:
     image: postgres:16-alpine
@@ -104,5 +106,8 @@ services:
       - "5181:5181"
 
 volumes:
+  # Pinned to the pre-rename volume names so existing data survives.
   postgres_data:
+    name: repo_postgres_data
   frontend_node_modules:
+    name: repo_frontend_node_modules
