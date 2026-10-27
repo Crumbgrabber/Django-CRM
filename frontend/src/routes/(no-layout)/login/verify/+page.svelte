@@ -2,7 +2,7 @@
   import { resolve } from '$app/paths';
   import '../../../../app.css';
   import '#lib/v2/styles/v2.css';
-  import imgLogo from '#lib/assets/images/logo.png';
+  import imgLogo from '#lib/assets/images/yadayada-logo.png';
   import type { PageProps } from './$types';
 
   let { data, form }: PageProps = $props();
@@ -23,8 +23,7 @@
 <div class="v2-root v2-auth">
   <div class="v2-auth-box">
     <a href={resolve('')} class="v2-auth-brand">
-      <img src={imgLogo} alt="" />
-      <b>BottleCRM</b>
+      <img src={imgLogo} alt="Yada Yada Marketing" />
     </a>
 
     <div class="v2-auth-card" style="text-align:center">

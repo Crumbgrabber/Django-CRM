@@ -5,7 +5,7 @@
   import { enhance, type SubmitFunction } from '$app/forms';
 
   import imgGoogle from '#lib/assets/images/google.svg';
-  import imgLogo from '#lib/assets/images/logo.png';
+  import imgLogo from '#lib/assets/images/yadayada-logo.png';
   import { Mail, Check } from '@lucide/svelte';
 
   let { data = {} }: { data?: { google_url?: string | null } } = $props();
@@ -47,8 +47,7 @@
 <div class="v2-root v2-auth">
   <div class="v2-auth-box">
     <a href={resolve('')} class="v2-auth-brand">
-      <img src={imgLogo} alt="" />
-      <b>BottleCRM</b>
+      <img src={imgLogo} alt="Yada Yada Marketing" />
     </a>
 
     <div class="v2-auth-card">

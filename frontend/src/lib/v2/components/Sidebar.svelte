@@ -2,6 +2,7 @@
   import { resolve } from '$app/paths';
   import { asInternalPath } from '#lib/utils/paths.js';
   import { page } from '$app/state';
+  import imgLogo from '#lib/assets/images/yadayada-logo.png';
   import {
     Sun,
     Columns3,
@@ -110,8 +111,7 @@
 
 <nav class="v2-nav" aria-label="Main">
   <div class="v2-org">
-    <span class="v2-mark">{org.name.slice(0, 1)}</span>
-    <b>{org.name}</b>
+    <img class="v2-org-logo" src={imgLogo} alt={org.name} />
   </div>
 
   <!--

@@ -167,6 +167,12 @@
   font-weight: 650;
   letter-spacing: -0.012em;
 }
+.v2-org-logo {
+  height: 40px;
+  width: auto;
+  max-width: 100%;
+  display: block;
+}
 .v2-mark {
   width: 24px;
   height: 24px;
@@ -1106,9 +1112,8 @@ a.v2-setting:hover {
   text-decoration: none;
 }
 .v2-auth-brand img {
-  width: 27px;
-  height: 27px;
-  border-radius: 7px;
+  height: 56px;
+  width: auto;
   display: block;
   flex: none;
 }
