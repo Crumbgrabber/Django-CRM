@@ -32,6 +32,7 @@ On 2026-09-26 the counts were 90 `+page.svelte` files under `frontend/src/routes
 | B23 | A rate on a time entry logged on a project | Mobile, by design for now | `POST /api/projects/<id>/time-entries/` takes `hourly_rate`; a non-admin's is ignored | 2026-10-26 | Projects release 1. The web's Log time has a rate field, admin-only since the review. The phone's Log time sheet has none, so every phone entry takes the person's rate on the project, else the project's rate (`time_entry_parts.dart`). |
 | B24 | "Who logged it": the time report for one project | Mobile | `GET /api/time-entries/report/?project=<id>` | 2026-10-26 | Projects release 1. The web's project Time tab links to the report filtered to the project. The phone's report has no project filter; it can group by project, and a project row opens the project. |
 | B25 | Hours written as 12h 30m on projects | Mobile | None needed | 2026-10-26 | Projects release 1. The web's project pages write hours as `12h 30m` (`hoursText`); the phone's project screens and Bill time write `12.5h` (`hoursLabel` in `project.dart`). The phone's own timesheet and report already write `1h 48m`. |
+| B26 | Create another kanban board | Mobile, by design for now | `POST /api/boards/` | 2026-10-27 | Web `/tasks/board` has a "New board" button beside the board switcher that creates a board (seeded with To Do, In Progress and Done) and opens it. The phone has no boards at all, so there is nothing to add it to. |
 
 ## Web-only by design
 

@@ -39,7 +39,7 @@ export const actions: Actions = {
     }
   },
 
-  // Create the org's first board, or another one.
+  // Create the org's first board, or another one; `id` lets the page open it.
   //
   // The empty state used to send people to the mobile app for this. The mobile
   // app has no board feature, and no client called `POST /boards/` at all, so
@@ -51,8 +51,8 @@ export const actions: Actions = {
     const name = String(form.get('name') || '').trim();
     if (!name) return fail(400, { error: 'A board needs a name.' });
     try {
-      await createBoard({ cookies }, { name });
-      return { added: 'board' };
+      const board = await createBoard({ cookies }, { name });
+      return { added: 'board', id: board.id };
     } catch (err) {
       return toFail(err, 'Could not create the board.');
     }

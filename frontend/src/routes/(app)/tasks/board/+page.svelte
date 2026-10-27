@@ -22,7 +22,7 @@
    */
   import { dndzone, type DndEvent } from 'svelte-dnd-action';
   import { flip } from 'svelte/animate';
-  import { refreshAll } from '$app/navigation';
+  import { goto, refreshAll } from '$app/navigation';
   import { deserialize, enhance } from '$app/forms';
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
   import SectionTabs from '#lib/v2/components/SectionTabs.svelte';
@@ -79,7 +79,7 @@
   let addColumnBusy = $state(false);
   let addColumnError = $state('');
 
-  // Only ever seen on the empty state, where there is no board to add to yet.
+  let showNewBoard = $state(false);
   let createBoardBusy = $state(false);
   let createBoardError = $state('');
 
@@ -183,10 +183,57 @@
         {data.board.name}<ChevronDown size={13} />
       </button>
     {/if}
+    {#if data.board}
+      <button class="v2-btn" type="button" onclick={() => (showNewBoard = !showNewBoard)}>
+        <Plus size={13} />New board
+      </button>
+    {/if}
   {/snippet}
 </PageHeader>
 
 <SectionTabs set="tasks" />
+
+{#snippet createBoardForm()}
+  <form
+    class="v2-lane-add-form"
+    style="max-width:20rem;margin-top:14px"
+    method="POST"
+    action="?/create"
+    use:enhance={() => {
+      createBoardBusy = true;
+      return async ({ result }) => {
+        createBoardBusy = false;
+        if (result.type === 'success') {
+          createBoardError = '';
+          showNewBoard = false;
+          const id = result.data?.id;
+          if (typeof id === 'string') await goto(`?board=${id}`, { invalidateAll: true });
+          else await refreshAll();
+        } else if (result.type === 'failure') {
+          createBoardError = failureMessage(result.data, 'Could not create the board.');
+        } else if (result.type === 'error') {
+          createBoardError = 'Could not create the board.';
+        }
+      };
+    }}
+  >
+    <!-- svelte-ignore a11y_autofocus -->
+    <input
+      class="v2-input"
+      name="name"
+      placeholder="Board name"
+      maxlength="255"
+      required
+      autofocus
+    />
+    <button class="v2-btn v2-btn-primary" type="submit" disabled={createBoardBusy}>
+      {createBoardBusy ? 'Creating…' : 'Create board'}
+    </button>
+  </form>
+  {#if createBoardError}
+    <p class="v2-error" role="status">{createBoardError}</p>
+  {/if}
+{/snippet}
 
 {#if !data.board}
   <!-- This used to say "Create one from the mobile app to see it here." The
@@ -200,45 +247,13 @@
         A board organises work into columns you drag cards between. It starts with To Do, In
         Progress and Done, and you can rename them later.
       </p>
-      <form
-        class="v2-lane-add-form"
-        style="max-width:20rem;margin-top:14px"
-        method="POST"
-        action="?/create"
-        use:enhance={() => {
-          createBoardBusy = true;
-          return async ({ result }) => {
-            createBoardBusy = false;
-            if (result.type === 'success') {
-              createBoardError = '';
-              await refreshAll();
-            } else if (result.type === 'failure') {
-              createBoardError = failureMessage(result.data, 'Could not create the board.');
-            } else if (result.type === 'error') {
-              createBoardError = 'Could not create the board.';
-            }
-          };
-        }}
-      >
-        <!-- svelte-ignore a11y_autofocus -->
-        <input
-          class="v2-input"
-          name="name"
-          placeholder="Board name"
-          maxlength="255"
-          required
-          autofocus
-        />
-        <button class="v2-btn v2-btn-primary" type="submit" disabled={createBoardBusy}>
-          {createBoardBusy ? 'Creating…' : 'Create board'}
-        </button>
-      </form>
-      {#if createBoardError}
-        <p class="v2-error" role="status">{createBoardError}</p>
-      {/if}
+      {@render createBoardForm()}
     </div>
   </div>
 {:else}
+  {#if showNewBoard}
+    <div class="v2-pad" style="padding-top:12px;flex:none">{@render createBoardForm()}</div>
+  {/if}
   {#if moveError}
     <div class="v2-pad" style="padding-top:12px;flex:none">
       <div class="v2-move-error" role="status">
