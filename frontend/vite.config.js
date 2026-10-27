@@ -34,6 +34,12 @@ export default defineConfig(({ mode }) => {
       // `@import 'tw-animate-css'` as a Node module and fails to resolve it.
       noExternal: ['tw-animate-css']
     },
+    optimizeDeps: {
+      // Found only via the lazy board route, so the dev optimizer registered it
+      // without writing its bundle and /tasks/board never hydrated. Excluding it
+      // breaks too: pnpm's peer-suffixed dir name is lost in the served URL.
+      include: ['svelte-dnd-action', '@lucide/svelte']
+    },
     server: {
       port: 5181,
       strictPort: true
