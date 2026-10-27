@@ -10,6 +10,7 @@ urlpatterns = [
     # Org-scoped global search for the ⌘K palette (spans every module, so it
     # lives here rather than in any one app).
     path("search/", GlobalSearchView.as_view(), name="global_search"),
+    path("vendors/", include("vendors.urls", namespace="api_vendors")),
     path("accounts/", include("accounts.urls", namespace="api_accounts")),
     path("contacts/", include("contacts.urls", namespace="api_contacts")),
     path("leads/", include("leads.urls", namespace="api_leads")),

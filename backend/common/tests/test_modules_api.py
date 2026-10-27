@@ -22,7 +22,7 @@ URL = "/api/org/modules/"
 ROW_KEYS = {"key", "label", "group", "covers", "stops", "enabled", "available", "needs"}
 DEFAULT_ORDER = [
     "deals", "leads", "goals", "tasks", "tickets", "knowledge_base", "documents",
-    "projects", "invoices", "timesheet",
+    "projects", "invoices", "timesheet", "vendors", "bills",
 ]  # fmt: skip
 
 
@@ -48,7 +48,7 @@ class TestRead:
         assert [r["key"] for r in body["modules"]] == DEFAULT_ORDER
         assert all(set(r) == ROW_KEYS for r in body["modules"])
         assert [r["group"] for r in body["modules"]] == (
-            ["sell"] * 3 + ["serve"] * 5 + ["bill"] * 2
+            ["sell"] * 3 + ["serve"] * 5 + ["bill"] * 4
         )
         assert body["can_edit"] is False
         assert admin_client.get(URL).json()["can_edit"] is True
@@ -227,7 +227,7 @@ class TestSwitching:
         assert [r["key"] for r in response.json()["modules"]] == [
             "goals", "leads", "deals",
             "documents", "tasks", "tickets", "knowledge_base", "projects",
-            "timesheet", "invoices",
+            "timesheet", "invoices", "vendors", "bills",
         ]  # fmt: skip
         org_a.refresh_from_db()
         assert org_a.module_order == order

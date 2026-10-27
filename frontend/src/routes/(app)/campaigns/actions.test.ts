@@ -14,7 +14,7 @@ function event(fields: Record<string, string>) {
   const body = new FormData();
   for (const [key, value] of Object.entries(fields)) body.set(key, value);
   return {
-    request: new Request('http://test/settings/lead-sources', { method: 'POST', body }),
+    request: new Request('http://test/campaigns', { method: 'POST', body }),
     cookies
   } as any;
 }

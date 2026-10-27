@@ -5644,6 +5644,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/vendors/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["vendors_retrieve"];
+        put?: never;
+        post: operations["vendors_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vendors/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["vendors_retrieve_2"];
+        put: operations["vendors_update"];
+        post?: never;
+        delete: operations["vendors_destroy"];
+        options?: never;
+        head?: never;
+        patch: operations["vendors_partial_update"];
+        trace?: never;
+    };
+    "/api/vendors/bills/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["vendors_bills_retrieve"];
+        put?: never;
+        post: operations["vendors_bills_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vendors/bills/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["vendors_bills_retrieve_2"];
+        put: operations["vendors_bills_update"];
+        post?: never;
+        delete: operations["vendors_bills_destroy"];
+        options?: never;
+        head?: never;
+        patch: operations["vendors_bills_partial_update"];
+        trace?: never;
+    };
     "/api/webforms/": {
         parameters: {
             query?: never;
@@ -6890,6 +6954,85 @@ export interface components {
             status: string;
             text: string;
         };
+        Bill: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            vendor: string;
+            readonly vendor_name: string;
+            bill_number: string;
+            /** Format: date */
+            bill_date: string;
+            /** Format: date */
+            due_date: string | null;
+            currency: (components["schemas"]["CurrencyEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
+            /**
+             * Total
+             * Format: decimal
+             */
+            total_amount: string;
+            /** Format: decimal */
+            amount_paid: string;
+            /** Format: decimal */
+            readonly balance_due: string;
+            status: components["schemas"]["BillStatusEnum"];
+            readonly is_overdue: boolean;
+            notes: string;
+            /**
+             * Format: uuid
+             * @description Organization this record belongs to
+             */
+            readonly org: string;
+            /** Format: date-time */
+            readonly created_at: string;
+            /**
+             * Last Modified At
+             * Format: date-time
+             */
+            readonly updated_at: string;
+            /** Format: uuid */
+            readonly created_by: string | null;
+            /**
+             * Last Modified By
+             * Format: uuid
+             */
+            readonly updated_by: string | null;
+        };
+        BillListResponse: {
+            count: number;
+            /** Format: uri */
+            next: string | null;
+            /** Format: uri */
+            previous: string | null;
+            results: components["schemas"]["Bill"][];
+        };
+        BillRequest: {
+            /** Format: uuid */
+            vendor: string;
+            bill_number?: string;
+            /** Format: date */
+            bill_date: string;
+            /** Format: date */
+            due_date?: string | null;
+            currency?: (components["schemas"]["CurrencyEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
+            /**
+             * Total
+             * Format: decimal
+             */
+            total_amount?: string;
+            /** Format: decimal */
+            amount_paid?: string;
+            status?: components["schemas"]["BillStatusEnum"];
+            notes?: string;
+        };
+        /**
+         * @description * `UNPAID` - Unpaid
+         *     * `PARTIALLY_PAID` - Partly paid
+         *     * `PAID` - Paid
+         *     * `VOID` - Void
+         * @enum {string}
+         */
+        BillStatusEnum: "UNPAID" | "PARTIALLY_PAID" | "PAID" | "VOID";
         /**
          * @description * `GB` - United Kingdom
          *     * `AF` - Afghanistan
@@ -12826,6 +12969,25 @@ export interface components {
             approver_ids?: string[];
             is_active?: boolean;
         };
+        PatchedBillRequest: {
+            /** Format: uuid */
+            vendor?: string;
+            bill_number?: string;
+            /** Format: date */
+            bill_date?: string;
+            /** Format: date */
+            due_date?: string | null;
+            currency?: (components["schemas"]["CurrencyEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
+            /**
+             * Total
+             * Format: decimal
+             */
+            total_amount?: string;
+            /** Format: decimal */
+            amount_paid?: string;
+            status?: components["schemas"]["BillStatusEnum"];
+            notes?: string;
+        };
         /** @description Serializer for boards */
         PatchedBoardRequest: {
             name?: string;
@@ -13891,7 +14053,7 @@ export interface components {
         PatchedTeamswaggerCreateRequest: {
             name?: string;
             description?: string;
-            users?: string[];
+            assign_users?: string[];
         };
         /**
          * @description Update path for /api/time-entries/<pk>/.
@@ -13934,6 +14096,29 @@ export interface components {
             state?: string;
             pincode?: string;
             country?: string;
+        };
+        PatchedVendorRequest: {
+            /** Vendor Name */
+            name?: string;
+            email?: (string) | null;
+            phone?: (string) | null;
+            website?: (string) | null;
+            industry?: (components["schemas"]["IndustryEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
+            currency?: (components["schemas"]["CurrencyEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** Address */
+            address_line?: string | null;
+            city?: string | null;
+            state?: string | null;
+            /** Postal Code */
+            postcode?: string | null;
+            country?: (components["schemas"]["CountryEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
+            assigned_to?: string[];
+            teams?: string[];
+            contacts?: string[];
+            tags?: string[];
+            /** Notes */
+            description?: string | null;
+            is_active?: boolean;
         };
         PatchedWebFormDetailRequest: {
             name?: string;
@@ -16290,13 +16475,13 @@ export interface components {
         };
         TeamsRequest: {
             name: string;
-            description: string;
+            description?: string;
             created_by: components["schemas"]["UserRequest"] | null;
         };
         TeamswaggerCreateRequest: {
             name: string;
-            description: string;
-            users: string[];
+            description?: string;
+            assign_users?: string[];
         };
         /**
          * @description * `email` - Email
@@ -16628,6 +16813,7 @@ export interface components {
             is_active: boolean;
             /** Format: date-time */
             readonly created_at: string;
+            alternate_phone: string | null;
             readonly active_token_count: number;
         };
         /** @description Response-only: one org in `UserDetailSerializer.organizations`. */
@@ -16683,6 +16869,82 @@ export interface components {
             admin_email: string;
             roles: string[][];
             status: string[][];
+        };
+        Vendor: {
+            /** Format: uuid */
+            readonly id: string;
+            /** Vendor Name */
+            name: string;
+            email: (string) | null;
+            phone: (string) | null;
+            website: (string) | null;
+            industry: (components["schemas"]["IndustryEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
+            currency: (components["schemas"]["CurrencyEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** Address */
+            address_line: string | null;
+            city: string | null;
+            state: string | null;
+            /** Postal Code */
+            postcode: string | null;
+            country: (components["schemas"]["CountryEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
+            assigned_to: string[];
+            teams: string[];
+            contacts: string[];
+            tags: string[];
+            /** Notes */
+            description: string | null;
+            is_active: boolean;
+            /**
+             * Format: uuid
+             * @description Organization this record belongs to
+             */
+            readonly org: string;
+            /** Format: date-time */
+            readonly created_at: string;
+            /**
+             * Last Modified At
+             * Format: date-time
+             */
+            readonly updated_at: string;
+            /** Format: uuid */
+            readonly created_by: string | null;
+            /**
+             * Last Modified By
+             * Format: uuid
+             */
+            readonly updated_by: string | null;
+            readonly can_delete: boolean;
+        };
+        VendorListResponse: {
+            count: number;
+            /** Format: uri */
+            next: string | null;
+            /** Format: uri */
+            previous: string | null;
+            results: components["schemas"]["Vendor"][];
+        };
+        VendorRequest: {
+            /** Vendor Name */
+            name: string;
+            email?: (string) | null;
+            phone?: (string) | null;
+            website?: (string) | null;
+            industry?: (components["schemas"]["IndustryEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
+            currency?: (components["schemas"]["CurrencyEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** Address */
+            address_line?: string | null;
+            city?: string | null;
+            state?: string | null;
+            /** Postal Code */
+            postcode?: string | null;
+            country?: (components["schemas"]["CountryEnum"] | components["schemas"]["BlankEnum"] | components["schemas"]["NullEnum"]) | null;
+            assigned_to?: string[];
+            teams?: string[];
+            contacts?: string[];
+            tags?: string[];
+            /** Notes */
+            description?: string | null;
+            is_active?: boolean;
         };
         WebFormAnalyticsDay: {
             /** Format: date */
@@ -28019,6 +28281,294 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TeamsAndUsersResponse"];
+                };
+            };
+        };
+    };
+    vendors_retrieve: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VendorListResponse"];
+                };
+            };
+        };
+    };
+    vendors_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VendorRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["VendorRequest"];
+                "multipart/form-data": components["schemas"]["VendorRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Vendor"];
+                };
+            };
+        };
+    };
+    vendors_retrieve_2: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Vendor"];
+                };
+            };
+        };
+    };
+    vendors_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VendorRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["VendorRequest"];
+                "multipart/form-data": components["schemas"]["VendorRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Vendor"];
+                };
+            };
+        };
+    };
+    vendors_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    vendors_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedVendorRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedVendorRequest"];
+                "multipart/form-data": components["schemas"]["PatchedVendorRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Vendor"];
+                };
+            };
+        };
+    };
+    vendors_bills_retrieve: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+                overdue?: boolean;
+                status?: string;
+                vendor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillListResponse"];
+                };
+            };
+        };
+    };
+    vendors_bills_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BillRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["BillRequest"];
+                "multipart/form-data": components["schemas"]["BillRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Bill"];
+                };
+            };
+        };
+    };
+    vendors_bills_retrieve_2: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Bill"];
+                };
+            };
+        };
+    };
+    vendors_bills_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BillRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["BillRequest"];
+                "multipart/form-data": components["schemas"]["BillRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Bill"];
+                };
+            };
+        };
+    };
+    vendors_bills_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    vendors_bills_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedBillRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedBillRequest"];
+                "multipart/form-data": components["schemas"]["PatchedBillRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Bill"];
                 };
             };
         };

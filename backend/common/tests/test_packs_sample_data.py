@@ -154,19 +154,18 @@ def test_sample_leads_are_assigned_to_the_applying_admin(org_a, admin_profile):
 
 @pytest.mark.django_db
 @pytest.mark.parametrize(
-    "pack_id", ["real-estate", "education-admissions", "professional-services"]
+    "pack_id",
+    [
+        "real-estate",
+        "education-admissions",
+        "professional-services",
+        "professional-services-us",
+    ],
 )
 def test_sample_data_applies_cleanly_for_every_shipped_pack(
     org_a, admin_profile, pack_id
 ):
-    """The only end-to-end coverage of education-admissions' and
-    professional-services' sample_data blocks, everything else in this file
-    exercises real-estate only. Both other packs carry opportunity_amount /
-    currency (Minor 9) and a full set of remapped `source` values (Important
-    4), so this is what actually proves those two packs' sample rows insert
-    without a DecimalField/choices surprise, not just that the JSON is
-    schema-valid.
-    """
+    """Sample leads insert with valid amounts, currencies and sources."""
     pack = get_pack(pack_id)
     report = apply_pack(org_a, pack, admin_profile)
 
@@ -185,7 +184,13 @@ def test_sample_data_applies_cleanly_for_every_shipped_pack(
 
 @pytest.mark.django_db
 @pytest.mark.parametrize(
-    "pack_id", ["real-estate", "education-admissions", "professional-services"]
+    "pack_id",
+    [
+        "real-estate",
+        "education-admissions",
+        "professional-services",
+        "professional-services-us",
+    ],
 )
 def test_apply_creates_every_sample_entity_type(org_a, admin_profile, pack_id):
     """Each pack's whole sample block inserts, not just its leads.

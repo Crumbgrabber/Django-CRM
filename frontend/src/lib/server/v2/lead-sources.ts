@@ -1,6 +1,6 @@
 /**
  * Lead sources: the org's editable list behind every source picker, and the
- * wiring of `/settings/lead-sources`.
+ * wiring of `/campaigns`.
  *
  * Any member reads `GET /leads/sources/`; adding, renaming, retiring and
  * ordering are admin-only, and the API decides. There is no delete: a retired

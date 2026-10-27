@@ -330,14 +330,12 @@ export function hubGroups(data: HubData): {
               }
             ]
           : []),
-        // Not tied to Leads: deals pick from the same list. Hidden only where
-        // the API has no list (false); a failed read still lists the
-        // destination, without a number.
-        ...(data.leadSources !== false
+        // A failed summary read still lists the destination without a number.
+        ...(isOn(data.modules, 'leads') && data.leadSources !== false
           ? [
               {
-                href: '/settings/lead-sources',
-                title: 'Lead sources',
+                href: '/campaigns',
+                title: 'Campaigns',
                 body: 'Where leads come from: the list every source picker offers.',
                 value: data.leadSources ? `${data.leadSources.active} in use` : null,
                 warn: false

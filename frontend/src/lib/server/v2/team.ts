@@ -1,41 +1,3 @@
-/**
- * Team and access: the ninth v2 module wired to the real API.
- *
- * Lives under `#lib/server` for the same reason as the eight before it:
- * SvelteKit refuses to bundle this directory into client code, and the access
- * token is an httpOnly cookie the browser must never see. Org is a JWT claim,
- * never a parameter.
- *
- * WHY THIS MODULE
- * This is the access-control page: who is an admin, who has been deactivated,
- * and whose API tokens still authenticate after their login was pulled. Wiring
- * it meant driving `/api/users/` and `/api/user/<id>/` for real, and those are
- * the endpoints where a plain member could PATCH their own profile to
- * role="ADMIN" and become an org admin. The page's own header comment claimed
- * "the server refuses to let anyone change their own role"; it did not. Fixing
- * that (in common/views/user_views.py + CreateProfileSerializer) is the point
- * of this migration; the wiring is what proved it end to end.
- *
- * WHAT THE MOCK ASSUMED THAT THE API DID NOT
- * - **Names.** The fixture split every person into `first_name`/`last_name`.
- *   `User` has a single `name`; the real `user_details` carries `name` (and
- *   `email`, `last_login`), so that is what the page shows, falling back to the
- *   email when someone was invited and has no name yet.
- * - **Per-member teams.** `ProfileSerializer` does not list a person's teams.
- *   They are derived here from `/api/teams/`, whose serializer nests each
- *   team's members, one source of truth, not a second field that could drift.
- * - **Token counts.** The one genuinely urgent thing this page surfaces. A
- *   live token on a deactivated account. Needs a real count, so the users list
- *   now returns `active_token_count` per profile (computed once server-side,
- *   not on the shared serializer). No count is invented.
- *
- * WHAT STAYED FIXTURES, ON PURPOSE
- * The People/access half is wired: list, invite, role change, activate and
- * deactivate. Team CRUD (create/edit membership) is a separate write surface
- * with its own picker UI and is left for later, exactly as estimates were left
- * beside invoices. The teams list still renders, read-only, because the
- * people rows need it to show who is on what.
- */
 import { apiRequest } from '#lib/api-helpers.js';
 import { apiStatus } from '#lib/api-errors.js';
 import { accessClaims } from './organization.js';
@@ -49,6 +11,8 @@ type Member = {
   user_id: string;
   name: string;
   email: string;
+  phone: string;
+  alternate_phone: string;
   role: Schemas['ProfileRoleEnum'];
   is_active: boolean;
   teams: string[];
@@ -61,7 +25,13 @@ type TeamPage = {
   forbidden: false;
   active: Member[];
   inactive: Member[];
-  teams: { id: string; name: string; description: string; member_count: number }[];
+  teams: {
+    id: string;
+    name: string;
+    description: string;
+    member_count: number;
+    profile_ids: string[];
+  }[];
   roles: string[];
   totals: {
     count: number;
@@ -114,6 +84,8 @@ function toMember(
     user_id: details.id,
     name: details.name || details.email || 'Unnamed',
     email: details.email,
+    phone: p.phone ?? '',
+    alternate_phone: p.alternate_phone ?? '',
     role: p.role,
     is_active: p.is_active,
     teams: teamsByProfile[p.id] ?? [],
@@ -142,6 +114,34 @@ export async function listTeam({
     const usersCall: Promise<Schemas['UsersListResponse']> = apiRequest('/users/', {}, { cookies });
     const teamsCall: Promise<Schemas['TeamsListResponse']> = apiRequest('/teams/', {}, { cookies });
     [usersResp, teamsResp] = await Promise.all([usersCall, teamsCall]);
+    while (teamsResp.teams.length < teamsResp.teams_count) {
+      const page: Schemas['TeamsListResponse'] = await apiRequest(
+        `/teams/?offset=${teamsResp.teams.length}`,
+        {},
+        { cookies }
+      );
+      if (!page.teams.length) break;
+      teamsResp.teams.push(...page.teams);
+    }
+    const active = usersResp.active_users.active_users;
+    const inactive = usersResp.inactive_users.inactive_users;
+    let offset = Math.max(active.length, inactive.length);
+    while (
+      active.length < usersResp.active_users.active_users_count ||
+      inactive.length < usersResp.inactive_users.inactive_users_count
+    ) {
+      const page: Schemas['UsersListResponse'] = await apiRequest(
+        `/users/?offset=${offset}`,
+        {},
+        { cookies }
+      );
+      const nextActive = page.active_users.active_users;
+      const nextInactive = page.inactive_users.inactive_users;
+      if (!nextActive.length && !nextInactive.length) break;
+      active.push(...nextActive);
+      inactive.push(...nextInactive);
+      offset += Math.max(nextActive.length, nextInactive.length);
+    }
   } catch (err) {
     if (apiStatus(err) === 403) return { forbidden: true };
     throw err;
@@ -167,6 +167,7 @@ export async function listTeam({
     id: t.id,
     name: t.name,
     description: t.description || '',
+    profile_ids: (t.users ?? []).map((u) => u.id),
     member_count: (t.users ?? []).length
   }));
 
@@ -214,7 +215,13 @@ export function inviteUser(
 export function updateUser(
   { cookies }: { cookies: Cookies },
   userId: string,
-  body: { email?: string; name?: string; password?: string; role?: Role }
+  body: {
+    email?: string;
+    name?: string;
+    password?: string;
+    phone?: string;
+    alternate_phone?: string;
+  }
 ): Promise<Schemas['UserPatchResponse']> {
   return apiRequest(`/user/${userId}/`, { method: 'PATCH', body }, { cookies });
 }
@@ -248,4 +255,36 @@ export function setStatus(
   status: 'Active' | 'Inactive'
 ): Promise<Schemas['UserStatusResponse']> {
   return apiRequest(`/user/${userId}/status/`, { method: 'POST', body: { status } }, { cookies });
+}
+
+export function createTeam(
+  { cookies }: { cookies: Cookies },
+  name: string,
+  description = ''
+): Promise<Schemas['TeamCreateResponse']> {
+  return apiRequest(
+    '/teams/',
+    { method: 'POST', body: { name, description, assign_users: [] } },
+    { cookies }
+  );
+}
+
+export function deleteTeam(
+  { cookies }: { cookies: Cookies },
+  id: string
+): Promise<Schemas['TeamDeleteResponse']> {
+  return apiRequest(`/teams/${id}/`, { method: 'DELETE' }, { cookies });
+}
+
+export function setTeamMembers(
+  { cookies }: { cookies: Cookies },
+  id: string,
+  name: string,
+  profileIds: string[]
+): Promise<Schemas['TeamUpdateResponse']> {
+  return apiRequest(
+    `/teams/${id}/`,
+    { method: 'PUT', body: { name, assign_users: profileIds } },
+    { cookies }
+  );
 }

@@ -995,7 +995,7 @@ class Notification(BaseModel):
 
 class Teams(BaseModel):
     name = models.CharField(max_length=100)
-    description = models.TextField()
+    description = models.TextField(blank=True)
     users = models.ManyToManyField(Profile, related_name="user_teams")
     org = models.ForeignKey(Org, on_delete=models.CASCADE, related_name="teams")
 

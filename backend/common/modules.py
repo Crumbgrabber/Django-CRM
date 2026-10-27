@@ -1,4 +1,4 @@
-"""The module catalogue: ten parts of the CRM an org admin can switch off.
+"""The module catalogue: twelve parts of the CRM an org admin can switch off.
 
 State lives in three ``Org`` fields (``modules_off``, ``module_order``,
 ``modules_on_at``). Everything here reads them defensively: unknown or
@@ -136,6 +136,21 @@ MODULES = (
             "are no longer stopped automatically."
         ),
     ),
+    Module(
+        key="vendors",
+        label="Vendors",
+        group="bill",
+        covers="Vendors you buy from, their contacts and payment terms.",
+        stops="{label} leave every menu, and Bills switches off too.",
+    ),
+    Module(
+        key="bills",
+        label="Bills",
+        group="bill",
+        needs="vendors",
+        covers="Vendor bills, what is due and what is overdue.",
+        stops="{label} leave every menu and vendor pages.",
+    ),
 )
 
 KEYS = tuple(m.key for m in MODULES)
@@ -186,6 +201,8 @@ MODEL_MODULES: dict[str, str] = {
     "common.Document": "documents",
     "projects.Project": "projects",
     "projects.ProjectRate": "projects",
+    "vendors.Vendor": "vendors",
+    "vendors.Bill": "bills",
 }
 
 
@@ -312,6 +329,7 @@ NAMESPACE_MODULES: dict[str, Requires] = {
     "api_time_entries": Requires(("timesheet",), any_of=("tickets", "projects")),
     "api_projects": Requires(("projects",)),
     "api_invoices": Requires(("invoices",)),
+    "api_vendors": Requires(("vendors",)),
     "public_help": Requires(("knowledge_base",)),
     "public_invoices": Requires(("invoices",)),
     "public_leads": Requires(("leads",)),
@@ -349,6 +367,7 @@ ROUTE_MODULES: dict[str, Requires] = {
     "api/projects/<uid:pk>/unbilled/": Requires(("projects", "invoices", "timesheet")),
     "api/projects/<uid:pk>/invoice-amount/": Requires(("projects", "invoices")),
     "api/projects/from-deal/": Requires(("projects", "deals")),
+    "api/vendors/bills/": Requires(("vendors", "bills")),
     "api/leads/sources/": CORE,
     "api/documents/": Requires(("documents",)),
     "api/profile/calendar-feed/": Requires(("tasks",)),

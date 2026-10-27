@@ -28,6 +28,6 @@ describe('visibleTabs', () => {
 
   it('drops a set whose module is off and keeps everything for a null list', () => {
     expect(visibleTabs('tickets', { isAdmin: true, modules: modules(['tickets']) })).toEqual([]);
-    expect(visibleTabs('tasks', { modules: null })).toHaveLength(3);
+    expect(visibleTabs('tasks', { modules: null })).toHaveLength(2);
   });
 });

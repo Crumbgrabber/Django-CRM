@@ -1,5 +1,8 @@
+from uuid import UUID
+
 from drf_spectacular.utils import extend_schema, inline_serializer
 from rest_framework import serializers, status
+from rest_framework.exceptions import ValidationError
 from rest_framework.pagination import LimitOffsetPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -8,19 +11,32 @@ from rest_framework.views import APIView
 from common import swagger_params
 from common.lookups import get_scoped_or_404
 from common.models import Profile, Teams
-from common.permissions import is_org_admin
+from common.permissions import HasOrgContext, is_org_admin
 from common.serializer import (
     TeamCreateSerializer,
     TeamsSerializer,
     TeamswaggerCreateSerializer,
 )
-from common.tasks import remove_users, update_team_users
-from common.validators import uuid_list_param, uuid_param
+from common.tasks import update_team_users
+from common.validators import payload_id_list, uuid_list_param, uuid_param
+
+
+def team_members(params, org):
+    value = params.get("assign_users", [])
+    if not isinstance(value, list):
+        raise ValidationError({"assign_users": ["Expected a list of Profile ids."]})
+    ids = [UUID(str(pk)) for pk in payload_id_list(value, "assign_users")]
+    profiles = list(Profile.objects.filter(id__in=ids, org=org, is_active=True))
+    if {str(profile.id) for profile in profiles} != {str(pk) for pk in ids}:
+        raise ValidationError(
+            {"assign_users": ["Choose active members of this organization."]}
+        )
+    return profiles
 
 
 class TeamsListView(APIView, LimitOffsetPagination):
     model = Teams
-    permission_classes = (IsAuthenticated,)
+    permission_classes = (IsAuthenticated, HasOrgContext)
 
     def get_context_data(self, **kwargs):
         params = self.request.query_params
@@ -117,17 +133,12 @@ class TeamsListView(APIView, LimitOffsetPagination):
                 status=status.HTTP_403_FORBIDDEN,
             )
         params = self.request.data
+        profiles = team_members(params, request.profile.org)
         serializer = TeamCreateSerializer(data=params, request_obj=request)
         if serializer.is_valid():
             team_obj = serializer.save(org=request.profile.org)
 
-            if params.get("assign_users"):
-                assinged_to_list = params.get("users")
-                profiles = Profile.objects.filter(
-                    id__in=assinged_to_list, org=request.profile.org
-                )
-                if profiles:
-                    team_obj.users.add(*profiles)
+            team_obj.users.set(profiles)
             return Response(
                 {"error": False, "message": "Team Created Successfully"},
                 status=status.HTTP_200_OK,
@@ -140,7 +151,7 @@ class TeamsListView(APIView, LimitOffsetPagination):
 
 class TeamsDetailView(APIView):
     model = Teams
-    permission_classes = (IsAuthenticated,)
+    permission_classes = (IsAuthenticated, HasOrgContext)
 
     def get_object(self, pk):
         return get_scoped_or_404(self.model, pk, self.request.profile.org)
@@ -195,28 +206,15 @@ class TeamsDetailView(APIView):
             )
         params = request.data
         self.team = self.get_object(pk)
-        actual_users = self.team.get_users()
-        removed_users = []
+        profiles = team_members(params, request.profile.org)
         serializer = TeamCreateSerializer(
             data=params, instance=self.team, request_obj=request
         )
         if serializer.is_valid():
             team_obj = serializer.save()
 
-            team_obj.users.clear()
-            if params.get("assign_users"):
-                assinged_to_list = params.get("assign_users")
-                profiles = Profile.objects.filter(
-                    id__in=assinged_to_list, org=request.profile.org
-                )
-                if profiles:
-                    team_obj.users.add(*profiles)
+            team_obj.users.set(profiles)
             update_team_users.delay(pk, str(request.profile.org.id))
-            latest_users = team_obj.get_users()
-            for user in actual_users:
-                if user not in latest_users:
-                    removed_users.append(user)
-            remove_users.delay(removed_users, pk, str(request.profile.org.id))
             return Response(
                 {"error": False, "message": "Team Updated Successfully"},
                 status=status.HTTP_200_OK,

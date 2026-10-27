@@ -31,7 +31,7 @@ describe('module logic', () => {
     expect(isOn([row('leads', { available: false })], 'leads')).toBe(false);
     expect(isOn(null, 'leads')).toBe(true);
     expect(isOn([row('deals')], 'leads')).toBe(true);
-    expect(MODULE_KEYS).toHaveLength(10);
+    expect(MODULE_KEYS).toHaveLength(12);
   });
 
   it('reads Projects as off on an API whose list does not carry it', () => {
@@ -72,6 +72,7 @@ describe('module logic', () => {
       ['/(app)/profile', null],
       ['/(app)/settings/web-forms', null],
       ['/(app)/settings/lead-sources', null],
+      ['/(app)/campaigns', { all: ['leads'] }],
       ['/(app)/settings/inbound-email', { anyOf: ['tickets', 'leads'] }],
       ['/(app)/pipelinex', null]
     ];
@@ -159,4 +160,32 @@ describe('module logic', () => {
     expect(wordsOn(off('leads', 'deals', 'tickets'), words)).toBe('accounts');
     expect(wordsOn(off('leads'), [['leads', 'a lead']])).toBe('');
   });
+});
+
+it('gates vendor pages with Vendors and bill pages with Vendors and Bills', () => {
+  for (const path of [
+    '/(app)/vendors',
+    '/(app)/vendors/new',
+    '/(app)/vendors/[id]',
+    '/(app)/vendors/[id]/edit'
+  ]) {
+    expect(requirementFor(path)).toEqual({ all: ['vendors'] });
+    expect(refusalFor(path, [row('vendors', { available: false })])).toMatchObject({
+      key: 'vendors'
+    });
+    expect(refusalFor(path, [row('vendors'), row('bills', { available: false })])).toBeNull();
+  }
+  for (const path of [
+    '/(app)/bills',
+    '/(app)/vendors/[id]/bills/new',
+    '/(app)/vendors/[id]/bills/[billId]'
+  ]) {
+    expect(requirementFor(path)).toEqual({ all: ['vendors', 'bills'] });
+    expect(refusalFor(path, [row('vendors'), row('bills', { available: false })])).toMatchObject({
+      key: 'bills'
+    });
+    expect(refusalFor(path, [row('vendors'), row('bills')])).toBeNull();
+  }
+  // An API that predates the two modules sends no rows: both read as off.
+  expect(refusalFor('/(app)/vendors', [row('invoices')])).toMatchObject({ key: 'vendors' });
 });

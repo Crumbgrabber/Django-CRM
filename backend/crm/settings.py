@@ -71,6 +71,7 @@ INSTALLED_APPS = [
     "drf_spectacular",
     "common",
     "accounts",
+    "vendors",
     "cases",
     "contacts",
     "leads",

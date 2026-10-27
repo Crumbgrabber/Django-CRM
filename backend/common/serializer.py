@@ -1551,12 +1551,16 @@ class TeamCreateSerializer(serializers.ModelSerializer):
 
 
 class TeamswaggerCreateSerializer(serializers.ModelSerializer):
+    assign_users = serializers.ListField(
+        child=serializers.UUIDField(), required=False, allow_empty=True
+    )
+
     class Meta:
         model = Teams
         fields = (
             "name",
             "description",
-            "users",
+            "assign_users",
         )
 
 

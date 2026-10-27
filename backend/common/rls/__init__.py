@@ -34,6 +34,8 @@ INSERT_POLICY = "org_insert_check"
 ORG_SCOPED_TABLES = [
     # Core business entities
     "lead",
+    "vendors",
+    "vendor_bills",
     "accounts",  # Note: plural
     "contacts",  # Note: plural
     "opportunity",

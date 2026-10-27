@@ -122,7 +122,11 @@ class UserListRowSerializer(ProfileSerializer):
     active_token_count = serializers.IntegerField(read_only=True)
 
     class Meta(ProfileSerializer.Meta):
-        fields = (*ProfileSerializer.Meta.fields, "active_token_count")
+        fields = (
+            *ProfileSerializer.Meta.fields,
+            "alternate_phone",
+            "active_token_count",
+        )
 
 
 class UsersListView(APIView, LimitOffsetPagination):
@@ -308,7 +312,7 @@ class UsersListView(APIView, LimitOffsetPagination):
             queryset_active_users.distinct(), self.request, view=self
         )
         active_users = _with_token_counts(
-            ProfileSerializer(results_active_users, many=True).data
+            UserListRowSerializer(results_active_users, many=True).data
         )
         if results_active_users:
             offset = queryset_active_users.filter(
@@ -329,7 +333,7 @@ class UsersListView(APIView, LimitOffsetPagination):
             queryset_inactive_users.distinct(), self.request, view=self
         )
         inactive_users = _with_token_counts(
-            ProfileSerializer(results_inactive_users, many=True).data
+            UserListRowSerializer(results_inactive_users, many=True).data
         )
         if results_inactive_users:
             offset = queryset_inactive_users.filter(

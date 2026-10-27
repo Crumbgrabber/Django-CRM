@@ -54,11 +54,14 @@ DELETE_GUARDS: dict[str, tuple[Guard, ...]] = {
         Guard("tasks.BoardMember", "profile", "board membership", "board memberships"),
         Guard("projects.ProjectRate", "profile", "project rate", "project rates"),
     ),
+    "vendors.Vendor": (Guard("vendors.Bill", "vendor", "bill", "bills"),),
 }
 
 # The models whose delete views call `delete_refusal`. Any other key above is
 # consulted only when deleting one of these cascades into it.
-ENTRY_POINTS = frozenset({"accounts.Account", "cases.Case", "common.Profile"})
+ENTRY_POINTS = frozenset(
+    {"accounts.Account", "cases.Case", "common.Profile", "vendors.Vendor"}
+)
 
 
 def _blocking(guard, available):

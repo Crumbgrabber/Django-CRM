@@ -2,11 +2,12 @@
 
 An industry app shapes an organization for one kind of business: the words it uses for leads and
 deals, pipelines for leads, tickets and tasks, custom fields, tags, lead sources and products, and,
-if you want them, sample records to try things on. Four apps ship with BottleCRM:
+if you want them, sample records to try things on. Five apps ship with BottleCRM:
 
 | App id | Name | For |
 | --- | --- | --- |
 | `professional-services` | Professional services | Agencies, consultancies and accounting firms selling billable work. |
+| `professional-services-us` | Professional Services - American | Agencies, consultancies and accounting firms using US wording, with Leads and Proposals. |
 | `real-estate` | Real estate | Brokers, agencies and developers selling residential and commercial property. |
 | `education-admissions` | Education admissions | Coaching centres, training institutes and colleges managing admissions. |
 | `events-weddings` | Events & weddings | Wedding planners, event agencies and venues taking enquiries through to a delivered event. |

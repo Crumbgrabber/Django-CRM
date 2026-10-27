@@ -123,6 +123,8 @@ ROUTE_CASES = [
     ("api/macros/", (CU, "api_macros"), Requires(("tickets",))),
     ("api/time-entries/timesheet/", (CU, "api_time_entries"), Requires(("timesheet",), any_of=("tickets", "projects"))),
     ("api/projects/<uid:pk>/", (CU, "api_projects"), Requires(("projects",))),
+    ("api/vendors/<uid:pk>/", (CU, "api_vendors"), Requires(("vendors",))),
+    ("api/vendors/bills/<uid:pk>/", (CU, "api_vendors"), Requires(("vendors", "bills"))),
     ("api/invoices/<uuid:pk>/", (CU, "api_invoices"), Requires(("invoices",))),
     ("api/public/help/<str:slug>/", ("public_help",), Requires(("knowledge_base",))),
     ("api/public/estimate/<str:token>/accept/", ("public_invoices",), Requires(("invoices",))),

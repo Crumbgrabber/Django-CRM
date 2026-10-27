@@ -35,6 +35,8 @@ ALL = [
     "projects",
     "invoices",
     "timesheet",
+    "vendors",
+    "bills",
 ]
 
 
@@ -106,6 +108,8 @@ def test_org_order_applies_within_groups(org_a):
         "projects",
         "timesheet",
         "invoices",
+        "vendors",
+        "bills",
     ]
 
 

@@ -7,6 +7,7 @@ SHIPPED = {
     "real-estate",
     "education-admissions",
     "professional-services",
+    "professional-services-us",
     "events-weddings",
 }
 
@@ -91,3 +92,13 @@ def test_every_sample_lead_stage_matches_the_packs_own_pipeline(pack_id):
             f"{pack_id}: sample lead {lead['title']!r} has stage "
             f"{lead.get('stage')!r}, not one of {sorted(stage_names)}"
         )
+
+
+def test_professional_services_us_wording():
+    pack = get_registry()["professional-services-us"]
+    assert pack["name"] == "Professional Services - American"
+    assert pack["terminology"] == {
+        "opportunity.singular": "Proposal",
+        "opportunity.plural": "Proposals",
+    }
+    assert pack["lead_pipeline"]["stages"][0]["name"] == "New lead"

@@ -33,6 +33,13 @@ On 2026-09-26 the counts were 90 `+page.svelte` files under `frontend/src/routes
 | B24 | "Who logged it": the time report for one project | Mobile | `GET /api/time-entries/report/?project=<id>` | 2026-10-26 | Projects release 1. The web's project Time tab links to the report filtered to the project. The phone's report has no project filter; it can group by project, and a project row opens the project. |
 | B25 | Hours written as 12h 30m on projects | Mobile | None needed | 2026-10-26 | Projects release 1. The web's project pages write hours as `12h 30m` (`hoursText`); the phone's project screens and Bill time write `12.5h` (`hoursLabel` in `project.dart`). The phone's own timesheet and report already write `1h 48m`. |
 | B26 | Create another kanban board | Mobile, by design for now | `POST /api/boards/` | 2026-10-27 | Web `/tasks/board` has a "New board" button beside the board switcher that creates a board (seeded with To Do, In Progress and Done) and opens it. The phone has no boards at all, so there is nothing to add it to. |
+| B27 | Team management: create and delete teams, set each team's members | Mobile | Yes (`POST /api/teams/`, `PUT`/`DELETE /api/teams/<id>/` with `assign_users`) | 2026-10-27 | Web `/team` only. Removing someone from a team never deactivates them. |
+| B29 | Admin edits member phone and alternate phone | Mobile | `PATCH /api/user/<id>/` | 2026-10-27 | Web Team People Edit includes org contact fields. Account guards remain unchanged. Mobile deferred by owner. |
+| B28 | Vendors: list, create, edit, delete | Mobile | Yes (`/api/vendors/`) | 2026-10-27 | Web `/vendors`, shown under Bill when Invoices is on. |
+
+| B30 | Campaigns naming and navigation | Mobile | Existing `/api/leads/sources/`, no new model | 2026-10-27 | Web moves the editor to `/campaigns` in Sell, gated by Leads. Mobile still labels it "Lead sources" in Settings versus web "Campaigns". Mobile code deferred by owner. |
+| B31 | Vendor bills | Mobile | Yes (model `vendors.Bill`, table `vendor_bills` with RLS, API `/api/vendors/bills/`) | 2026-10-27 | Web has bills attached to vendors (list at `/bills`, per-vendor Bills section, add/edit/void/delete, balance due, overdue; "New bill" on `/bills` with a vendor picker, and a "Paid in full" checkbox that sends `amount_paid` = total); mobile has none yet. |
+| B32 | Vendors and Bills as switchable modules | Mobile | Yes (module keys `vendors`, `bills` needs `vendors`; `/api/vendors/` routes gated, vendor delete answers 409 `module_off` while Bills is off and the vendor has bills) | 2026-10-27 | Web lists both under Bill in Settings > Apps and hides their pages and sidebar items when off. Mobile has no vendors yet (B28, B31). |
 
 ## Web-only by design
 

@@ -20,6 +20,8 @@
    * moment the account is reactivated. That is why the count is here: an
    * offboarding to-do, not a live breach.
    */
+  import { isOrgAdmin } from '#lib/admin.js';
+  import ConfirmAction from '#lib/v2/components/ConfirmAction.svelte';
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
   import StatCard from '#lib/v2/components/StatCard.svelte';
   import Pill from '#lib/v2/components/Pill.svelte';
@@ -42,6 +44,15 @@
     busy = true;
     return async ({ update }) => {
       await update();
+      busy = false;
+    };
+  };
+
+  /** Keep unsaved ticks on a failed save; the reload re-syncs them on success. */
+  const membersSubmit: SubmitFunction = () => {
+    busy = true;
+    return async ({ update }) => {
+      await update({ reset: false });
       busy = false;
     };
   };
@@ -280,7 +291,14 @@
                 </td>
                 <td class="v2-r">
                   {#if m.is_you}
-                    <span class="v2-muted" style="font-size:11.5px">—</span>
+                    <button
+                      type="button"
+                      class="v2-btn v2-btn-sm"
+                      disabled={busy}
+                      onclick={() => (editingId = editingId === m.user_id ? null : m.user_id)}
+                    >
+                      Edit
+                    </button>
                   {:else}
                     <span
                       style="display:inline-flex;gap:6px;justify-content:flex-end;flex-wrap:wrap"
@@ -339,14 +357,21 @@
               </tr>
               {#if editingId === m.user_id}
                 <tr>
-                  <td colspan="6">
+                  <td colspan="6" style="padding-right:0">
                     <form
                       method="POST"
                       action="?/edit"
+                      class="person-edit"
                       use:enhance={editSubmit}
                       style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;padding:6px 0"
                     >
                       <input type="hidden" name="userId" value={m.user_id} />
+                      <input type="hidden" name="originalEmail" value={m.email} />
+                      <input
+                        type="hidden"
+                        name="originalName"
+                        value={m.name === m.email ? '' : m.name}
+                      />
                       <div style="flex:1;min-width:160px">
                         <label class="v2-label" for="edit-name-{m.user_id}">Name</label>
                         <input
@@ -383,6 +408,22 @@
                           placeholder="Leave blank to keep"
                         />
                       </div>
+                      {#each [{ name: 'phone', label: 'Phone', value: m.phone }, { name: 'alternate_phone', label: 'Alternate phone', value: m.alternate_phone }] as field (field.name)}
+                        <div style="flex:1;min-width:160px">
+                          <label class="v2-label" for="edit-{field.name}-{m.user_id}"
+                            >{field.label}</label
+                          >
+                          <input
+                            id="edit-{field.name}-{m.user_id}"
+                            name={field.name}
+                            type="tel"
+                            maxlength="20"
+                            class="v2-input"
+                            style="width:100%"
+                            value={field.value}
+                          />
+                        </div>
+                      {/each}
                       <button class="v2-btn v2-btn-primary" disabled={busy}>Save</button>
                       <button
                         type="button"
@@ -410,32 +451,173 @@
       </div>
 
       <div class="v2-label" style="margin-bottom:10px">Teams</div>
-      <div class="v2-card" style="overflow:hidden;margin-bottom:14px">
+      {#if isOrgAdmin(data)}
+        <form method="POST" action="?/createTeam" use:enhance={working} class="v2-card team-create">
+          <label class="v2-label" for="team-name">New team</label>
+          <input
+            id="team-name"
+            name="name"
+            required
+            maxlength="100"
+            class="v2-input"
+            placeholder="Team name"
+          />
+          <label class="v2-label" for="team-description">Description (optional)</label>
+          <input id="team-description" name="description" class="v2-input" />
+          <button class="v2-btn v2-btn-primary" disabled={busy}>Create team</button>
+        </form>
+        {#if form?.message}
+          <p role="status">{form.message}</p>
+        {/if}
+      {/if}
+      <div class="v2-card" style="margin-bottom:14px">
         {#each data.teams as t (t.id)}
-          <div class="v2-setting">
-            <div class="v2-setting-body">
-              <b>{t.name}</b>
-              <span class="v2-sub" style="font-size:11.5px">{t.description}</span>
+          <section class="team-section" aria-label={t.name}>
+            <div class="team-heading">
+              <div style="min-width:0;overflow-wrap:anywhere">
+                <b>{t.name}</b>
+                <p class="v2-sub">{t.description}</p>
+                <span class="v2-sub"
+                  >{t.member_count} {t.member_count === 1 ? 'member' : 'members'}</span
+                >
+              </div>
+              {#if isOrgAdmin(data)}
+                <ConfirmAction
+                  action="?/deleteTeam"
+                  hidden={{ teamId: t.id }}
+                  explain="Delete this team? Member accounts stay active."
+                />
+              {/if}
             </div>
-            <span class="v2-sub v2-num" style="font-size:12px">
-              {t.member_count}
-              {t.member_count === 1 ? 'member' : 'members'}
-            </span>
-          </div>
+            {#if isOrgAdmin(data)}
+              <input form="team-members" type="hidden" name="teamId" value={t.id} />
+              <input form="team-members" type="hidden" name="name:{t.id}" value={t.name} />
+              <input
+                form="team-members"
+                type="hidden"
+                name="original:{t.id}"
+                value={t.profile_ids.join(',')}
+              />
+              <fieldset>
+                <legend class="v2-label">Members</legend>
+                <div class="team-members">
+                  {#each data.active as member (member.id)}
+                    <label class="team-member">
+                      <input
+                        form="team-members"
+                        type="checkbox"
+                        name="member:{t.id}"
+                        value={member.id}
+                        checked={t.profile_ids.includes(member.id)}
+                      />
+                      <span>{member.name} <span class="v2-sub">({member.email})</span></span>
+                    </label>
+                  {:else}
+                    <p class="v2-sub">No active members.</p>
+                  {/each}
+                </div>
+              </fieldset>
+            {/if}
+          </section>
         {:else}
           <div class="v2-setting">
             <span class="v2-sub" style="font-size:12px">No teams yet.</span>
           </div>
         {/each}
       </div>
+      {#if isOrgAdmin(data) && data.teams.length}
+        <!-- Checkboxes join this form via form="team-members"; the delete forms rule out nesting. -->
+        <form
+          id="team-members"
+          method="POST"
+          action="?/setMembers"
+          use:enhance={membersSubmit}
+          class="team-save"
+        >
+          <button class="v2-btn v2-btn-primary" disabled={busy}>Save all team members</button>
+        </form>
+      {/if}
 
       <p class="v2-sub" style="font-size:11.5px">
         Roles are Admin and Member, the only two the API recognises. Admins can add people with a
         password, edit their name, email and password (only for people who belong to this
         organization alone), change roles and edit org settings; the server refuses to let anyone
-        change their own role or deactivate the last admin. Editing team membership is not available
-        here yet.
+        change their own role or deactivate the last admin.
       </p>
     </div>
   </div>
 {/if}
+
+<style>
+  .person-edit input,
+  .person-edit button {
+    min-height: 44px;
+  }
+
+  .team-create {
+    display: grid;
+    gap: 10px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .team-create input {
+    width: 100%;
+    min-width: 0;
+  }
+  .team-create button {
+    min-height: 44px;
+  }
+  .team-save {
+    position: sticky;
+    bottom: 0;
+    padding-block: 12px;
+    margin-bottom: 14px;
+    background: var(--v2-bg, inherit);
+  }
+  .team-save button {
+    min-height: 44px;
+    width: 100%;
+  }
+  .team-section {
+    padding: 16px;
+    border-bottom: 1px solid var(--v2-line);
+    min-width: 0;
+  }
+  .team-heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .team-heading :global(button) {
+    min-height: 44px;
+  }
+  fieldset {
+    border: 0;
+    padding: 0;
+    margin: 0 0 12px;
+    min-width: 0;
+  }
+  .team-members {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+    gap: 4px 16px;
+  }
+  .team-member {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    overflow-wrap: anywhere;
+  }
+  .team-member input {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+  }
+  .team-member span {
+    min-width: 0;
+  }
+</style>

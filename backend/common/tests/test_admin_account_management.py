@@ -192,3 +192,81 @@ def test_other_orgs_admin_cannot_reach_the_member(org_b_client, member):
     assert resp.status_code == 404
     member.refresh_from_db()
     assert member.check_password("old-pass-123")
+
+
+@pytest.mark.parametrize("kind", ["single", "multi", "superuser", "staff"])
+def test_admin_edits_org_profile_for_any_member(
+    admin_client, member, org_a, org_b, kind
+):
+    if kind == "multi":
+        other = Profile.objects.create(user=member, org=org_b, role="USER")
+    if kind in ("superuser", "staff"):
+        setattr(member, f"is_{kind}", True)
+        member.save()
+    response = admin_client.patch(
+        _detail(member),
+        {
+            "phone": "+15551112222",
+            "alternate_phone": "+15553334444",
+            "is_superuser": False,
+            "is_staff": False,
+            "org": str(org_b.id),
+        },
+        format="json",
+    )
+    assert response.status_code == 200
+    profile = Profile.objects.get(user=member, org=org_a)
+    assert profile.phone == "+15551112222"
+    assert profile.alternate_phone == "+15553334444"
+    assert profile.role == "USER"
+    member.refresh_from_db()
+    assert member.is_superuser == (kind == "superuser")
+    assert member.is_staff == (kind == "staff")
+    if kind == "multi":
+        other.refresh_from_db()
+        assert not other.phone
+    if kind != "single":
+        for field, value in {
+            "name": "Changed",
+            "email": "changed@test.com",
+            "password": "Str0ng-pass-77",
+        }.items():
+            assert (
+                admin_client.patch(
+                    _detail(member),
+                    {field: value, "phone": "+15559999999"},
+                    format="json",
+                ).status_code
+                == 400
+            )
+        profile.refresh_from_db()
+        assert profile.phone == "+15551112222"
+
+
+@pytest.mark.parametrize(
+    "client_name,status", [("user_client", 403), ("org_b_client", 404)]
+)
+def test_profile_edit_denies_other_callers(request, member, org_a, client_name, status):
+    client = request.getfixturevalue(client_name)
+    assert (
+        client.patch(
+            _detail(member), {"phone": "+15551112222"}, format="json"
+        ).status_code
+        == status
+    )
+    assert not Profile.objects.get(user=member, org=org_a).phone
+
+
+def test_profile_edit_can_clear_phone(admin_client, member, org_a):
+    profile = Profile.objects.get(user=member, org=org_a)
+    profile.phone = "+15551112222"
+    profile.save()
+    assert (
+        admin_client.patch(
+            _detail(member), {"phone": "", "alternate_phone": ""}, format="json"
+        ).status_code
+        == 200
+    )
+    profile.refresh_from_db()
+    assert profile.phone == ""
+    assert profile.alternate_phone == ""

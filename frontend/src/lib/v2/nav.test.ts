@@ -28,7 +28,9 @@ const ALL = [
   'knowledge_base',
   'documents',
   'invoices',
-  'timesheet'
+  'timesheet',
+  'vendors',
+  'bills'
 ];
 const hrefs = (groups: any[], label: string) =>
   groups.find((g) => g.label === label)?.items.map((i: any) => i.href);
@@ -40,6 +42,11 @@ describe('sidebarGroups', () => {
     expect(hrefs(g, 'Sell')).toEqual(expect.arrayContaining(['/', '/accounts', '/contacts']));
   });
 
+  it('gates Campaigns with Leads', () => {
+    expect(hrefs(sidebarGroups(null), 'Sell')).toContain('/campaigns');
+    expect(hrefs(sidebarGroups(rows(ALL, ['leads'])), 'Sell')).not.toContain('/campaigns');
+  });
+
   it('shows Projects only where the API lists it and it is on', () => {
     expect(hrefs(sidebarGroups(rows(ALL), {}), 'Serve')).not.toContain('/projects');
     expect(hrefs(sidebarGroups(rows([...ALL, 'projects']), {}), 'Serve')).toContain('/projects');
@@ -49,7 +56,7 @@ describe('sidebarGroups', () => {
   });
 
   it('drops a group left empty', () => {
-    const g = sidebarGroups(rows(ALL, ['invoices', 'timesheet']), {});
+    const g = sidebarGroups(rows(ALL, ['invoices', 'timesheet', 'vendors', 'bills']), {});
     expect(g.map((x) => x.label)).toEqual(['Sell', 'Serve', 'Run']);
   });
 
@@ -59,6 +66,7 @@ describe('sidebarGroups', () => {
       '/',
       '/goals',
       '/leads',
+      '/campaigns',
       '/pipeline',
       '/accounts',
       '/contacts'
@@ -72,11 +80,12 @@ describe('sidebarGroups', () => {
       '/',
       '/pipeline',
       '/leads',
+      '/campaigns',
       '/goals',
       '/accounts',
       '/contacts'
     ]);
-    expect(hrefs(g, 'Bill')).toEqual(['/invoices', '/timesheet']);
+    expect(hrefs(g, 'Bill')).toEqual(['/invoices', '/timesheet', '/vendors', '/bills']);
   });
 
   it('labels by terminology and keeps admin items for admins', () => {
@@ -138,4 +147,15 @@ describe('palette copy', () => {
       'Nothing matches “x”. Try an account name or a deal.'
     );
   });
+});
+
+it('shows Vendors and Bills by their own modules, not Invoices', () => {
+  expect(hrefs(sidebarGroups(rows(ALL, ['invoices'])), 'Bill')).toEqual([
+    '/timesheet',
+    '/vendors',
+    '/bills'
+  ]);
+  expect(hrefs(sidebarGroups(rows(ALL, ['bills'])), 'Bill')).toContain('/vendors');
+  expect(hrefs(sidebarGroups(rows(ALL, ['bills'])), 'Bill')).not.toContain('/bills');
+  expect(hrefs(sidebarGroups(rows(ALL, ['vendors'])), 'Bill')).not.toContain('/vendors');
 });

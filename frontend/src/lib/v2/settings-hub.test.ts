@@ -124,30 +124,30 @@ describe('the lead rows', () => {
       leadIntakes: { count: 2, active: 1 }
     });
     expect(item(d, 'Lead capture')?.value).toBe('1 of 2 webhooks on');
-    expect(item(d, 'Lead sources')?.value).toBe('14 in use');
+    expect(item(d, 'Campaigns')?.value).toBe('14 in use');
   });
 
   it('keeps lead capture without numbers for a member, and hides sources on an older API', () => {
     const d = data({ is_organization_admin: false, leadSources: false, leadIntakes: null });
     expect(item(d, 'Lead capture')?.value).toBeNull();
-    expect(titles(d)).not.toContain('Lead sources');
+    expect(titles(d)).not.toContain('Campaigns');
   });
 
-  it('leaves the group out while Leads is off, and keeps the sources deals use', () => {
+  it('hides lead capture and campaigns while Leads is off', () => {
     const d = data({
       modules: [row('leads', false)],
       leadSources: { active: 14, count: 15 },
       leadIntakes: null
     });
     expect(hubGroups(d).map((g) => g.label)).not.toContain('How leads arrive');
-    expect(item(d, 'Lead sources')?.value).toBe('14 in use');
+    expect(item(d, 'Campaigns')).toBeUndefined();
   });
 
   it('files lead sources with the shared lists, after the lead pipelines', () => {
     const d = data({ leadSources: { active: 3, count: 3 } });
     const shared = hubGroups(d).find((g) => g.label === 'Shared words and fields');
     const names = (shared?.items ?? []).map((i) => i.title);
-    expect(names.indexOf('Lead sources')).toBe(names.indexOf('Lead pipelines') + 1);
+    expect(names.indexOf('Campaigns')).toBe(names.indexOf('Lead pipelines') + 1);
   });
 
   it('lists inbound email with the lead rows while Tickets is off', () => {

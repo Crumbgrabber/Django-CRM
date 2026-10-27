@@ -62,7 +62,6 @@ class TestTeamsListView:
                 "name": "User Team",
                 "description": "Team with users",
                 "assign_users": [str(admin_profile.id)],
-                "users": [str(admin_profile.id)],
             },
             format="json",
         )
@@ -185,3 +184,137 @@ class TestTeamsDetailView:
             format="json",
         )
         assert response.status_code == status.HTTP_403_FORBIDDEN
+
+
+@pytest.mark.django_db
+class TestTeamMembership:
+    @pytest.mark.parametrize("method", ["post", "put"])
+    def test_assign_admin_and_member(
+        self, method, admin_client, org_a, admin_profile, user_profile
+    ):
+        team = Teams.objects.create(name="Membership", org=org_a)
+        url = "/api/teams/" if method == "post" else f"/api/teams/{team.pk}/"
+        name = "New membership" if method == "post" else team.name
+        response = getattr(admin_client, method)(
+            url,
+            {
+                "name": name,
+                "description": "",
+                "assign_users": [str(admin_profile.pk), str(user_profile.pk)],
+            },
+            format="json",
+        )
+        assert response.status_code == 200
+        assert set(Teams.objects.get(org=org_a, name=name).users.all()) == {
+            admin_profile,
+            user_profile,
+        }
+
+    def test_clear_members_keeps_accounts_active(
+        self, admin_client, org_a, admin_profile, user_profile
+    ):
+        team = Teams.objects.create(name="Clear", org=org_a)
+        other = Teams.objects.create(name="Other", org=org_a)
+        team.users.set([admin_profile, user_profile])
+        other.users.add(user_profile)
+        response = admin_client.put(
+            f"/api/teams/{team.pk}/",
+            {"name": team.name, "assign_users": []},
+            format="json",
+        )
+        assert response.status_code == 200
+        assert not team.users.exists()
+        assert other.users.filter(pk=user_profile.pk).exists()
+        for profile in (admin_profile, user_profile):
+            profile.refresh_from_db()
+            assert profile.is_active
+            profile.user.refresh_from_db()
+            assert profile.user.is_active
+
+    @pytest.mark.parametrize("method", ["post", "put"])
+    @pytest.mark.parametrize(
+        "invalid", ["foreign", "inactive", "malformed", "missing", "flag"]
+    )
+    def test_invalid_members_rejected_before_write(
+        self, method, invalid, admin_client, org_a, profile_b, user_profile
+    ):
+        from uuid import uuid4
+
+        team = Teams.objects.create(name="Unchanged", org=org_a)
+        team.users.add(user_profile)
+        user_profile.is_active = False
+        user_profile.save()
+        values = {
+            "foreign": [str(profile_b.pk)],
+            "inactive": [str(user_profile.pk)],
+            "malformed": ["not-an-id"],
+            "missing": [str(uuid4())],
+            "flag": True,
+        }
+        url = "/api/teams/" if method == "post" else f"/api/teams/{team.pk}/"
+        response = getattr(admin_client, method)(
+            url, {"name": "Changed", "assign_users": values[invalid]}, format="json"
+        )
+        assert response.status_code == 400
+        team.refresh_from_db()
+        assert team.name == "Unchanged"
+        assert list(team.users.all()) == [user_profile]
+        assert not Teams.objects.filter(org=org_a, name="Changed").exists()
+
+    @pytest.mark.parametrize("method", ["put", "delete"])
+    def test_foreign_team_inaccessible(self, method, admin_client, org_b):
+        team = Teams.objects.create(name="Foreign", org=org_b)
+        response = getattr(admin_client, method)(
+            f"/api/teams/{team.pk}/",
+            {"name": "Changed", "assign_users": []},
+            format="json",
+        )
+        assert response.status_code == 404
+        assert Teams.objects.filter(pk=team.pk, org=org_b).exists()
+
+    def test_delete_preserves_members(self, admin_client, org_a, user_profile):
+        team = Teams.objects.create(name="Delete members", org=org_a)
+        team.users.add(user_profile)
+        assert admin_client.delete(f"/api/teams/{team.pk}/").status_code == 200
+        user_profile.refresh_from_db()
+        assert user_profile.is_active
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("by_id", [True, False])
+def test_seed_teams_idempotent(org_a, org_b, by_id):
+    from django.core.management import call_command
+
+    from common.management.commands.seed_teams import TEAM_NAMES
+
+    value = str(org_a.pk) if by_id else org_a.name
+    call_command("seed_teams", org=value)
+    call_command("seed_teams", org=value)
+    teams = Teams.objects.filter(org=org_a)
+    assert teams.count() == 7
+    assert set(teams.values_list("name", flat=True)) == set(TEAM_NAMES)
+    assert all(team.description == "" and not team.users.exists() for team in teams)
+    assert not Teams.objects.filter(org=org_b).exists()
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("has_context", [True, False])
+def test_team_requires_org_context(admin_user, admin_profile, org_a, has_context):
+    from rest_framework.test import APIRequestFactory, force_authenticate
+
+    from common.views.team_views import TeamsListView
+
+    request = APIRequestFactory().post(
+        "/api/teams/", {"name": "Empty", "assign_users": []}, format="json"
+    )
+    force_authenticate(request, user=admin_user)
+    request.profile = admin_profile if has_context else None
+    request.org = org_a if has_context else None
+    response = TeamsListView.as_view()(request)
+    assert response.status_code == (200 if has_context else 403)
+    if has_context:
+        team = Teams.objects.get(org=org_a, name="Empty")
+        assert team.description == ""
+        assert not team.users.exists()
+    else:
+        assert not Teams.objects.filter(org=org_a, name="Empty").exists()

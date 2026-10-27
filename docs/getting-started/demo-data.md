@@ -39,12 +39,13 @@ custom field definitions; tags; products; some terminology overrides (for exampl
 "Lead" as "Enquiry"); and a short list of named sample records (accounts, contacts, deals,
 tickets, leads, tasks) that reference each other by name within the manifest.
 
-Four packs ship in `backend/common/packs/manifests/`, one manifest file per pack:
+Five packs ship in `backend/common/packs/manifests/`, one manifest file per pack:
 
 | Pack id | File | Description |
 |---|---|---|
 | `real-estate` | `real-estate.json` | Brokers, agencies and developers selling residential and commercial property. |
 | `professional-services` | `professional-services.json` | Agencies, consultancies and accounting firms selling billable work. |
+| `professional-services-us` | `professional-services-us.json` | Professional services with US wording, Leads and Proposals. |
 | `education-admissions` | `education-admissions.json` | Coaching centres, training institutes and colleges managing admissions. |
 | `events-weddings` | `events-weddings.json` | Wedding planners, event agencies and venues taking enquiries through to a delivered event. |
 

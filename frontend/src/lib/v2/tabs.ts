@@ -29,7 +29,9 @@ export const TAB_SETS = {
    */
   tasks: [
     { href: '/tasks', label: 'Task list', exact: true, count: 'tasks', module: 'tasks' },
-    { href: '/tasks/board', label: 'Boards', module: 'tasks' },
+    // Local patch: Boards hidden until the board is built from Tasks by status
+    // (like /pipeline?view=board). See NOTES.md "Local patches".
+    // { href: '/tasks/board', label: 'Boards', module: 'tasks' },
     { href: '/tasks/calendar', label: 'Calendar', module: 'tasks' }
   ],
   invoices: [

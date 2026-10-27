@@ -24,6 +24,7 @@ const MODULE_ITEMS: Record<string, { group: string; item: NavItem & { termKey?: 
     group: 'Sell',
     item: { href: '/leads', label: 'Leads', icon: 'Target', count: 'leads', termKey: 'lead.plural' }
   },
+  campaigns: { group: 'Sell', item: { href: '/campaigns', label: 'Campaigns', icon: 'Megaphone' } },
   goals: { group: 'Sell', item: { href: '/goals', label: 'Goals', icon: 'Trophy' } },
   tasks: {
     group: 'Serve',
@@ -39,6 +40,8 @@ const MODULE_ITEMS: Record<string, { group: string; item: NavItem & { termKey?: 
     item: { href: '/solutions', label: 'Knowledge base', icon: 'BookOpen' }
   },
   documents: { group: 'Serve', item: { href: '/documents', label: 'Documents', icon: 'FileText' } },
+  bills: { group: 'Bill', item: { href: '/bills', label: 'Bills', icon: 'Receipt' } },
+  vendors: { group: 'Bill', item: { href: '/vendors', label: 'Vendors', icon: 'Building2' } },
   invoices: {
     group: 'Bill',
     item: {
@@ -73,7 +76,9 @@ export function sidebarGroups(
   const keys = orderedKeys(modules).filter((k) => isOn(modules, k));
   const moduleItems = (group: string) =>
     keys
-      .map((k) => MODULE_ITEMS[k])
+      .flatMap((k) =>
+        k === 'leads' ? [MODULE_ITEMS[k], MODULE_ITEMS.campaigns] : [MODULE_ITEMS[k]]
+      )
       .filter((m) => m.group === group)
       .map((m) => m.item);
 

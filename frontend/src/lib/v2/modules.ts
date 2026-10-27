@@ -33,7 +33,9 @@ export const MODULE_KEYS = [
   'knowledge_base',
   'documents',
   'invoices',
-  'timesheet'
+  'timesheet',
+  'vendors',
+  'bills'
 ];
 
 export const DEFAULT_LABELS: Record<string, string> = {
@@ -46,7 +48,9 @@ export const DEFAULT_LABELS: Record<string, string> = {
   knowledge_base: 'Knowledge base',
   documents: 'Documents',
   invoices: 'Invoices',
-  timesheet: 'Timesheet'
+  timesheet: 'Timesheet',
+  vendors: 'Vendors',
+  bills: 'Bills'
 };
 
 /** Record kinds a page can show, by the module that serves them. */
@@ -70,7 +74,7 @@ export const TARGET_MODULES = {
 } as Record<string, string>;
 
 /** Modules an API serves only if it lists them. */
-const NEEDS_ROW = ['projects'];
+const NEEDS_ROW = ['projects', 'vendors', 'bills'];
 
 export function isOn(modules: ModuleRow[] | null | undefined, key: string): boolean {
   if (!Array.isArray(modules)) return true;
@@ -98,6 +102,7 @@ export function labelOf(modules: ModuleRow[] | null | undefined, key: string): s
 
 const ROUTES: Record<string, Requirement> = {
   '/leads': { all: ['leads'] },
+  '/campaigns': { all: ['leads'] },
   '/settings/lead-pipelines': { all: ['leads'] },
   '/settings/lead-capture': { all: ['leads'] },
   '/pipeline': { all: ['deals'] },
@@ -117,6 +122,9 @@ const ROUTES: Record<string, Requirement> = {
   '/solutions': { all: ['knowledge_base'] },
   '/settings/help-center': { all: ['knowledge_base'] },
   '/timesheet': { all: ['timesheet'] },
+  '/bills': { all: ['vendors', 'bills'] },
+  '/vendors': { all: ['vendors'] },
+  '/vendors/[id]/bills': { all: ['vendors', 'bills'] },
   '/invoices': { all: ['invoices'] },
   '/accounts/[id]/statement': { all: ['invoices'] },
   '/invoices/products': { anyOf: ['invoices', 'deals'] },

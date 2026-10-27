@@ -1,6 +1,9 @@
 import { fail } from '@sveltejs/kit';
 import {
   listTeam,
+  createTeam,
+  deleteTeam,
+  setTeamMembers,
   inviteUser,
   updateUser,
   setRole,
@@ -24,6 +27,67 @@ export const load: PageServerLoad = async ({ cookies }) => {
 };
 
 export const actions: Actions = {
+  createTeam: async ({ cookies, request }) => {
+    const form = await request.formData();
+    const name = form.get('name')?.toString().trim();
+    const description = form.get('description')?.toString().trim() || '';
+    if (!name) return fail(400, { error: 'Enter a team name.' });
+    try {
+      await createTeam({ cookies }, name, description);
+    } catch (err) {
+      return fail(apiStatus(err) === 403 ? 403 : 400, {
+        error: readableError(err, 'Could not create that team.')
+      });
+    }
+    return { message: 'Team created.' };
+  },
+  deleteTeam: async ({ cookies, request }) => {
+    const form = await request.formData();
+    const teamId = form.get('teamId')?.toString();
+    if (!teamId) return fail(400, { error: 'Choose a team.' });
+    try {
+      await deleteTeam({ cookies }, teamId);
+    } catch (err) {
+      return fail(apiStatus(err) === 403 ? 403 : 400, {
+        error: readableError(err, 'Could not delete that team.')
+      });
+    }
+    return { message: 'Team deleted.' };
+  },
+  /**
+   * One Save for every team: per team the form sends `name:<id>`, the ticked
+   * `member:<id>` values and `original:<id>` (comma-joined), so only teams
+   * whose membership changed are written.
+   */
+  setMembers: async ({ cookies, request }) => {
+    const form = await request.formData();
+    const teamIds = form.getAll('teamId').map((id) => id.toString());
+    if (!teamIds.length) return fail(400, { error: 'Choose a named team.' });
+    const changes = [];
+    for (const teamId of teamIds) {
+      const name = form.get(`name:${teamId}`)?.toString().trim();
+      if (!name) return fail(400, { error: 'Choose a named team.' });
+      const profileIds = form.getAll(`member:${teamId}`).map((id) => id.toString());
+      const original = (form.get(`original:${teamId}`)?.toString() || '')
+        .split(',')
+        .filter(Boolean);
+      const same =
+        original.length === profileIds.length && profileIds.every((id) => original.includes(id));
+      if (!same) changes.push({ teamId, name, profileIds });
+    }
+    let saved = 0;
+    for (const { teamId, name, profileIds } of changes) {
+      try {
+        await setTeamMembers({ cookies }, teamId, name, profileIds);
+        saved += 1;
+      } catch (err) {
+        return fail(apiStatus(err) === 403 ? 403 : 400, {
+          error: `${readableError(err, `Could not save members of ${name}.`)} (${saved} of ${changes.length} teams saved.)`
+        });
+      }
+    }
+    return { message: changes.length ? 'Team members saved.' : 'No membership changes to save.' };
+  },
   /**
    * Add a member: email, role, and optionally a name and a password. The
    * server is the boundary. It gates this to admins, rejects a duplicate within
@@ -54,28 +118,25 @@ export const actions: Actions = {
     return { invited: email };
   },
 
-  /**
-   * Edit a person's name, email, password and role. A blank password leaves it
-   * as it is. Role is sent only for another person's row, as the server
-   * ignores it on your own.
-   */
+  /** Edit account and org contact fields. Role has its own action. */
   edit: async ({ cookies, request }) => {
     const form = await request.formData();
     const userId = form.get('userId')?.toString();
     const email = form.get('email')?.toString().trim();
     const name = form.get('name')?.toString().trim();
     const password = form.get('password')?.toString();
-    const role = form.get('role')?.toString() || undefined;
-    if (!userId || !email) return fail(400, { edit: { userId, error: 'Enter an email address.' } });
-    if (role !== undefined && !isRole(role))
-      return fail(400, { edit: { userId, error: 'Pick a valid role.' } });
+    if (!userId) return fail(400, { edit: { userId, error: 'Choose a person.' } });
+    const contact: { phone?: string; alternate_phone?: string } = {};
+    for (const field of ['phone', 'alternate_phone'] as const) {
+      if (form.has(field)) contact[field] = form.get(field)?.toString().trim() ?? '';
+    }
 
     try {
       await updateUser({ cookies }, userId, {
-        email,
-        ...(name ? { name } : {}),
-        ...(password ? { password } : {}),
-        ...(role ? { role } : {})
+        ...contact,
+        ...(email !== undefined && email !== form.get('originalEmail') ? { email } : {}),
+        ...(name !== undefined && name !== form.get('originalName') ? { name } : {}),
+        ...(password ? { password } : {})
       });
     } catch (err) {
       return fail(apiStatus(err) === 403 ? 403 : 400, {

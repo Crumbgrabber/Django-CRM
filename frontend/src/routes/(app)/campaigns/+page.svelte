@@ -1,13 +1,12 @@
 <script lang="ts">
   /**
-   * Settings › Lead sources: the list every source picker, filter, import and
+   * Campaigns: the list every source picker, filter, import and
    * webhook reads. Any member sees it; admins add, rename, retire and order.
    * There is no delete, so an old record always says where it came from.
    */
   import { enhance } from '$app/forms';
   import { ArrowDown, ArrowUp, Plus } from '@lucide/svelte';
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
-  import SettingsCrumb from '#lib/v2/components/SettingsCrumb.svelte';
   import Pill from '#lib/v2/components/Pill.svelte';
   import NextAction from '#lib/v2/components/NextAction.svelte';
   import { count } from '#lib/v2/format.js';
@@ -33,8 +32,7 @@
   };
 </script>
 
-<PageHeader title="Lead sources">
-  {#snippet crumb()}<SettingsCrumb />{/snippet}
+<PageHeader title="Campaigns">
   {#snippet sub()}
     <span class="v2-num">{count(active)}</span> in use of
     <span class="v2-num">{count(sources.length)}</span>
@@ -51,7 +49,7 @@
         class="v2-card ls-add"
       >
         <div class="ls-add-field">
-          <label class="v2-label" for="ls-label">New source</label>
+          <label class="v2-label" for="ls-label">New campaign</label>
           <input
             id="ls-label"
             name="label"
@@ -62,7 +60,7 @@
             value={form?.add && 'label' in form.add ? form.add.label : ''}
           />
         </div>
-        <button class="v2-btn v2-btn-primary ls-tap" disabled={busy}><Plus />Add</button>
+        <button class="v2-btn v2-btn-primary ls-tap" disabled={busy}><Plus />New campaign</button>
       </form>
       {#if form?.add?.error}
         <p class="v2-error" style="margin:-8px 0 14px">{form.add.error}</p>
@@ -71,7 +69,7 @@
       <div style="margin-bottom:16px">
         <NextAction
           label="Admins change this list"
-          text="Every member picks from these sources. Ask an admin to add one, rename one or retire one."
+          text="Every member picks from these campaigns. Ask an admin to add one, rename one or retire one."
         />
       </div>
     {/if}
@@ -157,13 +155,13 @@
           {/if}
         </div>
       {:else}
-        <p class="v2-sub" style="padding:14px 16px;margin:0">No sources yet.</p>
+        <p class="v2-sub" style="padding:14px 16px;margin:0">No campaigns yet.</p>
       {/each}
     </div>
 
     <p class="v2-sub" style="font-size:12px;margin:16px 0 0;max-width:68ch;line-height:1.5">
-      A retired source stays on every lead, contact and deal that has it, and can no longer be
-      picked for new ones. Spreadsheet imports match a source by its name or by the key under it,
+      A retired campaign stays on every lead, contact and deal that has it, and can no longer be
+      picked for new ones. Spreadsheet imports match a campaign by its name or by the key under it,
       and lead webhooks and lead addresses record one of these.
     </p>
   </div>
@@ -179,6 +177,7 @@
     margin-bottom: 18px;
   }
   .ls-add-field {
+    min-width: 0;
     flex: 1 1 220px;
     display: flex;
     flex-direction: column;
@@ -206,6 +205,8 @@
     gap: 3px;
   }
   .ls-title {
+    overflow-wrap: anywhere;
+    min-width: 0;
     display: flex;
     align-items: center;
     gap: 8px;
