@@ -7,8 +7,6 @@ segment alone, a `macros:write` token could change a ticket it holds no
 could read tickets through render. Both now also need the cases scope.
 """
 
-import uuid
-
 import pytest
 from django.core.cache import cache
 
@@ -54,7 +52,8 @@ def _render(client, macro, case):
 
 
 class TestMatcher:
-    ID = str(uuid.uuid4())
+    # Fixed, not uuid4(): parallel test workers must collect identical ids.
+    ID = "998881fa-78d4-49e3-b75a-f2c0da1bfc5c"
 
     @pytest.mark.parametrize(
         "path",

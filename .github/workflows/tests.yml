@@ -80,7 +80,7 @@ jobs:
           DJANGO_SETTINGS_MODULE: crm.test_settings
           SECRET_KEY: test-secret-key-for-ci
           ADMIN_EMAIL: admin@test.com
-        run: uv run pytest -m "not postgres_only" --tb=short -v --contract-coverage
+        run: uv run pytest -n auto -m "not postgres_only" --tb=short -v --contract-coverage
 
       - name: Generate coverage badge
         if: github.ref == 'refs/heads/master' && github.event_name == 'push'
@@ -185,7 +185,7 @@ jobs:
         # this run's superuser role is not subject to any policy, so they fail
         # here for a reason that is about the role rather than the code.
         # No coverage: the SQLite job produces the report and the badge.
-        run: uv run pytest --no-cov --tb=short -q -m "not postgres_only"
+        run: uv run pytest -n auto --no-cov --tb=short -q -m "not postgres_only"
 
       # Run 2: the `postgres_only` tests, as a role that RLS actually binds.
       # The SQLite job deselects these, so before this step they had never
