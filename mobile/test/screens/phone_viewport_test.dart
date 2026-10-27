@@ -5190,6 +5190,63 @@ void main() {
         }
       });
 
+      testWidgets('a retainer detail and its edit form, $at', (tester) async {
+        final retainer = {
+          ...project,
+          'billing_type': 'retainer',
+          'retainer_fee': '2000.00',
+          'retainer_hours': '10.00',
+          'retainer_rollover': true,
+          'retainer_overage_rate': '150.00',
+          'retainer_carried_hours': '1.50',
+          'retainer_next_month': '2026-10-01',
+          'retainer_last_month': '2026-12-01',
+          'retainer_usage': {
+            'month': '2026-10',
+            'used_hours': '12.50',
+            'available_hours': '11.50',
+            'overage_hours': '1.00',
+            'billable_now': true,
+          },
+        };
+        ApiService().setClientForTesting(
+          MockClient(
+            (r) async => r.url.path == path(ApiConfig.project(pid))
+                ? http.Response(jsonEncode(retainer), 200)
+                : http.Response(jsonEncode({'tasks': []}), 200),
+          ),
+        );
+        await pump(
+          tester,
+          app(const ProjectDetailScreen(projectId: pid)),
+          textScale: scale,
+        );
+        expect(tester.takeException(), isNull);
+        for (
+          var i = 0;
+          i < 4 && find.text('Bill October 2026').evaluate().isEmpty;
+          i++
+        ) {
+          await tester.drag(find.byType(ListView).first, const Offset(0, -300));
+          await tester.pumpAndSettle();
+        }
+        expect(find.text('Bill October 2026'), findsOneWidget);
+        _expectTappablesThumbSized(tester);
+        await scrollToEnd(tester);
+        expect(tester.takeException(), isNull);
+
+        await pump(
+          tester,
+          app(const ProjectFormScreen(projectId: pid)),
+          textScale: scale,
+        );
+        for (var i = 0; i < 12; i++) {
+          await tester.drag(find.byType(ListView).first, const Offset(0, -400));
+          await tester.pumpAndSettle();
+          expect(tester.takeException(), isNull);
+        }
+      });
+
       testWidgets('the edit form with long names and a rate, $at', (
         tester,
       ) async {

@@ -548,7 +548,7 @@ def _validate_sample_data(where: str, sample: dict, raw: dict) -> None:
         STAGES,
         STATUS_CHOICE,
     )
-    from projects.models import BILLING_TYPES
+    from projects.models import STARTING_BILLING_TYPES
     from tasks.models import Task
 
     _reject_unknown(where, sample, set(SAMPLE_ENTITY_KEYS))
@@ -678,7 +678,10 @@ def _validate_sample_data(where: str, sample: dict, raw: dict) -> None:
         _reject_unknown(at, row, SAMPLE_PROJECT_KEYS)
         _require(at, row, "name", "account")
         _validate_choice(
-            at, row.get("billing_type"), "billing_type", {c for c, _l in BILLING_TYPES}
+            at,
+            row.get("billing_type"),
+            "billing_type",
+            {c for c, _l in STARTING_BILLING_TYPES},
         )
         _validate_choice(at, row.get("currency"), "currency", currencies)
         for key in ("hourly_rate", "budget_hours", "budget_amount"):

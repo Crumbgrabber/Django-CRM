@@ -125,7 +125,11 @@ describe('the project load', () => {
     expect(asked.some((p) => p.startsWith('/tasks/?') && p.includes('project=pr1'))).toBe(true);
     expect(asked.some((p) => p.includes('/unbilled/'))).toBe(false);
     expect(data.time.entries).toEqual([]);
-    expect(data.offers).toEqual({ billTime: true, invoiceAmount: true });
+    expect(data.offers).toEqual({
+      billTime: true,
+      billRetainer: false,
+      invoiceAmount: true
+    });
   });
 
   it('leaves the time out while Timesheet is off, and with it Bill time', async () => {
@@ -150,7 +154,58 @@ describe('the project load', () => {
     const data = (await load(event('?bill=1&up_to=2026-10-31'))) as any;
     expect(asked.some((p) => p.includes('/unbilled/'))).toBe(false);
     expect(data.bill.open).toBe(false);
-    expect(data.offers).toEqual({ billTime: false, invoiceAmount: false });
+    expect(data.offers).toEqual({
+      billTime: false,
+      billRetainer: false,
+      invoiceAmount: false
+    });
+  });
+
+  it('offers the retainer bill, not Bill time, on a retainer that can bill now', async () => {
+    const usage = {
+      month: '2026-10-01',
+      used_hours: '4.00',
+      available_hours: '10.00',
+      overage_hours: '0.00',
+      billable_now: true
+    };
+    api({ project: { ...PROJECT, billing_type: 'retainer', retainer_usage: usage } });
+    const data = (await load(event())) as any;
+    expect(data.offers).toEqual({ billTime: false, billRetainer: true, invoiceAmount: false });
+    expect(data.retainerUsage).toMatchObject({ month: '2026-10-01', used_hours: 4 });
+  });
+
+  it('never opens Bill time on a retainer, even with ?bill=1', async () => {
+    api({ project: { ...PROJECT, billing_type: 'retainer' } });
+    const data = (await load(event('?bill=1'))) as any;
+    expect(data.bill.open).toBe(false);
+    expect(asked.some((p) => p.includes('/unbilled/'))).toBe(false);
+  });
+
+  it('offers no retainer bill when the API says nothing is billable, or to a member', async () => {
+    const usage = {
+      month: '2026-10-01',
+      used_hours: '0.00',
+      available_hours: null,
+      overage_hours: '0.00'
+    };
+    api({
+      project: {
+        ...PROJECT,
+        billing_type: 'retainer',
+        retainer_usage: { ...usage, billable_now: false }
+      }
+    });
+    expect(((await load(event())) as any).offers.billRetainer).toBe(false);
+    api({
+      project: {
+        ...PROJECT,
+        can_bill: false,
+        billing_type: 'retainer',
+        retainer_usage: { ...usage, billable_now: true }
+      }
+    });
+    expect(((await load(event())) as any).offers.billRetainer).toBe(false);
   });
 
   it('keeps only tasks that are on this project, whatever the list returned', async () => {
@@ -202,6 +257,42 @@ describe('the project actions', () => {
     const result = (await actions.billTime(post({ group_by: 'entry' }))) as any;
     expect(result.status).toBe(403);
     expect(result.data.billError).toMatch(/Only admins/);
+  });
+
+  it('bills the retainer month and opens the draft', async () => {
+    let called = '';
+    let sent: unknown;
+    api({
+      extra: (path, options) => {
+        if (path === '/projects/pr1/retainer/bill/') {
+          called = options.method;
+          sent = options.body;
+          return { invoice_id: 'i3', invoice_number: 'INV-3', month: '2026-10' };
+        }
+      }
+    });
+    await expect(actions.billRetainer(post({ month: '2026-10' }))).rejects.toMatchObject({
+      status: 303,
+      location: '/invoices/i3'
+    });
+    expect(called).toBe('POST');
+    expect(sent).toEqual({ month: '2026-10' });
+  });
+
+  it('shows the retainer refusal beside the button', async () => {
+    api({
+      extra: (path) => {
+        if (path === '/projects/pr1/retainer/bill/') {
+          throw Object.assign(new Error('HTTP 400'), {
+            status: 400,
+            body: { error: true, message: 'This month is already billed.' }
+          });
+        }
+      }
+    });
+    const result = (await actions.billRetainer(post({}))) as any;
+    expect(result.status).toBe(400);
+    expect(result.data.retainerError).toBe('This month is already billed.');
   });
 
   it('refuses a percentage over 100 without asking the API', async () => {

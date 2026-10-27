@@ -103,6 +103,7 @@ ROUTE_CASES = [
     ("api/projects/<uid:pk>/time-entries/start/", (CU, "api_projects"), Requires(("projects", "timesheet"))),
     ("api/projects/<uid:pk>/unbilled/", (CU, "api_projects"), Requires(("projects", "invoices", "timesheet"))),
     ("api/projects/<uid:pk>/invoice-amount/", (CU, "api_projects"), Requires(("projects", "invoices"))),
+    ("api/projects/<uid:pk>/retainer/bill/", (CU, "api_projects"), Requires(("projects", "invoices"))),
     ("api/projects/from-deal/<uid:deal_id>/", (CU, "api_projects"), Requires(("projects", "deals"))),
     ("api/documents/<uid:pk>/download/", (CU, "api_common"), Requires(("documents",))),
     ("api/profile/calendar-feed/", (CU, "api_common"), Requires(("tasks",))),

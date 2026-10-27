@@ -1,6 +1,7 @@
 """The projects API. The rules each view applies are in `projects.access`; a
 project the caller may not open answers 404, like one that does not exist."""
 
+import datetime
 from decimal import ROUND_HALF_UP, Decimal
 
 from django.contrib.contenttypes.models import ContentType
@@ -27,8 +28,9 @@ from common.validators import (
 from invoices.api_views import _first_visible_contact
 from invoices.models import Invoice, InvoiceLineItem
 from opportunity.access import get_visible_deal
-from projects import access
+from projects import access, retainers
 from projects.burn import burn_for, check_budget_alerts, unbilled_summary
+from projects.models import Project
 from projects.serializer import (
     ProjectBodySerializer,
     ProjectDetailSerializer,
@@ -107,10 +109,32 @@ def _relations(request, data, project=None):
 
 
 def _save(request, serializer, relations, **save_kwargs):
+    """Create, or apply an edit; ``None`` when the edited project is gone."""
+    before_status = before_billing_type = None
     with transaction.atomic():
+        if serializer.instance is not None:
+            # Billing moves a retainer's months under this row lock. The edit
+            # is applied to the row as it stands now, so nothing it did not
+            # send (the months, carried hours) goes back to what it first read.
+            locked = (
+                Project.objects.select_for_update()
+                .filter(pk=serializer.instance.pk, org=request.profile.org)
+                .first()
+            )
+            if locked is None:
+                return None
+            if locked.billing_type == retainers.RETAINER and not is_org_admin(
+                request.profile
+            ):
+                serializer.validated_data.pop("status", None)
+            serializer.instance = locked
+            before_status, before_billing_type = locked.status, locked.billing_type
         if "custom_fields" in relations:
             save_kwargs["custom_fields"] = relations["custom_fields"]
         project = serializer.save(**save_kwargs)
+        retainers.apply_month_rules(
+            project, before_status, before_billing_type, user=request.user
+        )
         if "assigned_to" in relations:
             project.assigned_to.set(relations["assigned_to"])
         if "tags" in relations:
@@ -267,6 +291,8 @@ class ProjectDetailView(APIView):
         except serializers.ValidationError as exc:
             return _errors(exc)
         project = _save(request, serializer, relations)
+        if project is None:
+            return _not_found()
         return Response(
             {
                 "error": False,
@@ -554,5 +580,98 @@ class ProjectInvoiceAmountView(APIView):
             invoice.save()
         return Response(
             {"invoice_id": str(invoice.id), "invoice_number": invoice.invoice_number},
+            status=status.HTTP_201_CREATED,
+        )
+
+
+_MONTH_FORMAT = "Send a month as YYYY-MM."
+
+
+class ProjectRetainerBillBody(serializers.Serializer):
+    month = serializers.RegexField(
+        r"^[1-9]\d{3}-(0[1-9]|1[0-2])$",
+        required=False,
+        allow_null=True,
+        help_text=(
+            "YYYY-MM: the month the caller showed. Refused as already billed "
+            "when it is no longer the one billing next."
+        ),
+        error_messages={"invalid": _MONTH_FORMAT, "blank": _MONTH_FORMAT},
+    )
+
+    def validate_month(self, value):
+        if value is None:
+            return None
+        year, month = value.split("-")
+        return datetime.date(int(year), int(month), 1)
+
+
+class ProjectRetainerBillView(APIView):
+    """Bill a retainer's next month now: an ended month the scheduler has not
+    drafted yet, or the open month through today."""
+
+    permission_classes = (IsAuthenticated, HasOrgContext)
+
+    @extend_schema(
+        tags=["Projects"],
+        operation_id="projects_retainer_bill",
+        request=ProjectRetainerBillBody,
+        responses={
+            201: inline_serializer(
+                "ProjectRetainerBill",
+                {
+                    "invoice_id": serializers.UUIDField(),
+                    "invoice_number": serializers.CharField(),
+                    "month": serializers.CharField(help_text="YYYY-MM"),
+                },
+            )
+        },
+    )
+    def post(self, request, pk):
+        refusal = _billing_refusal(request)
+        if refusal:
+            return refusal
+        project = access.get_visible_project(request.profile, pk)
+        if project is None:
+            return _not_found()
+        body = ProjectRetainerBillBody(data=request.data)
+        if not body.is_valid():
+            return _errors(serializers.ValidationError(body.errors))
+        today = timezone.localdate()
+        # The month the caller showed, else the one this request read: if the
+        # scheduler or another click billed it since, this one must not bill
+        # the month after.
+        seen = body.validated_data.get("month") or project.retainer_next_month
+        invoice = None
+        with transaction.atomic():
+            locked = (
+                Project.objects.select_for_update()
+                .filter(pk=project.pk, org=request.profile.org)
+                .first()
+            )
+            if locked is None:
+                return _not_found()
+            message = retainers.refusal(locked, today)
+            if message is None and locked.retainer_next_month != seen:
+                message = retainers.ALREADY_BILLED
+            if message is None:
+                invoice = retainers.bill_month(
+                    locked.pk,
+                    request.profile.org,
+                    today,
+                    user=request.user,
+                    open_month=True,
+                )
+        if invoice is None:
+            return Response(
+                {"error": True, "message": message or retainers.ALREADY_BILLED},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return Response(
+            {
+                "invoice_id": str(invoice.id),
+                "invoice_number": invoice.invoice_number,
+                "month": retainers.month_key(invoice.retainer_month),
+            },
             status=status.HTTP_201_CREATED,
         )

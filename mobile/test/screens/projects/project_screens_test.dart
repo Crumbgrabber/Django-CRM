@@ -955,6 +955,379 @@ void main() {
     });
   });
 
+  group('a retainer project', () {
+    Map<String, dynamic> retainer({
+      bool canBill = true,
+      bool billableNow = true,
+      String? available = '10.00',
+      String over = '0.00',
+      String? lastMonth,
+      String carried = '0.00',
+    }) => {
+      ..._project(canBill: canBill, billingType: 'retainer'),
+      'retainer_fee': '2000.00',
+      'retainer_hours': available,
+      'retainer_rollover': true,
+      'retainer_overage_rate': '150.00',
+      'retainer_carried_hours': carried,
+      'retainer_next_month': '2026-10-01',
+      'retainer_last_month': lastMonth,
+      'retainer_usage': {
+        'month': '2026-10',
+        'used_hours': '12.50',
+        'available_hours': available,
+        'overage_hours': over,
+        'billable_now': billableNow,
+      },
+    };
+
+    void serve(Map<String, dynamic> project) =>
+        server.routes['GET ${_path(ApiConfig.project(_pid))}'] = (_) =>
+            _json(project);
+
+    testWidgets('shows the fee, the month so far, the overage and carry', (
+      tester,
+    ) async {
+      serve(retainer(over: '2.50', carried: '1.50'));
+      await pump(tester, const ProjectDetailScreen(projectId: _pid));
+
+      expect(find.text('RETAINER'), findsOneWidget);
+      expect(find.text('\u20ac2,000.00 a month'), findsOneWidget);
+      expect(
+        find.text('12.5 of 10 hours used in October 2026'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('2.5 hours over the allowance so far, \u20ac375.00'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('1.5 hours carried in from earlier months'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Ended after'), findsNothing);
+    });
+
+    testWidgets('says 1 hour in the singular, and a missing fee', (
+      tester,
+    ) async {
+      serve({
+        ...retainer(available: null, over: '1.00', carried: '1.00'),
+        'retainer_fee': null,
+        'retainer_usage': {
+          'month': '2026-10',
+          'used_hours': '1.00',
+          'available_hours': null,
+          'overage_hours': '1.00',
+          'billable_now': false,
+        },
+      });
+      await pump(tester, const ProjectDetailScreen(projectId: _pid));
+
+      expect(find.text('No monthly fee set'), findsOneWidget);
+      expect(find.text('1 hour in October 2026'), findsOneWidget);
+      expect(
+        find.text('1 hour over the allowance so far, \u20ac150.00'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('1 hour carried in from earlier months'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('leaves the amount off an overage with no rate', (
+      tester,
+    ) async {
+      serve({...retainer(over: '2.00'), 'retainer_overage_rate': null});
+      await pump(tester, const ProjectDetailScreen(projectId: _pid));
+
+      expect(find.text('2 hours over the allowance so far'), findsOneWidget);
+    });
+
+    testWidgets('without an allowance it says hours in the month', (
+      tester,
+    ) async {
+      serve(retainer(available: null));
+      await pump(tester, const ProjectDetailScreen(projectId: _pid));
+
+      expect(find.text('12.5 hours in October 2026'), findsOneWidget);
+    });
+
+    testWidgets('an ended retainer says so', (tester) async {
+      serve(retainer(lastMonth: '2026-09-01'));
+      await pump(tester, const ProjectDetailScreen(projectId: _pid));
+
+      expect(find.text('Ended after September 2026'), findsOneWidget);
+    });
+
+    testWidgets(
+      'an admin bills the month after a confirm and opens the draft',
+      (tester) async {
+        serve(retainer());
+        server.routes['POST ${_path(ApiConfig.projectRetainerBill(_pid))}'] =
+            (_) => _json({
+              'invoice_id': 'inv-ret',
+              'invoice_number': 'INV-0012',
+              'month': '2026-10',
+            }, 201);
+        await pump(tester, const ProjectDetailScreen(projectId: _pid));
+
+        expect(find.text('Bill time'), findsNothing);
+        await tester.tap(find.text('Bill October 2026'));
+        await tester.pumpAndSettle();
+        expect(find.text('Bill October 2026?'), findsOneWidget);
+        expect(
+          server.sent('POST', ApiConfig.projectRetainerBill(_pid)),
+          isEmpty,
+        );
+
+        await tester.tap(
+          find.descendant(
+            of: find.byType(AlertDialog),
+            matching: find.widgetWithText(FilledButton, 'Bill October 2026'),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final sent = server.sent('POST', ApiConfig.projectRetainerBill(_pid));
+        expect(sent, hasLength(1));
+        expect(jsonDecode(sent.single.body), {'month': '2026-10'});
+        expect(find.text('invoice inv-ret'), findsOneWidget);
+      },
+    );
+
+    testWidgets('Cancel bills nothing', (tester) async {
+      serve(retainer());
+      await pump(tester, const ProjectDetailScreen(projectId: _pid));
+
+      await tester.tap(find.text('Bill October 2026'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
+      expect(server.sent('POST', ApiConfig.projectRetainerBill(_pid)), isEmpty);
+    });
+
+    testWidgets('a refusal shows its message and opens nothing', (
+      tester,
+    ) async {
+      serve(retainer());
+      server.routes['POST ${_path(ApiConfig.projectRetainerBill(_pid))}'] =
+          (_) => _json({
+            'error': true,
+            'message': 'This month is already billed.',
+          }, 400);
+      await pump(tester, const ProjectDetailScreen(projectId: _pid));
+
+      await tester.tap(find.text('Bill October 2026'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.widgetWithText(FilledButton, 'Bill October 2026'),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('This month is already billed.'), findsOneWidget);
+      expect(find.textContaining('invoice inv'), findsNothing);
+    });
+
+    testWidgets('no button when nothing is billable', (tester) async {
+      serve(retainer(billableNow: false));
+      await pump(tester, const ProjectDetailScreen(projectId: _pid));
+      expect(find.textContaining('Bill October'), findsNothing);
+      expect(find.text('RETAINER'), findsOneWidget);
+    });
+
+    testWidgets('no button for a member', (tester) async {
+      serve(retainer(canBill: false));
+      await pump(tester, const ProjectDetailScreen(projectId: _pid));
+      expect(find.textContaining('Bill October'), findsNothing);
+    });
+
+    testWidgets('no button with Invoices off', (tester) async {
+      serve(retainer());
+      await pump(
+        tester,
+        const ProjectDetailScreen(projectId: _pid),
+        off: ['invoices'],
+      );
+      expect(find.textContaining('Bill October'), findsNothing);
+    });
+
+    testWidgets('the Time tab offers no Bill time on a retainer', (
+      tester,
+    ) async {
+      serve(retainer());
+      await pump(tester, const ProjectDetailScreen(projectId: _pid));
+      await openTab(tester, 'Time');
+
+      expect(find.text('Bill time'), findsNothing);
+    });
+  });
+
+  group('the retainer fields on the form', () {
+    setUp(() {
+      server.routes['GET ${_path(ApiConfig.accounts)}'] = (_) => _json({
+        'active_accounts': {
+          'open_accounts': [
+            {'id': 'a1', 'name': 'Northwind'},
+          ],
+        },
+      });
+      server.routes['GET ${_path(ApiConfig.teamsAndUsers)}'] = (_) =>
+          _json({'profiles': []});
+      server.routes['PATCH ${_path(ApiConfig.project(_pid))}'] = (_) =>
+          _json(_project());
+      server.routes['GET ${_path(ApiConfig.projects)}'] = (_) =>
+          _json({'projects': [], 'count': 0});
+    });
+
+    Map<String, dynamic> existing({String billingType = 'retainer'}) => {
+      ..._project(billingType: billingType),
+      'retainer_fee': '2000.00',
+      'retainer_hours': '10.00',
+      'retainer_rollover': true,
+      'retainer_overage_rate': '150.00',
+      'retainer_carried_hours': '1.50',
+      'retainer_next_month': '2026-10-01',
+      'retainer_last_month': null,
+    };
+
+    testWidgets('an admin sees them only while Retainer is chosen', (
+      tester,
+    ) async {
+      await pump(tester, const ProjectFormScreen());
+      expect(find.text('Monthly fee'), findsNothing);
+
+      await tester.ensureVisible(find.text('Billing type'));
+      await tester.tap(find.text('Time and materials'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Retainer').last);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Monthly fee'), findsOneWidget);
+      expect(find.text('Hours included each month'), findsOneWidget);
+      expect(find.text('Roll unused hours over'), findsOneWidget);
+      expect(find.text('Rate for hours over the allowance'), findsOneWidget);
+      expect(find.text('Carried hours'), findsNothing);
+    });
+
+    testWidgets('the fee and, with hours, the rate are required', (
+      tester,
+    ) async {
+      server.routes['GET ${_path(ApiConfig.project(_pid))}'] = (_) => _json({
+        ...existing(),
+        'retainer_fee': null,
+        'retainer_overage_rate': null,
+      });
+      await pump(tester, const ProjectFormScreen(projectId: _pid));
+
+      await tester.ensureVisible(find.text('Save project'));
+      await tester.tap(find.text('Save project'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Set the monthly fee.'), findsOneWidget);
+      expect(
+        find.text('Set the rate for hours over the allowance.'),
+        findsOneWidget,
+      );
+      expect(server.sent('PATCH', ApiConfig.project(_pid)), isEmpty);
+    });
+
+    testWidgets('an edit sends every retainer value, rollover explicit', (
+      tester,
+    ) async {
+      server.routes['GET ${_path(ApiConfig.project(_pid))}'] = (_) =>
+          _json(existing());
+      await pump(tester, const ProjectFormScreen(projectId: _pid));
+      expect(find.text('Carried hours'), findsOneWidget);
+
+      await tester.ensureVisible(find.byType(Switch).first);
+      await tester.tap(find.byType(Switch).first);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Save project'));
+      await tester.tap(find.text('Save project'));
+      await tester.pumpAndSettle();
+
+      final body =
+          jsonDecode(server.sent('PATCH', ApiConfig.project(_pid)).single.body)
+              as Map<String, dynamic>;
+      expect(body['billing_type'], 'retainer');
+      expect(body['retainer_fee'], '2000.00');
+      expect(body['retainer_hours'], '10.00');
+      expect(body['retainer_rollover'], false);
+      expect(body['retainer_overage_rate'], '150.00');
+      expect(body.containsKey('retainer_carried_hours'), isFalse);
+    });
+
+    testWidgets('a carried figure the admin changed is sent', (tester) async {
+      server.routes['GET ${_path(ApiConfig.project(_pid))}'] = (_) =>
+          _json(existing());
+      await pump(tester, const ProjectFormScreen(projectId: _pid));
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Carried hours'),
+        '0',
+      );
+      await tester.ensureVisible(find.text('Save project'));
+      await tester.tap(find.text('Save project'));
+      await tester.pumpAndSettle();
+
+      final body =
+          jsonDecode(server.sent('PATCH', ApiConfig.project(_pid)).single.body)
+              as Map<String, dynamic>;
+      expect(body['retainer_carried_hours'], '0.00');
+    });
+
+    testWidgets('another billing type sends no retainer value', (tester) async {
+      server.routes['GET ${_path(ApiConfig.project(_pid))}'] = (_) =>
+          _json(existing(billingType: 'fixed_fee'));
+      await pump(tester, const ProjectFormScreen(projectId: _pid));
+      await tester.ensureVisible(find.text('Save project'));
+      await tester.tap(find.text('Save project'));
+      await tester.pumpAndSettle();
+
+      final body =
+          jsonDecode(server.sent('PATCH', ApiConfig.project(_pid)).single.body)
+              as Map<String, dynamic>;
+      expect(body.keys.where((k) => k.startsWith('retainer_')), isEmpty);
+    });
+
+    testWidgets('a member sees the values and cannot change them or status', (
+      tester,
+    ) async {
+      server.routes['GET ${_path(ApiConfig.project(_pid))}'] = (_) =>
+          _json(existing());
+      await pump(
+        tester,
+        const ProjectFormScreen(projectId: _pid),
+        admin: false,
+      );
+
+      expect(find.text('Monthly fee'), findsOneWidget);
+      expect(
+        find.byType(TextField).evaluate().any((e) {
+          final f = e.widget as TextField;
+          return f.decoration?.labelText == 'Monthly fee';
+        }),
+        isFalse,
+      );
+      await tester.ensureVisible(find.text('Save project'));
+      await tester.tap(find.text('Save project'));
+      await tester.pumpAndSettle();
+
+      final body =
+          jsonDecode(server.sent('PATCH', ApiConfig.project(_pid)).single.body)
+              as Map<String, dynamic>;
+      expect(body.keys.where((k) => k.startsWith('retainer_')), isEmpty);
+      expect(body.containsKey('status'), isFalse);
+      expect(body.containsKey('billing_type'), isFalse);
+    });
+  });
+
   group('a won deal', () {
     Deal deal(String kind) => Deal.fromJson({
       'id': _dealId,

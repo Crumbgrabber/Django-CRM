@@ -20,8 +20,13 @@ def has_project_access(profile, project):
 
 
 def may_delete_project(profile, project):
-    """Admins and the creator; an assignee may edit but not delete."""
-    return is_org_admin(profile) or profile.user_id == project.created_by_id
+    """Admins and the creator; an assignee may edit but not delete. A retainer
+    only an admin, as only an admin sets the status that ends its billing."""
+    if is_org_admin(profile):
+        return True
+    if project.billing_type == "retainer":
+        return False
+    return profile.user_id == project.created_by_id
 
 
 def may_bill_project(profile):

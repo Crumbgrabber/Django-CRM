@@ -89,4 +89,10 @@ app.conf.beat_schedule = {
         "task": "automation.tasks.prune_runs",
         "schedule": crontab(hour=3, minute=50),
     },
+    # Draft retainer invoices for ended months, hourly so each org's month
+    # closes within an hour of its own midnight
+    "draft-retainer-invoices": {
+        "task": "projects.tasks.draft_retainer_invoices",
+        "schedule": crontab(minute=20),
+    },
 }

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { resolve } from '$app/paths';
   import { enhance, type SubmitFunction } from '$app/forms';
+  import { invalidateAll } from '$app/navigation';
   import { onMount, untrack } from 'svelte';
   import { asInternalPath } from '#lib/utils/paths.js';
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
@@ -28,6 +29,8 @@
     burnMeter,
     defaultBillable,
     hoursText,
+    monthLabel,
+    retainerPanel,
     unratedText
   } from '#lib/v2/projects.js';
   import { isOrgAdmin } from '#lib/admin.js';
@@ -45,6 +48,16 @@
   let isFixedFee = $derived(project.billing_type === 'fixed_fee');
   let billable = $derived(defaultBillable(project.billing_type));
   let isAdmin = $derived(isOrgAdmin(data));
+  let retainer = $derived(
+    project.billing_type === 'retainer'
+      ? retainerPanel({ ...project, usage: data.retainerUsage })
+      : null
+  );
+  let retainerMonth = $derived(monthLabel(data.retainerUsage?.month));
+  /* A refused bill (already billed, ended) means the page is out of date. */
+  $effect(() => {
+    if (form?.retainerError) void invalidateAll();
+  });
   /** Rates kept for someone no longer on the project, listed after the team. */
   let offTeamRates = $derived(
     project.rates.filter((r) => !project.assigned_to.some((p) => p.id === r.profile.id))
@@ -246,6 +259,31 @@
     {/if}
 
     {#if shown === 'overview'}
+      {#if retainer}
+        <section class="v2-card panel retainer" aria-labelledby="retainer-head">
+          <div class="v2-label" id="retainer-head">Retainer</div>
+          <p class="retainer-fee v2-num">{retainer.fee}</p>
+          {#if retainer.usage}<p class="retainer-line">{retainer.usage}</p>{/if}
+          {#if retainer.overage}<p class="retainer-line">{retainer.overage}</p>{/if}
+          {#if retainer.carried}<p class="retainer-line v2-sub">{retainer.carried}</p>{/if}
+          {#if retainer.ended}<p class="retainer-line v2-sub">{retainer.ended}</p>{/if}
+          {#if data.offers.billRetainer && retainerMonth}
+            <div class="retainer-bill">
+              <ConfirmAction
+                action="?/billRetainer"
+                label="Bill {retainerMonth}"
+                confirmLabel="Bill {retainerMonth}"
+                hidden={{ month: data.retainerUsage?.month ?? '' }}
+                explain="Drafts one invoice for {retainerMonth}, marks that time billed, then opens the invoice."
+              />
+            </div>
+          {/if}
+          {#if form?.retainerError}
+            <p class="v2-error" role="alert">{form.retainerError}</p>
+          {/if}
+        </section>
+      {/if}
+
       <div class="v2-stats">
         <StatCard
           label="Hours logged"
@@ -855,6 +893,28 @@
   .panel-text {
     font-size: 13px;
     margin: 10px 0;
+  }
+  .retainer-fee {
+    margin: 6px 0 2px;
+    font-size: 18px;
+    font-weight: 600;
+  }
+  .retainer-line {
+    margin: 2px 0;
+    font-size: 13px;
+    overflow-wrap: anywhere;
+  }
+  .retainer-bill {
+    margin-top: 12px;
+  }
+  @media (max-width: 768px) {
+    .retainer-bill :global(.v2-btn) {
+      min-height: 44px;
+    }
+    .retainer-bill :global(.v2-confirm) {
+      width: 100%;
+      flex-wrap: wrap;
+    }
   }
   .bill-date,
   .bill-go {

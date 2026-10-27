@@ -110,8 +110,8 @@ Interactive versions of the same schema are served by a running backend at
 | `/api/cases/{id}/move/` | PATCH |
 | `/api/cases/{id}/request-approval/` | POST |
 | `/api/cases/{id}/solution-suggestions/` | GET |
-| `/api/cases/{id}/solutions/` | DELETE, POST |
-| `/api/cases/{id}/solutions/{solution_pk}/` | DELETE, POST |
+| `/api/cases/{id}/solutions/` | POST |
+| `/api/cases/{id}/solutions/{solution_pk}/` | DELETE |
 | `/api/cases/{id}/time-entries/` | GET, POST |
 | `/api/cases/{id}/time-entries/start/` | POST |
 | `/api/cases/{id}/time-summary/` | GET |
@@ -258,6 +258,7 @@ Interactive versions of the same schema are served by a running backend at
 | `/api/projects/from-deal/{deal_id}/` | GET |
 | `/api/projects/{id}/` | DELETE, GET, PATCH, POST |
 | `/api/projects/{id}/invoice-amount/` | POST |
+| `/api/projects/{id}/retainer/bill/` | POST |
 | `/api/projects/{id}/time-entries/` | GET, POST |
 | `/api/projects/{id}/time-entries/start/` | POST |
 | `/api/projects/{id}/unbilled/` | GET |

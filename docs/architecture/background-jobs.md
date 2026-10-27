@@ -21,11 +21,14 @@ answer requests:
 
 - **`celery -A crm worker`** executes tasks queued by the API, welcome emails, magic-link
   delivery, assignment notifications, and more.
-- **`celery -A crm beat`** fires the schedule in `app.conf.beat_schedule` (ten entries, recurring
-  invoice generation, overdue-invoice checks, payment reminders, expired-estimate checks,
-  stale-opportunity and goal-milestone scans, case SLA-breach scanning every five minutes,
-  stale-timer cleanup, and nightly cleanup of read notifications and expired refresh-token
-  records). Nothing runs any of these unless `beat` is also running.
+- **`celery -A crm beat`** fires the schedule in `app.conf.beat_schedule` (fourteen entries:
+  recurring invoice generation, overdue-invoice checks, payment reminders, expired-estimate
+  checks, stale-opportunity and goal-milestone scans, case SLA-breach scanning every five minutes,
+  stale-timer cleanup, webhook delivery retries, retainer invoices hourly
+  (`projects.tasks.draft_retainer_invoices`), and nightly cleanup of read notifications, expired
+  refresh-token records, webhook delivery logs and automation runs). Nothing runs any of these
+  unless `beat` is also running, and a running `beat` keeps the schedule it started with, so
+  restart it after an upgrade that adds an entry.
 
 See [Email and Celery](../self-hosting/email-and-celery.md#running-a-worker) for the actual run
 commands and what each scheduled entry does operationally.

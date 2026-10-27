@@ -1,6 +1,7 @@
 import { fail, redirect } from '@sveltejs/kit';
 import {
   addProjectNote,
+  billProjectRetainer,
   billProjectTime,
   deleteProject,
   getProject,
@@ -62,7 +63,12 @@ export const load: PageServerLoad = async (event) => {
   const timezone = locals.org_settings?.timezone || 'UTC';
   const billable = detail.project.billing_type !== 'non_billable';
   const bill = {
-    open: url.searchParams.get('bill') === '1' && detail.canBill && invoicesOn && timesheetOn,
+    open:
+      url.searchParams.get('bill') === '1' &&
+      detail.canBill &&
+      invoicesOn &&
+      timesheetOn &&
+      detail.project.billing_type !== 'retainer',
     upTo: isoDateOrNull(url.searchParams.get('up_to')) ?? todayIn(timezone),
     unbilled: null as Awaited<ReturnType<typeof getUnbilled>>
   };
@@ -84,7 +90,17 @@ export const load: PageServerLoad = async (event) => {
     },
     on: { timesheet: timesheetOn, tasks: tasksOn, invoices: invoicesOn },
     offers: {
-      billTime: detail.canBill && invoicesOn && timesheetOn && billable,
+      billTime:
+        detail.canBill &&
+        invoicesOn &&
+        timesheetOn &&
+        billable &&
+        detail.project.billing_type !== 'retainer',
+      billRetainer:
+        detail.canBill &&
+        invoicesOn &&
+        detail.project.billing_type === 'retainer' &&
+        detail.retainerUsage?.billable_now === true,
       invoiceAmount: detail.canBill && invoicesOn && detail.project.billing_type === 'fixed_fee'
     },
     bill,
@@ -193,6 +209,19 @@ export const actions: Actions = {
     } catch (err) {
       const code = clientStatus(err);
       return fail(code, { billError: readableError(err, 'Could not bill this time.') });
+    }
+    redirect(303, made?.invoice_id ? `/invoices/${made.invoice_id}` : '/invoices');
+  },
+
+  /** Admins only, by the API: a draft invoice for the retainer's open month, then open it. */
+  billRetainer: async (event) => {
+    const form = await event.request.formData();
+    let made: { invoice_id?: string };
+    try {
+      made = await billProjectRetainer(event, event.params.id, form.get('month')?.toString() ?? '');
+    } catch (err) {
+      const code = clientStatus(err);
+      return fail(code, { retainerError: readableError(err, 'Could not bill this month.') });
     }
     redirect(303, made?.invoice_id ? `/invoices/${made.invoice_id}` : '/invoices');
   },

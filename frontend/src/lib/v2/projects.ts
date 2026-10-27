@@ -7,6 +7,7 @@
  * one again.
  */
 import { missingOptions } from '#lib/v2/pickers.js';
+import { money } from '#lib/v2/format.js';
 import type { FormBody } from '#lib/api-helpers.js';
 import type { components } from '#lib/api-schema.js';
 
@@ -30,11 +31,12 @@ export const PROJECT_STATUS_TONE: Record<string, 'ink' | 'slate' | 'clay' | 'rus
   cancelled: 'slate'
 };
 
-export const BILLING_TYPES = ['time_and_materials', 'fixed_fee', 'non_billable'];
+export const BILLING_TYPES = ['time_and_materials', 'fixed_fee', 'retainer', 'non_billable'];
 
 export const BILLING_TYPE_LABEL: Record<string, string> = {
   time_and_materials: 'Time and materials',
   fixed_fee: 'Fixed fee',
+  retainer: 'Retainer',
   non_billable: 'Non-billable'
 };
 
@@ -166,6 +168,11 @@ export type ProjectValues = {
   budget_hours?: string;
   budget_amount?: string;
   hourly_rate?: string;
+  retainer_fee?: string;
+  retainer_hours?: string;
+  retainer_rollover?: boolean;
+  retainer_overage_rate?: string;
+  retainer_carried_hours?: string;
   start_date?: string;
   due_date?: string;
   description?: string;
@@ -180,8 +187,19 @@ export type ProjectValues = {
  */
 export type ProjectFormValues = Omit<
   ProjectValues,
-  'budget_hours' | 'budget_amount' | 'hourly_rate' | 'rates'
+  | 'budget_hours'
+  | 'budget_amount'
+  | 'hourly_rate'
+  | 'rates'
+  | 'retainer_fee'
+  | 'retainer_hours'
+  | 'retainer_overage_rate'
+  | 'retainer_carried_hours'
 > & {
+  retainer_fee?: string | number | null;
+  retainer_hours?: string | number | null;
+  retainer_overage_rate?: string | number | null;
+  retainer_carried_hours?: string | number | null;
   budget_hours?: string | number | null;
   budget_amount?: string | number | null;
   hourly_rate?: string | number | null;
@@ -213,12 +231,27 @@ export function projectValues(form: {
     'budget_hours',
     'budget_amount',
     'hourly_rate',
+    'retainer_fee',
+    'retainer_hours',
+    'retainer_overage_rate',
+    'retainer_carried_hours',
     'start_date',
     'due_date',
     'description'
   ] as const;
   for (const key of scalars) {
     if (form.has(key)) values[key] = String(form.get(key) ?? '').trim();
+  }
+  // Carried hours are only the admin's to change; an untouched figure is
+  // stale once a month has been billed, so it is not sent back.
+  if (form.has('retainer_carried_hours__loaded')) {
+    const loaded = Number(String(form.get('retainer_carried_hours__loaded') ?? '').trim() || 0);
+    const typed = Number(values.retainer_carried_hours?.trim() || 0);
+    if (loaded === typed) delete values.retainer_carried_hours;
+  }
+  // An unchecked box posts nothing, so the marker is what makes false explicit.
+  if (form.has('retainer__rendered')) {
+    values.retainer_rollover = form.get('retainer_rollover') === 'on';
   }
   if (form.has('assigned__rendered')) {
     values.assigned_to = form
@@ -232,6 +265,18 @@ export function projectValues(form: {
     values.rates = people.map((profile, i) => ({ profile, hourly_rate: amounts[i] ?? '' }));
   }
   return values;
+}
+
+/**
+ * Whether the form shows Status as text and posts none: on a retainer the API
+ * leaves status to admins, so a member's choice would be silently dropped.
+ */
+export function statusLocked(
+  edit: boolean,
+  isAdmin: boolean,
+  billingType: string | null | undefined
+): boolean {
+  return edit && !isAdmin && billingType === 'retainer';
 }
 
 /**
@@ -267,6 +312,7 @@ export function projectBody(values: ProjectValues): { body: ProjectBody; errors:
   for (const key of ['start_date', 'due_date'] as const) {
     if (key in values) body[key] = isoDateOrNull(values[key]);
   }
+  appendRetainer(values, body, errors);
   const start = isoDateOrNull(values.start_date);
   const due = isoDateOrNull(values.due_date);
   if (start && due && due < start) {
@@ -296,6 +342,43 @@ export function projectBody(values: ProjectValues): { body: ProjectBody; errors:
   }
   if (values.custom_fields) body.custom_fields = values.custom_fields;
   return { body, errors: [...new Set(errors)] };
+}
+
+/**
+ * The retainer fields of a body. The checks run only while the billing type
+ * being sent is `retainer`; other keys sent are passed on as typed.
+ */
+function appendRetainer(values: ProjectValues, body: ProjectBody, errors: string[]) {
+  const isRetainer = values.billing_type === 'retainer';
+  const parsed = (raw: string | undefined, label: string) => {
+    const n = decimalOrNull(raw);
+    if (n === undefined) errors.push(`${label} must be a number of 0 or more.`);
+    return n ?? null;
+  };
+  let fee: string | null = null;
+  let hours: string | null = null;
+  let overage: string | null = null;
+  if ('retainer_fee' in values) {
+    fee = parsed(values.retainer_fee, 'Monthly fee');
+    if (isRetainer && !(Number(fee) >= 0.01)) errors.push('Set the monthly fee.');
+    body.retainer_fee = fee;
+  }
+  if ('retainer_hours' in values) {
+    hours = parsed(values.retainer_hours, 'Hours included each month');
+    body.retainer_hours = hours;
+  }
+  if ('retainer_overage_rate' in values) {
+    overage = parsed(values.retainer_overage_rate, 'Rate for hours over the allowance');
+    body.retainer_overage_rate = overage;
+  }
+  if (isRetainer && hours !== null && overage === null) {
+    errors.push('Set the rate for hours over the allowance.');
+  }
+  if ('retainer_carried_hours' in values) {
+    body.retainer_carried_hours =
+      parsed(values.retainer_carried_hours, 'Carried hours') ?? (0).toFixed(2);
+  }
+  if ('retainer_rollover' in values) body.retainer_rollover = values.retainer_rollover === true;
 }
 
 /** An id, or the `{ id, name }` a read expands it to. */
@@ -429,4 +512,108 @@ export function projectOptions(
  */
 export function defaultBillable(billingType: string | null | undefined): boolean {
   return billingType !== 'non_billable';
+}
+
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December'
+];
+
+/** "October 2026" from `YYYY-MM` or `YYYY-MM-DD`, else ''. Never goes through a Date, so no zone shifts it. */
+export function monthLabel(value: unknown): string {
+  const m = typeof value === 'string' ? value.match(/^(\d{4})-(\d{2})(?:-\d{2})?$/) : null;
+  const name = m ? MONTH_NAMES[Number(m[2]) - 1] : undefined;
+  return m && name ? `${name} ${m[1]}` : '';
+}
+
+/** Hours as a plain number for a sentence: "12", "12.5", "0.25". */
+function hoursFigure(hours: unknown): string {
+  const n = Number(hours);
+  return Number.isFinite(n) ? String(Math.round(n * 100) / 100) : '0';
+}
+
+const hoursNoun = (hours: unknown) => (hoursFigure(hours) === '1' ? 'hour' : 'hours');
+
+/** What the API's `retainer_usage` holds, numbers already read. */
+export type RetainerUsage = {
+  month: string;
+  used_hours: number;
+  available_hours: number | null;
+  overage_hours: number;
+  billable_now: boolean;
+};
+
+/**
+ * The Retainer panel's sentences. A line is null when it has nothing to say;
+ * `usage` is null until the API sends a month to describe.
+ */
+export function retainerPanel(p: {
+  retainer_fee: number | null;
+  retainer_overage_rate: number | null;
+  retainer_carried_hours: number | null;
+  retainer_last_month: string | null;
+  currency: string;
+  usage: RetainerUsage | null;
+}): {
+  fee: string;
+  usage: string | null;
+  overage: string | null;
+  carried: string | null;
+  ended: string | null;
+} {
+  const u = p.usage;
+  const month = monthLabel(u?.month);
+  let usage: string | null = null;
+  if (u && month) {
+    usage =
+      u.available_hours === null
+        ? `${hoursFigure(u.used_hours)} ${hoursNoun(u.used_hours)} in ${month}`
+        : `${hoursFigure(u.used_hours)} of ${hoursFigure(u.available_hours)} hours used in ${month}`;
+  }
+  let overage: string | null = null;
+  if (u && u.overage_hours > 0) {
+    const amount =
+      p.retainer_overage_rate === null
+        ? ''
+        : `, ${money(Math.round(u.overage_hours * p.retainer_overage_rate * 100) / 100, p.currency)}`;
+    overage = `${hoursFigure(u.overage_hours)} ${hoursNoun(u.overage_hours)} over the allowance so far${amount}`;
+  }
+  const carriedHours = p.retainer_carried_hours ?? 0;
+  const ended = monthLabel(p.retainer_last_month);
+  return {
+    fee:
+      p.retainer_fee === null
+        ? 'No monthly fee set'
+        : `${money(p.retainer_fee, p.currency)} a month`,
+    usage,
+    overage,
+    carried:
+      carriedHours > 0
+        ? `${hoursFigure(carriedHours)} ${hoursNoun(carriedHours)} carried in from earlier months`
+        : null,
+    ended: ended ? `Ended after ${ended}` : null
+  };
+}
+
+/**
+ * The sentence for a `project.retainer_invoice` notification, or null for
+ * data of the wrong shape (the row then keeps its generic copy).
+ */
+export function retainerInvoiceNotificationText(data: unknown): string | null {
+  if (!data || typeof data !== 'object') return null;
+  const { project, month, invoice_number } = data as Record<string, unknown>;
+  const label = monthLabel(month);
+  if (typeof project !== 'string' || !project.trim()) return null;
+  if (typeof invoice_number !== 'string' || !invoice_number.trim() || !label) return null;
+  return `Retainer invoice ${invoice_number} for ${label} drafted for ${project}`;
 }

@@ -25,9 +25,12 @@ LIST_KEYS = {
     "id", "name", "account", "deal", "status", "billing_type", "currency",
     "budget_hours", "budget_amount", "hourly_rate", "start_date", "due_date",
     "assigned_to", "tags", "burn", "created_at", "updated_at",
+    "retainer_fee", "retainer_hours", "retainer_rollover",
+    "retainer_overage_rate", "retainer_carried_hours", "retainer_next_month",
+    "retainer_last_month",
 }  # fmt: skip
 DETAIL_KEYS = LIST_KEYS | {
-    "description", "custom_fields", "rates", "comments", "attachments",
+    "description", "custom_fields", "retainer_usage", "rates", "comments", "attachments",
     "invoices", "estimate", "can_edit", "can_delete", "can_bill",
 }  # fmt: skip
 BURN_KEYS = {
@@ -137,7 +140,7 @@ class TestCreate:
             ({"hourly_rate": "-5"}, "hourly_rate"),
             ({"start_date": "2026-11-02", "due_date": "2026-11-01"}, "due_date"),
             ({"status": "archived"}, "status"),
-            ({"billing_type": "retainer"}, "billing_type"),
+            ({"billing_type": "subscription"}, "billing_type"),
             ({"currency": "XYZ"}, "currency"),
             ({"account": "not-an-id"}, "account"),
             ({"assigned_to": ["nope"]}, "assigned_to"),
