@@ -41,7 +41,9 @@ _SAMPLE_DATE_FIELDS = (
     ("deals", "Opportunity", ("closed_on",)),
     ("tickets", "Case", ()),
     ("leads", "Lead", ()),
+    ("projects", "Project", ("start_date",)),
     ("tasks", "Task", ("due_date",)),
+    ("time_entries", "TimeEntry", ("date",)),
 )
 
 
@@ -172,19 +174,42 @@ SAMPLE_TASK_KEYS = {
     "deal",
     "ticket",
     "lead",
+    "project",
     "custom_fields",
 }
+SAMPLE_PROJECT_KEYS = {
+    "name",
+    "account",
+    "deal",
+    "billing_type",
+    "currency",
+    "hourly_rate",
+    "budget_hours",
+    "budget_amount",
+    "start_date",
+    "description",
+}
+# Logged by the person applying the pack, stopped, at the project's rate.
+SAMPLE_TIME_ENTRY_KEYS = {"project", "date", "hours", "description"}
 
-# Every entity `sample_data` understands, in the order the applier creates them
-# . A later entity may reference an earlier one by name, never the reverse.
-# Tasks are last because a task is the only row that can point at any of the
-# other five. common.packs.applier imports this rather than restating it.
-SAMPLE_ENTITY_KEYS = ("accounts", "contacts", "deals", "tickets", "leads", "tasks")
+# Every entity `sample_data` understands, in the order the applier creates them.
+# A later entity may reference an earlier one by name, never the reverse.
+# common.packs.applier imports this rather than restating it.
+SAMPLE_ENTITY_KEYS = (
+    "accounts",
+    "contacts",
+    "deals",
+    "tickets",
+    "leads",
+    "projects",
+    "tasks",
+    "time_entries",
+)
 
 # Task.clean (tasks/models.py) rejects a Task linked to more than one parent, and
 # Task.save calls full_clean, so the DB write raises rather than truncating. The
 # schema enforces the same rule so a bad pack fails in CI instead of at apply.
-SAMPLE_TASK_PARENTS = ("account", "deal", "ticket", "lead")
+SAMPLE_TASK_PARENTS = ("account", "deal", "ticket", "lead", "project")
 
 
 class PackValidationError(Exception):
@@ -443,6 +468,18 @@ def _validate_choice(where: str, value, field: str, allowed: set[str]) -> None:
         )
 
 
+def _validate_amount(where: str, value, field: str) -> None:
+    """A number of 0 or more, or absent."""
+    if value is None:
+        return
+    try:
+        amount = Decimal(str(value))
+    except InvalidOperation:
+        raise PackValidationError(f"{where}: {field} is not a number") from None
+    if not amount.is_finite() or amount < 0:
+        raise PackValidationError(f"{where}: {field} must be 0 or more")
+
+
 def _validate_date(where: str, value, field: str) -> None:
     if value is None:
         return
@@ -511,6 +548,7 @@ def _validate_sample_data(where: str, sample: dict, raw: dict) -> None:
         STAGES,
         STATUS_CHOICE,
     )
+    from projects.models import BILLING_TYPES
     from tasks.models import Task
 
     _reject_unknown(where, sample, set(SAMPLE_ENTITY_KEYS))
@@ -525,6 +563,8 @@ def _validate_sample_data(where: str, sample: dict, raw: dict) -> None:
     tickets = sample.get("tickets") or []
     tasks = sample.get("tasks") or []
     leads = sample.get("leads") or []
+    projects = sample.get("projects") or []
+    time_entries = sample.get("time_entries") or []
 
     def contact_name(row):
         return f"{row.get('first_name', '')} {row.get('last_name', '')}".strip()
@@ -543,6 +583,9 @@ def _validate_sample_data(where: str, sample: dict, raw: dict) -> None:
     )
     known_leads = _reference_index(
         f"{where}.leads", leads, lambda r: r.get("title"), "lead title"
+    )
+    known_projects = _reference_index(
+        f"{where}.projects", projects, lambda r: r.get("name"), "project name"
     )
 
     lead_stages = _pipeline_stage_names(raw, "lead_pipeline")
@@ -626,6 +669,35 @@ def _validate_sample_data(where: str, sample: dict, raw: dict) -> None:
             at, row.get("ticket"), "ticket", known_tickets, "sample ticket"
         )
         _check_reference(at, row.get("lead"), "lead", known_leads, "sample lead")
+        _check_reference(
+            at, row.get("project"), "project", known_projects, "sample project"
+        )
+
+    for i, row in enumerate(projects):
+        at = f"{where}.projects[{i}]"
+        _reject_unknown(at, row, SAMPLE_PROJECT_KEYS)
+        _require(at, row, "name", "account")
+        _validate_choice(
+            at, row.get("billing_type"), "billing_type", {c for c, _l in BILLING_TYPES}
+        )
+        _validate_choice(at, row.get("currency"), "currency", currencies)
+        for key in ("hourly_rate", "budget_hours", "budget_amount"):
+            _validate_amount(at, row.get(key), key)
+        _check_reference(
+            at, row.get("account"), "account", known_accounts, "sample account"
+        )
+        _check_reference(at, row.get("deal"), "deal", known_deals, "sample deal")
+
+    for i, row in enumerate(time_entries):
+        at = f"{where}.time_entries[{i}]"
+        _reject_unknown(at, row, SAMPLE_TIME_ENTRY_KEYS)
+        _require(at, row, "project", "date", "hours")
+        _validate_amount(at, row.get("hours"), "hours")
+        if not 0 < Decimal(str(row["hours"])) <= 24:
+            raise PackValidationError(f"{at}: hours must be more than 0 and at most 24")
+        _check_reference(
+            at, row.get("project"), "project", known_projects, "sample project"
+        )
 
     for i, row in enumerate(leads):
         at = f"{where}.leads[{i}]"

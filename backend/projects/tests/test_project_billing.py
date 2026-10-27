@@ -3,6 +3,7 @@ preview, an amount or a share of the fee, and cancelling frees the time."""
 
 import datetime
 from decimal import Decimal
+from unittest.mock import patch
 
 import pytest
 from django.contrib.admin.sites import site
@@ -282,14 +283,19 @@ class TestUnbilled:
     def test_the_preview_matches_the_bill(
         self, admin_client, project, admin_profile, user_profile
     ):
-        log_time(project, admin_profile, 90, rate="100", days_ago=3)
-        log_time(project, user_profile, 30, rate=None, days_ago=3)
-        log_time(project, user_profile, 60, rate="100")
-        up_to = (timezone.localdate() - datetime.timedelta(days=1)).isoformat()
+        # Time is dated by its start: just after midnight, today's hour began yesterday.
+        noon = timezone.now().replace(hour=12, minute=0, second=0, microsecond=0)
+        with patch(
+            "django.utils.timezone.now", return_value=noon - datetime.timedelta(days=1)
+        ):
+            log_time(project, admin_profile, 90, rate="100", days_ago=3)
+            log_time(project, user_profile, 30, rate=None, days_ago=3)
+            log_time(project, user_profile, 60, rate="100")
+            up_to = (timezone.localdate() - datetime.timedelta(days=1)).isoformat()
 
-        body = admin_client.get(
-            f"/api/projects/{project.id}/unbilled/", {"up_to": up_to}
-        ).json()
+            body = admin_client.get(
+                f"/api/projects/{project.id}/unbilled/", {"up_to": up_to}
+            ).json()
 
         assert body == {
             "entry_count": 2,

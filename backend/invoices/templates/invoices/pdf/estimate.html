@@ -92,6 +92,12 @@
             </div>
         </div>
 
+        {% if estimate.introduction %}
+        <div class="notes-section introduction">
+            <p>{{ estimate.introduction|linebreaksbr }}</p>
+        </div>
+        {% endif %}
+
         <!-- Line Items -->
         <table class="line-items">
             <thead>
@@ -154,6 +160,12 @@
                     <span class="totals-label">Total</span>
                     <span class="totals-value">{{ total_amount }}</span>
                 </div>
+                {% if deposit %}
+                <div class="totals-row deposit">
+                    <span class="totals-label">Deposit on acceptance ({{ deposit.percent }}%)</span>
+                    <span class="totals-value">{{ deposit.amount }}</span>
+                </div>
+                {% endif %}
             </div>
         </div>
 

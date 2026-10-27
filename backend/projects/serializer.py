@@ -19,7 +19,7 @@ from common.serializer import (
     TagsSerializer,
 )
 from common.validators import validate_uuid
-from invoices.permissions import visible_invoices_qs
+from invoices.permissions import visible_estimates_qs, visible_invoices_qs
 from opportunity.access import has_deal_access
 from opportunity.models import Opportunity
 from projects import access
@@ -72,6 +72,13 @@ class ProjectInvoiceRowSerializer(serializers.Serializer):
     total_amount = _money()
     currency = serializers.CharField()
     issue_date = serializers.DateField(allow_null=True)
+
+
+class ProjectEstimateSerializer(serializers.Serializer):
+    """`ProjectDetailSerializer.estimate`, for the schema."""
+
+    id = serializers.UUIDField()
+    estimate_number = serializers.CharField()
 
 
 class ProjectListSerializer(serializers.ModelSerializer):
@@ -134,6 +141,7 @@ class ProjectDetailSerializer(ProjectListSerializer):
     comments = serializers.SerializerMethodField()
     attachments = serializers.SerializerMethodField()
     invoices = serializers.SerializerMethodField()
+    estimate = serializers.SerializerMethodField()
     can_edit = serializers.SerializerMethodField()
     can_delete = serializers.SerializerMethodField()
     can_bill = serializers.SerializerMethodField()
@@ -146,6 +154,7 @@ class ProjectDetailSerializer(ProjectListSerializer):
             "comments",
             "attachments",
             "invoices",
+            "estimate",
             "can_edit",
             "can_delete",
             "can_bill",
@@ -199,6 +208,27 @@ class ProjectDetailSerializer(ProjectListSerializer):
             }
             for i in rows
         ]
+
+    @extend_schema_field(ProjectEstimateSerializer(allow_null=True))
+    def get_estimate(self, obj):
+        """The estimate whose acceptance started the project, if the caller
+        may open it."""
+        profile = self.context["profile"]
+        if not module_is_available(profile.org, "invoices"):
+            return None
+        estimate = (
+            visible_estimates_qs(profile)
+            .filter(project=obj)
+            .order_by("created_at")
+            .values("id", "estimate_number")
+            .first()
+        )
+        if estimate is None:
+            return None
+        return {
+            "id": str(estimate["id"]),
+            "estimate_number": estimate["estimate_number"],
+        }
 
     def get_can_edit(self, obj) -> bool:
         return access.has_project_access(self.context["profile"], obj)

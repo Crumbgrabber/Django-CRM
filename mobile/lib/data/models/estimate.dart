@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../api/schema.g.dart' as api;
 import 'deal.dart' show Currency;
+import 'invoice.dart' show InvoiceStatus;
+import 'project.dart' show ProjectRef;
 
 /// `invoices.models.ESTIMATE_STATUS`. Six values, no underscores this time.
 enum EstimateStatus {
@@ -51,6 +53,8 @@ class Estimate {
     this.convertedInvoiceId,
     this.convertedInvoiceNumber,
     this.opportunityName,
+    this.project,
+    this.depositInvoice,
   });
 
   final String id;
@@ -69,6 +73,18 @@ class Estimate {
   final String? convertedInvoiceId;
   final String? convertedInvoiceNumber;
   final String? opportunityName;
+
+  /// Set by the server when the client accepts: the project the estimate
+  /// started and the draft deposit invoice it raised.
+  final ProjectRef? project;
+  final EstimateDepositInvoice? depositInvoice;
+
+  /// A deposit invoice that still bills the client. Raising the full invoice
+  /// does not take it off, so the person is told before converting.
+  EstimateDepositInvoice? get liveDepositInvoice {
+    final deposit = depositInvoice;
+    return deposit == null || deposit.isCancelled ? null : deposit;
+  }
 
   String get statusLabel => status?.label ?? rawStatus;
 
@@ -101,6 +117,9 @@ class Estimate {
   factory Estimate.fromJson(Map<String, dynamic> json) {
     final w = api.EstimateList.fromJson(json);
     final converted = w.convertedToInvoice;
+    final projectId = w.project?.id ?? '';
+    final deposit = w.depositInvoice;
+    final depositId = deposit?.id ?? '';
     return Estimate(
       id: w.id ?? '',
       estimateNumber: w.estimateNumber ?? '',
@@ -117,8 +136,41 @@ class Estimate {
       convertedInvoiceId: converted?.id,
       convertedInvoiceNumber: converted?.invoiceNumber,
       opportunityName: w.opportunity?.name,
+      project: projectId.isEmpty
+          ? null
+          : ProjectRef(id: projectId, name: w.project?.name ?? ''),
+      depositInvoice: depositId.isEmpty
+          ? null
+          : EstimateDepositInvoice(
+              id: depositId,
+              invoiceNumber: deposit?.invoiceNumber ?? '',
+              rawStatus: deposit?.status ?? '',
+              totalAmount: _num(deposit?.totalAmount),
+            ),
     );
   }
+}
+
+/// The draft deposit invoice an accepted estimate raised, as the list row
+/// carries it.
+class EstimateDepositInvoice {
+  const EstimateDepositInvoice({
+    required this.id,
+    this.invoiceNumber = '',
+    this.rawStatus = '',
+    this.totalAmount = 0,
+  });
+
+  final String id;
+  final String invoiceNumber;
+  final String rawStatus;
+  final double totalAmount;
+
+  InvoiceStatus? get status => InvoiceStatus.fromString(rawStatus);
+
+  String get statusLabel => status?.label ?? rawStatus.replaceAll('_', ' ');
+
+  bool get isCancelled => status == InvoiceStatus.cancelled;
 }
 
 double _num(String? value) => double.tryParse(value ?? '') ?? 0;

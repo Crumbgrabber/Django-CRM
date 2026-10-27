@@ -4856,7 +4856,9 @@ export interface paths {
          *
          *     The row is locked from the read to the save, so the status and expiry
          *     checks judge the estimate as it is when accepted, and a staff edit
-         *     that commits meanwhile is not written back over.
+         *     that commits meanwhile is not written back over. The project and
+         *     deposit invoice it starts are made in the same transaction, so a
+         *     failure answers 500 with nothing accepted or made.
          */
         post: operations["public_estimate_accept_create"];
         delete?: never;
@@ -9501,6 +9503,15 @@ export interface components {
          * @enum {string}
          */
         DeliveryEnum: "link" | "code";
+        /** @description An estimate's deposit invoice, on its list row and the convert answer. */
+        DepositInvoice: {
+            /** Format: uuid */
+            id: string;
+            invoice_number: string;
+            status: string;
+            /** Format: decimal */
+            total_amount: string;
+        };
         /**
          * @description * `inbound` - Inbound
          *     * `outbound` - Outbound
@@ -9775,6 +9786,10 @@ export interface components {
             readonly contact: components["schemas"]["ContactPicker"] | null;
             readonly opportunity: components["schemas"]["OpportunityMinimal"] | null;
             readonly converted_to_invoice: components["schemas"]["InvoiceList"] | null;
+            /** Format: uuid */
+            readonly project: string | null;
+            /** Format: uuid */
+            readonly deposit_invoice: string | null;
             readonly line_items: components["schemas"]["EstimateLineItem"][];
             readonly created_by: components["schemas"]["User"] | null;
             readonly assigned_to: components["schemas"]["Profile"][];
@@ -9836,6 +9851,15 @@ export interface components {
             /** Accepted From IP */
             accepted_ip: string | null;
             accepted_user_agent: string;
+            introduction: string;
+            /**
+             * Deposit (%)
+             * Format: decimal
+             */
+            deposit_percent: string | null;
+            /** Start a project when accepted */
+            start_project: boolean;
+            project_billing_type: components["schemas"]["ProjectBillingTypeEnum"];
             public_token: string;
             public_link_enabled: boolean;
             notes: string;
@@ -9888,10 +9912,33 @@ export interface components {
             notes?: string;
             /** Terms & Conditions */
             terms?: string;
+            introduction?: string;
+            /**
+             * Deposit (%)
+             * Format: decimal
+             */
+            deposit_percent?: string | null;
+            /** Start a project when accepted */
+            start_project?: boolean;
+            project_billing_type?: components["schemas"]["ProjectBillingTypeEnum"];
             line_items?: components["schemas"]["EstimateLineItemCreateRequest"][];
             custom_fields?: {
                 [key: string]: unknown;
             };
+        };
+        EstimateConverted: {
+            error: boolean;
+            message: string;
+            invoice: components["schemas"]["Invoice"];
+            deposit_invoice: components["schemas"]["DepositInvoice"] | null;
+        };
+        /** @description `invoices.proposals.estimate_deposit`, for the schema. */
+        EstimateDeposit: {
+            /** Format: decimal */
+            percent: string;
+            /** Format: decimal */
+            amount: string;
+            currency: string;
         };
         EstimateDetail: {
             estimate: components["schemas"]["Estimate"];
@@ -9991,6 +10038,18 @@ export interface components {
             total_amount: string;
             currency: components["schemas"]["CurrencyEnum"];
             readonly is_expired: boolean;
+            introduction: string;
+            /**
+             * Deposit (%)
+             * Format: decimal
+             */
+            deposit_percent: string | null;
+            /** Start a project when accepted */
+            start_project: boolean;
+            project_billing_type: components["schemas"]["ProjectBillingTypeEnum"];
+            readonly project: components["schemas"]["EstimateListProject"] | null;
+            readonly deposit_invoice: components["schemas"]["DepositInvoice"] | null;
+            readonly deposit: components["schemas"]["EstimateDeposit"] | null;
             /** Format: date-time */
             readonly created_at: string;
         };
@@ -10003,6 +10062,11 @@ export interface components {
             /** Format: uuid */
             id: string;
             invoice_number: string;
+        };
+        EstimateListProject: {
+            /** Format: uuid */
+            id: string;
+            name: string;
         };
         EstimatePage: {
             results: components["schemas"]["EstimateList"][];
@@ -13075,6 +13139,15 @@ export interface components {
             notes?: string;
             /** Terms & Conditions */
             terms?: string;
+            introduction?: string;
+            /**
+             * Deposit (%)
+             * Format: decimal
+             */
+            deposit_percent?: string | null;
+            /** Start a project when accepted */
+            start_project?: boolean;
+            project_billing_type?: components["schemas"]["ProjectBillingTypeEnum"];
             line_items?: components["schemas"]["EstimateLineItemCreateRequest"][];
             custom_fields?: {
                 [key: string]: unknown;
@@ -14368,6 +14441,13 @@ export interface components {
         ProfileViewResponse: {
             user_obj: components["schemas"]["OwnProfile"];
         };
+        /**
+         * @description * `time_and_materials` - Time and materials
+         *     * `fixed_fee` - Fixed fee
+         *     * `non_billable` - Non-billable
+         * @enum {string}
+         */
+        ProjectBillingTypeEnum: "time_and_materials" | "fixed_fee" | "non_billable";
         /** @description The whole write body, for the API schema only. */
         ProjectBodyRequest: {
             name: string;
@@ -14456,6 +14536,7 @@ export interface components {
             readonly comments: components["schemas"]["Comment"][];
             readonly attachments: components["schemas"]["Attachments"][];
             readonly invoices: components["schemas"]["ProjectInvoiceRow"][];
+            readonly estimate: components["schemas"]["ProjectEstimate"] | null;
             readonly can_edit: boolean;
             readonly can_delete: boolean;
             readonly can_bill: boolean;
@@ -14469,6 +14550,12 @@ export interface components {
             billing_type: string;
             /** Format: decimal */
             budget_amount: string | null;
+        };
+        /** @description `ProjectDetailSerializer.estimate`, for the schema. */
+        ProjectEstimate: {
+            /** Format: uuid */
+            id: string;
+            estimate_number: string;
         };
         ProjectInvoiceAmount: {
             /** Format: uuid */
@@ -14651,6 +14738,7 @@ export interface components {
             currency: string;
             notes: string;
             terms: string;
+            introduction: string;
             subtotal: string;
             discount_value: string;
             discount_amount: string;
@@ -14662,6 +14750,7 @@ export interface components {
             /** Format: date */
             expiry_date: string | null;
             client_address: components["schemas"]["PublicEstimateAddress"];
+            deposit: components["schemas"]["EstimateDeposit"] | null;
         };
         PublicEstimateAcceptRequest: {
             name: string;
@@ -22378,7 +22467,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InvoiceSaved"];
+                    "application/json": components["schemas"]["EstimateConverted"];
                 };
             };
         };

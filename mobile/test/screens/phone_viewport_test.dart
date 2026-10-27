@@ -5618,7 +5618,8 @@ class _FakeNoRoutingRules extends RoutingRulesNotifier {
   Future<RoutingRulesState> build() async => const RoutingRulesState();
 }
 
-/// One estimate still to convert, one already billed.
+/// One estimate still to convert, with the project and deposit invoice its
+/// acceptance made, and one already billed.
 class _FakeEstimates extends EstimatesNotifier {
   @override
   Future<List<Estimate>> build() async => [
@@ -5631,6 +5632,16 @@ class _FakeEstimates extends EstimatesNotifier {
       'total_amount': '52000.00',
       'currency': 'USD',
       'expiry_date': '2026-09-30',
+      'project': {
+        'id': 'p1',
+        'name': 'Warehouse rebuild for Northwind Traders and Logistics',
+      },
+      'deposit_invoice': {
+        'id': 'inv-12',
+        'invoice_number': 'INV-0012',
+        'status': 'Partially_Paid',
+        'total_amount': '15600.00',
+      },
     }),
     Estimate.fromJson({
       'id': 'e2',

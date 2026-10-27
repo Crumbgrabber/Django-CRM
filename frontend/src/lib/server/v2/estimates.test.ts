@@ -47,6 +47,60 @@ describe('estimate header figures', () => {
   });
 });
 
+describe('an accepted proposal on the list', () => {
+  beforeEach(() => {
+    apiRequest.mockReset();
+  });
+
+  it('carries the project and the deposit invoice, with its status and amount', async () => {
+    apiRequest.mockResolvedValue({
+      count: 1,
+      results: [
+        {
+          ...estimate('Accepted', '1100.00', 'EUR'),
+          project: { id: 'p1', name: 'Website rebuild' },
+          deposit_invoice: {
+            id: 'i1',
+            invoice_number: 'INV-0042',
+            status: 'Draft',
+            total_amount: '330.00'
+          }
+        }
+      ]
+    });
+
+    const { estimates } = await listEstimates(event);
+
+    expect(estimates[0].project).toEqual({ id: 'p1', name: 'Website rebuild' });
+    expect(estimates[0].deposit_invoice).toEqual({
+      id: 'i1',
+      invoice_number: 'INV-0042',
+      status: 'Draft',
+      total_amount: 330
+    });
+    // The deposit is not the conversion: the row still needs billing.
+    expect(estimates[0].converted_invoice).toBeNull();
+    expect(estimates[0].currency).toBe('EUR');
+  });
+
+  it('reads no project and no deposit invoice as null, including from an older API', async () => {
+    apiRequest.mockResolvedValue({
+      count: 2,
+      results: [
+        { ...estimate('Sent', '10.00', 'USD'), project: null, deposit_invoice: null },
+        estimate('Draft', '20.00', 'USD')
+      ]
+    });
+
+    const { estimates } = await listEstimates(event);
+
+    for (const row of estimates) {
+      expect(row.project).toBeNull();
+      expect(row.deposit_invoice).toBeNull();
+    }
+  });
+});
+
 const { createEstimate, estimateFromDeal, sendEstimate } =
   await import('#lib/server/v2/estimates.js');
 

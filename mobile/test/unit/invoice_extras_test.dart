@@ -193,6 +193,54 @@ void main() {
       expect(lapsed.canSend, isFalse);
     });
 
+    test('an accepted proposal carries its project and deposit invoice', () {
+      final e = Estimate.fromJson({
+        'id': 'e3',
+        'status': 'Accepted',
+        'project': {'id': 'p1', 'name': 'Website rebuild'},
+        'deposit_invoice': {
+          'id': 'inv-12',
+          'invoice_number': 'INV-0012',
+          'status': 'Partially_Paid',
+          'total_amount': '330.00',
+        },
+      });
+
+      expect(e.project?.id, 'p1');
+      expect(e.project?.name, 'Website rebuild');
+      expect(e.depositInvoice?.invoiceNumber, 'INV-0012');
+      expect(e.depositInvoice?.statusLabel, 'Partially paid');
+      expect(e.depositInvoice?.totalAmount, 330);
+      expect(e.liveDepositInvoice?.id, 'inv-12');
+    });
+
+    test('a cancelled deposit invoice no longer counts as live', () {
+      final e = Estimate.fromJson({
+        'id': 'e3',
+        'deposit_invoice': {'id': 'inv-12', 'status': 'Cancelled'},
+      });
+
+      expect(e.depositInvoice, isNotNull);
+      expect(e.liveDepositInvoice, isNull);
+    });
+
+    test('without them, or with no id, there is neither', () {
+      for (final json in [
+        {'id': 'e'},
+        {'id': 'e', 'project': null, 'deposit_invoice': null},
+        {
+          'id': 'e',
+          'project': {'id': '', 'name': 'Ghost'},
+          'deposit_invoice': {'id': '', 'status': 'Draft'},
+        },
+      ]) {
+        final e = Estimate.fromJson(json);
+        expect(e.project, isNull, reason: '$json');
+        expect(e.depositInvoice, isNull, reason: '$json');
+        expect(e.liveDepositInvoice, isNull, reason: '$json');
+      }
+    });
+
     test('the status filter sends the wire value', () async {
       client.body = feed;
       await readEstimates();

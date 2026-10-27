@@ -23,25 +23,34 @@ import '../../support/modules_fixtures.dart';
 /// missing. These tests pin the client half: the form starts from what the
 /// deal carries, never submits an id its pickers do not offer, and the deal
 /// screen offers "Create invoice" only where the server can say yes.
-Deal _deal({String stageKind = 'open', List<String> contacts = const []}) =>
-    Deal.fromJson({
-      'id': 'd1',
-      'name': 'Renewal',
-      'stage': stageKind == 'won' ? 'SIGNED' : 'TALKING',
-      'stage_label': stageKind == 'won' ? 'Signed' : 'Talking',
-      'stage_kind': stageKind,
-      'amount': '300',
-      'currency': 'EUR',
-      'account': {'id': 'acc-1', 'name': 'Northwind'},
-      'contacts': [
-        for (final id in contacts)
-          {'id': id, 'first_name': id, 'last_name': 'Person'},
-      ],
-      'line_items': [
-        {'id': 'li1', 'name': 'Seats', 'quantity': 3, 'unit_price': '100.00'},
-      ],
-      'created_at': '2026-09-01T00:00:00Z',
-    });
+Deal _deal({
+  String stageKind = 'open',
+  List<String> contacts = const [],
+  int quantity = 3,
+  String unitPrice = '100.00',
+}) => Deal.fromJson({
+  'id': 'd1',
+  'name': 'Renewal',
+  'stage': stageKind == 'won' ? 'SIGNED' : 'TALKING',
+  'stage_label': stageKind == 'won' ? 'Signed' : 'Talking',
+  'stage_kind': stageKind,
+  'amount': '300',
+  'currency': 'EUR',
+  'account': {'id': 'acc-1', 'name': 'Northwind'},
+  'contacts': [
+    for (final id in contacts)
+      {'id': id, 'first_name': id, 'last_name': 'Person'},
+  ],
+  'line_items': [
+    {
+      'id': 'li1',
+      'name': 'Seats',
+      'quantity': quantity,
+      'unit_price': unitPrice,
+    },
+  ],
+  'created_at': '2026-09-01T00:00:00Z',
+});
 
 /// Decimals as the API sends them (strings), with a line discount on each.
 Deal _discountedDeal() => Deal.fromJson({
@@ -90,6 +99,10 @@ void main() {
   group('the estimate form', () {
     late _FakeEstimates estimates;
 
+    /// The form's app with the caller an admin or not. Pumped again over a
+    /// form already open, it changes the role and keeps the form's state.
+    late Widget Function({required bool admin}) app;
+
     setUp(() => estimates = _FakeEstimates());
 
     Future<void> pumpForm(
@@ -98,6 +111,7 @@ void main() {
       double textScale = 1.0,
       List<String> off = const [],
       void Function()? onDealsRead,
+      bool admin = true,
     }) async {
       usePhone(tester, textScale);
       final router = GoRouter(
@@ -110,26 +124,24 @@ void main() {
           ),
         ],
       );
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            ...modulesOverrides(
-              FakeOrgModules(() async => modulesAnswer(off: off)),
-            ),
-            accountsLookupProvider.overrideWith(_FakeAccounts.new),
-            contactsLookupProvider.overrideWith(_FakeContacts.new),
-            opportunityEntityOptionsProvider.overrideWith((ref) {
-              onDealsRead?.call();
-              return const AsyncValue.data([
-                EntityLookup(id: 'd1', label: 'Renewal'),
-              ]);
-            }),
-            productsProvider.overrideWith(_FakeProducts.new),
-            estimatesProvider.overrideWith(() => estimates),
-          ],
-          child: MaterialApp.router(routerConfig: router),
-        ),
+      final modules = FakeOrgModules(() async => modulesAnswer(off: off));
+      app = ({required bool admin}) => ProviderScope(
+        overrides: [
+          ...modulesOverrides(modules, admin: admin),
+          accountsLookupProvider.overrideWith(_FakeAccounts.new),
+          contactsLookupProvider.overrideWith(_FakeContacts.new),
+          opportunityEntityOptionsProvider.overrideWith((ref) {
+            onDealsRead?.call();
+            return const AsyncValue.data([
+              EntityLookup(id: 'd1', label: 'Renewal'),
+            ]);
+          }),
+          productsProvider.overrideWith(_FakeProducts.new),
+          estimatesProvider.overrideWith(() => estimates),
+        ],
+        child: MaterialApp.router(routerConfig: router),
       );
+      await tester.pumpWidget(app(admin: admin));
       await tester.pumpAndSettle();
       // The app has the module answer before any form opens; a form that
       // starts during the first load reads every module as on.
@@ -248,6 +260,260 @@ void main() {
       tester,
     ) async {
       await pumpForm(tester, fromDeal: _discountedDeal(), textScale: 1.3);
+      expect(tester.takeException(), isNull);
+    });
+
+    Future<void> reveal(WidgetTester tester, Finder target) async {
+      await tester.scrollUntilVisible(
+        target,
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+    }
+
+    Finder field(String label) => find.widgetWithText(TextField, label);
+
+    testWidgets('sends the introduction, the deposit and the project', (
+      tester,
+    ) async {
+      await pumpForm(tester, fromDeal: _deal(contacts: ['c1']));
+
+      await reveal(tester, field('Introduction (optional)'));
+      await tester.enterText(
+        field('Introduction (optional)'),
+        'Thanks for the call.\nHere is the plan.',
+      );
+      await reveal(tester, field('Deposit on acceptance'));
+      await tester.enterText(field('Deposit on acceptance'), '30');
+      await tester.pumpAndSettle();
+      // 3 x €100 = €300, and 30% of it.
+      expect(find.text('€90.00'), findsOneWidget);
+      expect(find.text('deposit invoice'), findsOneWidget);
+
+      await reveal(tester, find.text('Start a project when accepted'));
+      expect(find.text('Project billing'), findsNothing);
+      await tester.tap(find.text('Start a project when accepted'));
+      await tester.pumpAndSettle();
+      await reveal(tester, find.text('Fixed fee'));
+      await tester.tap(find.text('Fixed fee'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Time and materials').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Create draft'));
+      await tester.pumpAndSettle();
+
+      final sent = estimates.created.single;
+      expect(sent['introduction'], 'Thanks for the call.\nHere is the plan.');
+      expect(sent['deposit_percent'], '30.00');
+      expect(sent['start_project'], isTrue);
+      expect(sent['project_billing_type'], 'time_and_materials');
+    });
+
+    testWidgets('the deposit beside the percent carries the tax', (
+      tester,
+    ) async {
+      await pumpForm(tester, fromDeal: _deal(contacts: ['c1']));
+
+      await reveal(tester, field('Tax rate'));
+      await tester.enterText(field('Tax rate'), '10');
+      await reveal(tester, field('Deposit on acceptance'));
+      await tester.enterText(field('Deposit on acceptance'), '50');
+      await tester.pumpAndSettle();
+
+      // Half of €300 is €150, and 10% tax on that.
+      expect(find.text('€165.00'), findsOneWidget);
+      expect(find.text('deposit invoice, with tax'), findsOneWidget);
+    });
+
+    testWidgets('a project starts as a fixed fee unless changed', (
+      tester,
+    ) async {
+      await pumpForm(tester, fromDeal: _deal(contacts: ['c1']));
+
+      await reveal(tester, find.text('Start a project when accepted'));
+      await tester.tap(find.text('Start a project when accepted'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Create draft'));
+      await tester.pumpAndSettle();
+
+      final sent = estimates.created.single;
+      expect(sent['start_project'], isTrue);
+      expect(sent['project_billing_type'], 'fixed_fee');
+    });
+
+    testWidgets('left alone, none of the proposal fields is sent', (
+      tester,
+    ) async {
+      await pumpForm(tester, fromDeal: _deal(contacts: ['c1']));
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Create draft'));
+      await tester.pumpAndSettle();
+
+      final sent = estimates.created.single;
+      for (final key in [
+        'introduction',
+        'deposit_percent',
+        'start_project',
+        'project_billing_type',
+      ]) {
+        expect(sent.keys, isNot(contains(key)), reason: key);
+      }
+    });
+
+    testWidgets('Projects off offers no project and sends none', (
+      tester,
+    ) async {
+      await pumpForm(
+        tester,
+        fromDeal: _deal(contacts: ['c1']),
+        off: ['projects'],
+      );
+
+      await reveal(tester, field('Deposit on acceptance'));
+      await tester.enterText(field('Deposit on acceptance'), '20');
+      await tester.pumpAndSettle();
+      expect(find.text('Start a project when accepted'), findsNothing);
+      expect(find.text('Project billing'), findsNothing);
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Create draft'));
+      await tester.pumpAndSettle();
+
+      final sent = estimates.created.single;
+      expect(sent['deposit_percent'], '20.00');
+      expect(sent.keys, isNot(contains('start_project')));
+      expect(sent.keys, isNot(contains('project_billing_type')));
+    });
+
+    testWidgets('a member is offered no project and sends none', (
+      tester,
+    ) async {
+      await pumpForm(tester, fromDeal: _deal(contacts: ['c1']), admin: false);
+
+      await reveal(tester, field('Deposit on acceptance'));
+      await tester.enterText(field('Deposit on acceptance'), '20');
+      await tester.pumpAndSettle();
+      expect(find.text('Start a project when accepted'), findsNothing);
+      expect(find.text('Project billing'), findsNothing);
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Create draft'));
+      await tester.pumpAndSettle();
+
+      final sent = estimates.created.single;
+      expect(sent['deposit_percent'], '20.00');
+      expect(sent.keys, isNot(contains('start_project')));
+      expect(sent.keys, isNot(contains('project_billing_type')));
+    });
+
+    testWidgets('a project chosen before admin was lost is not sent', (
+      tester,
+    ) async {
+      await pumpForm(tester, fromDeal: _deal(contacts: ['c1']));
+
+      await reveal(tester, find.text('Start a project when accepted'));
+      await tester.tap(find.text('Start a project when accepted'));
+      await tester.pumpAndSettle();
+      expect(find.text('Project billing'), findsOneWidget);
+
+      await tester.pumpWidget(app(admin: false));
+      await tester.pumpAndSettle();
+      expect(find.text('Start a project when accepted'), findsNothing);
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Create draft'));
+      await tester.pumpAndSettle();
+
+      final sent = estimates.created.single;
+      expect(sent.keys, isNot(contains('start_project')));
+      expect(sent.keys, isNot(contains('project_billing_type')));
+    });
+
+    testWidgets('the deposit beside the percent is what the server bills', (
+      tester,
+    ) async {
+      await pumpForm(
+        tester,
+        fromDeal: _deal(contacts: ['c1'], quantity: 1, unitPrice: '10.01'),
+      );
+
+      await reveal(tester, field('Tax rate'));
+      await tester.tap(find.text('No discount'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Percentage').last);
+      await tester.pumpAndSettle();
+      await tester.enterText(field('Percent off'), '15');
+      await reveal(tester, field('Deposit on acceptance'));
+      await tester.enterText(field('Deposit on acceptance'), '50');
+      await tester.pumpAndSettle();
+
+      // 10.01 less 15% is 8.51 once the discount is to the cent; half is
+      // 4.255, which the server bills as 4.26.
+      expect(find.text('€4.26'), findsOneWidget);
+    });
+
+    testWidgets('a deposit that rounds to nothing says none is drafted', (
+      tester,
+    ) async {
+      await pumpForm(
+        tester,
+        fromDeal: _deal(contacts: ['c1'], unitPrice: '0.01'),
+      );
+
+      await reveal(tester, field('Deposit on acceptance'));
+      await tester.enterText(field('Deposit on acceptance'), '10');
+      await tester.pumpAndSettle();
+
+      // 10% of 0.03 is 0.003.
+      expect(
+        find.text('Rounds to 0.00, so no deposit invoice is drafted.'),
+        findsOneWidget,
+      );
+      expect(find.text('€0.00'), findsNothing);
+      expect(find.text('deposit invoice'), findsNothing);
+
+      // The percent is still the client's to see, so it still goes.
+      await tester.tap(find.widgetWithText(FilledButton, 'Create draft'));
+      await tester.pumpAndSettle();
+      expect(estimates.created.single['deposit_percent'], '10.00');
+    });
+
+    testWidgets('a deposit of 0 or over 100 holds the form', (tester) async {
+      await pumpForm(tester, fromDeal: _deal(contacts: ['c1']));
+      await reveal(tester, field('Deposit on acceptance'));
+
+      for (final (value, error) in [
+        ('0', 'A deposit must be more than 0%.'),
+        ('.', 'A deposit must be more than 0%.'),
+        ('100.01', 'A deposit cannot be more than 100%.'),
+        ('150', 'A deposit cannot be more than 100%.'),
+      ]) {
+        await tester.enterText(field('Deposit on acceptance'), value);
+        await tester.pumpAndSettle();
+        expect(find.text(error), findsOneWidget, reason: value);
+        expect(submit(tester).onPressed, isNull, reason: value);
+      }
+
+      await tester.enterText(field('Deposit on acceptance'), '100');
+      await tester.pumpAndSettle();
+      expect(find.textContaining('A deposit'), findsNothing);
+      expect(submit(tester).onPressed, isNotNull);
+
+      await tester.enterText(field('Deposit on acceptance'), '');
+      await tester.pumpAndSettle();
+      expect(submit(tester).onPressed, isNotNull);
+    });
+
+    testWidgets('the acceptance card lays out at 390px, text x1.3', (
+      tester,
+    ) async {
+      await pumpForm(tester, fromDeal: _deal(contacts: ['c1']), textScale: 1.3);
+      await reveal(tester, field('Deposit on acceptance'));
+      await tester.enterText(field('Deposit on acceptance'), '33.33');
+      await reveal(tester, find.text('Start a project when accepted'));
+      await tester.tap(find.text('Start a project when accepted'));
+      await tester.pumpAndSettle();
+      await reveal(tester, find.text('Project billing'));
+
       expect(tester.takeException(), isNull);
     });
 

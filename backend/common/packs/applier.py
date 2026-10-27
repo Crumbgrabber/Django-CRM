@@ -10,9 +10,11 @@ from __future__ import annotations
 
 import copy
 import logging
-from datetime import date
+from datetime import date, datetime, time, timedelta
+from decimal import Decimal
 
 from django.db import transaction
+from django.db.models import SET_NULL
 from django.utils import timezone
 
 from automation.capture import suppress_rules
@@ -348,19 +350,20 @@ def _apply_terminology(org, pack: dict, report: _Report) -> None:
 
 
 def sample_models():
-    """The six models sample data is created in, keyed by report type.
+    """The models sample data is created in, keyed by report type.
 
     Ordered as the applier creates them and, reversed, as clear_sample_data
     deletes them: a referenced row exists before the row referencing it, and is
     removed after. Defined once so the apply guard, the applier and the clear
-    can never disagree about what "sample data" covers, a seventh entity added
-    to one list but not the others is the failure mode this shape prevents.
+    can never disagree about what "sample data" covers, an entity added to one
+    list but not the others is the failure mode this shape prevents.
     """
     from accounts.models import Account
-    from cases.models import Case
+    from cases.models import Case, TimeEntry
     from contacts.models import Contact
     from leads.models import Lead
     from opportunity.models import Opportunity
+    from projects.models import Project
     from tasks.models import Task
 
     return (
@@ -368,8 +371,10 @@ def sample_models():
         ("sample_contact", Contact),
         ("sample_deal", Opportunity),
         ("sample_ticket", Case),
+        ("sample_project", Project),
         ("sample_task", Task),
         ("sample_lead", Lead),
+        ("sample_time_entry", TimeEntry),
     )
 
 
@@ -443,10 +448,11 @@ def _sample_moved_to_today(pack: dict) -> dict:
 @suppress_rules()
 def _apply_sample_data(org, pack: dict, actor, report: _Report) -> None:
     from accounts.models import Account
-    from cases.models import Case, CaseStage
+    from cases.models import Case, CaseStage, TimeEntry
     from contacts.models import Contact
     from leads.models import Lead
     from opportunity.models import Opportunity
+    from projects.models import Project
     from tasks.models import Task, TaskStage
 
     sample = _sample_moved_to_today(pack)
@@ -641,13 +647,48 @@ def _apply_sample_data(org, pack: dict, actor, report: _Report) -> None:
             leads[spec["title"]] = obj
             finish(obj)
 
-    # Tasks last: they are the only entity that can point at any of the others,
-    # so every parent map is fully populated by the time this runs.
+    projects: dict[str, Project] = {}
+    for spec in sample.get("projects") or []:
+        if _skip_off_module(report, org, "sample_project", spec["name"]):
+            continue
+        account = accounts.get(spec["account"])
+        if account is None:
+            report.add_skipped(
+                "sample_project", spec["name"], reason="its sample account is missing"
+            )
+            continue
+        obj = _create_sample(
+            report,
+            "sample_project",
+            spec["name"],
+            lambda s=spec, a=account: Project.objects.create(
+                org=org,
+                name=s["name"],
+                account=a,
+                deal=deals.get(s.get("deal")),
+                billing_type=s.get("billing_type") or "time_and_materials",
+                currency=s.get("currency") or org.default_currency,
+                hourly_rate=s.get("hourly_rate"),
+                budget_hours=s.get("budget_hours"),
+                budget_amount=s.get("budget_amount"),
+                start_date=s.get("start_date"),
+                description=s.get("description") or "",
+                created_by=actor.user if actor is not None else None,
+                is_sample=True,
+            ),
+        )
+        if obj is not None:
+            projects[spec["name"]] = obj
+            finish(obj)
+
+    # Tasks after every entity a task can point at, so each parent map is
+    # fully populated by the time this runs.
     task_stages = {s.name: s for s in TaskStage.objects.filter(org=org)}
     parent_types = {
         "deal": "sample_deal",
         "ticket": "sample_ticket",
         "lead": "sample_lead",
+        "project": "sample_project",
     }
     for spec in sample.get("tasks") or []:
         named = tuple(t for k, t in parent_types.items() if spec.get(k))
@@ -671,11 +712,45 @@ def _apply_sample_data(org, pack: dict, actor, report: _Report) -> None:
                 opportunity=deals.get(s.get("deal")),
                 case=tickets.get(s.get("ticket")),
                 lead=leads.get(s.get("lead")),
+                project=projects.get(s.get("project")),
                 custom_fields=s.get("custom_fields") or {},
                 is_sample=True,
             ),
         )
         finish(obj)
+
+    tz = timezone.get_current_timezone()
+    for spec in sample.get("time_entries") or []:
+        name = f"{spec['project']}, {spec['date']}"
+        if _skip_off_module(report, org, "sample_time_entry", name, "sample_project"):
+            continue
+        project = projects.get(spec["project"])
+        if project is None or actor is None:
+            reason = (
+                "its sample project is missing"
+                if project is None
+                else "there is no one to log it for"
+            )
+            report.add_skipped("sample_time_entry", name, reason=reason)
+            continue
+        start = datetime.combine(date.fromisoformat(spec["date"]), time(9), tzinfo=tz)
+        _create_sample(
+            report,
+            "sample_time_entry",
+            name,
+            lambda s=spec, p=project, at=start: TimeEntry.objects.create(
+                org=org,
+                project=p,
+                profile=actor,
+                started_at=at,
+                ended_at=at + timedelta(hours=float(Decimal(str(s["hours"])))),
+                description=s.get("description") or "",
+                billable=p.billing_type != "non_billable",
+                hourly_rate=p.hourly_rate,
+                currency=p.currency,
+                is_sample=True,
+            ),
+        )
 
 
 def _referencing_relations(model):
@@ -729,17 +804,33 @@ def _ids_with_foreign_children(model, ids: list, retained_pks: set) -> set:
     for rel in _referencing_relations(model):
         related, field = rel.related_model, rel.field.name
         qs = related.objects.filter(**{f"{field}__in": ids})
-        if any(f.name == "is_sample" for f in related._meta.fields):
+        has_flag = any(f.name == "is_sample" for f in related._meta.fields)
+        if model._meta.label == "projects.Project" and rel.on_delete is SET_NULL:
+            # Deleting a project keeps its time, tasks and invoices, unlinked
+            # (Project's docstring), so those never keep a sample project. A
+            # sample row this clear keeps does, or it would be left orphaned.
+            if not has_flag:
+                continue
+            qs = qs.filter(is_sample=True, pk__in=retained_pks)
+        elif has_flag:
             qs = qs.exclude(Q(is_sample=True) & ~Q(pk__in=retained_pks))
         blocked.update(pk for pk in qs.values_list(field, flat=True) if pk is not None)
     return blocked
+
+
+def _billed_sample_ids(model, rows) -> set:
+    """Sample time already on an invoice: kept like real data, since the invoice
+    was raised from it."""
+    if model._meta.label != "cases.TimeEntry":
+        return set()
+    return set(rows.filter(invoice__isnull=False).values_list("pk", flat=True))
 
 
 def clear_sample_data(org, actor=None) -> dict:
     """Delete the demo records the applier created for THIS org, and nothing else.
 
     Keyed on `is_sample` alone. A server-set, non-serializer-writable boolean on
-    all six models, never on the "Sample data" tag. `Tags.save()` recomputes its
+    every sample model, never on the "Sample data" tag. `Tags.save()` recomputes its
     slug on every save and the tag CRUD endpoints have no reserved-slug guard, so
     the tag can be renamed onto this slug, adopted from an existing tag, or
     attached to any real record through the ordinary tag picker. None of that is
@@ -792,6 +883,7 @@ def clear_sample_data(org, actor=None) -> dict:
                     retained_pks.update(ids)
                 continue
             blocked = _ids_with_foreign_children(model, ids, retained_pks)
+            blocked |= _billed_sample_ids(model, rows)
             if blocked:
                 retained[type_] = len(blocked)
                 retained_pks.update(blocked)

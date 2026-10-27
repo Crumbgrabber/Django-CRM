@@ -81,11 +81,14 @@ function daysUntil(iso: string | null) {
  * into an `account` uuid and a separate `account_name`; the page wants the
  * nested `{ id, name }` the mock had, so it is rebuilt here once. `contact` is
  * shown as a plain name, and `converted_to_invoice` is renamed to the
- * `converted_invoice` the page reads.
+ * `converted_invoice` the page reads. `project` and `deposit_invoice` are set
+ * when the client accepted a proposal; the deposit invoice is not the
+ * conversion, so it leaves "Raise invoice" on offer.
  */
 function toRow(row: Schemas['EstimateList']) {
   const opp = row.opportunity;
   const converted = row.converted_to_invoice;
+  const deposit = row.deposit_invoice;
   return {
     id: row.id,
     estimate_number: row.estimate_number ?? '',
@@ -100,6 +103,15 @@ function toRow(row: Schemas['EstimateList']) {
     is_expired: Boolean(row.is_expired),
     converted_invoice: converted
       ? { id: converted.id, invoice_number: converted.invoice_number }
+      : null,
+    project: row.project ? { id: row.project.id, name: row.project.name ?? '' } : null,
+    deposit_invoice: deposit
+      ? {
+          id: deposit.id,
+          invoice_number: deposit.invoice_number ?? '',
+          status: deposit.status ?? '',
+          total_amount: num(deposit.total_amount)
+        }
       : null
   };
 }
@@ -175,12 +187,13 @@ export async function listEstimates({ cookies }: { cookies: Cookies }, params?: 
  * `get_estimate_or_error`, so the API, not this layer, decides who may
  * convert (creator, an assignee, or an admin) and refuses the rest, and
  * refuses a second conversion of an already-converted estimate. Returns the new
- * invoice so the caller can open it.
+ * invoice so the caller can open it, and the estimate's deposit invoice unless
+ * it was cancelled: the new invoice still bills every line.
  */
 export async function convertEstimate(
   { cookies }: { cookies: Cookies },
   id: string
-): Promise<Schemas['InvoiceSaved']> {
+): Promise<Schemas['EstimateConverted']> {
   return apiRequest(`/invoices/estimates/${id}/convert/`, { method: 'POST' }, { cookies });
 }
 

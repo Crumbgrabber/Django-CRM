@@ -1,6 +1,6 @@
 {
   "id": "professional-services",
-  "version": 2,
+  "version": 3,
   "name": "Professional services",
   "description": "Agencies, consultancies and accounting firms selling billable work.",
   "sample_dates_written_on": "2026-08-03",
@@ -191,7 +191,24 @@
         "description": "Retainer renewal conversation due in November." },
       { "title": "Follow up the bookkeeping retainer enquiry", "status": "New", "priority": "Medium",
         "due_date": "2026-08-05", "stage": "This week", "lead": "Monthly bookkeeping retainer enquiry",
-        "description": "Send the retainer rate card and two references." }
+        "description": "Send the retainer rate card and two references." },
+      { "title": "Test the Q1 purchase ledger sample", "status": "In Progress", "priority": "High",
+        "due_date": "2026-08-06", "stage": "In progress", "project": "Meridian audit fieldwork",
+        "description": "Vouch each invoice to its delivery note and payment." }
+    ],
+    "projects": [
+      { "name": "Meridian audit fieldwork", "account": "Meridian Health Partners", "deal": "Meridian audit support",
+        "billing_type": "time_and_materials", "currency": "USD", "hourly_rate": 150,
+        "budget_hours": 60, "budget_amount": 9000, "start_date": "2026-07-20",
+        "description": "Audit preparation and fieldwork support, capped at sixty hours." }
+    ],
+    "time_entries": [
+      { "project": "Meridian audit fieldwork", "date": "2026-07-28", "hours": 3,
+        "description": "Planning call and the document request list" },
+      { "project": "Meridian audit fieldwork", "date": "2026-07-30", "hours": 4.5,
+        "description": "Fieldwork: purchase ledger testing" },
+      { "project": "Meridian audit fieldwork", "date": "2026-07-31", "hours": 2,
+        "description": "Draft findings for the audit team" }
     ],
     "leads": [
       { "title": "Brand refresh for a retail chain", "first_name": "Nora", "last_name": "Fitzgerald",

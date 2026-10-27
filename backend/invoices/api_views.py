@@ -69,8 +69,10 @@ from invoices.permissions import (
     visible_invoices_qs,
     visible_recurring_qs,
 )
+from invoices.proposals import start_requested_project
 from invoices.serializer import (
     AccountStatementSerializer,
+    DepositInvoiceSerializer,
     EstimateCreateSerializer,
     EstimateListSerializer,
     EstimateSerializer,
@@ -95,6 +97,7 @@ from invoices.serializer import (
 )
 from invoices.statements import build_statement, statement_period
 from invoices.tasks import create_invoice_history, send_email, send_invoice_to_client
+from projects.access import visible_projects_qs
 
 logger = logging.getLogger(__name__)
 
@@ -192,6 +195,15 @@ _PAYMENT_SAVED = inline_serializer(
 )
 _PRODUCT_SAVED = _saved("ProductSaved", "product", ProductSerializer())
 _ESTIMATE_SAVED = _saved("EstimateSaved", "estimate", EstimateSerializer())
+_ESTIMATE_CONVERTED = inline_serializer(
+    "EstimateConverted",
+    {
+        "error": serializers.BooleanField(),
+        "message": serializers.CharField(),
+        "invoice": InvoiceSerializer(),
+        "deposit_invoice": DepositInvoiceSerializer(allow_null=True),
+    },
+)
 _ESTIMATE_DETAIL = inline_serializer(
     "EstimateDetail",
     {
@@ -1448,6 +1460,26 @@ class ProductDetailView(APIView):
 # =============================================================================
 
 
+def _estimate_link_visibility(profile, estimates):
+    """The ids of the projects and deposit invoices on ``estimates`` that
+    ``profile`` may open, one query each for the page: seeing an estimate is
+    not access to what its acceptance made."""
+
+    def visible(qs, ids):
+        if not ids:
+            return set()
+        return set(qs.filter(id__in=ids).order_by().values_list("id", flat=True))
+
+    projects = {e.project_id for e in estimates if e.project_id}
+    if not module_is_available(profile.org, "projects"):
+        projects = set()
+    deposits = {e.deposit_invoice_id for e in estimates if e.deposit_invoice_id}
+    return {
+        "visible_project_ids": visible(visible_projects_qs(profile), projects),
+        "visible_invoice_ids": visible(visible_invoices_qs(profile), deposits),
+    }
+
+
 class EstimateListView(APIView, LimitOffsetPagination):
     """List and create estimates"""
 
@@ -1456,7 +1488,13 @@ class EstimateListView(APIView, LimitOffsetPagination):
     def get_queryset(self):
         """Every estimate the caller may open, before the query string."""
         return visible_estimates_qs(self.request.profile).select_related(
-            "account", "contact", "opportunity", "created_by", "converted_to_invoice"
+            "account",
+            "contact",
+            "opportunity",
+            "created_by",
+            "converted_to_invoice",
+            "project",
+            "deposit_invoice",
         )
 
     @extend_schema(
@@ -1496,12 +1534,15 @@ class EstimateListView(APIView, LimitOffsetPagination):
         results = self.paginate_queryset(
             queryset.order_by("-created_at"), request, view=self
         )
+        context = _estimate_link_visibility(request.profile, results)
         return Response(
             {
                 "count": self.count,
                 "next": self.get_next_link(),
                 "previous": self.get_previous_link(),
-                "results": EstimateListSerializer(results, many=True).data,
+                "results": EstimateListSerializer(
+                    results, many=True, context=context
+                ).data,
             }
         )
 
@@ -1660,7 +1701,7 @@ class EstimateConvertView(APIView):
         tags=["Estimates"],
         operation_id="estimates_convert",
         request=None,
-        responses={201: _INVOICE_SAVED},
+        responses={201: _ESTIMATE_CONVERTED},
     )
     @method_decorator(transaction.atomic)
     def post(self, request, pk):
@@ -1679,13 +1720,17 @@ class EstimateConvertView(APIView):
             )
 
         with transaction.atomic():
-            # Create invoice from estimate
+            # Raising the invoice first must not skip the project the client's
+            # acceptance would have started. No deposit: the whole estimate is
+            # being invoiced.
+            project = start_requested_project(estimate)
             invoice = Invoice.objects.create(
                 invoice_title=estimate.title,
                 status="Draft",
                 account=estimate.account,
                 contact=estimate.contact,
                 opportunity=estimate.opportunity,
+                project=project,
                 client_name=estimate.client_name,
                 client_email=estimate.client_email,
                 client_phone=estimate.client_phone,
@@ -1731,11 +1776,19 @@ class EstimateConvertView(APIView):
             estimate.converted_to_invoice = invoice
             estimate.save()
 
+        # The full invoice bills every line: invoice lines cannot be negative,
+        # so taking the deposit off is the person's edit before sending.
+        deposit = estimate.deposit_invoice
+        if deposit is not None and deposit.status == "Cancelled":
+            deposit = None
         return Response(
             {
                 "error": False,
                 "message": "Estimate converted to invoice",
                 "invoice": InvoiceSerializer(invoice).data,
+                "deposit_invoice": (
+                    DepositInvoiceSerializer(deposit).data if deposit else None
+                ),
             },
             status=status.HTTP_201_CREATED,
         )

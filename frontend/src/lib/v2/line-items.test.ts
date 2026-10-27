@@ -106,6 +106,44 @@ describe('the totals ladder, in the server order', () => {
   });
 });
 
+describe('rounding where the server rounds', () => {
+  it("rounds a line's quantity x price and its discount half up to the cent", () => {
+    // 1.5 x 1.03 = 1.545 and 2.01 x 50% = 1.005: a float reads each as a hair under.
+    const [line1] = lineTotals([line({ quantity: 1.5, unit_price: 1.03 })]).lines;
+    expect(line1.gross).toBe(1.55);
+    expect(line1.amount).toBe(1.55);
+    expect(
+      lineAmount(
+        line({ quantity: 1, unit_price: 2.01, discount_type: 'PERCENTAGE', discount_value: 50 })
+      )
+    ).toBe(1);
+  });
+
+  it('rounds the document discount and the tax half up to the cent', () => {
+    const lines = lineTotals([line({ quantity: 1, unit_price: 10.01 })]).usable;
+    // 15% of 10.01 is 1.5015; 10% tax on 4.25 is 0.425.
+    expect(documentTotals({ lines, discountType: 'PERCENTAGE', discountValue: 15 })).toEqual({
+      subtotal: 10.01,
+      discountAmount: 1.5,
+      taxAmount: 0,
+      total: 8.51
+    });
+    const four = lineTotals([line({ quantity: 1, unit_price: 4.25 })]).usable;
+    expect(documentTotals({ lines: four, taxRate: 10 })).toMatchObject({
+      taxAmount: 0.43,
+      total: 4.68
+    });
+  });
+
+  it('caps a flat document discount at the subtotal, as the server does', () => {
+    const lines = lineTotals([line({ quantity: 1, unit_price: 20 })]).usable;
+    expect(documentTotals({ lines, discountType: 'FIXED', discountValue: 25 })).toMatchObject({
+      discountAmount: 20,
+      total: 0
+    });
+  });
+});
+
 describe('the nested line_items body', () => {
   it('sends only the keys the create serializers accept', () => {
     const [row] = linePayload([line({ name: ' Design ', product: 'p1' })]);

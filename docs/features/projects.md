@@ -78,7 +78,8 @@ A list row carries `id`, `name`, `account` (`{"id", "name"}`), `deal` (`{"id", "
 `start_date`, `due_date`, `assigned_to` (profiles), `tags`, `burn`, `created_at` and
 `updated_at`. The detail adds `description`, `custom_fields`, `rates`
 (`[{"profile": <profile>, "hourly_rate"}]`), `comments`, `attachments`, `invoices` (newest first,
-the ones the caller may open, `[]` while Invoices is off), `can_edit`, `can_delete` and
+the ones the caller may open, `[]` while Invoices is off), `estimate` (see
+[From an accepted estimate](#from-an-accepted-estimate)), `can_edit`, `can_delete` and
 `can_bill`.
 
 `assigned_to` and each rate's `profile` must be active members of the org, with at most one rate
@@ -95,6 +96,20 @@ deal has none), its currency (else the org's), the ids of its active assignees, 
 else `time_and_materials` with `null`. A deal the caller cannot see answers `404`. Nothing is
 created until the form is saved.
 
+### From an accepted estimate
+
+An estimate can ask for a project when the client accepts it ([Proposals](proposals.md)). On
+acceptance the server creates it: named after the estimate's title, for its account, deal and
+currency, with the estimate's `project_billing_type`, its pre-tax total as `budget_amount` (none
+for `non_billable`), status `active`, the acceptance day (the org's) as `start_date`, the
+estimate's creator as `created_by`, and the estimate's active assignees and creator as its people.
+It has no `hourly_rate` and no `rates`: an admin sets them afterwards. Nothing is created while
+Projects is off. Raising the invoice before the client accepts starts the project the same way.
+
+The project's detail carries `estimate`, `{"id", "estimate_number"}` of the estimate that started
+it, or `null`: also `null` while Invoices is off and for a caller who may not open that estimate.
+An invoice raised from the estimate afterwards carries the project too.
+
 ### Budget burn
 
 Each project carries `burn`:
@@ -105,7 +120,7 @@ Each project carries `burn`:
 | `billable_hours` | The billable ones |
 | `billable_value` | Billable entries with a rate, at each entry's own rate |
 | `unbilled_value` | The same, not yet on an invoice |
-| `invoiced_amount` | The project's invoices that are not Cancelled; `null` for anyone but an admin, and while Invoices is off |
+| `invoiced_amount` | The project's invoices that are not Cancelled, before tax (subtotal less the invoice's discount), so it compares with the fee; `null` for anyone but an admin, and while Invoices is off |
 | `hours_percent` | `logged_hours` over `budget_hours`, a whole number; `null` without that budget |
 | `amount_percent` | `billable_value` over `budget_amount`, a whole number; `null` without that budget |
 

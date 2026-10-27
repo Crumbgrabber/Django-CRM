@@ -270,6 +270,13 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
           value: p.deal!.name.isEmpty ? 'Deal' : p.deal!.name,
           onTap: dealsOn ? () => context.push('/deals/${p.deal!.id}') : null,
         ),
+      // Text only: neither client has an estimate page to open.
+      if (p.estimateNumber != null)
+        ProjectFact(
+          icon: LucideIcons.fileCheck,
+          label: 'FROM ESTIMATE',
+          value: p.estimateNumber!,
+        ),
       const SizedBox(height: 12),
       ..._billingActions(p),
       ProjectCard(title: 'Budget', child: _budget(p)),

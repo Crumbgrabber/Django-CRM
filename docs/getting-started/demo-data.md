@@ -78,8 +78,9 @@ remove something you've since changed. The one exception is terminology and the 
 label, which are merged in (only keys not already set are added) rather than duplicated. An app
 update runs the same applier over only the parts the app has never offered the org.
 
-Sample records created by a pack (accounts, contacts, deals/opportunities, tickets/cases, leads
-and tasks) are marked with an `is_sample` boolean field, set only by the applier. It is
+Sample records created by a pack (accounts, contacts, deals/opportunities, tickets/cases, leads,
+projects, tasks and time entries) are marked with an `is_sample` boolean field, set only by the
+applier. It is
 `read_only` on every serializer that exposes it, so it can never be set by a client request. Every
 sample row is also tagged with a "Sample data" tag and assigned to whichever admin applied the
 pack, purely for visibility in the UI; the tag carries no special authority and isn't what the
@@ -104,11 +105,12 @@ to pack-applied sample data: nothing else in the system deletes rows just becaus
 set, and removing an app does not delete them either.
 
 Clearing is scoped strictly to rows where `is_sample=True` for the calling org, deleted in an
-order that removes child records (tasks, leads) before the parents they can reference (tickets,
-deals, contacts, accounts). It never removes anything else. A real record you created yourself is
-untouched even if it happens to reference a sample record, and a sample row is **retained rather
-than deleted** if a non-sample record still depends on it (for example, a real invoice raised
-against a demo account). Retained rows are reported back, not silently skipped, so the caller
+order that removes child records (time entries, leads, tasks) before the parents they can reference
+(projects, tickets, deals, contacts, accounts). It never removes anything else. A real record you
+created yourself is untouched even if it happens to reference a sample record, and a sample row is
+**retained rather than deleted** if a non-sample record still depends on it (for example, a real
+invoice raised against a demo account). A sample project is the exception: deleting a project keeps
+its time, tasks and invoices with the link cleared, so real ones on a sample project do not keep it. Retained rows are reported back, not silently skipped, so the caller
 knows some sample data was intentionally kept rather than assuming the clear was incomplete. Sample
 rows that belong to a module the org has switched off (see [Modules](modules.md)) are kept too, and
 the response counts them under `switched_off_by_type`.

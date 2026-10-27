@@ -279,6 +279,7 @@ class Project {
     this.canEdit = false,
     this.canDelete = false,
     this.canBill = false,
+    this.estimateNumber,
   });
 
   final String id;
@@ -319,6 +320,9 @@ class Project {
   /// True for org admins. The billing actions show only with it; the API
   /// refuses anyone else.
   final bool canBill;
+
+  /// The number of the accepted estimate that started the project, or null.
+  final String? estimateNumber;
 
   ProjectStatus? get status => ProjectStatus.fromValue(rawStatus);
 
@@ -393,6 +397,10 @@ class Project {
       canEdit: w.canEdit ?? false,
       canDelete: w.canDelete ?? false,
       canBill: w.canBill ?? false,
+      estimateNumber: switch (w.estimate?.estimateNumber?.trim()) {
+        final number? when number.isNotEmpty => number,
+        _ => null,
+      },
     );
   }
 
@@ -425,6 +433,7 @@ class Project {
         canEdit: canEdit,
         canDelete: canDelete,
         canBill: canBill,
+        estimateNumber: estimateNumber,
       );
 }
 

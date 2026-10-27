@@ -1091,6 +1091,32 @@ describe('notificationText', () => {
     ).toBeNull();
   });
 
+  it('writes the estimate sentences, and the fallback for their data of the wrong shape', () => {
+    const data = {
+      estimate_number: 'EST-0007',
+      client_name: evil,
+      project_id: 'p1',
+      deposit_invoice_id: 'i1'
+    };
+    expect(notificationText({ verb: 'estimate.accepted', data }, 'UTC')).toEqual({
+      text: `${evil} accepted estimate EST-0007, project started, deposit invoice drafted`,
+      source: null
+    });
+    expect(
+      notificationText(
+        { verb: 'estimate.declined', data: { estimate_number: 'EST-0007', client_name: 'Ada' } },
+        'UTC'
+      )
+    ).toEqual({ text: 'Ada declined estimate EST-0007', source: null });
+    expect(
+      notificationText({ verb: 'estimate.accepted', data: { client_name: 'Ada' } }, 'UTC')
+    ).toEqual({ text: 'A client accepted an estimate.', source: null });
+    expect(notificationText({ verb: 'estimate.declined', data: null }, 'UTC')).toEqual({
+      text: 'A client declined an estimate.',
+      source: null
+    });
+  });
+
   it('answers null for other verbs and for data of the wrong type', () => {
     expect(notificationText({ verb: 'case.commented', data: {} }, 'UTC')).toBeNull();
     expect(

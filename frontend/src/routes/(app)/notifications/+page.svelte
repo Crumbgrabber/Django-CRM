@@ -49,7 +49,9 @@
     Zap,
     TriangleAlert,
     CirclePause,
-    Gauge
+    Gauge,
+    FileCheck,
+    FileX
   } from '@lucide/svelte';
   import type { PageData, PageProps } from './$types';
 
@@ -77,7 +79,9 @@
     'automation.failed': TriangleAlert,
     'automation.limit': TriangleAlert,
     'automation.paused': CirclePause,
-    'project.budget': Gauge
+    'project.budget': Gauge,
+    'estimate.accepted': FileCheck,
+    'estimate.declined': FileX
   };
 
   /**
