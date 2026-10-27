@@ -457,6 +457,13 @@ REST_FRAMEWORK = {
         # bucket.
         "magic_link_ip": os.environ.get("MAGIC_LINK_THROTTLE_IP", "30/hour"),
         "portal_login_ip": os.environ.get("PORTAL_LOGIN_THROTTLE_IP", "30/hour"),
+        # Email + password sign-in, per address and across every caller. The
+        # per-email lockout in `PasswordLoginView` covers one account; these
+        # cover guessing spread over many accounts or addresses.
+        "password_login_ip": os.environ.get("PASSWORD_LOGIN_THROTTLE_IP", "30/hour"),
+        "password_login_global": os.environ.get(
+            "PASSWORD_LOGIN_THROTTLE_GLOBAL", "600/hour"
+        ),
         # Magic-link requests across every caller. The backstop against a
         # sender spread over many addresses using us to mail arbitrary inboxes.
         # Reaching it pauses sign-in email for everyone, so it sits far above

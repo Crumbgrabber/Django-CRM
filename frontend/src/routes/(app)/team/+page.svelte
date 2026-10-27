@@ -34,6 +34,7 @@
   let { data, form }: PageProps = $props();
 
   let inviting = $state(false);
+  let editingId = $state<string | null>(null);
   let busy = $state(false);
 
   /** A submit handler that flips `busy` while the action runs. */
@@ -54,6 +55,16 @@
       if (result?.type === 'success' && result?.data?.invited) inviting = false;
     };
   };
+
+  /** The edit form closes itself once the save succeeds. */
+  const editSubmit: SubmitFunction = () => {
+    busy = true;
+    return async ({ update, result }) => {
+      await update({ reset: false });
+      busy = false;
+      if (result?.type === 'success' && result?.data?.edited) editingId = null;
+    };
+  };
 </script>
 
 {#if data.forbidden}
@@ -72,7 +83,7 @@
     {/snippet}
     {#snippet actions()}
       <button class="v2-btn v2-btn-primary" onclick={() => (inviting = !inviting)}>
-        <UserPlus />Invite
+        <UserPlus />Add user
       </button>
     {/snippet}
   </PageHeader>
@@ -106,9 +117,15 @@
           class="v2-card"
           style="padding:14px 15px;margin-bottom:18px;display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap"
         >
+          <div style="flex:1;min-width:180px">
+            <label class="v2-label" for="invite-name" style="display:block;margin-bottom:4px">
+              Name
+            </label>
+            <input id="invite-name" name="name" class="v2-input" style="width:100%" />
+          </div>
           <div style="flex:1;min-width:220px">
             <label class="v2-label" for="invite-email" style="display:block;margin-bottom:4px">
-              Invite by email
+              Email
             </label>
             <input
               id="invite-email"
@@ -120,6 +137,19 @@
               placeholder="name@company.com"
             />
           </div>
+          <div style="flex:1;min-width:180px">
+            <label class="v2-label" for="invite-password" style="display:block;margin-bottom:4px">
+              Password
+            </label>
+            <input
+              id="invite-password"
+              name="password"
+              type="password"
+              autocomplete="new-password"
+              class="v2-input"
+              style="width:100%"
+            />
+          </div>
           <div>
             <label class="v2-label" for="invite-role" style="display:block;margin-bottom:4px">
               Role
@@ -129,7 +159,7 @@
               <option value="ADMIN">Admin</option>
             </select>
           </div>
-          <button class="v2-btn v2-btn-primary" disabled={busy}>Send invite</button>
+          <button class="v2-btn v2-btn-primary" disabled={busy}>Add user</button>
           <button type="button" class="v2-btn" disabled={busy} onclick={() => (inviting = false)}>
             Cancel
           </button>
@@ -149,8 +179,15 @@
           class="v2-sub"
           style="color:var(--v2-moss);font-size:12.5px;margin:0 0 16px;font-weight:550"
         >
-          {form.invited} is a member now. They show below as “never” signed in until they log in with
+          {form.invited} is a member now. They show below as “never” signed in until they sign in with
           that email.
+        </p>
+      {:else if form?.edited}
+        <p
+          class="v2-sub"
+          style="color:var(--v2-moss);font-size:12.5px;margin:0 0 16px;font-weight:550"
+        >
+          Changes saved.
         </p>
       {:else if form?.error}
         <div style="margin-bottom:16px">
@@ -248,6 +285,14 @@
                     <span
                       style="display:inline-flex;gap:6px;justify-content:flex-end;flex-wrap:wrap"
                     >
+                      <button
+                        type="button"
+                        class="v2-btn v2-btn-sm"
+                        disabled={busy}
+                        onclick={() => (editingId = editingId === m.user_id ? null : m.user_id)}
+                      >
+                        Edit
+                      </button>
                       <!-- Role toggle. Two roles, so one button naming the
                            destination is clearer than a picker. The last admin
                            cannot be demoted; the server enforces it too. -->
@@ -292,6 +337,73 @@
                   {/if}
                 </td>
               </tr>
+              {#if editingId === m.user_id}
+                <tr>
+                  <td colspan="6">
+                    <form
+                      method="POST"
+                      action="?/edit"
+                      use:enhance={editSubmit}
+                      style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;padding:6px 0"
+                    >
+                      <input type="hidden" name="userId" value={m.user_id} />
+                      <div style="flex:1;min-width:160px">
+                        <label class="v2-label" for="edit-name-{m.user_id}">Name</label>
+                        <input
+                          id="edit-name-{m.user_id}"
+                          name="name"
+                          class="v2-input"
+                          style="width:100%"
+                          value={m.name === m.email ? '' : m.name}
+                        />
+                      </div>
+                      <div style="flex:1;min-width:200px">
+                        <label class="v2-label" for="edit-email-{m.user_id}">Email</label>
+                        <input
+                          id="edit-email-{m.user_id}"
+                          name="email"
+                          type="email"
+                          required
+                          class="v2-input"
+                          style="width:100%"
+                          value={m.email}
+                        />
+                      </div>
+                      <div style="flex:1;min-width:160px">
+                        <label class="v2-label" for="edit-password-{m.user_id}">
+                          New password
+                        </label>
+                        <input
+                          id="edit-password-{m.user_id}"
+                          name="password"
+                          type="password"
+                          autocomplete="new-password"
+                          class="v2-input"
+                          style="width:100%"
+                          placeholder="Leave blank to keep"
+                        />
+                      </div>
+                      <button class="v2-btn v2-btn-primary" disabled={busy}>Save</button>
+                      <button
+                        type="button"
+                        class="v2-btn"
+                        disabled={busy}
+                        onclick={() => (editingId = null)}
+                      >
+                        Cancel
+                      </button>
+                      {#if form?.edit?.userId === m.user_id && form.edit.error}
+                        <p
+                          class="v2-sub"
+                          style="color:var(--v2-rust);font-size:12px;flex-basis:100%;margin:2px 0 0"
+                        >
+                          {form.edit.error}
+                        </p>
+                      {/if}
+                    </form>
+                  </td>
+                </tr>
+              {/if}
             {/each}
           </tbody>
         </table>
@@ -318,9 +430,11 @@
       </div>
 
       <p class="v2-sub" style="font-size:11.5px">
-        Roles are Admin and Member, the only two the API recognises. Admins can invite people,
-        change roles and edit org settings; the server refuses to let anyone change their own role
-        or deactivate the last admin. Editing team membership is not available here yet.
+        Roles are Admin and Member, the only two the API recognises. Admins can add people with a
+        password, edit their name, email and password (only for people who belong to this
+        organization alone), change roles and edit org settings; the server refuses to let anyone
+        change their own role or deactivate the last admin. Editing team membership is not available
+        here yet.
       </p>
     </div>
   </div>

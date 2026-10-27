@@ -13,6 +13,7 @@ from rest_framework.views import APIView
 from cases.models import Case
 from cases.serializer import CaseSerializer, parent_access_context
 from common import swagger_params
+from common.audit_log import audit_log
 from common.models import Comment, PersonalAccessToken, Profile, Teams, User
 from common.module_deletes import delete_refusal
 from common.modules import MODEL_MODULES, available_modules, only_available
@@ -94,6 +95,26 @@ class GetTeamsAndUsersView(APIView):
         return Response(data)
 
 
+def _revoke_refresh_tokens(user):
+    """Blacklist every live refresh token of ``user``, so a changed password or
+    email ends the sessions that held the old credentials."""
+    from rest_framework_simplejwt.token_blacklist.models import (
+        BlacklistedToken,
+        OutstandingToken,
+    )
+
+    for token in OutstandingToken.objects.filter(user=user):
+        BlacklistedToken.objects.get_or_create(token=token)
+
+
+def _account_fields_changed(serializer, user):
+    """Whether saving ``serializer`` changes the password or login email."""
+    data = serializer.validated_data
+    return bool(data.get("password")) or (
+        "email" in data and data["email"] != user.email
+    )
+
+
 class UserListRowSerializer(ProfileSerializer):
     """Response-only: a `UsersListView` row, which also counts the profile's
     live tokens."""
@@ -146,6 +167,24 @@ class UsersListView(APIView, LimitOffsetPagination):
             if data:
                 return Response(
                     {"error": True, "errors": data},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            existing = User.objects.filter(
+                email__iexact=user_serializer.validated_data["email"]
+            ).first()
+            if existing is not None and user_serializer.validated_data.get("password"):
+                return Response(
+                    {
+                        "error": True,
+                        "errors": {
+                            "user_errors": {
+                                "password": [
+                                    "That email already has an account. Leave the "
+                                    "password blank to add them to this organization."
+                                ]
+                            }
+                        },
+                    },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             # A concurrent invite for the same email can commit between the
@@ -338,6 +377,40 @@ class UserDetailView(APIView):
         editing_self = request.profile.id == target_profile.id
         return actor_is_admin and not editing_self
 
+    @staticmethod
+    def _save_account(request, serializer, user):
+        """Save the account, and end its sessions when the password or email
+        changed."""
+        credentials_changed = _account_fields_changed(serializer, user)
+        serializer.save()
+        if credentials_changed:
+            _revoke_refresh_tokens(user)
+            audit_log.token_revoked(
+                user,
+                request.profile.org,
+                f"password or email changed by {request.profile.user.email}",
+                request,
+            )
+
+    @staticmethod
+    def _may_edit_account(request, target_profile):
+        """May this request rewrite the target's email, name and password?
+
+        `User` is shared by every org the person belongs to, so an admin gets
+        this only over a member of this org alone, never over a superuser or
+        staff account, and never over their own (that is the owner's to change).
+        """
+        user = target_profile.user
+        return (
+            is_org_admin(request.profile)
+            and request.profile.id != target_profile.id
+            and not user.is_superuser
+            and not user.is_staff
+            and not Profile.objects.filter(user=user)
+            .exclude(org=request.profile.org)
+            .exists()
+        )
+
     @extend_schema(
         tags=["users"],
         parameters=swagger_params.organization_params,
@@ -455,6 +528,7 @@ class UserDetailView(APIView):
             instance=profile.user,
             org=request.profile.org,
             editing_self=request.profile.id == profile.id,
+            account_editable=self._may_edit_account(request, profile),
         )
         address_serializer = BillingAddressSerializer(data=params, instance=address_obj)
         # Role and the access flags may be set only by an admin editing someone
@@ -482,7 +556,7 @@ class UserDetailView(APIView):
             )
         if address_serializer.is_valid():
             address_obj = address_serializer.save(org=request.profile.org)
-            serializer.save()
+            self._save_account(request, serializer, profile.user)
         if profile_serializer.is_valid():
             profile = profile_serializer.save()
             return Response(
@@ -537,6 +611,7 @@ class UserDetailView(APIView):
             org=request.profile.org,
             partial=True,
             editing_self=request.profile.id == profile.id,
+            account_editable=self._may_edit_account(request, profile),
         )
         profile_serializer = CreateProfileSerializer(
             data=params,
@@ -554,7 +629,7 @@ class UserDetailView(APIView):
             return Response(data, status=status.HTTP_400_BAD_REQUEST)
 
         if serializer.is_valid():
-            serializer.save()
+            self._save_account(request, serializer, profile.user)
         if profile_serializer.is_valid():
             profile = profile_serializer.save()
             return Response(

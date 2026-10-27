@@ -199,9 +199,24 @@ export async function listTeam({
  */
 export function inviteUser(
   { cookies }: { cookies: Cookies },
-  body: { email: string; role: Role }
+  body: { email: string; role: Role; name?: string; password?: string }
 ): Promise<Schemas['UserCreateResponse']> {
   return apiRequest('/users/', { method: 'POST', body }, { cookies });
+}
+
+/**
+ * Edit a person: `PATCH /api/user/<userId>/`. Admin-only server-side. The
+ * server accepts email, name and password only for a member of this org alone;
+ * for anyone else it answers 400 and the message says why.
+ *
+ * @param userId the User id, not the profile id
+ */
+export function updateUser(
+  { cookies }: { cookies: Cookies },
+  userId: string,
+  body: { email?: string; name?: string; password?: string; role?: Role }
+): Promise<Schemas['UserPatchResponse']> {
+  return apiRequest(`/user/${userId}/`, { method: 'PATCH', body }, { cookies });
 }
 
 /**

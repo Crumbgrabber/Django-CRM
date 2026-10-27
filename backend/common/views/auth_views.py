@@ -24,6 +24,8 @@ from common.throttles import (
     FirstRefusalThrottleMixin,
     MagicLinkGlobalThrottle,
     MagicLinkIPThrottle,
+    PasswordLoginGlobalThrottle,
+    PasswordLoginIPThrottle,
 )
 from common.utils import CURRENCY_SYMBOLS, ROLES
 
@@ -1115,6 +1117,110 @@ class MagicLinkVerifyCodeView(APIView):
             "access_token": str(token.access_token),
             "refresh_token": str(token),
             "user": user_serializer.data,
+            "organizations": organizations,
+        }
+        if default_org:
+            response_data["current_org"] = _org_payload(default_org)
+        return Response(response_data, status=status.HTTP_200_OK)
+
+
+class PasswordLoginView(FirstRefusalThrottleMixin, APIView):
+    """
+    Email + password sign-in, for deployments with no outbound email and no
+    Google. Returns the same payload as the magic-link code flow. Never creates
+    an account: accounts come from an admin invite or the magic-link flow.
+    """
+
+    permission_classes = []
+    authentication_classes = []
+    throttle_classes = [PasswordLoginIPThrottle, PasswordLoginGlobalThrottle]
+
+    MAX_FAILURES = 10
+    FAILURE_WINDOW = 15 * 60
+
+    @extend_schema(
+        tags=["auth"],
+        request=serializer.PasswordLoginSerializer,
+        responses={
+            200: inline_serializer(
+                name="PasswordLoginResponse",
+                fields={
+                    "access_token": serializers.CharField(),
+                    "refresh_token": serializers.CharField(),
+                    "user": serializer.UserDetailSerializer(),
+                    "organizations": AuthOrgSerializer(many=True),
+                    "current_org": AuthOrgSerializer(required=False),
+                },
+            )
+        },
+    )
+    def post(self, request):
+        from django.core.cache import cache
+
+        from common.audit_log import audit_log
+
+        serializer_obj = serializer.PasswordLoginSerializer(data=request.data)
+        if not serializer_obj.is_valid():
+            return Response(
+                {"error": "Invalid request"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        email = serializer_obj.validated_data["email"].lower()
+        password = serializer_obj.validated_data["password"]
+        invalid = Response(
+            {"error": "Invalid email or password"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+        # Per-email cap, so changing IP does not buy fresh guesses at one account.
+        fail_key = f"password_login_fail:{email}"
+        if (cache.get(fail_key) or 0) >= self.MAX_FAILURES:
+            audit_log.login_failure(email, "password_locked", request)
+            return invalid
+
+        user = User.objects.filter(email__iexact=email).first()
+        # Hash even when there is no such user, so timing does not reveal it.
+        # `check_password` skips hashing for an unusable password (an invited
+        # user), so that case gets the dummy hash too.
+        if user is None or not user.has_usable_password():
+            make_password(password)
+        if user is None or not user.check_password(password):
+            try:
+                cache.add(fail_key, 0, self.FAILURE_WINDOW)
+                cache.incr(fail_key)
+            except ValueError:
+                cache.set(fail_key, 1, self.FAILURE_WINDOW)
+            audit_log.login_failure(email, "password_wrong", request)
+            return invalid
+
+        if not user.is_active:
+            audit_log.login_failure(email, "account_disabled", request)
+            return _disabled_account_response()
+
+        cache.delete(fail_key)
+        user.last_login = timezone.now()
+        user.save(update_fields=["last_login"])
+
+        profiles = list(
+            Profile.objects.filter(user=user, is_active=True)
+            .select_related("org", "user")
+            .order_by("org__name")
+        )
+        organizations = [_org_payload(p.org, profile=p) for p in profiles]
+
+        default_org = None
+        profile = None
+        if len(profiles) == 1:
+            profile = profiles[0]
+            default_org = profile.org
+
+        token = OrgAwareRefreshToken.for_user_and_org(user, default_org, profile)
+        audit_log.login_success(user, default_org, request)
+
+        response_data = {
+            "access_token": str(token.access_token),
+            "refresh_token": str(token),
+            "user": serializer.UserDetailSerializer(user).data,
             "organizations": organizations,
         }
         if default_org:

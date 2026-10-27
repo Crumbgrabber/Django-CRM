@@ -60,6 +60,17 @@ class MagicLinkGlobalThrottle(SimpleRateThrottle):
         return self.cache_format % {"scope": self.scope, "ident": "all"}
 
 
+class PasswordLoginIPThrottle(_ClientIPThrottle):
+    scope = "password_login_ip"
+
+
+class PasswordLoginGlobalThrottle(SimpleRateThrottle):
+    scope = "password_login_global"
+
+    def get_cache_key(self, request, view):
+        return self.cache_format % {"scope": self.scope, "ident": "all"}
+
+
 class PortalLoginIPThrottle(_ClientIPThrottle):
     """Not bucketed per org, unlike the web form limit: an org id is not secret
     (it is in every portal email), so a per-org IP bucket would let one caller

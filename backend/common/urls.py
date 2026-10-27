@@ -19,6 +19,7 @@ from common.views.auth_views import (
     MeView,
     OrgAwareTokenRefreshView,
     OrgSwitchView,
+    PasswordLoginView,
 )
 from common.views.calendar_feed_views import (
     CalendarFeedView,
@@ -112,6 +113,7 @@ urlpatterns = [
         MagicLinkVerifyCodeView.as_view(),
         name="magic_link_verify_code",
     ),
+    path("auth/login/", PasswordLoginView.as_view(), name="password_login"),
     # Organization and profile management
     path("org/", OrgProfileCreateView.as_view()),
     path("org/settings/", OrgSettingsView.as_view(), name="org_settings"),

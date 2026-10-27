@@ -6,13 +6,12 @@
 
   import imgGoogle from '#lib/assets/images/google.svg';
   import imgLogo from '#lib/assets/images/yadayada-logo.png';
-  import { Mail, Check } from '@lucide/svelte';
+  import { Mail } from '@lucide/svelte';
 
   let { data = {} }: { data?: { google_url?: string | null } } = $props();
 
   let isLoading = $state(false);
   let email = $state('');
-  let magicLinkSent = $state(false);
   let isSendingLink = $state(false);
   let magicLinkError = $state('');
 
@@ -20,13 +19,13 @@
     isLoading = true;
   }
 
-  const handleMagicLink: SubmitFunction<Record<string, unknown>, { error?: string }> = () => {
+  const handlePassword: SubmitFunction<Record<string, unknown>, { error?: string }> = () => {
     isSendingLink = true;
     magicLinkError = '';
-    return async ({ result }) => {
+    return async ({ result, update }) => {
       isSendingLink = false;
-      if (result?.type === 'success') {
-        magicLinkSent = true;
+      if (result?.type === 'redirect') {
+        await update();
       } else if (result?.type === 'failure') {
         magicLinkError = result.data?.error || 'Something went wrong. Please try again.';
       } else if (!result) {
@@ -77,53 +76,54 @@
 
       <div class="v2-auth-divider">or</div>
 
-      {#if magicLinkSent}
-        <div class="v2-auth-note v2-auth-note-ok">
-          <Check />
-          <div>
-            <b>Check your email.</b>
-            <div style="font-weight:400;margin-top:2px">
-              We sent a sign-in link. It expires in 10 minutes.
-            </div>
-          </div>
+      <form
+        method="POST"
+        action="?/password"
+        use:enhance={handlePassword}
+        style="display:flex;flex-direction:column;gap:9px"
+      >
+        <label for="email" class="v2-sr-only">Email address</label>
+        <input
+          id="email"
+          type="email"
+          name="email"
+          class="v2-input"
+          placeholder="you@company.com"
+          autocomplete="username"
+          required
+          bind:value={email}
+          disabled={isSendingLink}
+        />
+        <label for="password" class="v2-sr-only">Password</label>
+        <input
+          id="password"
+          type="password"
+          name="password"
+          class="v2-input"
+          placeholder="Password"
+          autocomplete="current-password"
+          required
+          disabled={isSendingLink}
+        />
+        <button type="submit" class="v2-btn v2-btn-block" disabled={isSendingLink}>
+          {#if isSendingLink}
+            <span class="v2-spin"></span>
+            <span>Signing in…</span>
+          {:else}
+            <Mail size={15} />
+            <span>Sign in</span>
+          {/if}
+        </button>
+      </form>
+      {#if magicLinkError}
+        <div class="v2-auth-note v2-auth-note-bad" style="margin-top:11px">
+          <span>{magicLinkError}</span>
         </div>
-      {:else}
-        <form
-          method="POST"
-          use:enhance={handleMagicLink}
-          style="display:flex;flex-direction:column;gap:9px"
-        >
-          <label for="email" class="v2-sr-only">Email address</label>
-          <input
-            id="email"
-            type="email"
-            name="email"
-            class="v2-input"
-            placeholder="you@company.com"
-            required
-            bind:value={email}
-            disabled={isSendingLink}
-          />
-          <button type="submit" class="v2-btn v2-btn-block" disabled={isSendingLink}>
-            {#if isSendingLink}
-              <span class="v2-spin"></span>
-              <span>Sending…</span>
-            {:else}
-              <Mail size={15} />
-              <span>Continue with email</span>
-            {/if}
-          </button>
-        </form>
-        {#if magicLinkError}
-          <div class="v2-auth-note v2-auth-note-bad" style="margin-top:11px">
-            <span>{magicLinkError}</span>
-          </div>
-        {/if}
       {/if}
     </div>
 
     <p class="v2-sub" style="text-align:center;margin:14px 0 0">
-      New here? Enter your email above to get started.
+      Need an account? Ask your admin to invite you.
     </p>
 
     <div class="v2-auth-foot">

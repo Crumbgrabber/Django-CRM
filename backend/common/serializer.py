@@ -1,6 +1,9 @@
 import re
 
 from disposable_email_domains import blocklist as disposable_domains
+from django.contrib.auth.password_validation import (
+    validate_password as django_validate_password,
+)
 from django.core.exceptions import ValidationError as DjangoValidationError
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
@@ -722,15 +725,31 @@ class BillingAddressSerializer(serializers.ModelSerializer):
 
 
 class CreateUserSerializer(serializers.ModelSerializer):
+    name = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    password = serializers.CharField(
+        write_only=True,
+        required=False,
+        allow_blank=True,
+        trim_whitespace=False,
+        max_length=128,
+    )
+
     class Meta:
         model = User
         fields = (
             "email",
+            "name",
+            "password",
             "profile_pic",
         )
 
     def __init__(self, *args, **kwargs):
         self.org = kwargs.pop("org", None)
+        # Whether the caller may rewrite this account's email, name and password.
+        # False fails closed, like `editing_self` below. The view grants it only
+        # to an admin acting on someone who belongs to this org alone: the
+        # account is shared across orgs, so anyone else's is their owner's.
+        self._account_editable = kwargs.pop("account_editable", False)
         # Whether the caller is editing their own account. Defaults to False so
         # a caller that forgets to pass it fails closed: the account fields
         # below are then refused rather than written.
@@ -750,22 +769,67 @@ class CreateUserSerializer(serializers.ModelSerializer):
 
     def validate_email(self, email):
         if self.instance:
-            # The login email is read-only through this API, for an admin
-            # editing someone else and for the user themselves (owner decision,
-            # 1.11.0). `User.email` is global: an org admin who could rename a
-            # member's email could then sign in as that person in every org
-            # they belong to, and as a platform superadmin if they are one.
-            # Echoing the stored address back (any case) is not a change, so
-            # forms that resend the whole record keep working; the stored
-            # spelling is kept rather than the echoed one.
+            # `User.email` is global: an org admin who could rename the email of
+            # someone who belongs to other orgs could sign in as that person in
+            # each of them (owner decision, 1.11.0). So a change is allowed only
+            # when the view sets `account_editable`: an admin acting on a member
+            # of this org alone. Echoing the stored address back (any case) is
+            # not a change, so forms that resend the whole record keep working;
+            # the stored spelling is kept rather than the echoed one.
             if self.instance.email.lower() == email.lower():
                 return self.instance.email
-            raise serializers.ValidationError("Email cannot be changed here.")
+            if not self._account_editable:
+                raise serializers.ValidationError("Email cannot be changed here.")
+            if (
+                User.objects.filter(email__iexact=email)
+                .exclude(pk=self.instance.pk)
+                .exists()
+            ):
+                raise serializers.ValidationError("Given Email id already exists")
+            return email.lower()
         # Creating a membership: an account owned elsewhere is reused by the
         # view, so only same-org duplicates are rejected here.
         if not Profile.objects.filter(user__email__iexact=email, org=self.org).exists():
             return email.lower()
         raise serializers.ValidationError("Given Email id already exists")
+
+    def validate_name(self, value):
+        if (
+            self.instance is None
+            or self._account_editable
+            or self._editing_self
+            or value == self.instance.name
+        ):
+            return value
+        raise serializers.ValidationError(
+            "Only the account's owner can change their name."
+        )
+
+    def validate_password(self, value):
+        if not value:
+            return value
+        if self.instance is not None and not self._account_editable:
+            raise serializers.ValidationError(
+                "This password can only be changed by the account's owner."
+            )
+        django_validate_password(value)
+        return value
+
+    def create(self, validated_data):
+        password = validated_data.pop("password", "")
+        user = User(**validated_data)
+        if password:
+            user.set_password(password)
+        else:
+            user.set_unusable_password()
+        user.save()
+        return user
+
+    def update(self, instance, validated_data):
+        password = validated_data.pop("password", "")
+        if password:
+            instance.set_password(password)
+        return super().update(instance, validated_data)
 
     def validate_profile_pic(self, value):
         """Only the account's owner may change it once the account exists.
@@ -1223,6 +1287,10 @@ class UserCreateSwaggerSerializer(serializers.Serializer):
     ROLE_CHOICES = ["ADMIN", "USER"]
 
     email = serializers.CharField(max_length=1000, required=True)
+    name = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    password = serializers.CharField(
+        max_length=128, required=False, allow_blank=True, write_only=True
+    )
     role = serializers.ChoiceField(choices=ROLE_CHOICES, required=True)
     phone = serializers.CharField(
         max_length=12, required=False, allow_blank=True, allow_null=True
@@ -1277,6 +1345,15 @@ class MagicLinkVerifyCodeSerializer(serializers.Serializer):
 
     email = serializers.EmailField(required=True)
     code = serializers.RegexField(r"^\d{6}$", required=True, max_length=6)
+
+
+class PasswordLoginSerializer(serializers.Serializer):
+    """Serializer for email + password sign-in."""
+
+    email = serializers.EmailField(required=True)
+    password = serializers.CharField(
+        required=True, max_length=128, trim_whitespace=False
+    )
 
 
 class UserOrganizationSerializer(serializers.Serializer):

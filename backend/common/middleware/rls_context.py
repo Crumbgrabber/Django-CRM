@@ -49,6 +49,7 @@ class RequireOrgContext:
         "/api/auth/me/",
         "/api/auth/switch-org/",
         "/api/auth/google/",
+        "/api/auth/login/",
         "/api/auth/magic-link/request/",
         "/api/auth/magic-link/verify/",
         "/api/auth/magic-link/verify-code/",

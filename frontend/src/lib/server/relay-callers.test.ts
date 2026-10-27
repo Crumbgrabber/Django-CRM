@@ -69,7 +69,7 @@ describe('magic-link request (records the address on the token)', () => {
     const body = new FormData();
     body.set('email', 'ada@example.com');
     const request = visit('http://app.test/login', { method: 'POST', body });
-    return login.actions.default({ request, getClientAddress } as any);
+    return login.actions.magic({ request, getClientAddress } as any);
   };
 
   it('sends the signed visitor address', async () => {

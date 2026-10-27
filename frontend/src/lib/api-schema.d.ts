@@ -399,6 +399,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/login/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Email + password sign-in, for deployments with no outbound email and no
+         *     Google. Returns the same payload as the magic-link code flow. Never creates
+         *     an account: accounts come from an admin invite or the magic-link flow.
+         */
+        post: operations["auth_login_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/logout/": {
         parameters: {
             query?: never;
@@ -12721,6 +12742,19 @@ export interface components {
             description: string;
             version: number;
         };
+        /** @description Serializer for email + password sign-in. */
+        PasswordLoginRequest: {
+            /** Format: email */
+            email: string;
+            password: string;
+        };
+        PasswordLoginResponse: {
+            access_token: string;
+            refresh_token: string;
+            user: components["schemas"]["UserDetail"];
+            organizations: components["schemas"]["AuthOrg"][];
+            current_org?: components["schemas"]["AuthOrg"];
+        };
         /**
          * @description The request body `common/views/settings_views.py` actually reads.
          *
@@ -13889,6 +13923,8 @@ export interface components {
         /** @description It is swagger for creating or updating user */
         PatchedUserCreateSwaggerRequest: {
             email?: string;
+            name?: string;
+            password?: string;
             role?: components["schemas"]["ProfileRoleEnum"];
             phone?: string | null;
             alternate_phone?: string | null;
@@ -16529,6 +16565,8 @@ export interface components {
         /** @description It is swagger for creating or updating user */
         UserCreateSwaggerRequest: {
             email: string;
+            name?: string;
+            password?: string;
             role: components["schemas"]["ProfileRoleEnum"];
             phone?: string | null;
             alternate_phone?: string | null;
@@ -17752,6 +17790,31 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GoogleOAuthResponse"];
+                };
+            };
+        };
+    };
+    auth_login_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordLoginRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PasswordLoginRequest"];
+                "multipart/form-data": components["schemas"]["PasswordLoginRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasswordLoginResponse"];
                 };
             };
         };

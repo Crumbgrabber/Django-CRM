@@ -11,7 +11,7 @@
  */
 
 import axios from 'axios';
-import { redirect, type Actions, type Cookies } from '@sveltejs/kit';
+import { fail, redirect, type Actions, type Cookies } from '@sveltejs/kit';
 import * as env from '$app/env/private';
 import * as publicEnv from '$app/env/public';
 import { generateCodeVerifier, generateCodeChallenge, generateState } from '#lib/utils/pkce.js';
@@ -211,7 +211,53 @@ async function generateOAuthUrl(cookies: Cookies): Promise<{ google_url: string 
 }
 
 export const actions: Actions = {
-  default: async ({ request, getClientAddress }) => {
+  // Email + password sign-in; sets the same JWT cookies as the other flows.
+  password: async ({ request, cookies, getClientAddress }) => {
+    const formData = await request.formData();
+    const email = String(formData.get('email') ?? '').trim();
+    const password = String(formData.get('password') ?? '');
+    if (!email || !password) {
+      return fail(400, { error: 'Email and password are required' });
+    }
+
+    try {
+      const response = await axios.post<{ access_token: string; refresh_token: string }>(
+        `${publicEnv.PUBLIC_DJANGO_API_URL}/api/auth/login/`,
+        { email, password },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            ...relayHeaders({ getClientAddress, request })
+          },
+          timeout: 10000
+        }
+      );
+      const secure = env.NODE_ENV === 'production';
+      cookies.set('jwt_access', response.data.access_token, {
+        path: '/',
+        httpOnly: true,
+        sameSite: 'lax',
+        secure,
+        maxAge: 60 * 60 * 24
+      });
+      cookies.set('jwt_refresh', response.data.refresh_token, {
+        path: '/',
+        httpOnly: true,
+        sameSite: 'lax',
+        secure,
+        maxAge: 60 * 60 * 24 * 365
+      });
+    } catch (error) {
+      const failure = error as { response?: { status?: number; data?: { error?: unknown } } };
+      if (failure.response?.status === 429) {
+        return fail(429, { error: 'Too many attempts. Try again later.' });
+      }
+      return fail(400, { error: String(failure.response?.data?.error || 'Sign in failed') });
+    }
+    redirect(303, '/org');
+  },
+
+  magic: async ({ request, getClientAddress }) => {
     const formData = await request.formData();
     const email = String(formData.get('email') ?? '').trim();
 
