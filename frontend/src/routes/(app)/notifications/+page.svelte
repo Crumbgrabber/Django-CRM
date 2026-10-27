@@ -51,6 +51,7 @@
     CirclePause,
     Gauge,
     FileCheck,
+    FileText,
     FileX
   } from '@lucide/svelte';
   import type { PageData, PageProps } from './$types';
@@ -80,6 +81,7 @@
     'automation.limit': TriangleAlert,
     'automation.paused': CirclePause,
     'project.budget': Gauge,
+    'project.retainer_invoice': FileText,
     'estimate.accepted': FileCheck,
     'estimate.declined': FileX
   };

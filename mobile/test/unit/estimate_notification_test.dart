@@ -172,4 +172,61 @@ void main() {
       }
     });
   });
+
+  group('a retainer invoice drafted', () {
+    AppNotification retainer(Object? data) =>
+        _answer('project.retainer_invoice', data, link: '/invoices/$_id');
+
+    test('names the invoice, the month and the project', () {
+      final n = retainer({
+        'project': 'Website care',
+        'month': '2026-10',
+        'invoice_number': 'INV-0012',
+      });
+      expect(
+        n.retainerText,
+        'Retainer invoice INV-0012 for October 2026 drafted for Website care',
+      );
+      expect(n.isKnownVerb, isTrue);
+      expect(n.destinationPath, '/invoices/$_id');
+    });
+
+    test('is null without a number, a month or a project', () {
+      for (final data in [
+        null,
+        'x',
+        {'project': 'P', 'month': '2026-10'},
+        {'project': 'P', 'invoice_number': 'INV-1'},
+        {'project': 'P', 'month': '2026-13', 'invoice_number': 'INV-1'},
+        {'month': '2026-10', 'invoice_number': 'INV-1'},
+      ]) {
+        expect(retainer(data).retainerText, isNull, reason: '$data');
+      }
+    });
+
+    test('does not borrow the entity name when the project is missing', () {
+      final n = AppNotification.fromJson({
+        'id': 'n1',
+        'verb': 'project.retainer_invoice',
+        'actor': null,
+        'entity_name': 'Website care',
+        'data': {'month': '2026-10', 'invoice_number': 'INV-1'},
+        'link': '/invoices/$_id',
+        'read_at': null,
+        'created_at': '2026-10-27T09:00:00Z',
+      });
+      expect(n.retainerText, isNull);
+    });
+
+    test('belongs to its verb only', () {
+      expect(
+        _answer('project.budget', {
+          'project': 'P',
+          'month': '2026-10',
+          'invoice_number': 'INV-1',
+        }).retainerText,
+        isNull,
+      );
+    });
+  });
 }

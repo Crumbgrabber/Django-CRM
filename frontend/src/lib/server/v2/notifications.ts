@@ -36,6 +36,7 @@ export const PRODUCED_VERBS = [
   'automation.paused',
   'automation.limit',
   'project.budget',
+  'project.retainer_invoice',
   'estimate.accepted',
   'estimate.declined'
 ];

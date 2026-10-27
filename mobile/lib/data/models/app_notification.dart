@@ -3,6 +3,7 @@ import '../../routes/app_routes.dart';
 import '../../routes/record_routes.dart';
 import '../../services/run_time.dart';
 import '../api/schema.g.dart' as api;
+import 'project.dart' show monthLabel;
 
 /// An in-app notification, as `/api/notifications/` returns it.
 ///
@@ -31,6 +32,8 @@ class AppNotification {
     this.clientName,
     this.startedProjectId,
     this.depositInvoiceId,
+    this.retainerMonth,
+    this.invoiceNumber,
   });
 
   final String id;
@@ -72,6 +75,11 @@ class AppNotification {
   final String? clientName;
   final String? startedProjectId;
   final String? depositInvoiceId;
+
+  /// From `data`, for `project.retainer_invoice`: the month (`YYYY-MM`) and
+  /// the invoice's number. The project's name is [projectName].
+  final String? retainerMonth;
+  final String? invoiceNumber;
 
   bool get isUnread => readAt == null;
   String get displayActorName => verb.startsWith('support.')
@@ -221,6 +229,17 @@ class AppNotification {
     ].join(', ');
   }
 
+  /// The `project.retainer_invoice` sentence, as the web writes it, or null
+  /// for any other verb or for `data` of the wrong type.
+  String? get retainerText {
+    if (verb != 'project.retainer_invoice') return null;
+    final number = invoiceNumber?.trim() ?? '';
+    final name = projectName?.trim() ?? '';
+    final month = monthLabel(retainerMonth);
+    if (number.isEmpty || name.isEmpty || month == null) return null;
+    return 'Retainer invoice $number for $month drafted for $name';
+  }
+
   /// The line under a message naming the rule that sent it.
   String? get automationSource =>
       verb == 'automation.message' && automationText() != null
@@ -274,6 +293,8 @@ class AppNotification {
       clientName: text('client_name'),
       startedProjectId: text('project_id'),
       depositInvoiceId: text('deposit_invoice_id'),
+      retainerMonth: text('month'),
+      invoiceNumber: text('invoice_number'),
     );
   }
 
@@ -298,6 +319,8 @@ class AppNotification {
     clientName: clientName,
     startedProjectId: startedProjectId,
     depositInvoiceId: depositInvoiceId,
+    retainerMonth: retainerMonth,
+    invoiceNumber: invoiceNumber,
   );
 }
 
@@ -317,4 +340,5 @@ const List<String> producedVerbs = [
   'project.budget',
   'estimate.accepted',
   'estimate.declined',
+  'project.retainer_invoice',
 ];

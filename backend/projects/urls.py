@@ -32,4 +32,9 @@ urlpatterns = [
         views.ProjectInvoiceAmountView.as_view(),
         name="project_invoice_amount",
     ),
+    path(
+        "<uid:pk>/retainer/bill/",
+        views.ProjectRetainerBillView.as_view(),
+        name="project_retainer_bill",
+    ),
 ]

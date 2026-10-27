@@ -242,6 +242,7 @@ starts fresh: they do not act on dates that passed while it was off.
 | Goal milestone emails (Goals) | None are sent. | Milestones already reached count as announced, so only new ones send. |
 | SLA escalation (Tickets) | The scan skips the org. | A deadline that passed while off never escalates. |
 | Stale timers (Timesheet) | A running timer is not stopped. | Timers that went stale while off are left running for their owner to stop. |
+| Retainer invoices (Projects and Invoices) | No retainer invoice is drafted while either is off. | The scheduled job skips a month that ended before the module last came back on rather than drafting it late; the months after it bill as usual. An admin's **Bill this month** applies no such skip, so clicked before the job's next run it drafts that month. |
 
 The clean-up jobs do not check modules. They prune read notifications, automation runs and webhook
 delivery logs past their retention, and expired sign-in tokens, whatever an org has switched off.

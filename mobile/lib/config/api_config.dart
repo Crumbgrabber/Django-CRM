@@ -739,6 +739,10 @@ class ApiConfig {
   static String projectInvoiceAmount(String id) =>
       '${project(id)}invoice-amount/';
 
+  /// Bills the project's open retainer month as a Draft invoice. Admins only.
+  static String projectRetainerBill(String id) =>
+      '${project(id)}retainer/bill/';
+
   /// Estimates (quotes). Takes `search`, `status` and `account`.
   static String get estimates => '$apiBaseUrl/invoices/estimates/';
 

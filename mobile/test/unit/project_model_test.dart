@@ -1,3 +1,4 @@
+import 'package:intl/intl.dart';
 import 'package:bottle_crm/data/models/invoice.dart';
 import 'package:bottle_crm/data/models/project.dart';
 import 'package:bottle_crm/data/models/time_billing.dart';
@@ -176,7 +177,7 @@ void main() {
         'name': 'Bare',
         'account': {'id': 'a1', 'name': 'Northwind'},
         'status': 'archived',
-        'billing_type': 'retainer',
+        'billing_type': 'milestone',
       });
 
       expect(p.account!.id, 'a1');
@@ -202,6 +203,72 @@ void main() {
       expect(p.budgetHoursValue, 12.5);
       expect(p.burn.loggedHours, 3);
       expect(p.burn.hoursPercent, 25);
+    });
+  });
+
+  group('a retainer project', () {
+    test('reads the retainer fields and the usage block', () {
+      final p = Project.fromJson({
+        ..._detail(),
+        'billing_type': 'retainer',
+        'retainer_fee': '2000.00',
+        'retainer_hours': '10.00',
+        'retainer_rollover': true,
+        'retainer_overage_rate': '150.00',
+        'retainer_carried_hours': '1.50',
+        'retainer_next_month': '2026-10-01',
+        'retainer_last_month': '2026-12-01',
+        'retainer_usage': {
+          'month': '2026-10',
+          'used_hours': '12.50',
+          'available_hours': '11.50',
+          'overage_hours': '1.00',
+          'billable_now': true,
+        },
+      });
+      expect(p.billingType, ProjectBillingType.retainer);
+      expect(p.isRetainer, isTrue);
+      expect(p.retainerFee, '2000.00');
+      expect(p.retainerHoursValue, 10);
+      expect(p.retainerRollover, isTrue);
+      expect(p.retainerCarriedValue, 1.5);
+      expect(monthLabel(p.retainerLastMonth), 'December 2026');
+      expect(p.retainerUsage!.monthText, 'October 2026');
+      expect(p.retainerUsage!.usedHours, 12.5);
+      expect(p.retainerUsage!.availableHours, 11.5);
+      expect(p.retainerUsage!.billableNow, isTrue);
+    });
+
+    test('no allowance reads as null, and other types have no usage', () {
+      final p = Project.fromJson({
+        ..._detail(),
+        'billing_type': 'retainer',
+        'retainer_usage': {
+          'month': '2026-10',
+          'used_hours': '3.00',
+          'available_hours': null,
+          'overage_hours': '0.00',
+          'billable_now': false,
+        },
+      });
+      expect(p.retainerUsage!.availableHours, isNull);
+      expect(Project.fromJson(_detail()).retainerUsage, isNull);
+      expect(Project.fromJson(_detail()).isRetainer, isFalse);
+    });
+
+    test('month names are English whatever the default locale', () {
+      final before = Intl.defaultLocale;
+      addTearDown(() => Intl.defaultLocale = before);
+      Intl.defaultLocale = 'fr';
+      expect(monthLabel('2026-02'), 'February 2026');
+    });
+
+    test('monthLabel takes a month or a date and nothing else', () {
+      expect(monthLabel('2026-02'), 'February 2026');
+      expect(monthLabel('2026-02-01'), 'February 2026');
+      expect(monthLabel('2026-00'), isNull);
+      expect(monthLabel('Feb'), isNull);
+      expect(monthLabel(null), isNull);
     });
   });
 

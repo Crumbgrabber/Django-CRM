@@ -4710,6 +4710,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{id}/retainer/bill/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Bill a retainer's next month now: an ended month the scheduler has not
+         *     drafted yet, or the open month through today.
+         */
+        post: operations["projects_retainer_bill"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{id}/time-entries/": {
         parameters: {
             query?: never;
@@ -7125,9 +7145,10 @@ export interface components {
          * @description * `time_and_materials` - Time and materials
          *     * `fixed_fee` - Fixed fee
          *     * `non_billable` - Non-billable
+         *     * `retainer` - Retainer
          * @enum {string}
          */
-        BillingTypeEnum: "time_and_materials" | "fixed_fee" | "non_billable";
+        BillingTypeEnum: "time_and_materials" | "fixed_fee" | "non_billable" | "retainer";
         /** @enum {unknown} */
         BlankEnum: "";
         /** @description Serializer for boards */
@@ -13684,6 +13705,15 @@ export interface components {
             budget_amount?: string | null;
             /** Format: decimal */
             hourly_rate?: string | null;
+            /** Format: decimal */
+            retainer_fee?: string | null;
+            /** Format: decimal */
+            retainer_hours?: string | null;
+            retainer_rollover?: boolean;
+            /** Format: decimal */
+            retainer_overage_rate?: string | null;
+            /** Format: decimal */
+            retainer_carried_hours?: string;
             /** Format: date */
             start_date?: string | null;
             /** Format: date */
@@ -14464,6 +14494,15 @@ export interface components {
             budget_amount?: string | null;
             /** Format: decimal */
             hourly_rate?: string | null;
+            /** Format: decimal */
+            retainer_fee?: string | null;
+            /** Format: decimal */
+            retainer_hours?: string | null;
+            retainer_rollover?: boolean;
+            /** Format: decimal */
+            retainer_overage_rate?: string | null;
+            /** Format: decimal */
+            retainer_carried_hours?: string;
             /** Format: date */
             start_date?: string | null;
             /** Format: date */
@@ -14515,6 +14554,28 @@ export interface components {
             readonly budget_amount: string | null;
             /** Format: decimal */
             readonly hourly_rate: string | null;
+            /** Format: decimal */
+            readonly retainer_fee: string | null;
+            /**
+             * Format: decimal
+             * @description Hours each month's fee includes; none means the fee alone.
+             */
+            readonly retainer_hours: string | null;
+            readonly retainer_rollover: boolean;
+            /** Format: decimal */
+            readonly retainer_overage_rate: string | null;
+            /** Format: decimal */
+            readonly retainer_carried_hours: string;
+            /**
+             * Format: date
+             * @description First day of the month the next retainer invoice bills.
+             */
+            readonly retainer_next_month: string | null;
+            /**
+             * Format: date
+             * @description First day of the last month to bill; empty while the retainer is open.
+             */
+            readonly retainer_last_month: string | null;
             /** Format: date */
             readonly start_date: string | null;
             /** Format: date */
@@ -14532,6 +14593,7 @@ export interface components {
             readonly description: string;
             /** @description Per-org schema extension; values are validated against common.CustomFieldDefinition. */
             readonly custom_fields: unknown;
+            readonly retainer_usage: components["schemas"]["ProjectRetainerUsage"] | null;
             readonly rates: components["schemas"]["ProjectRateRow"][];
             readonly comments: components["schemas"]["Comment"][];
             readonly attachments: components["schemas"]["Attachments"][];
@@ -14594,6 +14656,28 @@ export interface components {
             readonly budget_amount: string | null;
             /** Format: decimal */
             readonly hourly_rate: string | null;
+            /** Format: decimal */
+            readonly retainer_fee: string | null;
+            /**
+             * Format: decimal
+             * @description Hours each month's fee includes; none means the fee alone.
+             */
+            readonly retainer_hours: string | null;
+            readonly retainer_rollover: boolean;
+            /** Format: decimal */
+            readonly retainer_overage_rate: string | null;
+            /** Format: decimal */
+            readonly retainer_carried_hours: string;
+            /**
+             * Format: date
+             * @description First day of the month the next retainer invoice bills.
+             */
+            readonly retainer_next_month: string | null;
+            /**
+             * Format: date
+             * @description First day of the last month to bill; empty while the retainer is open.
+             */
+            readonly retainer_last_month: string | null;
             /** Format: date */
             readonly start_date: string | null;
             /** Format: date */
@@ -14624,6 +14708,29 @@ export interface components {
             /** Format: uuid */
             id: string;
             name: string;
+        };
+        ProjectRetainerBill: {
+            /** Format: uuid */
+            invoice_id: string;
+            invoice_number: string;
+            /** @description YYYY-MM */
+            month: string;
+        };
+        ProjectRetainerBillBodyRequest: {
+            /** @description YYYY-MM: the month the caller showed. Refused as already billed when it is no longer the one billing next. */
+            month?: string | null;
+        };
+        /** @description `projects.retainers.retainer_usage`, for the schema. */
+        ProjectRetainerUsage: {
+            /** @description YYYY-MM */
+            month: string;
+            /** Format: decimal */
+            used_hours: string;
+            /** Format: decimal */
+            available_hours: string | null;
+            /** Format: decimal */
+            overage_hours: string;
+            billable_now: boolean;
         };
         ProjectSaved: {
             error: boolean;
@@ -26228,6 +26335,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectInvoiceAmount"];
+                };
+            };
+        };
+    };
+    projects_retainer_bill: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ProjectRetainerBillBodyRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ProjectRetainerBillBodyRequest"];
+                "multipart/form-data": components["schemas"]["ProjectRetainerBillBodyRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectRetainerBill"];
                 };
             };
         };

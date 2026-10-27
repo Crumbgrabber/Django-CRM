@@ -1681,6 +1681,11 @@ const Map<String, Map<String, Set<String>?>> apiOperations = {
       'hourly_rate',
       'name',
       'rates',
+      'retainer_carried_hours',
+      'retainer_fee',
+      'retainer_hours',
+      'retainer_overage_rate',
+      'retainer_rollover',
       'start_date',
       'status',
       'tags',
@@ -1704,6 +1709,11 @@ const Map<String, Map<String, Set<String>?>> apiOperations = {
       'hourly_rate',
       'name',
       'rates',
+      'retainer_carried_hours',
+      'retainer_fee',
+      'retainer_hours',
+      'retainer_overage_rate',
+      'retainer_rollover',
       'start_date',
       'status',
       'tags',
@@ -1712,6 +1722,9 @@ const Map<String, Map<String, Set<String>?>> apiOperations = {
   },
   '/api/projects/{id}/invoice-amount/': {
     'POST': <String>{'amount', 'description', 'percent'},
+  },
+  '/api/projects/{id}/retainer/bill/': {
+    'POST': <String>{'month'},
   },
   '/api/projects/{id}/time-entries/': {
     'GET': <String>{},
@@ -15720,6 +15733,13 @@ class ProjectDetail {
     this.budgetHours,
     this.budgetAmount,
     this.hourlyRate,
+    this.retainerFee,
+    this.retainerHours,
+    this.retainerRollover,
+    this.retainerOverageRate,
+    this.retainerCarriedHours,
+    this.retainerNextMonth,
+    this.retainerLastMonth,
     this.startDate,
     this.dueDate,
     this.assignedTo,
@@ -15729,6 +15749,7 @@ class ProjectDetail {
     this.updatedAt,
     this.description,
     this.customFields,
+    this.retainerUsage,
     this.rates,
     this.comments,
     this.attachments,
@@ -15751,6 +15772,13 @@ class ProjectDetail {
     budgetHours: _string(json['budget_hours']),
     budgetAmount: _string(json['budget_amount']),
     hourlyRate: _string(json['hourly_rate']),
+    retainerFee: _string(json['retainer_fee']),
+    retainerHours: _string(json['retainer_hours']),
+    retainerRollover: _bool(json['retainer_rollover']),
+    retainerOverageRate: _string(json['retainer_overage_rate']),
+    retainerCarriedHours: _string(json['retainer_carried_hours']),
+    retainerNextMonth: _string(json['retainer_next_month']),
+    retainerLastMonth: _string(json['retainer_last_month']),
     startDate: _string(json['start_date']),
     dueDate: _string(json['due_date']),
     assignedTo: _list(json['assigned_to'], (v) => _object(v, Profile.fromJson)),
@@ -15760,6 +15788,10 @@ class ProjectDetail {
     updatedAt: _string(json['updated_at']),
     description: _string(json['description']),
     customFields: _any(json['custom_fields']),
+    retainerUsage: _object(
+      json['retainer_usage'],
+      ProjectRetainerUsage.fromJson,
+    ),
     rates: _list(json['rates'], (v) => _object(v, ProjectRateRow.fromJson)),
     comments: _list(json['comments'], (v) => _object(v, Comment.fromJson)),
     attachments: _list(
@@ -15788,6 +15820,13 @@ class ProjectDetail {
   final String? budgetHours;
   final String? budgetAmount;
   final String? hourlyRate;
+  final String? retainerFee;
+  final String? retainerHours;
+  final bool? retainerRollover;
+  final String? retainerOverageRate;
+  final String? retainerCarriedHours;
+  final String? retainerNextMonth;
+  final String? retainerLastMonth;
   final String? startDate;
   final String? dueDate;
   final List<Profile>? assignedTo;
@@ -15797,6 +15836,7 @@ class ProjectDetail {
   final String? updatedAt;
   final String? description;
   final Object? customFields;
+  final ProjectRetainerUsage? retainerUsage;
   final List<ProjectRateRow>? rates;
   final List<Comment>? comments;
   final List<Attachments>? attachments;
@@ -15918,6 +15958,13 @@ class ProjectList {
     this.budgetHours,
     this.budgetAmount,
     this.hourlyRate,
+    this.retainerFee,
+    this.retainerHours,
+    this.retainerRollover,
+    this.retainerOverageRate,
+    this.retainerCarriedHours,
+    this.retainerNextMonth,
+    this.retainerLastMonth,
     this.startDate,
     this.dueDate,
     this.assignedTo,
@@ -15939,6 +15986,13 @@ class ProjectList {
     budgetHours: _string(json['budget_hours']),
     budgetAmount: _string(json['budget_amount']),
     hourlyRate: _string(json['hourly_rate']),
+    retainerFee: _string(json['retainer_fee']),
+    retainerHours: _string(json['retainer_hours']),
+    retainerRollover: _bool(json['retainer_rollover']),
+    retainerOverageRate: _string(json['retainer_overage_rate']),
+    retainerCarriedHours: _string(json['retainer_carried_hours']),
+    retainerNextMonth: _string(json['retainer_next_month']),
+    retainerLastMonth: _string(json['retainer_last_month']),
     startDate: _string(json['start_date']),
     dueDate: _string(json['due_date']),
     assignedTo: _list(json['assigned_to'], (v) => _object(v, Profile.fromJson)),
@@ -15960,6 +16014,13 @@ class ProjectList {
   final String? budgetHours;
   final String? budgetAmount;
   final String? hourlyRate;
+  final String? retainerFee;
+  final String? retainerHours;
+  final bool? retainerRollover;
+  final String? retainerOverageRate;
+  final String? retainerCarriedHours;
+  final String? retainerNextMonth;
+  final String? retainerLastMonth;
   final String? startDate;
   final String? dueDate;
   final List<Profile>? assignedTo;
@@ -16013,6 +16074,58 @@ class ProjectRef {
   final Map<String, dynamic> json;
   final String? id;
   final String? name;
+}
+
+class ProjectRetainerBill {
+  const ProjectRetainerBill(
+    this.json, {
+    this.invoiceId,
+    this.invoiceNumber,
+    this.month,
+  });
+
+  factory ProjectRetainerBill.fromJson(Map<String, dynamic> json) =>
+      ProjectRetainerBill(
+        json,
+        invoiceId: _string(json['invoice_id']),
+        invoiceNumber: _string(json['invoice_number']),
+        month: _string(json['month']),
+      );
+
+  /// The object as received, for handing it to its own model.
+  final Map<String, dynamic> json;
+  final String? invoiceId;
+  final String? invoiceNumber;
+  final String? month;
+}
+
+class ProjectRetainerUsage {
+  const ProjectRetainerUsage(
+    this.json, {
+    this.month,
+    this.usedHours,
+    this.availableHours,
+    this.overageHours,
+    this.billableNow,
+  });
+
+  factory ProjectRetainerUsage.fromJson(Map<String, dynamic> json) =>
+      ProjectRetainerUsage(
+        json,
+        month: _string(json['month']),
+        usedHours: _string(json['used_hours']),
+        availableHours: _string(json['available_hours']),
+        overageHours: _string(json['overage_hours']),
+        billableNow: _bool(json['billable_now']),
+      );
+
+  /// The object as received, for handing it to its own model.
+  final Map<String, dynamic> json;
+  final String? month;
+  final String? usedHours;
+  final String? availableHours;
+  final String? overageHours;
+  final bool? billableNow;
 }
 
 class ProjectSaved {

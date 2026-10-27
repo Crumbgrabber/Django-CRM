@@ -19,7 +19,7 @@ import { loggedEntryBody } from '#lib/server/v2/timesheet.js';
 import { listAccountsPicker } from '#lib/server/v2/accounts.js';
 import { listDeals } from '#lib/server/v2/deals.js';
 import { getOrgPeopleAndTeams } from '#lib/server/v2/org-people.js';
-import { billGrouping, isoDateOrNull, isUuid } from '#lib/v2/projects.js';
+import { billGrouping, isoDateOrNull, isUuid, type RetainerUsage } from '#lib/v2/projects.js';
 import type { components } from '#lib/api-schema.js';
 
 type Schemas = components['schemas'];
@@ -59,6 +59,18 @@ function toBurn(burn: Partial<Schemas['ProjectBurn']> | null | undefined) {
   };
 }
 
+/** The month a retainer bill would take, or null off a retainer. */
+function toRetainerUsage(usage: Schemas['ProjectDetail']['retainer_usage']): RetainerUsage | null {
+  if (!usage || !usage.month) return null;
+  return {
+    month: usage.month,
+    used_hours: num(usage.used_hours) ?? 0,
+    available_hours: num(usage.available_hours),
+    overage_hours: num(usage.overage_hours) ?? 0,
+    billable_now: usage.billable_now === true
+  };
+}
+
 /** @param p a list item */
 function toRow(p: Schemas['ProjectList']) {
   return {
@@ -72,6 +84,13 @@ function toRow(p: Schemas['ProjectList']) {
     budget_hours: num(p.budget_hours),
     budget_amount: num(p.budget_amount),
     hourly_rate: num(p.hourly_rate),
+    retainer_fee: num(p.retainer_fee),
+    retainer_hours: num(p.retainer_hours),
+    retainer_rollover: p.retainer_rollover === true,
+    retainer_overage_rate: num(p.retainer_overage_rate),
+    retainer_carried_hours: num(p.retainer_carried_hours) ?? 0,
+    retainer_next_month: p.retainer_next_month ?? null,
+    retainer_last_month: p.retainer_last_month ?? null,
     start_date: p.start_date ?? null,
     due_date: p.due_date ?? null,
     assigned_to: (p.assigned_to ?? []).map(toPerson),
@@ -224,6 +243,7 @@ export async function getProject({ cookies }: { cookies: Cookies }, id: string) 
         issue_date: inv.issue_date ?? null
       }))
     },
+    retainerUsage: toRetainerUsage(raw.retainer_usage),
     comments: toComments(raw.comments),
     files: toFiles(raw.attachments),
     canEdit: raw.can_edit === true,
@@ -436,4 +456,17 @@ export async function invoiceProjectAmount(
   body: Schemas['InvoiceAmountRequest']
 ): Promise<Schemas['ProjectInvoiceAmount']> {
   return await apiRequest(`/projects/${id}/invoice-amount/`, { method: 'POST', body }, { cookies });
+}
+
+/**
+ * Bill the retainer's month the page showed (`{ month }`) into a Draft invoice: admins only.
+ * A 400 says why not.
+ */
+export async function billProjectRetainer(
+  { cookies }: { cookies: Cookies },
+  id: string,
+  month: string
+): Promise<Schemas['ProjectRetainerBill']> {
+  const body: Schemas['ProjectRetainerBillBodyRequest'] = { month };
+  return await apiRequest(`/projects/${id}/retainer/bill/`, { method: 'POST', body }, { cookies });
 }

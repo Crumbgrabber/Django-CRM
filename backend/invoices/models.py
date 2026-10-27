@@ -16,7 +16,7 @@ from common.models import Org, Profile, Teams
 from common.utils import COUNTRIES, CURRENCY_CODES
 from contacts.models import Contact
 from opportunity.models import Opportunity
-from projects.models import BILLING_TYPES as PROJECT_BILLING_TYPES
+from projects.models import STARTING_BILLING_TYPES as PROJECT_BILLING_TYPES
 
 # =============================================================================
 # CONSTANTS

@@ -87,6 +87,16 @@ describe('automation notifications', () => {
   });
 });
 
+describe('retainer invoice notifications', () => {
+  const invoice = '4d60686d-bd3d-4e33-b114-ab36f194a6cd';
+
+  it('knows the verb and opens the invoice', () => {
+    expect(PRODUCED_VERBS).toContain('project.retainer_invoice');
+    expect(resolvedLink(`/invoices/${invoice}`)).toBe(`/invoices/${invoice}`);
+    expect(resolvedLink('/invoices/1')).toBe('');
+  });
+});
+
 describe('project budget notifications', () => {
   const id = '4d60686d-bd3d-4e33-b114-ab36f194a6cd';
 

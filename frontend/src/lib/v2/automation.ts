@@ -4,7 +4,7 @@
  */
 import { runTime } from '#lib/v2/format.js';
 import { isOn, OBJECT_MODULES, type ModuleRow } from '#lib/v2/modules.js';
-import { budgetNotificationText } from '#lib/v2/projects.js';
+import { budgetNotificationText, retainerInvoiceNotificationText } from '#lib/v2/projects.js';
 import { estimateNotificationText } from '#lib/v2/estimates.js';
 import type { Tone } from '#lib/v2/enums.js';
 import type { components } from '#lib/api-schema.js';
@@ -855,7 +855,7 @@ export function hubValue(
 const str = (v: unknown): v is string => typeof v === 'string';
 
 /**
- * The sentence an automation, project budget or estimate notification shows,
+ * The sentence an automation, project budget, retainer invoice or estimate notification shows,
  * composed from `data`. Null for any other verb or data of the wrong type, so
  * the row keeps its usual copy; an estimate's verb has a fallback sentence
  * instead (see `estimateNotificationText`).
@@ -890,6 +890,10 @@ export function notificationText(
     }
     case 'project.budget': {
       const text = budgetNotificationText(d);
+      return text ? { text, source: null } : null;
+    }
+    case 'project.retainer_invoice': {
+      const text = retainerInvoiceNotificationText(d);
       return text ? { text, source: null } : null;
     }
     default:

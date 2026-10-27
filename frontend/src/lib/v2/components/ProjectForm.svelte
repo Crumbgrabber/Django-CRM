@@ -12,6 +12,7 @@
     BILLING_TYPES,
     BILLING_TYPE_LABEL,
     hoursText,
+    statusLocked,
     type ProjectFormValues,
     type ProjectValues
   } from '#lib/v2/projects.js';
@@ -76,6 +77,10 @@
 
   let billingType = $state(
     untrack(() => typed?.billing_type || values.billing_type || 'time_and_materials')
+  );
+  let lockStatus = $derived(statusLocked(edit, isAdmin, values.billing_type));
+  let rollover = $state(
+    untrack(() => typed?.retainer_rollover ?? values.retainer_rollover ?? false)
   );
   let rates: { key: number; profile: string; hourly_rate: string }[] = $state(
     untrack(() =>
@@ -181,14 +186,21 @@
   {/if}
 
   <div class="pf-row">
-    <label class="v2-field">
-      <span class="v2-label">Status</span>
-      <select class="v2-input" name="status" value={v.status || 'active'}>
-        {#each PROJECT_STATUSES as s (s)}
-          <option value={s}>{PROJECT_STATUS_LABEL[s]}</option>
-        {/each}
-      </select>
-    </label>
+    {#if lockStatus}
+      <div class="v2-field">
+        <span class="v2-label">Status, set by an admin</span>
+        <p class="pf-static">{PROJECT_STATUS_LABEL[v.status ?? ''] ?? ''}</p>
+      </div>
+    {:else}
+      <label class="v2-field">
+        <span class="v2-label">Status</span>
+        <select class="v2-input" name="status" value={v.status || 'active'}>
+          {#each PROJECT_STATUSES as s (s)}
+            <option value={s}>{PROJECT_STATUS_LABEL[s]}</option>
+          {/each}
+        </select>
+      </label>
+    {/if}
     {#if isAdmin}
       <label class="v2-field">
         <span class="v2-label">Billing</span>
@@ -251,6 +263,80 @@
         />
       </label>
     </div>
+    {#if billingType === 'retainer'}
+      <input type="hidden" name="retainer__rendered" value="1" />
+      <div class="pf-row">
+        <label class="v2-field">
+          <span class="v2-label">Monthly fee</span>
+          <input
+            class="v2-input"
+            name="retainer_fee"
+            type="number"
+            inputmode="decimal"
+            min="0.01"
+            step="0.01"
+            required
+            value={v.retainer_fee ?? ''}
+          />
+        </label>
+        <label class="v2-field">
+          <span class="v2-label">Hours included each month</span>
+          <input
+            class="v2-input"
+            name="retainer_hours"
+            type="number"
+            inputmode="decimal"
+            min="0"
+            step="0.01"
+            value={v.retainer_hours ?? ''}
+            placeholder="Optional"
+          />
+        </label>
+      </div>
+      <div class="pf-row">
+        <label class="v2-field">
+          <span class="v2-label">Rate for hours over the allowance</span>
+          <input
+            class="v2-input"
+            name="retainer_overage_rate"
+            type="number"
+            inputmode="decimal"
+            min="0"
+            step="0.01"
+            value={v.retainer_overage_rate ?? ''}
+            placeholder="Needed when hours are included"
+          />
+        </label>
+        {#if edit}
+          <label class="v2-field">
+            <span class="v2-label">Carried hours</span>
+            <input
+              class="v2-input"
+              name="retainer_carried_hours"
+              type="number"
+              inputmode="decimal"
+              min="0"
+              step="0.01"
+              value={v.retainer_carried_hours ?? ''}
+              placeholder="0"
+            />
+            <input
+              type="hidden"
+              name="retainer_carried_hours__loaded"
+              value={values.retainer_carried_hours ?? ''}
+            />
+          </label>
+        {/if}
+      </div>
+      <label class="pf-check">
+        <input type="checkbox" name="retainer_rollover" bind:checked={rollover} />
+        <span>Roll unused hours over</span>
+      </label>
+      <p class="v2-sub pf-hint">
+        Each month's invoice holds the fee, plus any hours over the allowance at the rate above.
+        Unused hours carry into the next invoice when rolling over.
+      </p>
+    {/if}
     <p class="v2-sub pf-hint">
       Time logged on the project takes the person's own rate below, else this hourly rate. You hear
       at 80% and at 100% of either budget.
@@ -269,6 +355,20 @@
         <dd>{isSet(v.budget_amount) ? money(v.budget_amount, v.currency) : 'Not set'}</dd>
         <dt>Hourly rate</dt>
         <dd>{isSet(v.hourly_rate) ? `${money(v.hourly_rate, v.currency)}/hr` : 'Not set'}</dd>
+        {#if v.billing_type === 'retainer'}
+          <dt>Monthly fee</dt>
+          <dd>{isSet(v.retainer_fee) ? money(v.retainer_fee, v.currency) : 'Not set'}</dd>
+          <dt>Hours included each month</dt>
+          <dd>{isSet(v.retainer_hours) ? hoursText(v.retainer_hours) : 'Not set'}</dd>
+          <dt>Roll unused hours over</dt>
+          <dd>{v.retainer_rollover ? 'Yes' : 'No'}</dd>
+          <dt>Rate for hours over the allowance</dt>
+          <dd>
+            {isSet(v.retainer_overage_rate)
+              ? `${money(v.retainer_overage_rate, v.currency)}/hr`
+              : 'Not set'}
+          </dd>
+        {/if}
         {#each rates as r (r.key)}
           <dt>{personName(r.profile)}</dt>
           <dd>{isSet(r.hourly_rate) ? `${money(r.hourly_rate, v.currency)}/hr` : 'Not set'}</dd>

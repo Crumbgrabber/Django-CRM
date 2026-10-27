@@ -125,11 +125,12 @@ uv run celery -A crm worker --loglevel=INFO
 
 This process executes tasks queued by the API: sending the emails above, mention notifications,
 team-membership propagation, and more. A separate `celery beat` process is required for anything on
-a schedule: `backend/crm/celery.py` registers `app.conf.beat_schedule` with twelve periodic entries,
-including recurring-invoice generation and overdue/expired-estimate checks (daily), outbound
-webhook retries (every minute), SLA breach scanning for cases (every 5 minutes), stale-timer cleanup
-(every 30 minutes), and nightly cleanup of read notifications, expired refresh-token records and
-webhook delivery logs:
+a schedule: `backend/crm/celery.py` registers `app.conf.beat_schedule` with fourteen periodic
+entries, including recurring-invoice generation and overdue/expired-estimate checks (daily),
+outbound webhook retries (every minute), SLA breach scanning for cases (every 5 minutes),
+stale-timer cleanup (every 30 minutes), retainer invoices (hourly, at 20 past: each project
+retainer's month is drafted within the hour after the org's own midnight), and nightly cleanup of
+read notifications, expired refresh-token records, webhook delivery logs and automation runs:
 
 ```bash
 cd backend
@@ -137,7 +138,8 @@ uv run celery -A crm beat --loglevel=INFO
 ```
 
 Neither process is required for the API itself to answer requests, only for background and
-scheduled work to actually run. `docker-compose.yml` runs both as their own services,
+scheduled work to actually run. A running `beat` keeps the schedule it started with, so restart it
+after an upgrade that adds an entry, or the new job never fires. `docker-compose.yml` runs both as their own services,
 `celery-worker` and `celery-beat`, alongside `backend`.
 
 ## RLS in background tasks

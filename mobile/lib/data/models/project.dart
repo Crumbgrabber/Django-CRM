@@ -36,6 +36,7 @@ enum ProjectStatus {
 enum ProjectBillingType {
   timeAndMaterials('time_and_materials', 'Time and materials'),
   fixedFee('fixed_fee', 'Fixed fee'),
+  retainer('retainer', 'Retainer'),
   nonBillable('non_billable', 'Non-billable');
 
   const ProjectBillingType(this.value, this.label);
@@ -102,6 +103,31 @@ DateTime? _day(Object? value) {
   return parsed == null
       ? null
       : DateTime(parsed.year, parsed.month, parsed.day);
+}
+
+const _monthNames = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+/// "October 2026" from a `YYYY-MM` month or a `YYYY-MM-DD` date, or null.
+/// English whatever the device's language, as the web writes it.
+String? monthLabel(String? raw) {
+  final m = RegExp(r'^(\d{4})-(\d{2})(?:-\d{2})?$').firstMatch(raw ?? '');
+  if (m == null) return null;
+  final month = int.parse(m.group(2)!);
+  if (month < 1 || month > 12) return null;
+  return '${_monthNames[month - 1]} ${m.group(1)}';
 }
 
 /// Hours with the trailing zeros dropped: 12.50 reads "12.5", 40.00 "40".
@@ -187,6 +213,44 @@ class ProjectBurn {
     if (h == null && a == null) return null;
     if (a == null || (h != null && h >= a)) return (percent: h!, kind: 'hours');
     return (percent: a, kind: 'amount');
+  }
+}
+
+/// A retainer's month so far: what billing `retainer_next_month` would count
+/// today. Present only on a retainer project's detail.
+class RetainerUsage {
+  const RetainerUsage({
+    this.month,
+    this.usedHours = 0,
+    this.availableHours,
+    this.overageHours = 0,
+    this.billableNow = false,
+  });
+
+  /// `YYYY-MM`.
+  final String? month;
+  final double usedHours;
+
+  /// Null without an allowance.
+  final double? availableHours;
+  final double overageHours;
+
+  /// Whether Bill this month would succeed for an admin.
+  final bool billableNow;
+
+  String? get monthText => monthLabel(month);
+
+  /// Reads a `ProjectRetainerUsage`.
+  factory RetainerUsage.fromJson(Object? json) {
+    if (json is! Map<String, dynamic>) return const RetainerUsage();
+    final w = api.ProjectRetainerUsage.fromJson(json);
+    return RetainerUsage(
+      month: w.month,
+      usedHours: _decimal(w.usedHours),
+      availableHours: decimalOrNull(w.availableHours),
+      overageHours: _decimal(w.overageHours),
+      billableNow: w.billableNow ?? false,
+    );
   }
 }
 
@@ -280,6 +344,14 @@ class Project {
     this.canDelete = false,
     this.canBill = false,
     this.estimateNumber,
+    this.retainerFee,
+    this.retainerHours,
+    this.retainerRollover = false,
+    this.retainerOverageRate,
+    this.retainerCarriedHours,
+    this.retainerNextMonth,
+    this.retainerLastMonth,
+    this.retainerUsage,
   });
 
   final String id;
@@ -324,6 +396,21 @@ class Project {
   /// The number of the accepted estimate that started the project, or null.
   final String? estimateNumber;
 
+  /// Retainer values as sent (decimal text), or null. The two months are
+  /// `YYYY-MM-DD`, the first day of the month.
+  final String? retainerFee;
+  final String? retainerHours;
+  final bool retainerRollover;
+  final String? retainerOverageRate;
+  final String? retainerCarriedHours;
+  final String? retainerNextMonth;
+
+  /// Null while the retainer is open.
+  final String? retainerLastMonth;
+
+  /// Detail only, and null unless the billing type is a retainer.
+  final RetainerUsage? retainerUsage;
+
   ProjectStatus? get status => ProjectStatus.fromValue(rawStatus);
 
   String get statusLabel => status?.label ?? rawStatus.replaceAll('_', ' ');
@@ -331,6 +418,11 @@ class Project {
   Color get statusColor => status?.color ?? AppColors.gray500;
 
   bool get isFixedFee => billingType == ProjectBillingType.fixedFee;
+
+  bool get isRetainer => billingType == ProjectBillingType.retainer;
+
+  double? get retainerHoursValue => decimalOrNull(retainerHours);
+  double get retainerCarriedValue => decimalOrNull(retainerCarriedHours) ?? 0;
 
   double? get budgetHoursValue => decimalOrNull(budgetHours);
   double? get budgetAmountValue => decimalOrNull(budgetAmount);
@@ -401,6 +493,16 @@ class Project {
         final number? when number.isNotEmpty => number,
         _ => null,
       },
+      retainerFee: _decimalText(w.retainerFee),
+      retainerHours: _decimalText(w.retainerHours),
+      retainerRollover: w.retainerRollover ?? false,
+      retainerOverageRate: _decimalText(w.retainerOverageRate),
+      retainerCarriedHours: _decimalText(w.retainerCarriedHours),
+      retainerNextMonth: w.retainerNextMonth,
+      retainerLastMonth: w.retainerLastMonth,
+      retainerUsage: w.retainerUsage == null
+          ? null
+          : RetainerUsage.fromJson(w.retainerUsage!.json),
     );
   }
 
@@ -434,6 +536,14 @@ class Project {
         canDelete: canDelete,
         canBill: canBill,
         estimateNumber: estimateNumber,
+        retainerFee: retainerFee,
+        retainerHours: retainerHours,
+        retainerRollover: retainerRollover,
+        retainerOverageRate: retainerOverageRate,
+        retainerCarriedHours: retainerCarriedHours,
+        retainerNextMonth: retainerNextMonth,
+        retainerLastMonth: retainerLastMonth,
+        retainerUsage: retainerUsage,
       );
 }
 

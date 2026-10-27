@@ -238,6 +238,7 @@ void main() {
         'project.budget',
         'estimate.accepted',
         'estimate.declined',
+        'project.retainer_invoice',
       ]);
     });
 
