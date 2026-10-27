@@ -43,15 +43,22 @@ class LineItemDraft {
   /// denormalises both so a later price change never rewrites this invoice.
   final String? productId;
 
-  /// Quantity x unit price less the line's own discount: the server's
-  /// `net_amount`, which is what the line adds to the subtotal.
-  double get netAmount {
-    final gross = quantity * unitPrice;
-    return gross -
-        (discountType == 'PERCENTAGE'
-            ? gross * discountValue / 100
-            : discountValue);
+  /// Quantity x unit price less the line's own discount, in cents: the
+  /// server's `net_amount`, which is what the line adds to the subtotal. The
+  /// gross and the discount are each rounded half up to the cent first, as
+  /// `line_gross` and `line_discount` round them.
+  int get netCents {
+    final gross = divideHalfUp(
+      hundredths(quantity) * hundredths(unitPrice),
+      100,
+    );
+    final discount = discountType == 'PERCENTAGE'
+        ? divideHalfUp(gross * hundredths(discountValue), 10000)
+        : hundredths(discountValue);
+    return gross - discount;
   }
+
+  double get netAmount => netCents / 100;
 
   /// The API's refusal for this line's discount, or null. A flat discount
   /// carried from a deal can outgrow the line once its quantity or price is

@@ -27,6 +27,10 @@ class AppNotification {
     this.budgetKind,
     this.budgetPercent,
     this.projectName,
+    this.estimateNumber,
+    this.clientName,
+    this.startedProjectId,
+    this.depositInvoiceId,
   });
 
   final String id;
@@ -61,6 +65,14 @@ class AppNotification {
   final int? budgetPercent;
   final String? projectName;
 
+  /// From `data`, for `estimate.accepted` and `estimate.declined`: the
+  /// estimate, the name the client typed (or the estimate's client), and on
+  /// acceptance what the server made from it.
+  final String? estimateNumber;
+  final String? clientName;
+  final String? startedProjectId;
+  final String? depositInvoiceId;
+
   bool get isUnread => readAt == null;
   String get displayActorName => verb.startsWith('support.')
       ? 'BottleCRM Support'
@@ -90,8 +102,9 @@ class AppNotification {
   /// Product support resolves to `/help/<id>`. The `/support/<id>` spelling is
   /// accepted too, because that is what the producer wrote before the page was
   /// renamed, for the same reason `/cases/` is still accepted above. The
-  /// automation verbs' web paths (a record, or the rules) map to their screens
-  /// only with a UUID id and a valid object key.
+  /// automation verbs' web paths (a record, or the rules) and an estimate
+  /// answer's (a project, an invoice or the estimates list) map to their
+  /// screens only with a UUID id and a valid object key.
   String? get destinationPath {
     final ticket = ticketId;
     if (ticket != null) return '/tickets/$ticket';
@@ -102,6 +115,15 @@ class AppNotification {
     // Exactly the paths the engine writes, as the web's `resolvedLink` reads
     // them: no trailing slash, no case folding.
     if (value == '/settings/automation') return AppRoutes.settingsAutomation;
+    if (value == '/invoices/estimates') return AppRoutes.estimates;
+    final invoice = RegExp(
+      r'^/invoices/([^/?#]+)$',
+    ).firstMatch(value)?.group(1);
+    if (invoice != null) {
+      return ApiConfig.isUuid(invoice)
+          ? '${AppRoutes.invoices}/$invoice'
+          : null;
+    }
     final rule = RegExp(
       r'^/settings/automation/([^/?#]+)$',
     ).firstMatch(value)?.group(1);
@@ -181,6 +203,24 @@ class AppNotification {
     return '$name has used $used $kind budget';
   }
 
+  /// The sentence for a client's answer to an estimate, as the web's
+  /// `estimateNotificationText` writes it, or null for any other verb or without the
+  /// estimate's number.
+  String? get estimateText {
+    final accepted = verb == 'estimate.accepted';
+    if (!accepted && verb != 'estimate.declined') return null;
+    final number = estimateNumber?.trim() ?? '';
+    if (number.isEmpty) return null;
+    final client = clientName?.trim() ?? '';
+    final who = client.isEmpty ? 'The client' : client;
+    if (!accepted) return '$who declined estimate $number';
+    return [
+      '$who accepted estimate $number',
+      if ((startedProjectId ?? '').isNotEmpty) 'project started',
+      if ((depositInvoiceId ?? '').isNotEmpty) 'deposit invoice drafted',
+    ].join(', ');
+  }
+
   /// The line under a message naming the rule that sent it.
   String? get automationSource =>
       verb == 'automation.message' && automationText() != null
@@ -230,6 +270,10 @@ class AppNotification {
           ? percent.round()
           : null,
       projectName: text('project'),
+      estimateNumber: text('estimate_number'),
+      clientName: text('client_name'),
+      startedProjectId: text('project_id'),
+      depositInvoiceId: text('deposit_invoice_id'),
     );
   }
 
@@ -250,12 +294,17 @@ class AppNotification {
     budgetKind: budgetKind,
     budgetPercent: budgetPercent,
     projectName: projectName,
+    estimateNumber: estimateNumber,
+    clientName: clientName,
+    startedProjectId: startedProjectId,
+    depositInvoiceId: depositInvoiceId,
   );
 }
 
 /// Verbs the backend dispatches. CRM tickets, platform support, automation
-/// rules and project budgets are the current producers. Anything else is
-/// rendered plainly rather than given copy for a feature that does not exist.
+/// rules, project budgets and clients answering estimates are the current
+/// producers. Anything else is rendered plainly rather than given copy for a
+/// feature that does not exist.
 const List<String> producedVerbs = [
   'case.mentioned',
   'case.commented',
@@ -266,4 +315,6 @@ const List<String> producedVerbs = [
   'automation.paused',
   'automation.limit',
   'project.budget',
+  'estimate.accepted',
+  'estimate.declined',
 ];

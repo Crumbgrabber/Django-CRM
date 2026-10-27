@@ -8,6 +8,9 @@
  * discount, then tax on the discounted amount, then shipping added untaxed
  * (invoices only: an estimate has no shipping, so its builder passes none). If
  * the two ever disagree, the server is right and this file has a bug.
+ *
+ * The sums run in whole cents and round where the server's Decimals do, half
+ * up, so a float never moves a cent.
  */
 
 /**
@@ -33,6 +36,34 @@ export type Line = {
 
 export const num = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
+/**
+ * A figure in hundredths (cents of money, hundredths of a percent), rounded
+ * half up as `quantize(CENT, ROUND_HALF_UP)` does: away from zero.
+ * `toFixed(6)` first, so 1.005 is not read as 1.00499...
+ */
+export function hundredths(v: Figure) {
+  const n = num(v);
+  const h = Math.round(Number((Math.abs(n) * 100).toFixed(6)));
+  return n < 0 ? -h : h;
+}
+
+/** Whole `n / d` rounded half up (away from zero), exact for integers. */
+export function divHalfUp(n: number, d: number) {
+  const q = Math.floor((2 * Math.abs(n) + d) / (2 * d));
+  return n < 0 ? -q : q;
+}
+
+/**
+ * A line in cents: `gross` is quantity x unit price (`line_gross`) and `net`
+ * is that less the line's discount (`line_discount`), each to the cent.
+ */
+function lineCents(line: Line) {
+  const gross = divHalfUp(hundredths(line.quantity) * hundredths(line.unit_price), 100);
+  const value = hundredths(line.discount_value);
+  const off = line.discount_type === 'PERCENTAGE' ? divHalfUp(gross * value, 10000) : value;
+  return { gross, net: gross - off };
+}
+
 /** An empty line, the shape both builders edit. */
 export const blankLine = (): Line => ({
   name: '',
@@ -47,11 +78,7 @@ export const blankLine = (): Line => ({
  * discount, the server's `LineAmounts.net_amount`. PERCENTAGE takes that share;
  * any other type with a value takes it as a flat amount, as the server does.
  */
-export function lineAmount(line: Line) {
-  const gross = num(line.quantity) * num(line.unit_price);
-  const value = num(line.discount_value);
-  return gross - (line.discount_type === 'PERCENTAGE' ? gross * (value / 100) : value);
-}
+export const lineAmount = (line: Line) => lineCents(line).net / 100;
 
 /**
  * Each line with its `gross` (quantity x unit price) and `amount` (after its
@@ -62,11 +89,10 @@ export function lineAmount(line: Line) {
  * discounted to nothing is still a line, so the check is on the gross.
  */
 export function lineTotals(items: Line[]) {
-  const lines = items.map((i) => ({
-    ...i,
-    gross: num(i.quantity) * num(i.unit_price),
-    amount: lineAmount(i)
-  }));
+  const lines = items.map((i) => {
+    const { gross, net } = lineCents(i);
+    return { ...i, gross: gross / 100, amount: net / 100 };
+  });
   const usable = lines.filter(
     (l) => l.name.trim() && num(l.quantity) > 0 && num(l.unit_price) >= 0 && l.gross > 0
   );
@@ -87,16 +113,23 @@ export function documentTotals({
   taxRate?: Figure;
   shipping?: Figure;
 }) {
-  const subtotal = lines.reduce((a, l) => a + l.amount, 0);
-  const discountAmount =
+  const subtotal = lines.reduce((a, l) => a + hundredths(l.amount), 0);
+  const discount =
     discountType === 'PERCENTAGE'
-      ? subtotal * (num(discountValue) / 100)
+      ? divHalfUp(subtotal * hundredths(discountValue), 10000)
       : discountType === 'FIXED'
-        ? num(discountValue)
+        ? hundredths(discountValue)
         : 0;
+  // Capped at the subtotal, as the server caps it.
+  const discountAmount = Math.min(discount, subtotal);
   const taxable = subtotal - discountAmount;
-  const taxAmount = taxable * (num(taxRate) / 100);
-  return { subtotal, discountAmount, taxAmount, total: taxable + taxAmount + num(shipping) };
+  const taxAmount = divHalfUp(taxable * hundredths(taxRate), 10000);
+  return {
+    subtotal: subtotal / 100,
+    discountAmount: discountAmount / 100,
+    taxAmount: taxAmount / 100,
+    total: (taxable + taxAmount + hundredths(shipping)) / 100
+  };
 }
 
 /**

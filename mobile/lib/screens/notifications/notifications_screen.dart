@@ -159,6 +159,10 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         ? n.automationText() ?? 'An automation rule sent a notification.'
         : n.verb == 'project.budget'
         ? n.budgetText ?? 'A project reached a budget level.'
+        : n.verb == 'estimate.accepted'
+        ? n.estimateText ?? 'A client accepted an estimate.'
+        : n.verb == 'estimate.declined'
+        ? n.estimateText ?? 'A client declined an estimate.'
         : null;
     return InkWell(
       // Tapping opens the ticket and marks it read. With no resolvable ticket
@@ -294,8 +298,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   ) {
     final source = n.automationSource;
     return [
-      // A budget sentence names its project and nobody sent it.
-      if (n.verb != 'project.budget') ...[
+      // A budget or estimate sentence names its subject, and nobody sent it.
+      if (n.verb != 'project.budget' && !n.verb.startsWith('estimate.')) ...[
         Text(
           n.displayActorName,
           style: AppTypography.body.copyWith(fontWeight: FontWeight.w600),
@@ -399,6 +403,8 @@ class _AutomationIcon extends StatelessWidget {
         'automation.message' => LucideIcons.zap,
         'automation.failed' || 'automation.limit' => LucideIcons.triangleAlert,
         'project.budget' => LucideIcons.gauge,
+        'estimate.accepted' => LucideIcons.fileCheck,
+        'estimate.declined' => LucideIcons.fileX,
         _ => LucideIcons.bell,
       },
       size: 16,

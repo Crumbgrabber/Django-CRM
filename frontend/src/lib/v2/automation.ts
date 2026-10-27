@@ -5,6 +5,7 @@
 import { runTime } from '#lib/v2/format.js';
 import { isOn, OBJECT_MODULES, type ModuleRow } from '#lib/v2/modules.js';
 import { budgetNotificationText } from '#lib/v2/projects.js';
+import { estimateNotificationText } from '#lib/v2/estimates.js';
 import type { Tone } from '#lib/v2/enums.js';
 import type { components } from '#lib/api-schema.js';
 
@@ -854,14 +855,17 @@ export function hubValue(
 const str = (v: unknown): v is string => typeof v === 'string';
 
 /**
- * The sentence an automation or project budget notification shows, composed
- * from `data`. Null for any other verb or data of the wrong type, so the row
- * keeps its usual copy.
+ * The sentence an automation, project budget or estimate notification shows,
+ * composed from `data`. Null for any other verb or data of the wrong type, so
+ * the row keeps its usual copy; an estimate's verb has a fallback sentence
+ * instead (see `estimateNotificationText`).
  */
 export function notificationText(
   n: { verb?: string; data?: unknown } | null | undefined,
   timeZone: string
 ): { text: string; source: string | null } | null {
+  const estimate = estimateNotificationText(n?.verb, n?.data);
+  if (estimate) return { text: estimate, source: null };
   const d = asObject(n?.data);
   if (!d || !n) return null;
   switch (n.verb) {

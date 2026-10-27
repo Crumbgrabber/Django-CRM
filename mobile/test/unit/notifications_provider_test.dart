@@ -236,6 +236,8 @@ void main() {
         'automation.paused',
         'automation.limit',
         'project.budget',
+        'estimate.accepted',
+        'estimate.declined',
       ]);
     });
 

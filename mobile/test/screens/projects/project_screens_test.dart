@@ -273,6 +273,29 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('names the estimate that started it, as text', (tester) async {
+      serve({
+        ..._project(),
+        'estimate': {'id': 'e7', 'estimate_number': 'EST-0007'},
+      });
+      await pump(tester, const ProjectDetailScreen(projectId: _pid));
+
+      expect(find.text('FROM ESTIMATE'), findsOneWidget);
+      expect(find.text('EST-0007'), findsOneWidget);
+      await tester.tap(find.text('EST-0007'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ProjectDetailScreen), findsOneWidget);
+    });
+
+    testWidgets('a project no estimate started says nothing of one', (
+      tester,
+    ) async {
+      serve({..._project(), 'estimate': null});
+      await pump(tester, const ProjectDetailScreen(projectId: _pid));
+
+      expect(find.text('FROM ESTIMATE'), findsNothing);
+    });
+
     testWidgets('a module that is off takes its section with it', (
       tester,
     ) async {

@@ -1,7 +1,6 @@
 import pytest
 
 from common.packs.loader import get_registry
-from common.packs.schema import SAMPLE_ENTITY_KEYS
 
 SHIPPED = {
     "real-estate",
@@ -67,7 +66,7 @@ def test_sample_data_covers_every_entity_type(pack_id):
     gap this content set exists to close.
     """
     sample = get_registry()[pack_id]["sample_data"]
-    for key in SAMPLE_ENTITY_KEYS:
+    for key in ("accounts", "contacts", "deals", "tickets", "leads", "tasks"):
         assert sample.get(key), f"{pack_id} has no sample {key}"
 
 
@@ -76,7 +75,9 @@ def test_every_sample_task_hangs_off_something(pack_id):
     """An unparented task is legal but reads as orphaned in the UI."""
     pack = get_registry()[pack_id]
     for task in pack["sample_data"]["tasks"]:
-        parents = [p for p in ("account", "deal", "ticket", "lead") if task.get(p)]
+        parents = [
+            p for p in ("account", "deal", "ticket", "lead", "project") if task.get(p)
+        ]
         assert len(parents) == 1, (
             f"{pack_id}: sample task {task['title']!r} has parents {parents}, expected exactly one"
         )

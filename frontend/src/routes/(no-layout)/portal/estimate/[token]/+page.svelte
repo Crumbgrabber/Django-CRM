@@ -26,6 +26,7 @@
   import PortalShell from '#lib/v2/components/PortalShell.svelte';
   import PortalLineItems from '#lib/v2/components/PortalLineItems.svelte';
   import { money, longDate } from '#lib/v2/format.js';
+  import { DEPOSIT_FOLLOWS, depositOffer } from '#lib/v2/estimates.js';
   import { Download, CheckCircle2, XCircle, AlertTriangle } from '@lucide/svelte';
   import type { PageProps, SubmitFunction } from './$types';
 
@@ -33,6 +34,7 @@
 
   let est = $derived(data.estimate);
   let token = $derived(data.token);
+  let offer = $derived(depositOffer(est.deposit));
 
   /** null when there is no expiry date; negative once it has passed. */
   let daysToExpiry = $derived.by(() => {
@@ -136,7 +138,8 @@
           {#if est.status === 'Accepted'}
             <p>
               {est.org.name} has been notified and will raise an invoice for
-              {money(est.total_amount, est.currency)}. A copy has been sent to {est.client_email}.
+              {money(est.total_amount, est.currency)}.
+              {#if est.deposit}{DEPOSIT_FOLLOWS}{/if}
             </p>
           {:else}
             <p>
@@ -165,6 +168,7 @@
           <div class="decide-copy">
             <b>Ready to go ahead?</b>
             <p>Accepting authorises {est.org.name} to invoice you for the amounts above.</p>
+            {#if offer}<p>{offer}</p>{/if}
           </div>
           <div class="decide-actions">
             <button class="v2-btn v2-btn-primary" onclick={() => (confirming = true)}>
@@ -182,6 +186,7 @@
             <p>
               This tells {est.org.name} to raise an invoice. It cannot be undone from this page.
             </p>
+            {#if offer}<p>{offer}</p>{/if}
             <label class="field">
               <span>Your name</span>
               <input
@@ -229,6 +234,13 @@
         {/each}
       </div>
     </section>
+
+    {#if est.introduction}
+      <!-- The author's own words: text with its line breaks, never markup. -->
+      <section class="block">
+        <p class="note">{est.introduction}</p>
+      </section>
+    {/if}
 
     <section class="block">
       <div class="v2-label">What is included</div>
@@ -476,6 +488,7 @@
     font-size: 13px;
     line-height: 1.55;
     white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
 
   .doc-foot {

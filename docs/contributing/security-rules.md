@@ -102,9 +102,9 @@ equivalent of popping a key out of `request.data` before `save()`, but enforced 
 serializer's `fields` tuple omits rather than by a runtime pop.
 
 The sharpest example of *why* this matters is `is_sample`, a flag shared, via one imported
-`SAMPLE_DATA_HELP_TEXT` constant, by six models: `Lead`, `Account`, `Contact`, `Case`, `Opportunity`,
-and `Task` (`grep -rl SAMPLE_DATA_HELP_TEXT backend/` finds it in each app's `models.py`, plus
-`common/base.py` where it's defined once). `leads/serializer.py` declares
+`SAMPLE_DATA_HELP_TEXT` constant, by eight models: `Lead`, `Account`, `Contact`, `Case`,
+`Opportunity`, `Task`, `Project` and `TimeEntry` (`grep -rl SAMPLE_DATA_HELP_TEXT backend/` finds it
+in each app's `models.py`, plus `common/base.py` where it's defined once). `leads/serializer.py` declares
 `read_only_fields = ("is_sample",)`. The help text itself, defined once in `backend/common/base.py`
 and shared by every model that has the field, states the reasoning as a security invariant rather
 than documentation:

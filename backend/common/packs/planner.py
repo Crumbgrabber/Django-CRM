@@ -58,12 +58,15 @@ _SAMPLE_SECTIONS = {
     "deals": "sample_deal",
     "tickets": "sample_ticket",
     "leads": "sample_lead",
+    "projects": "sample_project",
     "tasks": "sample_task",
+    "time_entries": "sample_time_entry",
 }
 _TASK_PARENTS = {
     "deal": "sample_deal",
     "ticket": "sample_ticket",
     "lead": "sample_lead",
+    "project": "sample_project",
 }
 
 
@@ -213,6 +216,8 @@ def _sample_records(org, pack: dict) -> int:
             needs = [type_]
             if section == "tasks":
                 needs += [t for parent, t in _TASK_PARENTS.items() if row.get(parent)]
+            if section == "time_entries":
+                needs.append("sample_project")
             count += all(on(t) for t in needs)
     return count
 

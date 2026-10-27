@@ -145,23 +145,27 @@ hard-deleted; an invoice cannot** (see [above](#invoices)).
 `estimate_number`, `title` or `client_name`), `cf_<key>`. Visibility follows the same rule as invoices,
 non-admin sees only estimates they created or are assigned to.
 
-`POST /api/invoices/estimates/` (`:1066-1100`) is validated by `EstimateCreateSerializer`
-(`invoices/serializer.py:892-1018`; see [Fields](#fields)). **Unlike `InvoiceCreateSerializer`,
-`EstimateCreateSerializer` does not mark `status` read-only**, nothing stops an authenticated,
-same-org caller with write access from `POST`ing or `PUT`ing an estimate directly into
-`status: "Accepted"`. Doing so does **not** run any of the checks or side effects the public accept
-flow enforces (see [Public portal endpoints](#public-portal-endpoints)): no expiry check, and none of
-`accepted_by_name`/`accepted_by_email`/`accepted_ip`/`accepted_user_agent` get populated, even though
-the model comment above those fields calls acceptance "an authorisation" that the app records who gave.
-This is reported here, not fixed, per this documentation task's scope.
+`POST /api/invoices/estimates/` is validated by `EstimateCreateSerializer` (see [Fields](#fields)).
+**`status` is read-only**, as on invoices: a new estimate is a Draft, `send` moves it to Sent, and
+only the client's acceptance on the [public page](#public-portal-endpoints) (or raising the invoice)
+moves it to Accepted. A `status` sent in the body is ignored, so no authenticated caller can mark an
+estimate accepted without the expiry check and the record of who accepted it.
 
 `GET/PUT/DELETE /api/invoices/estimates/{id}/` (`EstimateDetailView`, `:1103-1187`); `DELETE` is a
 real hard delete (`estimate.delete()`, `:1182`), gated by the same access rule as read/write.
 
-`POST /api/invoices/estimates/{id}/convert/` (`EstimateConvertView.post`, `:1189-1266`) creates a new
-`Draft` invoice from the estimate's client/billing/discount/tax fields and line items, then sets
-`estimate.status = "Accepted"`, `accepted_at = now()`, and `estimate.converted_to_invoice = invoice`
-(`:1253-1257`). **This is the field that stops a second conversion from duplicating the invoice**: the
+`POST /api/invoices/estimates/{id}/convert/` (`EstimateConvertView.post`) creates a new
+`Draft` invoice from the estimate's client/billing/discount/tax fields and line items, carrying the
+estimate's `project`, then sets
+`estimate.status = "Accepted"`, `accepted_at = now()`, and `estimate.converted_to_invoice = invoice`.
+When the estimate has no project yet and `start_project` is set (with an account and Projects on),
+the convert starts the project first, exactly as acceptance would, links it to the estimate and puts
+it on the new invoice; it drafts no deposit, since the whole estimate is being invoiced, and notifies
+no one. An estimate the client already accepted keeps the project acceptance started.
+It answers `201` `{"error": false, "message", "invoice": <invoice>, "deposit_invoice"}`, where
+`deposit_invoice` is the estimate's deposit invoice (`{"id", "invoice_number", "status",
+"total_amount"}`) unless there is none or it is Cancelled, then `null`. The new invoice still bills
+every line: the deposit is not taken off (see [Proposals](#proposals)). **This is the field that stops a second conversion from duplicating the invoice**: the
 view's very first check is `if estimate.converted_to_invoice: return 400` (`:1200-1204`), before
 anything else runs. Any client rendering an estimate list needs to read this field, not just `status`,
 to decide whether to offer "raise an invoice",
@@ -169,6 +173,38 @@ to decide whether to offer "raise an invoice",
 row specifically so the worklist can tell "accepted, not yet billed" apart from "already billed" without
 a second request per row; the class docstring is explicit that omitting it "would offer to raise a
 second invoice for an estimate that already has one."
+
+### Proposals
+
+An estimate can carry an introduction, a deposit and a project to start on acceptance
+([Proposals](../features/proposals.md)). Four fields are written on `POST` and `PUT`:
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `introduction` | text, up to 5,000 characters | Default `""`. Plain text: shown with its line breaks, never as HTML |
+| `deposit_percent` | decimal or `null` | More than 0 and at most 100; `null` (the default) for no deposit. Locked once the estimate leaves Draft, like its lines: a different value is `400`, the stored one is accepted |
+| `start_project` | boolean | Default `false`. `true` needs an account and the Projects module, else `400` on `start_project`. Admin only (below) |
+| `project_billing_type` | `fixed_fee` (default), `time_and_materials`, `non_billable` | Used only with `start_project`. Admin only (below) |
+
+Only an org admin may change `start_project` or `project_billing_type`, as only an admin sets a
+project's billing type and budget ([Projects](../features/projects.md#money-is-set-by-admins)).
+Another caller gets `400` on the field, "Only an admin can start a project from an estimate.", when
+the value sent differs from the stored one (on `POST`, from the defaults `false` and `fixed_fee`).
+Sending the stored value back is accepted, so a member can edit the rest of an estimate an admin set
+up.
+
+The detail also reads `project` and `deposit_invoice`, each an id or `null`, set only by the
+client's acceptance or by raising the invoice, and never writable.
+
+A list row carries the four fields, plus `project` (`{"id", "name"}`),
+`deposit_invoice` (`{"id", "invoice_number", "status", "total_amount"}`) and `deposit`
+(`{"percent", "amount", "currency"}`), each `null` when there is none. `project` is also `null`
+while Projects is off or when the caller cannot open the project, and `deposit_invoice` when the
+caller cannot open the invoice: seeing the estimate is not access to what its acceptance made.
+`deposit.amount` is the deposit's pre-tax part (the subtotal less the document discount, each
+rounded half up to the cent, times the percent, rounded half up to the cent) plus the estimate's tax
+rate on it: exactly what the deposit invoice will total. A deposit that would total `0.00` is no
+deposit: `deposit` is `null` and acceptance drafts no invoice.
 
 `POST /api/invoices/estimates/{id}/send/` (`EstimateSendView.post`, `:1269-1291`) moves `Draft` → `Sent`
 and queues `send_estimate_to_client`. `GET /api/invoices/estimates/{id}/pdf/`
@@ -334,8 +370,9 @@ already expired for an org in `Asia/Kolkata` and still acceptable for an org in 
   and flips `Sent` → `Viewed`.
 - `GET /api/public/invoice/{token}/pdf/` (`PublicInvoicePDFView.get`, `:166-206`), same PDF the
   authenticated endpoint generates, `include_payments=True`.
-- `GET /api/public/estimate/{token}/` (`PublicEstimateView.get`, `:209-301`), same shape, for
-  estimates; also stamps `viewed_at` on first view.
+- `GET /api/public/estimate/{token}/` (`PublicEstimateView.get`), same shape, for
+  estimates; also stamps `viewed_at` on first view. It carries `introduction` (`""` when none) and
+  `deposit` (`{"percent", "amount", "currency"}`, or `null`), and nothing about projects.
 - `GET /api/public/estimate/{token}/pdf/` (`PublicEstimatePDFView.get`, `:304-344`).
 - `POST /api/public/estimate/{token}/accept/` (`PublicEstimateAcceptView.post`, `:347-430`). The
   authenticated `status` write does not exist for the anonymous caller, so acceptance is its own
@@ -348,9 +385,23 @@ already expired for an org in `Asia/Kolkata` and still acceptable for an org in 
   accepted: `accepted_by_name`, `accepted_by_email` (truncated to the column's max length), `accepted_ip`
   (`common.request_meta.client_ip`: `REMOTE_ADDR`, or with `NUM_PROXIES` set the address our outermost
   proxy saw; treated as evidence, not proof),
-  and `accepted_user_agent`, alongside `status = "Accepted"` and `accepted_at`.
-- `POST /api/public/estimate/{token}/decline/` (`PublicEstimateDeclineView.post`, `:433-468`): same
-  `Sent`/`Viewed` precondition, no identity capture, sets `status = "Declined"` and `declined_at`.
+  and `accepted_user_agent`, alongside `status = "Accepted"` and `accepted_at`. In the same
+  transaction it starts the project (when `start_project` is set and Projects is on) and drafts the
+  deposit invoice (when `deposit` is not `null`), links both to the estimate, and notifies the
+  estimate's people ([Proposals](../features/proposals.md)). The org of every record it makes comes
+  from the token; nothing in the body but `name` and `email` reaches them. Any failure rolls the
+  whole accept back and answers `500`, so the client can retry. The answer is unchanged.
+- `POST /api/public/estimate/{token}/decline/` (`PublicEstimateDeclineView.post`): same
+  `Sent`/`Viewed` precondition, no identity capture, sets `status = "Declined"` and `declined_at`,
+  and notifies the estimate's people.
+
+Both notify the estimate creator's active profile and its active assignees, each once, or the
+org's active admins when there are none, with no actor:
+
+| Verb | `data` | `link` |
+| --- | --- | --- |
+| `estimate.accepted` | `estimate_number`, `client_name` (the typed name), `project_id`, `deposit_invoice_id` (each an id or `null`) | `/projects/<id>` when a project was started, else `/invoices/<id>` when a deposit was drafted, else `/invoices/estimates` |
+| `estimate.declined` | `estimate_number`, `client_name` (the estimate's) | `/invoices/estimates` |
 
 ## Fields
 
@@ -384,12 +435,12 @@ server-side the first time the row is saved, in the format the org chose (see
 [Document numbers](#document-numbers)). By default that is `INV-YYYYMMDD-NNNN`, with the date taken
 from the org's day.
 
-`EstimateCreateSerializer.Meta.fields` (`invoices/serializer.py:904-928`) mirrors the invoice shape
+`EstimateCreateSerializer.Meta.fields` mirrors the invoice shape
 closely: `title` (**required**), `account_id`/`contact_id` (**required**, org-validated),
 `opportunity_id` (optional, org-validated), the same client/address/discount/tax/currency/notes/terms
 fields, `issue_date` (optional, defaults to today in the org's timezone), `expiry_date` (optional, no
-default. This is what the public accept endpoint checks), `public_link_enabled`,
-and `line_items`. **`status` is writable here**. See the caveat in [Estimates](#estimates). Like
+default. This is what the public accept endpoint checks), `public_link_enabled`, the four
+[proposal fields](#proposals) and `line_items`. `status` is **read-only**, as on invoices. Like
 invoices, `estimate_number` is server-generated on first save in the org's chosen format (by default
 `EST-YYYYMMDD-NNNN`, the org's day), not part of the serializer.
 
@@ -399,7 +450,8 @@ invoices, `estimate_number` is server-generated on first save in the org's chose
 `recalculate_totals()`), `sent_at`/`viewed_at`/`paid_at`/`cancelled_at` (invoice) or
 `sent_at`/`viewed_at`/`accepted_at`/`declined_at`/`accepted_by_*` (estimate), `public_token`,
 `public_url`, `created_by`, `created_at`, `updated_at`, and, on the estimate only,
-`converted_to_invoice` (see [Estimates](#estimates)).
+`converted_to_invoice` (see [Estimates](#estimates)), `project` and `deposit_invoice` (see
+[Proposals](#proposals)).
 
 ### Recurring schedule dates
 

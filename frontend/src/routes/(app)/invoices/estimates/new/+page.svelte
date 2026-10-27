@@ -42,6 +42,19 @@
   import { addDays, todayIn } from '#lib/v2/dates.js';
   import { numberPattern } from '#lib/v2/document-numbers.js';
   import { isOn } from '#lib/v2/modules.js';
+  import { isOrgAdmin } from '#lib/admin.js';
+  import { money } from '#lib/v2/format.js';
+  import { BILLING_TYPE_LABEL } from '#lib/v2/projects.js';
+  import {
+    DEPOSIT_ROUNDS_TO_ZERO,
+    INTRODUCTION_MAX,
+    PROJECT_BILLING_TYPES,
+    depositAmount,
+    depositOffer,
+    depositPercentError,
+    proposalFields
+  } from '#lib/v2/estimates.js';
+  import type { Figure } from '#lib/v2/line-items.js';
   import type { PageProps } from './$types';
 
   type Schemas = components['schemas'];
@@ -98,6 +111,13 @@
   let notes = $state('');
   let terms = $state('');
   let items = $state(start.items);
+  let introduction = $state('');
+  let depositPercent: Figure = $state(null);
+  let startProject = $state(false);
+  let billingType = $state('fixed_fee');
+  let projectsOn = $derived(isOn(data.modules, 'projects'));
+  /* Starting a project on acceptance is an admin's call; the API refuses anyone else. */
+  let isAdmin = $derived(isOrgAdmin(data));
 
   /* The invoice builder's rule: a contact bound to another account is a 400. */
   let contactOptions = $derived(
@@ -120,6 +140,21 @@
   let taxError = $derived(taxRateError(taxRate));
   /* Only a line started from the deal carries a discount of its own. */
   let linesOk = $derived(!usableLines.some(lineDiscountError));
+  let depositError = $derived(depositPercentError(depositPercent));
+  let deposit = $derived(
+    depositAmount({
+      subtotal: totals.subtotal,
+      discountAmount: totals.discountAmount,
+      taxRate,
+      percent: depositPercent
+    })
+  );
+  /* A deposit that rounds to 0.00 drafts no invoice, so the client is promised none. */
+  let depositLine = $derived(
+    deposit && deposit.total > 0
+      ? depositOffer({ percent: depositPercent, amount: deposit.total, currency })
+      : null
+  );
 
   let ready = $derived(
     Boolean(accountId) &&
@@ -129,6 +164,7 @@
       !datesBackwards &&
       !discountError &&
       !taxError &&
+      !depositError &&
       linesOk
   );
 
@@ -145,7 +181,15 @@
       contact_id: contactId,
       currency,
       issue_date: issueDate,
-      line_items: linePayload(usableLines)
+      line_items: linePayload(usableLines),
+      ...proposalFields({
+        introduction,
+        depositPercent,
+        startProject,
+        billingType,
+        projectsOn,
+        isAdmin
+      })
     };
     if (dealId) body.opportunity_id = dealId;
     if (expiryDate) body.expiry_date = expiryDate;
@@ -278,6 +322,17 @@
           {/if}
         </div>
 
+        <div class="v2-card" style="padding:16px 18px;margin-top:14px">
+          <label class="f">
+            <span>Introduction <span class="opt">(optional)</span></span>
+            <textarea
+              rows="5"
+              maxlength={INTRODUCTION_MAX}
+              bind:value={introduction}
+              placeholder="What you will do and why. Shown above the lines"></textarea>
+          </label>
+        </div>
+
         <LineItemsEditor bind:items products={data.products} {currency} />
 
         <div class="v2-card" style="padding:16px 18px;margin-top:14px">
@@ -326,14 +381,68 @@
         </div>
 
         <div class="v2-card" style="padding:16px 18px;margin-top:14px">
+          <div class="v2-label" style="margin-bottom:12px">When the client accepts</div>
+          <div class="beside">
+            <label class="f">
+              <span>Deposit on acceptance %</span>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                placeholder="No deposit"
+                bind:value={depositPercent}
+                aria-invalid={Boolean(depositError)}
+                aria-describedby={depositError ? 'deposit-error' : undefined}
+              />
+            </label>
+            {#if deposit && deposit.total > 0}
+              <span class="v2-num deposit-amount">
+                {money(deposit.total, currency)}{num(taxRate) ? ' with tax' : ''}
+              </span>
+            {/if}
+          </div>
+          {#if depositError}
+            <small id="deposit-error" class="field-err" role="alert">{depositError}</small>
+          {:else if deposit && deposit.total === 0}
+            <p class="hint">{DEPOSIT_ROUNDS_TO_ZERO}</p>
+          {/if}
+          <p class="hint">The deposit invoice is drafted for you to send, never sent on its own.</p>
+
+          {#if projectsOn && isAdmin}
+            <label class="check">
+              <input type="checkbox" bind:checked={startProject} />
+              <span>Start a project when accepted</span>
+            </label>
+            {#if startProject}
+              <label class="f" style="margin-top:12px">
+                <span>Project billing</span>
+                <select bind:value={billingType}>
+                  {#each PROJECT_BILLING_TYPES as t (t)}
+                    <option value={t}>{BILLING_TYPE_LABEL[t]}</option>
+                  {/each}
+                </select>
+              </label>
+              <p class="hint">
+                {#if billingType === 'non_billable'}
+                  The project gets this estimate's account, deal and people.
+                {:else}
+                  The project gets this estimate's account, deal and people, and its total before
+                  tax as the budget.
+                {/if}
+              </p>
+            {/if}
+          {/if}
+        </div>
+
+        <div class="v2-card" style="padding:16px 18px;margin-top:14px">
           <label class="f">
             <span>Notes to the customer</span>
             <textarea rows="3" bind:value={notes} placeholder="Appears on the estimate"></textarea>
           </label>
           <label class="f" style="margin-top:12px">
             <span>Terms</span>
-            <textarea rows="3" bind:value={terms} placeholder="Deposit, scope, what is excluded"
-            ></textarea>
+            <textarea rows="3" bind:value={terms} placeholder="Scope, what is excluded"></textarea>
           </label>
         </div>
         {#if data.customFields?.length}
@@ -354,6 +463,9 @@
             <span class="v2-label">What the customer will see</span>
           </div>
           <div style="padding:14px 16px 16px">
+            {#if introduction.trim()}
+              <p class="intro">{introduction.trim()}</p>
+            {/if}
             {#if usableLines.length}
               <PortalLineItems
                 items={usableLines}
@@ -366,6 +478,9 @@
                 taxAmount={totals.taxAmount}
                 total={totals.total}
               />
+              {#if depositLine}
+                <p class="hint">{depositLine}</p>
+              {/if}
             {:else}
               <p class="empty">
                 Add a line with a description and an amount, and the customer's copy appears here.
@@ -453,6 +568,40 @@
     font-size: 11.5px;
     color: var(--v2-slate);
     line-height: 1.5;
+  }
+  .beside {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+  }
+  .beside .f {
+    flex: 0 1 220px;
+  }
+  .deposit-amount {
+    line-height: 44px;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    margin-top: 6px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .check input {
+    width: auto;
+    min-height: 0;
+  }
+  .intro {
+    margin: 0 0 14px;
+    font-size: 13px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
   .warn {
     margin: 12px 0 0;

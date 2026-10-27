@@ -101,3 +101,36 @@ describe('project budget notifications', () => {
     }
   });
 });
+
+describe('estimate notifications', () => {
+  const id = '4d60686d-bd3d-4e33-b114-ab36f194a6cd';
+
+  it('knows both verbs', () => {
+    expect(PRODUCED_VERBS).toContain('estimate.accepted');
+    expect(PRODUCED_VERBS).toContain('estimate.declined');
+  });
+
+  it('opens the project, the deposit invoice or the estimates list', () => {
+    expect(resolvedLink(`/projects/${id}`)).toBe(`/projects/${id}`);
+    expect(resolvedLink(`/invoices/${id}`)).toBe(`/invoices/${id}`);
+    expect(resolvedLink('/invoices/estimates')).toBe('/invoices/estimates');
+  });
+
+  it('opens nothing for another invoices path or an id that is not a UUID', () => {
+    for (const link of [
+      '/invoices',
+      '/invoices/',
+      '/invoices/new',
+      '/invoices/1',
+      '/invoices/estimates/',
+      '/invoices/estimates/new',
+      `/invoices/estimates/${id}`,
+      `/invoices/${id}/edit`,
+      `/invoices/${id}?pay=1`,
+      `https://evil.example/invoices/${id}`,
+      '//invoices/estimates'
+    ]) {
+      expect(resolvedLink(link)).toBe('');
+    }
+  });
+});

@@ -275,7 +275,13 @@ class TestUnratedAndInvoicedFigures:
         invoice = Invoice.objects.create(
             invoice_title="X", account=account, org=org_a, project=project
         )
-        Invoice.objects.filter(pk=invoice.pk).update(total_amount=Decimal("300"))
+        # Counted before tax, to compare with the fee.
+        Invoice.objects.filter(pk=invoice.pk).update(
+            subtotal=Decimal("320"),
+            discount_amount=Decimal("20"),
+            tax_amount=Decimal("30"),
+            total_amount=Decimal("330"),
+        )
 
         assert admin_client.get(detail(project)).json()["burn"]["invoiced_amount"] == (
             "300.00"

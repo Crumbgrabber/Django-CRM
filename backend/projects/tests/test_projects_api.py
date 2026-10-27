@@ -28,7 +28,7 @@ LIST_KEYS = {
 }  # fmt: skip
 DETAIL_KEYS = LIST_KEYS | {
     "description", "custom_fields", "rates", "comments", "attachments",
-    "invoices", "can_edit", "can_delete", "can_bill",
+    "invoices", "estimate", "can_edit", "can_delete", "can_bill",
 }  # fmt: skip
 BURN_KEYS = {
     "logged_hours", "billable_hours", "billable_value", "unbilled_value",
@@ -640,13 +640,15 @@ class TestBurn:
         invoice = Invoice.objects.create(
             invoice_title="T", account=account, org=org_a, project=project
         )
-        Invoice.objects.filter(pk=invoice.pk).update(total_amount=Decimal("100"))
+        Invoice.objects.filter(pk=invoice.pk).update(
+            subtotal=Decimal("100"), total_amount=Decimal("100")
+        )
         TimeEntry.objects.filter(pk=billed.pk).update(invoice=invoice)
         cancelled = Invoice.objects.create(
             invoice_title="C", account=account, org=org_a, project=project
         )
         Invoice.objects.filter(pk=cancelled.pk).update(
-            total_amount=Decimal("999"), status="Cancelled"
+            subtotal=Decimal("999"), total_amount=Decimal("999"), status="Cancelled"
         )
 
         burn = admin_client.get(detail(project.id)).json()["burn"]

@@ -848,14 +848,18 @@ const Map<String, Map<String, Set<String>?>> apiOperations = {
       'contact_id',
       'currency',
       'custom_fields',
+      'deposit_percent',
       'discount_type',
       'discount_value',
       'expiry_date',
+      'introduction',
       'issue_date',
       'line_items',
       'notes',
       'opportunity_id',
+      'project_billing_type',
       'public_link_enabled',
+      'start_project',
       'tax_rate',
       'terms',
       'title',
@@ -876,14 +880,18 @@ const Map<String, Map<String, Set<String>?>> apiOperations = {
       'contact_id',
       'currency',
       'custom_fields',
+      'deposit_percent',
       'discount_type',
       'discount_value',
       'expiry_date',
+      'introduction',
       'issue_date',
       'line_items',
       'notes',
       'opportunity_id',
+      'project_billing_type',
       'public_link_enabled',
+      'start_project',
       'tax_rate',
       'terms',
       'title',
@@ -8215,6 +8223,31 @@ class DealStage {
   final int? warningDays;
 }
 
+class DepositInvoice {
+  const DepositInvoice(
+    this.json, {
+    this.id,
+    this.invoiceNumber,
+    this.status,
+    this.totalAmount,
+  });
+
+  factory DepositInvoice.fromJson(Map<String, dynamic> json) => DepositInvoice(
+    json,
+    id: _string(json['id']),
+    invoiceNumber: _string(json['invoice_number']),
+    status: _string(json['status']),
+    totalAmount: _string(json['total_amount']),
+  );
+
+  /// The object as received, for handing it to its own model.
+  final Map<String, dynamic> json;
+  final String? id;
+  final String? invoiceNumber;
+  final String? status;
+  final String? totalAmount;
+}
+
 class Document {
   const Document(
     this.json, {
@@ -8837,6 +8870,8 @@ class Estimate {
     this.contact,
     this.opportunity,
     this.convertedToInvoice,
+    this.project,
+    this.depositInvoice,
     this.lineItems,
     this.createdBy,
     this.assignedTo,
@@ -8874,6 +8909,10 @@ class Estimate {
     this.acceptedByEmail,
     this.acceptedIp,
     this.acceptedUserAgent,
+    this.introduction,
+    this.depositPercent,
+    this.startProject,
+    this.projectBillingType,
     this.publicToken,
     this.publicLinkEnabled,
     this.notes,
@@ -8893,6 +8932,8 @@ class Estimate {
       json['converted_to_invoice'],
       InvoiceList.fromJson,
     ),
+    project: _string(json['project']),
+    depositInvoice: _string(json['deposit_invoice']),
     lineItems: _list(
       json['line_items'],
       (v) => _object(v, EstimateLineItem.fromJson),
@@ -8933,6 +8974,10 @@ class Estimate {
     acceptedByEmail: _string(json['accepted_by_email']),
     acceptedIp: _string(json['accepted_ip']),
     acceptedUserAgent: _string(json['accepted_user_agent']),
+    introduction: _string(json['introduction']),
+    depositPercent: _string(json['deposit_percent']),
+    startProject: _bool(json['start_project']),
+    projectBillingType: _string(json['project_billing_type']),
     publicToken: _string(json['public_token']),
     publicLinkEnabled: _bool(json['public_link_enabled']),
     notes: _string(json['notes']),
@@ -8949,6 +8994,8 @@ class Estimate {
   final ContactPicker? contact;
   final OpportunityMinimal? opportunity;
   final InvoiceList? convertedToInvoice;
+  final String? project;
+  final String? depositInvoice;
   final List<EstimateLineItem>? lineItems;
   final User? createdBy;
   final List<Profile>? assignedTo;
@@ -8986,6 +9033,10 @@ class Estimate {
   final String? acceptedByEmail;
   final String? acceptedIp;
   final String? acceptedUserAgent;
+  final String? introduction;
+  final String? depositPercent;
+  final bool? startProject;
+  final String? projectBillingType;
   final String? publicToken;
   final bool? publicLinkEnabled;
   final String? notes;
@@ -8993,6 +9044,53 @@ class Estimate {
   final Object? customFields;
   final String? updatedBy;
   final String? org;
+}
+
+class EstimateConverted {
+  const EstimateConverted(
+    this.json, {
+    this.error,
+    this.message,
+    this.invoice,
+    this.depositInvoice,
+  });
+
+  factory EstimateConverted.fromJson(Map<String, dynamic> json) =>
+      EstimateConverted(
+        json,
+        error: _bool(json['error']),
+        message: _string(json['message']),
+        invoice: _object(json['invoice'], Invoice.fromJson),
+        depositInvoice: _object(
+          json['deposit_invoice'],
+          DepositInvoice.fromJson,
+        ),
+      );
+
+  /// The object as received, for handing it to its own model.
+  final Map<String, dynamic> json;
+  final bool? error;
+  final String? message;
+  final Invoice? invoice;
+  final DepositInvoice? depositInvoice;
+}
+
+class EstimateDeposit {
+  const EstimateDeposit(this.json, {this.percent, this.amount, this.currency});
+
+  factory EstimateDeposit.fromJson(Map<String, dynamic> json) =>
+      EstimateDeposit(
+        json,
+        percent: _string(json['percent']),
+        amount: _string(json['amount']),
+        currency: _string(json['currency']),
+      );
+
+  /// The object as received, for handing it to its own model.
+  final Map<String, dynamic> json;
+  final String? percent;
+  final String? amount;
+  final String? currency;
 }
 
 class EstimateDetail {
@@ -9094,6 +9192,13 @@ class EstimateList {
     this.totalAmount,
     this.currency,
     this.isExpired,
+    this.introduction,
+    this.depositPercent,
+    this.startProject,
+    this.projectBillingType,
+    this.project,
+    this.depositInvoice,
+    this.deposit,
     this.createdAt,
   });
 
@@ -9118,6 +9223,13 @@ class EstimateList {
     totalAmount: _string(json['total_amount']),
     currency: _string(json['currency']),
     isExpired: _bool(json['is_expired']),
+    introduction: _string(json['introduction']),
+    depositPercent: _string(json['deposit_percent']),
+    startProject: _bool(json['start_project']),
+    projectBillingType: _string(json['project_billing_type']),
+    project: _object(json['project'], EstimateListProject.fromJson),
+    depositInvoice: _object(json['deposit_invoice'], DepositInvoice.fromJson),
+    deposit: _object(json['deposit'], EstimateDeposit.fromJson),
     createdAt: _string(json['created_at']),
   );
 
@@ -9139,6 +9251,13 @@ class EstimateList {
   final String? totalAmount;
   final String? currency;
   final bool? isExpired;
+  final String? introduction;
+  final String? depositPercent;
+  final bool? startProject;
+  final String? projectBillingType;
+  final EstimateListProject? project;
+  final DepositInvoice? depositInvoice;
+  final EstimateDeposit? deposit;
   final String? createdAt;
 }
 
@@ -9172,6 +9291,22 @@ class EstimateListInvoice {
   final Map<String, dynamic> json;
   final String? id;
   final String? invoiceNumber;
+}
+
+class EstimateListProject {
+  const EstimateListProject(this.json, {this.id, this.name});
+
+  factory EstimateListProject.fromJson(Map<String, dynamic> json) =>
+      EstimateListProject(
+        json,
+        id: _string(json['id']),
+        name: _string(json['name']),
+      );
+
+  /// The object as received, for handing it to its own model.
+  final Map<String, dynamic> json;
+  final String? id;
+  final String? name;
 }
 
 class EstimatePage {
@@ -15598,6 +15733,7 @@ class ProjectDetail {
     this.comments,
     this.attachments,
     this.invoices,
+    this.estimate,
     this.canEdit,
     this.canDelete,
     this.canBill,
@@ -15634,6 +15770,7 @@ class ProjectDetail {
       json['invoices'],
       (v) => _object(v, ProjectInvoiceRow.fromJson),
     ),
+    estimate: _object(json['estimate'], ProjectEstimate.fromJson),
     canEdit: _bool(json['can_edit']),
     canDelete: _bool(json['can_delete']),
     canBill: _bool(json['can_bill']),
@@ -15664,6 +15801,7 @@ class ProjectDetail {
   final List<Comment>? comments;
   final List<Attachments>? attachments;
   final List<ProjectInvoiceRow>? invoices;
+  final ProjectEstimate? estimate;
   final bool? canEdit;
   final bool? canDelete;
   final bool? canBill;
@@ -15701,6 +15839,22 @@ class ProjectDraft {
   final List<String>? assignedTo;
   final String? billingType;
   final String? budgetAmount;
+}
+
+class ProjectEstimate {
+  const ProjectEstimate(this.json, {this.id, this.estimateNumber});
+
+  factory ProjectEstimate.fromJson(Map<String, dynamic> json) =>
+      ProjectEstimate(
+        json,
+        id: _string(json['id']),
+        estimateNumber: _string(json['estimate_number']),
+      );
+
+  /// The object as received, for handing it to its own model.
+  final Map<String, dynamic> json;
+  final String? id;
+  final String? estimateNumber;
 }
 
 class ProjectInvoiceAmount {
@@ -16047,6 +16201,7 @@ class PublicEstimate {
     this.currency,
     this.notes,
     this.terms,
+    this.introduction,
     this.subtotal,
     this.discountValue,
     this.discountAmount,
@@ -16056,6 +16211,7 @@ class PublicEstimate {
     this.issueDate,
     this.expiryDate,
     this.clientAddress,
+    this.deposit,
   });
 
   factory PublicEstimate.fromJson(Map<String, dynamic> json) => PublicEstimate(
@@ -16076,6 +16232,7 @@ class PublicEstimate {
     currency: _string(json['currency']),
     notes: _string(json['notes']),
     terms: _string(json['terms']),
+    introduction: _string(json['introduction']),
     subtotal: _string(json['subtotal']),
     discountValue: _string(json['discount_value']),
     discountAmount: _string(json['discount_amount']),
@@ -16088,6 +16245,7 @@ class PublicEstimate {
       json['client_address'],
       PublicEstimateAddress.fromJson,
     ),
+    deposit: _object(json['deposit'], EstimateDeposit.fromJson),
   );
 
   /// The object as received, for handing it to its own model.
@@ -16105,6 +16263,7 @@ class PublicEstimate {
   final String? currency;
   final String? notes;
   final String? terms;
+  final String? introduction;
   final String? subtotal;
   final String? discountValue;
   final String? discountAmount;
@@ -16114,6 +16273,7 @@ class PublicEstimate {
   final String? issueDate;
   final String? expiryDate;
   final PublicEstimateAddress? clientAddress;
+  final EstimateDeposit? deposit;
 }
 
 class PublicEstimateAddress {

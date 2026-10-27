@@ -8,6 +8,7 @@ from rest_framework import serializers
 from accounts.access import visible_accounts_qs
 from accounts.serializer import AccountPickerSerializer
 from common.modules import module_is_available, module_off_message, org_of
+from common.permissions import is_org_admin
 from common.serializer import (
     OrganizationSerializer,
     ProfileSerializer,
@@ -32,6 +33,7 @@ from invoices.models import (
     line_discount,
     line_gross,
 )
+from invoices.proposals import estimate_deposit
 from opportunity.access import visible_deals_qs
 from opportunity.models import Opportunity
 
@@ -520,8 +522,9 @@ TOTALS_INPUTS = frozenset(
 
 
 # What an issued invoice or estimate can no longer change, besides its lines:
-# everything its totals are computed from, and the currency they are in.
-LOCKED_WHEN_ISSUED = TOTALS_INPUTS | {"currency"}
+# everything its totals are computed from, the currency they are in, and an
+# estimate's deposit, which the client was shown with them.
+LOCKED_WHEN_ISSUED = TOTALS_INPUTS | {"currency", "deposit_percent"}
 
 
 def issued_lock_message(document):
@@ -1154,6 +1157,23 @@ class InvoiceHistorySerializer(serializers.ModelSerializer):
 # =============================================================================
 
 
+class EstimateDepositSerializer(serializers.Serializer):
+    """`invoices.proposals.estimate_deposit`, for the schema."""
+
+    percent = serializers.DecimalField(max_digits=5, decimal_places=2)
+    amount = serializers.DecimalField(max_digits=None, decimal_places=2)
+    currency = serializers.CharField()
+
+
+class DepositInvoiceSerializer(serializers.Serializer):
+    """An estimate's deposit invoice, on its list row and the convert answer."""
+
+    id = serializers.UUIDField()
+    invoice_number = serializers.CharField()
+    status = serializers.CharField()
+    total_amount = serializers.DecimalField(max_digits=12, decimal_places=2)
+
+
 class EstimateLineItemSerializer(serializers.ModelSerializer):
     """Serializer for Estimate Line Items"""
 
@@ -1198,6 +1218,9 @@ class EstimateListSerializer(serializers.ModelSerializer):
     contact_name = serializers.SerializerMethodField()
     opportunity = serializers.SerializerMethodField()
     converted_to_invoice = serializers.SerializerMethodField()
+    project = serializers.SerializerMethodField()
+    deposit_invoice = serializers.SerializerMethodField()
+    deposit = serializers.SerializerMethodField()
     is_expired = serializers.BooleanField(read_only=True)
 
     class Meta:
@@ -1219,6 +1242,13 @@ class EstimateListSerializer(serializers.ModelSerializer):
             "total_amount",
             "currency",
             "is_expired",
+            "introduction",
+            "deposit_percent",
+            "start_project",
+            "project_billing_type",
+            "project",
+            "deposit_invoice",
+            "deposit",
             "created_at",
         )
 
@@ -1255,6 +1285,30 @@ class EstimateListSerializer(serializers.ModelSerializer):
             return {"id": str(invoice.id), "invoice_number": invoice.invoice_number}
         return None
 
+    @extend_schema_field(
+        inline_serializer(
+            "EstimateListProject",
+            {"id": serializers.UUIDField(), "name": serializers.CharField()},
+            allow_null=True,
+        )
+    )
+    def get_project(self, obj):
+        # The caller may open only the ids the list view puts in the context
+        # (`_estimate_link_visibility`); without them, neither link is shown.
+        if obj.project_id in self.context.get("visible_project_ids", ()):
+            return {"id": str(obj.project_id), "name": obj.project.name}
+        return None
+
+    @extend_schema_field(DepositInvoiceSerializer(allow_null=True))
+    def get_deposit_invoice(self, obj):
+        if obj.deposit_invoice_id in self.context.get("visible_invoice_ids", ()):
+            return DepositInvoiceSerializer(obj.deposit_invoice).data
+        return None
+
+    @extend_schema_field(EstimateDepositSerializer(allow_null=True))
+    def get_deposit(self, obj):
+        return estimate_deposit(obj)
+
 
 class EstimateSerializer(serializers.ModelSerializer):
     """Full Estimate serializer"""
@@ -1266,6 +1320,10 @@ class EstimateSerializer(serializers.ModelSerializer):
     contact = ContactPickerSerializer(read_only=True, allow_null=True)
     opportunity = OpportunityMinimalSerializer(read_only=True, allow_null=True)
     converted_to_invoice = InvoiceListSerializer(read_only=True, allow_null=True)
+    project = serializers.PrimaryKeyRelatedField(read_only=True, allow_null=True)
+    deposit_invoice = serializers.PrimaryKeyRelatedField(
+        read_only=True, allow_null=True
+    )
     line_items = EstimateLineItemSerializer(many=True, read_only=True)
     created_by = UserSerializer(read_only=True, allow_null=True)
     assigned_to = ProfileSerializer(read_only=True, many=True)
@@ -1313,6 +1371,10 @@ class EstimateCreateSerializer(serializers.ModelSerializer):
             "public_link_enabled",
             "notes",
             "terms",
+            "introduction",
+            "deposit_percent",
+            "start_project",
+            "project_billing_type",
             "line_items",
         )
         # Accepting a quote authorises its price, so it is a transition, not a
@@ -1382,9 +1444,40 @@ class EstimateCreateSerializer(serializers.ModelSerializer):
                 {"expiry_date": "An estimate cannot expire before it is issued."}
             )
 
+        self._refuse_project_choice_by_member(attrs)
+        if attrs.get("start_project"):
+            if not attrs.get("account_id", getattr(self.instance, "account_id", None)):
+                raise serializers.ValidationError(
+                    {"start_project": "Choose an account to start a project for."}
+                )
+            if self.org is not None and not module_is_available(self.org, "projects"):
+                raise serializers.ValidationError(
+                    {"start_project": module_off_message(self.org, "projects")}
+                )
+
         validate_line_item_products(attrs.get("line_items"), self.org)
         validate_document_discount(attrs, self.instance)
         return attrs
+
+    def _refuse_project_choice_by_member(self, attrs):
+        """Only an admin may change whether acceptance starts a project, or its
+        billing type, as only an admin sets a project's money fields
+        (`projects.serializer.ADMIN_ONLY_FIELDS`). A value equal to the stored
+        one (on create, the default) is not a change, so a member can still
+        edit an estimate an admin set up."""
+        if self.profile is None or is_org_admin(self.profile):
+            return
+        for name in ("start_project", "project_billing_type"):
+            if name not in attrs:
+                continue
+            if self.instance is not None:
+                stored = getattr(self.instance, name)
+            else:
+                stored = Estimate._meta.get_field(name).get_default()
+            if attrs[name] != stored:
+                raise serializers.ValidationError(
+                    {name: "Only an admin can start a project from an estimate."}
+                )
 
     def create(self, validated_data):
         line_items_data = validated_data.pop("line_items", [])

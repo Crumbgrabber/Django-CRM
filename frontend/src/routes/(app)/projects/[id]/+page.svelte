@@ -126,6 +126,9 @@
     {#if project.deal}
       <span>· from <a href={resolve(`pipeline/${project.deal.id}`)}>{project.deal.name}</a></span>
     {/if}
+    {#if project.estimate}
+      <span>· from estimate <span class="v2-num">{project.estimate.estimate_number}</span></span>
+    {/if}
   {/snippet}
   {#snippet actions()}
     {#if data.canEdit}

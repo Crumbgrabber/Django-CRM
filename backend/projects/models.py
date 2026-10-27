@@ -3,7 +3,7 @@ from django.db.models import F, Q
 from django.utils.translation import gettext_lazy as _
 
 from accounts.models import Account
-from common.base import BaseOrgModel
+from common.base import SAMPLE_DATA_HELP_TEXT, BaseOrgModel
 from common.models import Profile, Tags
 from common.utils import CURRENCY_CODES
 
@@ -70,6 +70,7 @@ class Project(BaseOrgModel):
     )
     hours_alert = models.PositiveSmallIntegerField(choices=ALERT_LEVELS, default=0)
     amount_alert = models.PositiveSmallIntegerField(choices=ALERT_LEVELS, default=0)
+    is_sample = models.BooleanField(default=False, help_text=SAMPLE_DATA_HELP_TEXT)
 
     class Meta:
         verbose_name = "Project"

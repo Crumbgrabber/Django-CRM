@@ -31,7 +31,8 @@ def _percent(used, budget):
 def burn_for(projects, viewer=None):
     """``{project id: burn}`` for ``projects``, in two queries at most.
 
-    ``invoiced_amount`` is the invoices' total only for ``viewer`` an org admin
+    ``invoiced_amount`` is the invoices' amount before tax (to compare with the
+    fee and billable value, which are before tax) only for ``viewer`` an org admin
     while Invoices is on; it is ``None`` otherwise, and without a viewer.
     """
     projects = list(projects)
@@ -65,7 +66,7 @@ def burn_for(projects, viewer=None):
             )
             .exclude(status="Cancelled")
             .values("project_id")
-            .annotate(total=Sum("total_amount"))
+            .annotate(total=Sum(F("subtotal") - F("discount_amount")))
             .order_by()
         }
     result = {}

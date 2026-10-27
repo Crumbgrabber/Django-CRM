@@ -208,6 +208,9 @@ export async function getProject({ cookies }: { cookies: Cookies }, id: string) 
       ...toRow(raw),
       description: raw.description ?? '',
       custom_fields: raw.custom_fields ?? {},
+      estimate: raw.estimate
+        ? { id: raw.estimate.id, estimate_number: raw.estimate.estimate_number ?? '' }
+        : null,
       rates: (raw.rates ?? []).map((r) => ({
         profile: toPerson(r.profile),
         hourly_rate: num(r.hourly_rate)
