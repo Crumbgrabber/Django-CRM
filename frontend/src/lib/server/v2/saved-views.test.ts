@@ -112,6 +112,14 @@ describe('loadSavedViews', () => {
     });
   });
 
+  it('asks for a custom list by its obj: name and uses the spec it is given', async () => {
+    apiRequest.mockResolvedValue({ saved_views: [], limit: 25 });
+    const spec = { keys: ['q', 'tags'], multi: ['tags'] };
+    const saved = await loadSavedViews({ cookies, url }, 'obj:property', spec);
+    expect(apiRequest.mock.calls[0][0]).toBe('/saved-views/?module=obj%3Aproperty');
+    expect(saved.spec).toBe(spec);
+  });
+
   it('costs the menu, not the page, when the fetch fails', async () => {
     apiRequest.mockRejectedValue(Object.assign(new Error('down'), { status: 500 }));
     expect((await loadSavedViews({ cookies, url }, 'leads')).views).toEqual([]);
@@ -189,6 +197,25 @@ describe('savedViewActions', () => {
     expect(result.status).toBe(303);
     // Back to this page's own path, whatever the hidden query said.
     expect(result.location.startsWith('/leads?')).toBe(true);
+  });
+
+  it("saves a custom list's filters under its obj: module, by the spec for the request", async () => {
+    apiRequest.mockResolvedValue({ id: VIEW });
+    const custom = savedViewActions(async () => ({
+      module: 'obj:property',
+      spec: { keys: ['q', 'assigned_to', 'cf_pets'], multi: ['assigned_to'] }
+    }));
+    const result = await outcome(
+      custom.saveView(
+        post({ name: 'Pets', query: `q=elm&cf_pets=true&assigned_to=${UUID}&limit=9&bogus=1` })
+      )
+    );
+    expect(apiRequest.mock.calls[0][1].body).toEqual({
+      module: 'obj:property',
+      name: 'Pets',
+      filters: { q: ['elm'], assigned_to: [UUID], cf_pets: ['true'] }
+    });
+    expect(result.status).toBe(303);
   });
 
   it("tickets: the queue's default is saved as its statuses, All as none", async () => {

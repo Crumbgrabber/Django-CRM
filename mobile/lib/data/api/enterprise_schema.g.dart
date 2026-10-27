@@ -71,11 +71,18 @@ const Map<String, Map<String, Set<String>?>> apiOperations = {
   },
   '/api/objects/{key}/records/': {
     'GET': <String>{},
-    'POST': <String>{'assigned_to', 'custom_fields', 'links', 'name'},
+    'POST': <String>{'assigned_to', 'custom_fields', 'links', 'name', 'tags'},
+  },
+  '/api/objects/{key}/records/export/': {'GET': <String>{}},
+  '/api/objects/{key}/records/import/commit/': {
+    'POST': <String>{'file', 'mapping'},
+  },
+  '/api/objects/{key}/records/import/preview/': {
+    'POST': <String>{'file', 'mapping'},
   },
   '/api/objects/{key}/records/{record_id}/': {
     'GET': <String>{},
-    'PATCH': <String>{'assigned_to', 'custom_fields', 'links', 'name'},
+    'PATCH': <String>{'assigned_to', 'custom_fields', 'links', 'name', 'tags'},
     'DELETE': <String>{},
   },
   '/api/objects/{key}/records/{record_id}/attachments/': {
@@ -466,6 +473,7 @@ class CustomRecord {
     this.customFields,
     this.id,
     this.name,
+    this.tags,
     this.updatedAt,
   });
 
@@ -479,6 +487,7 @@ class CustomRecord {
     customFields: _json(json['custom_fields']),
     id: _string(json['id']),
     name: _string(json['name']),
+    tags: _list(json['tags'], (v) => _object(v, Tags.fromJson)),
     updatedAt: _string(json['updated_at']),
   );
 
@@ -489,6 +498,7 @@ class CustomRecord {
   final Map<String, dynamic>? customFields;
   final String? id;
   final String? name;
+  final List<Tags>? tags;
   final String? updatedAt;
 }
 
@@ -541,6 +551,7 @@ class CustomRecordDetail {
     this.links,
     this.name,
     this.object,
+    this.tags,
     this.updatedAt,
   });
 
@@ -567,6 +578,7 @@ class CustomRecordDetail {
         ),
         name: _string(json['name']),
         object: _object(json['object'], CustomRecordObject.fromJson),
+        tags: _list(json['tags'], (v) => _object(v, Tags.fromJson)),
         updatedAt: _string(json['updated_at']),
       );
 
@@ -583,7 +595,109 @@ class CustomRecordDetail {
   final Map<String, CustomRecordLinkValue>? links;
   final String? name;
   final CustomRecordObject? object;
+  final List<Tags>? tags;
   final String? updatedAt;
+}
+
+class CustomRecordImportCommitResponse {
+  const CustomRecordImportCommitResponse(
+    this.json, {
+    this.created,
+    this.dropped,
+    this.error,
+    this.ids,
+    this.skipped,
+  });
+
+  factory CustomRecordImportCommitResponse.fromJson(
+    Map<String, dynamic> json,
+  ) => CustomRecordImportCommitResponse(
+    json,
+    created: _int(json['created']),
+    dropped: _list(json['dropped'], (v) => _object(v, ImportDropped.fromJson)),
+    error: _bool(json['error']),
+    ids: _list(json['ids'], _string),
+    skipped: _list(
+      json['skipped'],
+      (v) => _object(v, ImportSkippedRow.fromJson),
+    ),
+  );
+
+  /// The object as received, for handing it to its own model.
+  final Map<String, dynamic> json;
+  final int? created;
+  final List<ImportDropped>? dropped;
+  final bool? error;
+  final List<String>? ids;
+  final List<ImportSkippedRow>? skipped;
+}
+
+class CustomRecordImportPreview {
+  const CustomRecordImportPreview(
+    this.json, {
+    this.columns,
+    this.dropped,
+    this.fields,
+    this.skipped,
+    this.summary,
+    this.valid,
+  });
+
+  factory CustomRecordImportPreview.fromJson(
+    Map<String, dynamic> json,
+  ) => CustomRecordImportPreview(
+    json,
+    columns: _list(json['columns'], (v) => _object(v, ImportColumn.fromJson)),
+    dropped: _list(json['dropped'], (v) => _object(v, ImportDropped.fromJson)),
+    fields: _list(json['fields'], (v) => _object(v, ImportField.fromJson)),
+    skipped: _list(
+      json['skipped'],
+      (v) => _object(v, ImportSkippedRow.fromJson),
+    ),
+    summary: _object(json['summary'], ImportMappedSummary.fromJson),
+    valid: _list(
+      json['valid'],
+      (v) => _object(v, CustomRecordImportRow.fromJson),
+    ),
+  );
+
+  /// The object as received, for handing it to its own model.
+  final Map<String, dynamic> json;
+  final List<ImportColumn>? columns;
+  final List<ImportDropped>? dropped;
+  final List<ImportField>? fields;
+  final List<ImportSkippedRow>? skipped;
+  final ImportMappedSummary? summary;
+  final List<CustomRecordImportRow>? valid;
+}
+
+class CustomRecordImportRow {
+  const CustomRecordImportRow(
+    this.json, {
+    this.assignedTo,
+    this.customFields,
+    this.name,
+    this.row,
+    this.tags,
+  });
+
+  factory CustomRecordImportRow.fromJson(Map<String, dynamic> json) =>
+      CustomRecordImportRow(
+        json,
+        assignedTo: _list(json['assigned_to'], _string),
+        customFields: _json(json['custom_fields']),
+        name: _string(json['name']),
+        row: _int(json['row']),
+        tags: _list(json['tags'], _string),
+      );
+
+  /// The object as received, for handing it to its own model.
+  final Map<String, dynamic> json;
+  final List<String>? assignedTo;
+  final Map<String, dynamic>? customFields;
+  final String? name;
+  final int? row;
+  final List<String>? tags;
 }
 
 class CustomRecordLinkValue {
@@ -699,6 +813,110 @@ class CustomRecordPerson {
   final String? email;
   final String? id;
   final String? name;
+}
+
+class ImportColumn {
+  const ImportColumn(
+    this.json, {
+    this.field,
+    this.header,
+    this.index,
+    this.samples,
+  });
+
+  factory ImportColumn.fromJson(Map<String, dynamic> json) => ImportColumn(
+    json,
+    field: _string(json['field']),
+    header: _string(json['header']),
+    index: _int(json['index']),
+    samples: _list(json['samples'], _string),
+  );
+
+  /// The object as received, for handing it to its own model.
+  final Map<String, dynamic> json;
+  final String? field;
+  final String? header;
+  final int? index;
+  final List<String>? samples;
+}
+
+class ImportDropped {
+  const ImportDropped(this.json, {this.count, this.field});
+
+  factory ImportDropped.fromJson(Map<String, dynamic> json) => ImportDropped(
+    json,
+    count: _int(json['count']),
+    field: _string(json['field']),
+  );
+
+  /// The object as received, for handing it to its own model.
+  final Map<String, dynamic> json;
+  final int? count;
+  final String? field;
+}
+
+class ImportField {
+  const ImportField(this.json, {this.label, this.name, this.required_});
+
+  factory ImportField.fromJson(Map<String, dynamic> json) => ImportField(
+    json,
+    label: _string(json['label']),
+    name: _string(json['name']),
+    required_: _bool(json['required']),
+  );
+
+  /// The object as received, for handing it to its own model.
+  final Map<String, dynamic> json;
+  final String? label;
+  final String? name;
+  final bool? required_;
+}
+
+class ImportMappedSummary {
+  const ImportMappedSummary(this.json, {this.skipped, this.total, this.valid});
+
+  factory ImportMappedSummary.fromJson(Map<String, dynamic> json) =>
+      ImportMappedSummary(
+        json,
+        skipped: _int(json['skipped']),
+        total: _int(json['total']),
+        valid: _int(json['valid']),
+      );
+
+  /// The object as received, for handing it to its own model.
+  final Map<String, dynamic> json;
+  final int? skipped;
+  final int? total;
+  final int? valid;
+}
+
+class ImportSkippedRow {
+  const ImportSkippedRow(
+    this.json, {
+    this.cells,
+    this.field,
+    this.kind,
+    this.message,
+    this.row,
+  });
+
+  factory ImportSkippedRow.fromJson(Map<String, dynamic> json) =>
+      ImportSkippedRow(
+        json,
+        cells: _list(json['cells'], _string),
+        field: _string(json['field']),
+        kind: _string(json['kind']),
+        message: _string(json['message']),
+        row: _int(json['row']),
+      );
+
+  /// The object as received, for handing it to its own model.
+  final Map<String, dynamic> json;
+  final List<String>? cells;
+  final String? field;
+  final String? kind;
+  final String? message;
+  final int? row;
 }
 
 class RelatedAdded {
@@ -931,6 +1149,40 @@ class SupportTicketListResponse {
   final Map<String, dynamic> json;
   final int? count;
   final List<SupportTicketList>? tickets;
+}
+
+class Tags {
+  const Tags(
+    this.json, {
+    this.color,
+    this.createdAt,
+    this.description,
+    this.id,
+    this.isActive,
+    this.name,
+    this.slug,
+  });
+
+  factory Tags.fromJson(Map<String, dynamic> json) => Tags(
+    json,
+    color: _string(json['color']),
+    createdAt: _string(json['created_at']),
+    description: _string(json['description']),
+    id: _string(json['id']),
+    isActive: _bool(json['is_active']),
+    name: _string(json['name']),
+    slug: _string(json['slug']),
+  );
+
+  /// The object as received, for handing it to its own model.
+  final Map<String, dynamic> json;
+  final String? color;
+  final String? createdAt;
+  final String? description;
+  final String? id;
+  final bool? isActive;
+  final String? name;
+  final String? slug;
 }
 
 String? _string(Object? v) => v is String ? v : (v is num ? '$v' : null);

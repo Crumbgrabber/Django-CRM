@@ -119,4 +119,65 @@ describe('readRecordForm', () => {
     expect(Object.keys(body).sort()).toEqual(['assigned_to', 'custom_fields', 'name']);
     expect(Object.keys(body.custom_fields).sort()).toEqual(['furnished']);
   });
+
+  describe('tags', () => {
+    const T1 = '44444444-4444-4444-8444-444444444444';
+    const T2 = '55555555-5555-4555-8555-555555555555';
+
+    it('sends the chosen tags on a create, and nothing when none are chosen', () => {
+      expect(
+        readRecordForm(
+          formOf([
+            ['name', 'A'],
+            ['tags__was', ''],
+            ['tags', T1],
+            ['tags', T2]
+          ]),
+          definition
+        ).tags
+      ).toEqual([T1, T2]);
+      expect(
+        readRecordForm(
+          formOf([
+            ['name', 'A'],
+            ['tags__was', '']
+          ]),
+          definition
+        )
+      ).not.toHaveProperty('tags');
+    });
+
+    it('sends tags only when the set changed, and an empty set when all were cleared', () => {
+      const same = readRecordForm(
+        formOf([
+          ['name', 'A'],
+          ['tags__was', `${T1},${T2}`],
+          ['tags', T2],
+          ['tags', T1]
+        ]),
+        definition
+      );
+      expect(same).not.toHaveProperty('tags');
+      const cleared = readRecordForm(
+        formOf([
+          ['name', 'A'],
+          ['tags__was', T1]
+        ]),
+        definition
+      );
+      expect(cleared.tags).toEqual([]);
+    });
+
+    it('never reads tags from a form that drew no picker', () => {
+      expect(
+        readRecordForm(
+          formOf([
+            ['name', 'A'],
+            ['tags', T1]
+          ]),
+          definition
+        )
+      ).not.toHaveProperty('tags');
+    });
+  });
 });

@@ -14,6 +14,7 @@ from rest_framework.views import APIView
 
 from accounts.access import visible_accounts_qs
 from accounts.serializer import AccountPickerSerializer
+from common.custom_fields import custom_field_filter
 from common.custom_fields import validate_payload as validate_custom_fields_payload
 from common.lookups import get_on_visible_record_or_404
 from common.models import (
@@ -136,13 +137,9 @@ class TaskListView(APIView, LimitOffsetPagination):
                 related_id = uuid_param(params, related)
                 if related_id:
                     queryset = queryset.filter(**{f"{related}_id": related_id})
-            for raw_key, raw_value in params.items():
-                if raw_key.startswith("cf_") and raw_value:
-                    cf_key = raw_key[3:]
-                    if cf_key:
-                        queryset = queryset.filter(
-                            custom_fields__contains={cf_key: raw_value}
-                        )
+            queryset = queryset.filter(
+                custom_field_filter("Task", self.request.profile.org, params)
+            )
         context = {}
         queryset = queryset.distinct()
 

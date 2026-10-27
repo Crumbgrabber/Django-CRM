@@ -13,7 +13,7 @@ both indexes because ``makemigrations`` correctly read them as gone. Nothing
 warned; the base class went on advertising the index in its docstring.
 
 This is the kind of thing to guard from the model registry rather than from a
-list written out here, for the same reason ``_TAGGABLE`` is: a hand-maintained
+list written out here, for the same reason tag holders are: a hand-maintained
 list of "models to check" has the identical failure mode as the thing it is
 checking.
 """

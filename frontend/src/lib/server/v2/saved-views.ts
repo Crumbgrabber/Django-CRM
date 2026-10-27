@@ -110,12 +110,14 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  */
 export async function loadSavedViews(
   { cookies, url }: { cookies: Cookies; url: URL },
-  module: keyof typeof SAVED_VIEW_KEYS
+  module: string,
+  customSpec?: Spec
 ) {
-  const spec = savedViewSpec(module, url.searchParams);
+  const spec =
+    customSpec ?? savedViewSpec(module as keyof typeof SAVED_VIEW_KEYS, url.searchParams);
   try {
     const resp: Schemas['SavedViewListResponse'] = await apiRequest(
-      `/saved-views/?module=${module}`,
+      `/saved-views/?module=${encodeURIComponent(module)}`,
       {},
       { cookies }
     );
@@ -135,19 +137,26 @@ function backTo(url: URL, form: FormData) {
   return qs ? `${url.pathname}?${qs}` : url.pathname;
 }
 
-/** `saveView`, `renameView` and `deleteView` for one list page. */
-export function savedViewActions(module: keyof typeof SAVED_VIEW_KEYS) {
-  /** @param send makes the API call, or returns a sentence refusing it */
+/** A list that is not one of the six built-ins: its module name and spec, known per request. */
+export type CustomList = (event: RequestEvent) => Promise<{ module: string; spec: Spec }>;
+
+/**
+ * `saveView`, `renameView` and `deleteView` for one list page.
+ *
+ * @param list a built-in module, or a function naming the list (a custom
+ *   object's `obj:<key>`) and its spec from the request
+ */
+export function savedViewActions(list: keyof typeof SAVED_VIEW_KEYS | CustomList) {
+  /** @param send makes the API call, or resolves to a sentence refusing it */
   async function run(
     { request, cookies, url }: RequestEvent,
     send: (form: FormData, cookies: Cookies) => Promise<unknown> | string,
     fallback: string
   ) {
     const form = await request.formData();
-    const call = send(form, cookies);
-    if (typeof call === 'string') return fail(400, { savedViewError: call });
     try {
-      await call;
+      const refusal = await send(form, cookies);
+      if (typeof refusal === 'string') return fail(400, { savedViewError: refusal });
     } catch (err) {
       const status = apiStatus(err);
       if (!status) throw err;
@@ -170,11 +179,15 @@ export function savedViewActions(module: keyof typeof SAVED_VIEW_KEYS) {
     saveView: (event: RequestEvent) =>
       run(
         event,
-        (form, cookies) => {
+        async (form, cookies) => {
           const name = String(form.get('name') ?? '').trim();
           if (!name) return 'Give the view a name.';
           const query = new URLSearchParams(String(form.get('query') ?? ''));
-          const filters = pickFilters(query, savedViewSpec(module, query));
+          const { module, spec } =
+            typeof list === 'function'
+              ? await list(event)
+              : { module: list, spec: savedViewSpec(list, query) };
+          const filters = pickFilters(query, spec);
           return apiRequest<Schemas['SavedView']>(
             '/saved-views/',
             {

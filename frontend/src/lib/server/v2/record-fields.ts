@@ -212,3 +212,15 @@ export function collectAssignees(form: FormData): string[] | undefined {
   if (was === null) return ids;
   return differs(ids, String(was)) ? ids : undefined;
 }
+
+/**
+ * The tag ids to send: undefined when the form drew no picker (no
+ * `tags__was`) or the set is as the page showed it, else the chosen ids, which
+ * may be none. An unchanged set is noise, and leaving it out keeps tags a concurrent edit added.
+ */
+export function collectTags(form: FormData): string[] | undefined {
+  const was = form.get('tags__was');
+  if (was === null) return undefined;
+  const ids = form.getAll('tags').map(String).filter(Boolean);
+  return differs(ids, String(was)) ? ids : undefined;
+}

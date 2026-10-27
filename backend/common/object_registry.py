@@ -8,10 +8,11 @@ cached, because those modules import from `common` and a module-level import
 would be circular.
 
 An installed app adds per-org entries with `register_hook`. `model_label`,
-`read_rule` and `edit_rule` are for the registry's own use. Callers use only
-`key`, `label`, `label_plural`, `custom_field_target`, `attachments`,
-`activity_feed`, `links`, `model`, `records(org)`, `readable(profile)`,
-`editable(profile)` and `automation_adapter()`.
+`read_rule`, `edit_rule`, `automation`, `list_spec` and `search` are for the
+registry's own use. Callers use only `key`, `label`, `label_plural`,
+`custom_field_target`, `attachments`, `activity_feed`, `links`, `tags_key`,
+`model`, `records(org)`, `readable(profile)`, `editable(profile)`,
+`automation_adapter()`, `saved_list()` and `search_hits(profile, q, limit)`.
 """
 
 from collections.abc import Callable, Iterable
@@ -36,6 +37,9 @@ class ObjectEntry:
     links: bool
     edit_rule: str | None
     automation: str | None = None
+    list_spec: str | None = None
+    search: str | None = None
+    tags_key: str | None = None
 
     @property
     def model(self):
@@ -62,6 +66,20 @@ class ObjectEntry:
             return None
         return import_string(self.automation)(self)
 
+    def saved_list(self):
+        """The `common.saved_views.SavedList` views on this object's list are
+        saved against, or None if the list takes none."""
+        if self.list_spec is None:
+            return None
+        return import_string(self.list_spec)
+
+    def search_hits(self, profile, q, limit):
+        """At most `limit` hits `{type, id, title, subtitle}` for `q` among the
+        records `profile` may open, or None if the object is not searched."""
+        if self.search is None:
+            return None
+        return import_string(self.search)(profile, q, limit)
+
 
 class RegistryConflict(Exception):
     pass
@@ -83,6 +101,9 @@ BUILT_IN = (
         links=True,
         edit_rule="leads.access.visible_leads_qs",
         automation="automation.adapters.leads.LeadAdapter",
+        list_spec="common.saved_views.LEAD_LIST",
+        search="common.search_views.search_leads",
+        tags_key="leads",
     ),
     ObjectEntry(
         "contact",
@@ -96,6 +117,9 @@ BUILT_IN = (
         links=True,
         edit_rule="contacts.access.visible_contacts_qs",
         automation="automation.adapters.contacts.ContactAdapter",
+        list_spec="common.saved_views.CONTACT_LIST",
+        search="common.search_views.search_contacts",
+        tags_key="contacts",
     ),
     ObjectEntry(
         "account",
@@ -109,6 +133,9 @@ BUILT_IN = (
         links=True,
         edit_rule="accounts.access.visible_accounts_qs",
         automation="automation.adapters.accounts.AccountAdapter",
+        list_spec="common.saved_views.ACCOUNT_LIST",
+        search="common.search_views.search_accounts",
+        tags_key="accounts",
     ),
     ObjectEntry(
         "deal",
@@ -122,6 +149,9 @@ BUILT_IN = (
         links=True,
         edit_rule="opportunity.access.visible_deals_qs",
         automation="automation.adapters.deals.DealAdapter",
+        list_spec="common.saved_views.DEAL_LIST",
+        search="common.search_views.search_deals",
+        tags_key="opportunities",
     ),
     ObjectEntry(
         "ticket",
@@ -135,6 +165,9 @@ BUILT_IN = (
         links=True,
         edit_rule="cases.access.writable_cases_qs",
         automation="automation.adapters.tickets.TicketAdapter",
+        list_spec="common.saved_views.TICKET_LIST",
+        search="common.search_views.search_tickets",
+        tags_key="cases",
     ),
     ObjectEntry(
         "task",
@@ -148,6 +181,7 @@ BUILT_IN = (
         links=True,
         edit_rule="tasks.access.visible_tasks_qs",
         automation="automation.adapters.tasks.TaskAdapter",
+        tags_key="tasks",
     ),
     ObjectEntry(
         "project",
@@ -160,6 +194,7 @@ BUILT_IN = (
         label_plural="Projects",
         links=False,
         edit_rule=None,
+        tags_key="projects",
     ),
     ObjectEntry(
         "invoice",
@@ -172,6 +207,8 @@ BUILT_IN = (
         label_plural="Invoices",
         links=False,
         edit_rule=None,
+        list_spec="common.saved_views.INVOICE_LIST",
+        search="common.search_views.search_invoices",
     ),
     ObjectEntry(
         "estimate",

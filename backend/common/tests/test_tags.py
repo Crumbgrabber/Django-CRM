@@ -4,12 +4,19 @@ Tests for tag management views: list, create, detail, update, soft-delete, resto
 Run with: pytest common/tests/test_tags.py -v
 """
 
+from dataclasses import dataclass
+
 import pytest
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from rest_framework import status
 
 from accounts.models import Account
 from cases.models import Case, Solution
+from common import object_registry
 from common.models import APISettings, Tags
+from common.testing import set_modules_off
+from common.views import tags_views
 from contacts.models import Contact
 from leads.models import Lead
 from opportunity.models import Opportunity
@@ -23,6 +30,36 @@ def _tag_row(response, tag_id):
 def _tag_row_by_id(body, tag_id):
     """Same lookup against an already-unwrapped response body."""
     return next(r for r in body["tags"] if r["id"] == str(tag_id))
+
+
+@dataclass(frozen=True)
+class SliceEntry:
+    """A hook entry over some rows of one model, as each custom object is over
+    some rows of the table they all share."""
+
+    key: str
+    label_plural: str
+    model: type
+    field: str
+    prefix: str
+
+    @property
+    def custom_field_target(self):
+        return self.key
+
+    @property
+    def tags_key(self):
+        return self.key
+
+    def records(self, org):
+        lookup = {f"{self.field}__startswith": self.prefix}
+        return self.model.objects.filter(org=org, **lookup)
+
+
+def _hook(monkeypatch, *entries):
+    monkeypatch.setattr(
+        object_registry, "_HOOKS", [lambda org: entries if org is not None else ()]
+    )
 
 
 @pytest.mark.django_db
@@ -253,16 +290,16 @@ class TestTagsUsageAndTotals:
         )
 
     def test_taggable_covers_every_model_with_a_tags_m2m(self):
-        """Guard the hand-written constant with the live model registry.
+        """Guard the registry's `tags_key` and the hand-written holder list with
+        the live model registry.
 
-        `_TAGGABLE` is written out by hand so a change shows up in a diff, which
-        is only safe if something notices when a new taggable model appears.
         Without this, the next model to grow a `tags` M2M silently repeats the
-        bug above.
+        bug above: it is in neither, so its usage is never counted.
         """
         from django.apps import apps
 
-        from common.views.tags_views import _TAGGABLE
+        from common.object_registry import BUILT_IN
+        from common.views.tags_views import NON_OBJECT_TAG_HOLDERS
 
         declared = {
             model
@@ -272,11 +309,50 @@ class TestTagsUsageAndTotals:
             and not field.auto_created
             and getattr(field, "related_model", None) is Tags
         }
-        counted = {model for _, model in _TAGGABLE}
-        assert declared == counted, (
+        entries = {entry.model for entry in BUILT_IN if entry.tags_key}
+        holders = {model for _, _, model in NON_OBJECT_TAG_HOLDERS}
+        assert declared == entries | holders, (
             "these models carry a tags M2M but their usage is never counted, so "
-            f"a tag used only on them reads as unused: {declared - counted}"
+            f"a tag used only on them reads as unused: {declared - entries - holders}"
         )
+        assert not entries & holders, "a model in both would be counted twice"
+
+    def test_usage_labels_name_every_key(self, monkeypatch, admin_client, org_a):
+        _hook(monkeypatch, SliceEntry("obj:site", "Sites", Account, "name", "Site"))
+        tag = Tags.objects.create(name="Vip", slug="vip", org=org_a)
+        Tags.objects.create(name="Spare", slug="spare", org=org_a)
+        for name in ("Site one", "Acme"):
+            Account.objects.create(org=org_a, name=name).tags.add(tag)
+
+        body = admin_client.get(self.url).json()
+        labels = body["usage_labels"]
+        assert list(labels.items()) == [
+            ("leads", "Leads"),
+            ("contacts", "Contacts"),
+            ("accounts", "Accounts"),
+            ("opportunities", "Deals"),
+            ("cases", "Tickets"),
+            ("tasks", "Tasks"),
+            ("projects", "Projects"),
+            ("obj:site", "Sites"),
+            ("api_settings", "API keys"),
+            ("solutions", "Articles"),
+            ("web_forms", "Web forms"),
+            ("lead_intakes", "Lead webhooks"),
+            ("macros", "Macros"),
+        ]
+        assert len(body["tags"]) == 2
+        for row in body["tags"]:
+            assert list(row["usage"]) == list(labels)
+        usage = _tag_row_by_id(body, tag.id)["usage"]
+        assert (usage["accounts"], usage["obj:site"]) == (2, 1)
+
+        set_modules_off(org_a, "tickets", "projects")
+        body = admin_client.get(self.url).json()
+        assert not {"cases", "macros", "projects"} & set(body["usage_labels"])
+        assert "obj:site" in body["usage_labels"]
+        for row in body["tags"]:
+            assert list(row["usage"]) == list(body["usage_labels"])
 
     def test_totals_count_active_unused(self, admin_client, org_a):
         used = Tags.objects.create(name="Used", slug="used", org=org_a)
@@ -476,9 +552,9 @@ class TestTagsMergeView:
         return source, target
 
     def test_merge_moves_records_across_every_taggable_model(self, admin_client, org_a):
-        """Every model in `_TAGGABLE`, not just the prominent four.
+        """Every taggable model, not just the prominent four.
 
-        The same registry that under-counted usage decides what a merge walks,
+        The same list that under-counted usage decides what a merge walks,
         so a model missing from it would keep the source tag after the source
         was archived: a tag applied to records but invisible in the UI.
         """
@@ -512,6 +588,66 @@ class TestTagsMergeView:
             tags = set(record.tags.all())
             assert target in tags, f"{type(record).__name__} did not get the target tag"
             assert source not in tags, f"{type(record).__name__} kept the source tag"
+
+    def test_merge_moves_each_model_once(self, monkeypatch, admin_client, org_a):
+        """Two hook entries share a model only they cover. The merge walks that
+        model once, rows in neither entry (say, an archived object's) included,
+        and counts each row once."""
+        monkeypatch.setattr(
+            tags_views,
+            "NON_OBJECT_TAG_HOLDERS",
+            tuple(
+                h for h in tags_views.NON_OBJECT_TAG_HOLDERS if h[2] is not APISettings
+            ),
+        )
+        _hook(
+            monkeypatch,
+            SliceEntry("obj:north", "North sites", APISettings, "title", "North"),
+            SliceEntry("obj:south", "South sites", APISettings, "title", "South"),
+        )
+        source, target = self._pair(org_a)
+        rows = [
+            APISettings.objects.create(
+                org=org_a, title=title, website="https://example.com"
+            )
+            for title in ("North 1", "South 1", "Archived 1")
+        ]
+        for row in rows:
+            row.tags.add(source)
+        table = f'FROM "{APISettings._meta.db_table}"'
+
+        with CaptureQueriesContext(connection) as queries:
+            response = admin_client.post(
+                self._url(source.pk), {"into": str(target.pk)}, format="json"
+            )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["moved"] == 3
+        for row in rows:
+            assert set(row.tags.all()) == {target}
+        walks = [
+            q["sql"]
+            for q in queries
+            if q["sql"].startswith("SELECT") and table in q["sql"]
+        ]
+        assert len(walks) == 1
+
+    def test_merge_moves_records_of_a_switched_off_module(self, admin_client, org_a):
+        """The source is archived, so a ticket left on it would come back with
+        Tickets carrying a tag the settings page shows as off."""
+        set_modules_off(org_a, "tickets")
+        source, target = self._pair(org_a)
+        case = Case.objects.create(
+            org=org_a, name="Ticket", status="New", priority="Normal"
+        )
+        case.tags.add(source)
+
+        response = admin_client.post(
+            self._url(source.pk), {"into": str(target.pk)}, format="json"
+        )
+
+        assert response.data["moved"] == 1
+        assert list(case.tags.all()) == [target]
 
     def test_merge_archives_the_source_rather_than_deleting_it(
         self, admin_client, org_a

@@ -1,5 +1,7 @@
+from dataclasses import dataclass
+
 from django.db import transaction
-from django.db.models import Count, IntegerField, OuterRef, Subquery
+from django.db.models import Count, IntegerField, OuterRef, QuerySet, Subquery
 from django.db.models.functions import Coalesce
 from drf_spectacular.utils import extend_schema, inline_serializer
 from rest_framework import serializers, status
@@ -8,75 +10,79 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from accounts.models import Account
-from cases.models import Case, Solution
+from cases.models import Solution
 from common import swagger_params
 from common.lookups import get_scoped_or_404
 from common.models import APISettings, Tags
 from common.modules import available_modules, model_module
+from common.object_registry import BUILT_IN, all_objects
 from common.permissions import HasOrgContext, is_org_admin
 from common.serializer import TagsSerializer
-from contacts.models import Contact
-from leads.models import Lead, LeadIntake
+from leads.models import LeadIntake
 from macros.models import Macro
-from opportunity.models import Opportunity
-from projects.models import Project
-from tasks.models import Task
 from webforms.models import WebForm
 
-# The models a tag can be applied to, paired with the usage key the settings
-# page shows. Each is org-scoped and carries a `tags` M2M back to Tags.
-#
-# This must list EVERY model with that M2M, not just the prominent ones. It
-# held four of the seven, and the three it left out (Contact, Task,
-# APISettings) all accept tag writes through the API, contacts through the CSV
-# importer too. A tag applied only to contacts therefore reported zero usage
-# and was counted as "unused" on the settings page, which is the one number an
-# admin uses to decide whether a tag is safe to archive.
-#
-# Hand-written on purpose, so a change shows up in a diff, and guarded by
-# `test_taggable_covers_every_model_with_a_tags_m2m`, which walks the live
-# model registry: a new taggable model fails that test instead of silently
-# under-reporting usage forever.
-_TAGGABLE = (
-    ("accounts", Account),
-    ("leads", Lead),
-    ("opportunities", Opportunity),
-    ("cases", Case),
-    ("contacts", Contact),
-    ("tasks", Task),
-    ("api_settings", APISettings),
-    ("solutions", Solution),
-    ("web_forms", WebForm),
-    ("lead_intakes", LeadIntake),
+# Models with a `tags` M2M that are not record objects, so the registry does not
+# list them: (usage key, label, model). Records come from each registry entry's
+# `tags_key`. `test_taggable_covers_every_model_with_a_tags_m2m` walks the live
+# models, so a model in neither list fails it instead of reading as unused.
+NON_OBJECT_TAG_HOLDERS = (
+    ("api_settings", "API keys", APISettings),
+    ("solutions", "Articles", Solution),
+    ("web_forms", "Web forms", WebForm),
+    ("lead_intakes", "Lead webhooks", LeadIntake),
     # A macro that adds a tag uses it; archiving the tag makes the macro skip
     # it, and a merge must move the macro onto the surviving tag.
-    ("macros", Macro),
-    ("projects", Project),
+    ("macros", "Macros", Macro),
 )
 
 
-def _usage_map(tag, org):
-    shown = {None, *available_modules(org)}
-    return {
-        key: getattr(tag, f"_u_{key}")
-        for key, model in _TAGGABLE
-        if model_module(model._meta.label) in shown
-    }
+@dataclass(frozen=True)
+class _Holder:
+    key: str
+    label: str
+    rows: QuerySet
+    shown: bool
 
 
-def _usage_subquery(model, org):
-    """Per-tag count of `model` rows in `org` that carry the tag.
+def _holders(org):
+    """Every tag holder of `org`: registry entries with a `tags_key`, then the
+    named holders. Off-module ones are counted in the totals and merged, as
+    before the registry, but not `shown` in the usage map.
+    """
+    on = all_objects(org)
+    shown_keys = {e.key for e in on}
+    entries = {e.key: e for e in (*BUILT_IN, *on)}.values()
+    shown_modules = {None, *available_modules(org)}
+    return [
+        *(
+            _Holder(e.tags_key, e.label_plural, e.records(org), e.key in shown_keys)
+            for e in entries
+            if e.tags_key
+        ),
+        *(
+            _Holder(
+                key,
+                label,
+                model.objects.filter(org=org),
+                model_module(model._meta.label) in shown_modules,
+            )
+            for key, label, model in NON_OBJECT_TAG_HOLDERS
+        ),
+    ]
 
-    One correlated subquery per relation rather than four `Count`s on a single
-    query: joining all four M2M through-tables at once multiplies rows, and a
-    subquery keeps each count independent (the subquery-rollup rule). Filtered
-    by `org` explicitly. Usage is a per-org fact and must not lean on RLS,
-    which is inert for the app's DB role in dev/test.
+
+def _usage_subquery(rows):
+    """Per-tag count of `rows` (already org-filtered) that carry the tag.
+
+    One correlated subquery per holder rather than `Count`s on a single query:
+    joining every M2M through-table at once multiplies rows, and a subquery
+    keeps each count independent (the subquery-rollup rule). The org filter is
+    explicit: usage is a per-org fact and must not lean on RLS.
     """
     return Coalesce(
         Subquery(
-            model.objects.filter(tags=OuterRef("pk"), org=org)
+            rows.filter(tags=OuterRef("pk"))
             .order_by()
             .values("tags")
             .annotate(c=Count("pk"))
@@ -87,30 +93,36 @@ def _usage_subquery(model, org):
     )
 
 
-def _annotated_tags(org):
-    """Org tags annotated with a `_u_<key>` usage count per taggable model."""
+def _annotated_tags(org, holders):
+    """Org tags annotated with `_u_<n>`, the usage count of `holders[n]`.
+
+    By position, since a key such as `obj:<key>` is not a safe alias.
+    """
     return Tags.objects.filter(org=org).annotate(
-        **{f"_u_{key}": _usage_subquery(model, org) for key, model in _TAGGABLE}
+        **{f"_u_{n}": _usage_subquery(h.rows) for n, h in enumerate(holders)}
     )
 
 
-def _tag_totals(org):
+def _usage_map(tag, holders):
+    return {h.key: getattr(tag, f"_u_{n}") for n, h in enumerate(holders) if h.shown}
+
+
+def _tag_totals(org, holders):
     """Counts over ALL org tags, independent of the list's active/name filters,
     so the stat cards stay meaningful when the list is filtered."""
-    all_tags = list(_annotated_tags(org))
+    all_tags = list(_annotated_tags(org, holders))
     active = [t for t in all_tags if t.is_active]
 
     def total_usage(tag):
-        return sum(getattr(tag, f"_u_{key}") for key, _ in _TAGGABLE)
+        return sum(getattr(tag, f"_u_{n}") for n in range(len(holders)))
 
     return {
         "count": len(all_tags),
         "active": len(active),
-        # Active tags applied to nothing across the models in _TAGGABLE: the
-        # "unused" figure on the settings stat card. There is no hard delete
-        # on a tag at all, here or anywhere else: TagsDetailView.delete only
-        # flips is_active to False, so this count is not measuring what is
-        # safe to remove, only what is not currently referenced.
+        # Active tags applied to nothing at all, off modules included: the
+        # "unused" figure on the settings stat card. Nothing hard-deletes a tag
+        # (TagsDetailView.delete only archives it), so this counts what is not
+        # referenced, not what is safe to remove.
         "unused": sum(1 for t in active if total_usage(t) == 0),
     }
 
@@ -134,7 +146,7 @@ def _non_text_error(params):
 class TagsListRowSerializer(TagsSerializer):
     """Schema only: a tag as the list returns it, with its per-model usage."""
 
-    # One count per `_TAGGABLE` key whose module is on.
+    # One count per key of the response's `usage_labels`.
     usage = serializers.DictField(child=serializers.IntegerField(), read_only=True)
 
     class Meta(TagsSerializer.Meta):
@@ -145,10 +157,10 @@ class TagsListView(APIView, LimitOffsetPagination):
     model = Tags
     permission_classes = (IsAuthenticated, HasOrgContext)
 
-    def get_queryset(self):
+    def get_queryset(self, holders):
         """Get tags queryset (with usage annotations) and optional filtering."""
         params = self.request.query_params
-        queryset = _annotated_tags(self.request.profile.org)
+        queryset = _annotated_tags(self.request.profile.org, holders)
 
         # By default, only show active tags
         # Admin can see archived tags with ?include_archived=true
@@ -172,6 +184,10 @@ class TagsListView(APIView, LimitOffsetPagination):
                 fields={
                     "tags_count": serializers.IntegerField(),
                     "tags": TagsListRowSerializer(many=True),
+                    # Each usage key's plural label, such as "Deals"
+                    "usage_labels": serializers.DictField(
+                        child=serializers.CharField()
+                    ),
                     "totals": inline_serializer(
                         name="TagsListTotals",
                         fields={
@@ -186,16 +202,19 @@ class TagsListView(APIView, LimitOffsetPagination):
     )
     def get(self, request, *args, **kwargs):
         """List tags for the org, each with per-model usage counts, plus totals."""
-        tags_qs = list(self.get_queryset())
+        org = request.profile.org
+        holders = _holders(org)
+        tags_qs = list(self.get_queryset(holders))
         rows = TagsSerializer(tags_qs, many=True).data
         # Attach usage from the annotations (serializer order matches the qs).
         for row, obj in zip(rows, tags_qs):
-            row["usage"] = _usage_map(obj, request.profile.org)
+            row["usage"] = _usage_map(obj, holders)
         return Response(
             {
                 "tags_count": len(rows),
                 "tags": rows,
-                "totals": _tag_totals(request.profile.org),
+                "usage_labels": {h.key: h.label for h in holders if h.shown},
+                "totals": _tag_totals(org, holders),
             }
         )
 
@@ -602,13 +621,12 @@ class TagsMergeView(APIView):
             )
 
         moved = 0
+        # Once per model, not per holder: entries can share a model, and walking
+        # the whole model also moves rows that no available entry covers.
+        models = dict.fromkeys(h.rows.model for h in _holders(org))
         with transaction.atomic():
-            for _key, model in _TAGGABLE:
-                # Org-filtered for the same reason as the lookups above, and
-                # `_TAGGABLE` rather than a hand-written list of the prominent
-                # models: it is the registry a test walks the model graph to
-                # keep complete, so a taggable model added later is merged too
-                # instead of quietly keeping the source tag alive.
+            for model in models:
+                # Org-filtered for the same reason as the lookups above.
                 for obj in model.objects.filter(tags=source, org=org):
                     obj.tags.add(target)
                     obj.tags.remove(source)

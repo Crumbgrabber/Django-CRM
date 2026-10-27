@@ -11,6 +11,7 @@
     LifeBuoy,
     Receipt,
     BookOpen,
+    Boxes,
     Plus,
     CornerDownLeft
   } from '@lucide/svelte';
@@ -167,7 +168,8 @@
           <div class="v2-palette-group v2-label">{group.kind}</div>
           {#each group.rows as row (row.id)}
             {@const i = rows.indexOf(row)}
-            {@const Icon = row.icon ?? ICON[row.kind] ?? Search}
+            {@const Icon =
+              row.icon ?? ICON[row.kind] ?? (row.href.startsWith('/objects/') ? Boxes : Search)}
             <button
               class="v2-palette-row"
               type="button"

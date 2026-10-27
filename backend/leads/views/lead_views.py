@@ -17,6 +17,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from common.custom_fields import custom_field_filter
 from common.custom_fields import validate_payload as validate_custom_fields_payload
 from common.models import (
     Attachments,
@@ -184,12 +185,7 @@ def lead_list_queryset(profile, params):
     next_follow_up = date_param(params, "next_follow_up")
     if next_follow_up:
         queryset = queryset.filter(next_follow_up=next_follow_up)
-    # Custom-field filters: ?cf_<key>=<value> -> custom_fields contains pair.
-    for raw_key, raw_value in params.items():
-        if raw_key.startswith("cf_") and raw_value:
-            cf_key = raw_key[3:]
-            if cf_key:
-                queryset = queryset.filter(custom_fields__contains={cf_key: raw_value})
+    queryset = queryset.filter(custom_field_filter("Lead", profile.org, params))
     if params.get("open") == "true":
         queryset = queryset.exclude(status="closed")
     if params.get("unanswered") == "true":

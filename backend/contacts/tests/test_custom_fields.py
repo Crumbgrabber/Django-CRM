@@ -13,12 +13,6 @@ from django.db import connection
 from common.models import CustomFieldDefinition
 from contacts.models import Contact
 
-pg_only = pytest.mark.skipif(
-    connection.vendor != "postgresql",
-    reason="JSONField __contains lookup requires PostgreSQL",
-)
-
-
 CONTACTS_LIST_URL = "/api/contacts/"
 
 
@@ -183,7 +177,6 @@ class TestContactUpdateWithCustomFields:
         assert contact_a.custom_fields == {"severity": "S2"}
 
 
-@pg_only
 @pytest.mark.django_db
 class TestContactListFilter:
     def test_cf_filter_returns_matching(

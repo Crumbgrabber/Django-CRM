@@ -222,8 +222,8 @@ Other surfaces follow the modules too:
   `create_task`, and a Create a task step the stored rule does not already have is `400` under
   `actions[N].type` with the module message. A step the rule already has is kept, and skipped
   when the rule runs.
-- **Tags** leave an off module's usage out of the per-module figures, and a tag used only by an
-  off module is never reported as unused.
+- **Tags** leave an off module's usage out of the per-module figures and `usage_labels`, and a tag
+  used only by an off module is never reported as unused.
 - **Packs and sample data.** Applying a pack reports the parts of an off module as skipped with
   the module message. Clearing sample data keeps the sample rows of an off module and reports
   them under `switched_off_by_type`.

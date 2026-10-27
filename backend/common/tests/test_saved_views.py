@@ -11,10 +11,12 @@ from django.http import QueryDict
 from rest_framework import status as http
 
 from common.models import Profile, SavedView, User
-from common.saved_views import LISTS, MAX_VIEWS_PER_LIST
+from common.object_registry import BUILT_IN
+from common.saved_views import MAX_VIEWS_PER_LIST
 from common.testing import _make_authenticated_client
 
 URL = "/api/saved-views/"
+LISTS = {spec.name: spec for e in BUILT_IN if (spec := e.saved_list()) is not None}
 
 
 def detail(pk):
@@ -239,8 +241,8 @@ def _sample(key):
 
 
 def test_every_param_the_lists_read_is_accepted(user_client):
-    for module, (_build, accepted) in LISTS.items():
-        filters = {key: _sample(key) for key in accepted}
+    for module, spec in LISTS.items():
+        filters = {key: _sample(key) for key in spec.params}
         filters["cf_region"] = "EMEA"
         response = create(user_client, module=module, name=module, filters=filters)
         assert response.status_code == 201, (module, response.data)
@@ -273,10 +275,10 @@ def test_accepted_params_match_what_the_list_reads(module, admin_user, admin_pro
     """The written-out sets drift from the list functions the day one of them
     grows a filter. Asked both ways, so a param a list stops reading is caught
     as well as one it starts reading."""
-    build, accepted = LISTS[module]
+    spec = LISTS[module]
     params = _Recorder()
-    build(SimpleNamespace(profile=admin_profile, user=admin_user), params)
-    assert params.read - {"__probe__"} == accepted
+    spec.query(admin_profile, params)
+    assert params.read - {"__probe__"} == spec.params
 
 
 # ------------------------------------------------------------ names and cap

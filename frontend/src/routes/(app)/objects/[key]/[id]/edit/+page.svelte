@@ -24,6 +24,14 @@
     })
   );
   let linkFields = $derived(data.linkFields);
+  // The tags typed in a refused save, else the record's own.
+  let selectedTags = $derived(
+    typed?.tags
+      ? typed.tags
+          .map((id) => data.tags?.find((t) => t.id === id) ?? record.tags?.find((t) => t.id === id))
+          .filter((t) => t !== undefined)
+      : (record.tags ?? [])
+  );
 </script>
 
 <PageHeader title="Edit {record.name}" center>
@@ -77,6 +85,9 @@
       {linkFields}
       people={data.people}
       assignees={record.assigned_to}
+      tags={data.tags}
+      {selectedTags}
+      savedTags={record.tags ?? []}
       edit
     />
 

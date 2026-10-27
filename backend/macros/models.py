@@ -57,9 +57,9 @@ class Macro(BaseModel):
     set_assignees = models.ManyToManyField(
         Profile, blank=True, related_name="macros_assigning"
     )
-    # `add_tags` in the API. Named `tags` here because the tag registry
-    # (`common.views.tags_views._TAGGABLE`) counts usage and merges tags
-    # through a `tags` relation, and a macro that adds a tag is a use of it.
+    # `add_tags` in the API. Named `tags` here because tag usage and merges
+    # (`common.views.tags_views.NON_OBJECT_TAG_HOLDERS`) go through a `tags`
+    # relation, and a macro that adds a tag is a use of it.
     tags = models.ManyToManyField(Tags, blank=True, related_name="macros_tagging")
 
     org = models.ForeignKey(Org, on_delete=models.CASCADE, related_name="macros")

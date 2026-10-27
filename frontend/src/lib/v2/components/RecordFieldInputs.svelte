@@ -6,6 +6,11 @@
    * showed, so it sends only a change. `typed` restores what a refused save
    * carried; `errors` holds the server's message per field key. `form` ties
    * the custom field inputs to a form they sit outside of, by its id.
+   *
+   * `tags` (the org's active tags) draws the tag picker; leave it out when
+   * the list could not be loaded, and the form sends no `tags` at all.
+   * `selectedTags` are the record's own, and one that is no longer active
+   * stays on offer, checked, so a save never drops it unseen.
    */
   import { inactiveOptionLabel, missingOptions } from '#lib/v2/pickers.js';
   import RecordPicker from '#lib/v2/components/RecordPicker.svelte';
@@ -16,6 +21,9 @@
     linkFields = [],
     people,
     assignees = [],
+    tags = undefined,
+    selectedTags = [],
+    savedTags = undefined,
     edit = false,
     typed = null,
     errors = null,
@@ -26,6 +34,10 @@
     linkFields?: ReturnType<typeof linkFieldsForEdit>;
     people?: { id: string; name: string }[];
     assignees?: { id: string; name: string }[];
+    tags?: { id: string; name: string }[];
+    selectedTags?: { id: string; name: string }[];
+    /** What the record holds, when `selectedTags` is a refused save's choice instead. */
+    savedTags?: { id: string; name: string }[];
     edit?: boolean;
     typed?: unknown;
     errors?: Record<string, string> | null;
@@ -47,6 +59,9 @@
   let stale = $derived(missingOptions(people ?? [], assignees));
   let assigned = $derived(new Set(assignees.map((a) => a.id)));
   let was = $derived(assignees.map((a) => a.id).join(','));
+  let staleTags = $derived(missingOptions(tags ?? [], selectedTags));
+  let pickedTags = $derived(new Set(selectedTags.map((t) => t.id)));
+  let tagsWas = $derived((savedTags ?? selectedTags).map((t) => t.id).join(','));
 </script>
 
 <input type="hidden" name="cf__rendered" form={formId} value={fields.map((f) => f.key).join(',')} />
@@ -145,6 +160,36 @@
   </div>
 {/each}
 
+{#if tags}
+  <fieldset class="v2-field ri-people">
+    <legend class="ri-label">Tags</legend>
+    <input type="hidden" name="tags__was" value={edit ? tagsWas : ''} form={formId} />
+    <div class="ri-tags">
+      {#each staleTags as t (t.id)}
+        <label class="ri-tag">
+          <input type="checkbox" name="tags" value={t.id} checked form={formId} />
+          <span>{inactiveOptionLabel(t.name)}</span>
+        </label>
+      {/each}
+      {#each tags as t (t.id)}
+        <label class="ri-tag">
+          <input
+            type="checkbox"
+            name="tags"
+            value={t.id}
+            checked={pickedTags.has(t.id)}
+            form={formId}
+          />
+          <span>{t.name}</span>
+        </label>
+      {/each}
+    </div>
+    {#if tags.length === 0 && staleTags.length === 0}
+      <p class="v2-hint">No tags yet.</p>
+    {/if}
+  </fieldset>
+{/if}
+
 {#if people}
   <fieldset class="v2-field ri-people">
     <legend class="ri-label">Assigned to</legend>
@@ -208,6 +253,39 @@
   }
   .ri-person {
     font-weight: 400;
+  }
+  .ri-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .ri-tag {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 13px;
+    border: 1px solid var(--v2-line);
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 400;
+    cursor: pointer;
+  }
+  .ri-tag:has(input:checked) {
+    border-color: var(--v2-ink);
+    background: var(--v2-ink);
+    color: var(--v2-paper);
+  }
+  /* The chip is the affordance; the box stays focusable but is not drawn. */
+  .ri-tag input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .ri-tag:has(input:focus-visible) {
+    outline: 2px solid var(--v2-ember);
+    outline-offset: 1px;
   }
   .ri-person span {
     overflow-wrap: anywhere;

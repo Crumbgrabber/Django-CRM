@@ -12,7 +12,7 @@
  * `is_org_admin` itself (`cases/views.py:176`). These exist so the UI does not
  * silently inherit every param these endpoints grow.
  */
-import { FILTERS, type Field } from '#lib/v2/filters.js';
+import { descriptorFor, type Descriptor, type Field } from '#lib/v2/filters.js';
 
 const BOOLEANS = ['true', 'false'];
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -48,8 +48,11 @@ const ID_TYPES = ['person', 'tag', 'account'];
  * ticket statuses) keeps every valid value, as an array, so a list opened with
  * two owners filters by both rather than silently by the first.
  */
-export function readFilters(url: URL, pageKey: string): Record<string, string | string[]> {
-  const descriptor = FILTERS[pageKey];
+export function readFilters(
+  url: URL,
+  pageKey: string | Descriptor
+): Record<string, string | string[]> {
+  const descriptor = descriptorFor(pageKey);
   if (!descriptor) return {};
 
   const out: Record<string, string | string[]> = {};
@@ -78,7 +81,13 @@ export function readFilters(url: URL, pageKey: string): Record<string, string | 
 /** Whether `value` is one `field` can hold. */
 function isValid(field: Field, value: string) {
   if (!value) return false;
-  if (field.type === 'select') return Boolean(field.options?.includes(value));
+  if (field.type === 'select') {
+    return (
+      Boolean(field.options?.includes(value)) ||
+      // A stale option is kept, but a NUL is one the API refuses (400).
+      (field.keepUnknown === true && value.length <= 255 && !value.includes('\u0000'))
+    );
+  }
   if (field.type === 'boolean') return BOOLEANS.includes(value);
   if (ID_TYPES.includes(field.type)) return UUID.test(value);
   if (field.type === 'stage') return STAGE_CODE.test(value);
