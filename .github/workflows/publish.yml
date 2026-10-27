@@ -108,7 +108,7 @@ jobs:
           DJANGO_SETTINGS_MODULE: crm.test_settings
           SECRET_KEY: test-secret-key-for-ci
           ADMIN_EMAIL: admin@test.com
-        run: uv run pytest -m "not postgres_only" --no-cov --tb=short
+        run: uv run pytest -n auto -m "not postgres_only" --no-cov --tb=short
 
   build:
     needs: test

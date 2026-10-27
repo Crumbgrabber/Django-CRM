@@ -7,8 +7,6 @@ It is now decided by method and path together, against an exact set of paths,
 so nothing near those paths turns into a read by accident.
 """
 
-import uuid
-
 import pytest
 from django.core.cache import cache
 
@@ -47,8 +45,8 @@ class TestMatcher:
             "/api/leads/duplicates",  # missing slash
             "/api/leads/duplicates/extra/",  # extra segment
             "/api/leads/duplicates//",
-            f"/api/leads/{uuid.uuid4()}/duplicates/",  # a record's own list
-            f"/api/leads/{uuid.uuid4()}/merge/",
+            "/api/leads/b28f4d79-ca83-4b2f-b371-960039a74bf3/duplicates/",  # a record's own list
+            "/api/leads/0410b5f3-41ca-4413-b65e-321b82e059af/merge/",
             "/api/Leads/duplicates/",
             "/api/leads/duplicates/../",
             "/api/tasks/duplicates/",

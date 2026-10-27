@@ -33,6 +33,16 @@ edit-run-edit loop, drop coverage and stop at the first failure:
 uv run pytest --no-cov -x
 ```
 
+For the whole suite, spread it across your CPU cores with `pytest-xdist`, as CI does. It cuts a
+full run to about a quarter of the time:
+
+```bash
+uv run pytest -n auto --no-cov
+```
+
+Parallel workers must collect identical tests, so a parametrized value can never be random (a
+`uuid4()` in a `parametrize` list fails collection); use a fixed literal instead.
+
 `--strict-markers` (also set in `addopts`) means a typo'd **custom** marker fails the run immediately
 rather than being silently ignored. Every custom marker you use has to be declared in `pytest.ini`'s
 `markers` list. It doesn't touch markers a plugin registers itself, like `@pytest.mark.django_db`
