@@ -335,7 +335,7 @@
                     <ConfirmAction
                       action="?/switch"
                       label="Switch off"
-                      confirmLabel="Switch off"
+                      confirmLabel="Yes, switch off {row.label}"
                       explain={row.stops}
                       hidden={{ key: row.key, on: 'false' }}
                     />
