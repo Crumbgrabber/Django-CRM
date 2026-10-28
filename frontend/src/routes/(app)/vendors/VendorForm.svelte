@@ -2,6 +2,7 @@
   import { enhance } from '$app/forms';
   import { resolve } from '$app/paths';
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
+  import { CURRENCY_CODES } from '#lib/constants/filters.js';
   import type { components } from '#lib/api-schema.js';
   import type { FormBody } from '#lib/api-helpers.js';
   type Vendor = components['schemas']['Vendor'];
@@ -11,6 +12,7 @@
     form
   }: {
     data: {
+      org: { currency: string };
       vendor: Vendor | null;
       options: {
         industries: { value: string; label: string }[];
@@ -29,7 +31,6 @@
     ['email', 'Email', 'email'],
     ['phone', 'Phone', 'tel'],
     ['website', 'Website', 'url'],
-    ['currency', 'Currency (three-letter code)', 'text'],
     ['address_line', 'Address', 'text'],
     ['city', 'City', 'text'],
     ['state', 'State', 'text'],
@@ -41,6 +42,9 @@
     const v = form?.values?.[field] ?? data.vendor?.[field] ?? [];
     return Array.isArray(v) ? v.map(String) : [];
   };
+  const currency = $derived(
+    data.vendor ? value('currency') : value('currency') || data.org.currency
+  );
 </script>
 
 <svelte:head><title>{data.vendor ? 'Edit vendor' : 'New vendor'}</title></svelte:head>
@@ -64,6 +68,20 @@
         />
       </div>
     {/each}
+    <div class="v2-field">
+      <label for="currency">Currency</label>
+      <select class="v2-input" id="currency" name="currency">
+        <option value="">Not recorded</option>
+        {#if currency && !CURRENCY_CODES.some((c) => c.value === currency)}<option
+            value={currency}
+            selected>{currency}</option
+          >{/if}
+        {#each CURRENCY_CODES.filter((c) => c.value) as option (option.value)}<option
+            value={option.value}
+            selected={option.value === currency}>{option.label}</option
+          >{/each}
+      </select>
+    </div>
     {#each ['industry', 'country'] as field (field)}
       {@const options = field === 'industry' ? data.options.industries : data.options.countries}
       {@const current = value(field as 'industry' | 'country')}
