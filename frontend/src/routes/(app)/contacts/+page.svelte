@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Pagination from '#lib/v2/components/Pagination.svelte';
   import { resolve } from '$app/paths';
   import { page } from '$app/state';
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
@@ -170,10 +171,14 @@
         </tbody>
       </table>
     </div>
-    <p class="v2-sub v2-pad" style="font-size:12px;padding-bottom:24px">
-      Showing <span class="v2-num">{contacts.length}</span> of
-      <span class="v2-num">{count(totals.count)}</span>
-    </p>
+    <div class="v2-pad">
+      <Pagination
+        {...data.paging}
+        count={totals.count}
+        shown={contacts.length}
+        label="Contact pages"
+      />
+    </div>
   {/if}
 </div>
 

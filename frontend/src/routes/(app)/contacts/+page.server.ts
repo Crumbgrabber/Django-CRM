@@ -34,6 +34,7 @@ export const load: PageServerLoad = async ({ cookies, url, locals }) => {
   ]);
 
   return {
+    paging: { offset: Number(params.get('offset') ?? 0), limit: Number(params.get('limit')) },
     contacts: results,
     totals,
     includeInactive,

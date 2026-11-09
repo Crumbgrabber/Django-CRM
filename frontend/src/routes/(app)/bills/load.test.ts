@@ -10,7 +10,11 @@ it('forwards status, overdue and pagination', async () => {
   const event = {
     url: new URL('http://test/bills?status=UNPAID&overdue=true&offset=25&vendor=foreign')
   } as any;
-  expect(await load(event)).toMatchObject({ status: 'UNPAID', overdue: true, offset: 25 });
+  expect(await load(event)).toMatchObject({
+    status: 'UNPAID',
+    overdue: true,
+    paging: { limit: 25, offset: 25 }
+  });
   expect(listBills).toHaveBeenCalledWith(
     event,
     new URLSearchParams({ limit: '25', offset: '25', status: 'UNPAID', overdue: 'true' })
@@ -21,5 +25,5 @@ it('clears invalid filters and pagination', async () => {
     await load({
       url: new URL('http://test/bills?status=bad&overdue=false&offset=Infinity')
     } as any)
-  ).toMatchObject({ status: '', overdue: false, offset: 0 });
+  ).toMatchObject({ status: '', overdue: false, paging: { limit: 25, offset: 0 } });
 });

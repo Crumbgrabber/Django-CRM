@@ -9,6 +9,7 @@
  *
  * Server-only, like `filter-params.js` which it builds on.
  */
+import { withPaging } from '#lib/server/v2/paging.js';
 import { readFilters, buildFilterQuery } from '#lib/server/v2/filter-params.js';
 import { FILTER_FIELDS as LEAD_FIELDS } from '#lib/server/v2/leads.js';
 import { FILTER_FIELDS as CONTACT_FIELDS } from '#lib/server/v2/contacts.js';
@@ -29,9 +30,9 @@ function copyKeys(params: URLSearchParams, url: URL, keys: string[]) {
 export function leadListQuery(url: URL) {
   const params = copyKeys(buildFilterQuery(LEAD_FIELDS, readFilters(url, 'leads')), url, [
     'search',
-    'rating',
-    'limit'
+    'rating'
   ]);
+  withPaging(params, url);
   if (url.searchParams.get('unanswered') === 'true') params.set('unanswered', 'true');
   return params;
 }
@@ -45,19 +46,19 @@ export function contactListQuery(url: URL) {
     'search',
     'name',
     'email',
-    'phone',
-    'limit'
+    'phone'
   ]);
+  withPaging(params, url);
   if (url.searchParams.get('inactive') !== '1') params.set('is_active', 'true');
   return params;
 }
 
 export function accountListQuery(url: URL) {
-  return copyKeys(buildFilterQuery(ACCOUNT_FIELDS, readFilters(url, 'accounts')), url, [
+  const params = copyKeys(buildFilterQuery(ACCOUNT_FIELDS, readFilters(url, 'accounts')), url, [
     'search',
-    'name',
-    'limit'
+    'name'
   ]);
+  return withPaging(params, url);
 }
 
 /**

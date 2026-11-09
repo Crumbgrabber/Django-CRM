@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Pagination from '#lib/v2/components/Pagination.svelte';
   import { resolve } from '$app/paths';
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
   import EmptyState from '#lib/v2/components/EmptyState.svelte';
@@ -35,22 +36,12 @@
         {/each}
       </tbody>
     </table>
-    <nav class="pagination" aria-label="Vendor pages">
-      {#if data.vendors.previous}<a
-          class="v2-btn"
-          href="{resolve('/(app)/vendors')}?{new URLSearchParams({
-            search: data.search,
-            offset: String(Math.max(0, data.offset - 25))
-          })}">Previous</a
-        >{/if}
-      {#if data.vendors.next}<a
-          class="v2-btn"
-          href="{resolve('/(app)/vendors')}?{new URLSearchParams({
-            search: data.search,
-            offset: String(data.offset + 25)
-          })}">Next</a
-        >{/if}
-    </nav>
+    <Pagination
+      {...data.paging}
+      count={data.vendors.count}
+      shown={data.vendors.results.length}
+      label="Vendor pages"
+    />
   {:else}
     <EmptyState
       title={data.search ? 'No matching vendors' : 'No vendors yet'}
@@ -60,8 +51,7 @@
 </div>
 
 <style>
-  .search,
-  .pagination {
+  .search {
     display: flex;
     flex-wrap: wrap;
     gap: 12px;

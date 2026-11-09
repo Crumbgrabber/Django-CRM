@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Pagination from '#lib/v2/components/Pagination.svelte';
   import { resolve } from '$app/paths';
   import { page } from '$app/state';
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
@@ -160,13 +161,15 @@
         </tbody>
       </table>
     </div>
+    <div class="v2-pad">
+      <Pagination
+        {...data.paging}
+        count={totals.count}
+        shown={totals.shown}
+        label="Account pages"
+      />
+    </div>
     <p class="v2-sub v2-pad" style="font-size:12px;padding-bottom:24px">
-      {#if totals.shown < totals.count}
-        Showing <span class="v2-num">{totals.shown}</span> of
-        <span class="v2-num">{count(totals.count)}</span>
-      {:else}
-        Showing all <span class="v2-num">{count(totals.count)}</span>
-      {/if}
       {#if totals.inactive}
         · <span class="v2-num">{totals.inactive}</span> inactive not shown
       {/if}

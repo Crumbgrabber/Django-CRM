@@ -1,15 +1,10 @@
 <script lang="ts">
+  import Pagination from '#lib/v2/components/Pagination.svelte';
   import { resolve } from '$app/paths';
   import PageHeader from '#lib/v2/components/PageHeader.svelte';
   import BillsTable from '../vendors/BillsTable.svelte';
   import type { PageProps } from './$types';
   let { data }: PageProps = $props();
-  const pageQuery = (offset: number) =>
-    new URLSearchParams({
-      status: data.status,
-      overdue: String(data.overdue),
-      offset: String(offset)
-    });
 </script>
 
 <svelte:head><title>Bills</title></svelte:head>
@@ -36,21 +31,16 @@
     <button class="v2-btn" type="submit">Apply filters</button>
   </form>
   <BillsTable bills={data.bills.results} showVendor currency={data.org.currency} />
-  <nav class="pagination" aria-label="Bill pages">
-    {#if data.bills.previous}<a
-        class="v2-btn"
-        href="{resolve('/(app)/bills')}?{pageQuery(Math.max(0, data.offset - 25))}">Previous</a
-      >{/if}
-    {#if data.bills.next}<a
-        class="v2-btn"
-        href="{resolve('/(app)/bills')}?{pageQuery(data.offset + 25)}">Next</a
-      >{/if}
-  </nav>
+  <Pagination
+    {...data.paging}
+    count={data.bills.count}
+    shown={data.bills.results.length}
+    label="Bill pages"
+  />
 </div>
 
 <style>
-  .filters,
-  .pagination {
+  .filters {
     display: flex;
     flex-wrap: wrap;
     align-items: center;

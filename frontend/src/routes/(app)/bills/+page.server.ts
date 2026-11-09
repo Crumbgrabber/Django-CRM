@@ -1,4 +1,5 @@
 import { listBills } from '#lib/server/v2/vendors.js';
+import { readPaging, withPaging } from '#lib/server/v2/paging.js';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
@@ -7,10 +8,8 @@ export const load: PageServerLoad = async (event) => {
     ? input.get('status')!
     : '';
   const overdue = input.get('overdue') === 'true';
-  const rawOffset = Number(input.get('offset'));
-  const offset = Number.isFinite(rawOffset) ? Math.max(0, Math.floor(rawOffset)) : 0;
-  const params = new URLSearchParams({ limit: '25', offset: String(offset) });
+  const params = withPaging(new URLSearchParams(), event.url);
   if (status) params.set('status', status);
   if (overdue) params.set('overdue', 'true');
-  return { bills: await listBills(event, params), status, overdue, offset };
+  return { bills: await listBills(event, params), status, overdue, paging: readPaging(event.url) };
 };
